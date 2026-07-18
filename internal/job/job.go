@@ -52,29 +52,52 @@ type Transition struct {
 
 // New creates a job in the created state.
 func New(id ID, spec Spec, now time.Time) (Job, error) {
-	if !id.Valid() {
-		return Job{}, fmt.Errorf("%w: %w", ErrInvalidJob, ErrInvalidID)
-	}
-	if err := spec.Validate(); err != nil {
-		return Job{}, fmt.Errorf("%w: %w", ErrInvalidJob, err)
-	}
-	if now.IsZero() {
-		return Job{}, fmt.Errorf("%w: creation time is required", ErrInvalidJob)
-	}
-
 	now = now.UTC()
-	return Job{
+	created := Job{
 		ID:        id,
 		Spec:      spec.Clone(),
 		State:     StateCreated,
 		CreatedAt: now,
 		UpdatedAt: now,
-	}, nil
+	}
+	if err := created.Validate(); err != nil {
+		return Job{}, err
+	}
+	return created, nil
+}
+
+// Validate checks a job reconstructed from a persistence or protocol boundary.
+func (current Job) Validate() error {
+	if !current.ID.Valid() {
+		return fmt.Errorf("%w: %w", ErrInvalidJob, ErrInvalidID)
+	}
+	if err := current.Spec.Validate(); err != nil {
+		return fmt.Errorf("%w: %w", ErrInvalidJob, err)
+	}
+	if !current.State.Valid() {
+		return fmt.Errorf("%w: %w: %q", ErrInvalidJob, ErrInvalidState, current.State)
+	}
+	if current.CreatedAt.IsZero() {
+		return fmt.Errorf("%w: creation time is required", ErrInvalidJob)
+	}
+	if current.UpdatedAt.IsZero() {
+		return fmt.Errorf("%w: update time is required", ErrInvalidJob)
+	}
+	if current.UpdatedAt.Before(current.CreatedAt) {
+		return fmt.Errorf("%w: update time precedes creation time", ErrInvalidJob)
+	}
+	if _, err := validateFailureForState(current.State, current.Failure); err != nil {
+		return fmt.Errorf("%w: %w", ErrInvalidJob, err)
+	}
+	return nil
 }
 
 // Apply validates and returns the next job value plus its transition record.
 // The receiver is not mutated.
 func (current Job) Apply(to State, at time.Time, failure *Failure) (Job, Transition, error) {
+	if err := current.Validate(); err != nil {
+		return Job{}, Transition{}, err
+	}
 	if err := ValidateTransition(current.State, to); err != nil {
 		return Job{}, Transition{}, err
 	}

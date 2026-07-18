@@ -81,6 +81,48 @@ func TestApplyRejectsTimeBeforeCurrentState(t *testing.T) {
 	}
 }
 
+func TestValidateRejectsInvalidRehydratedJob(t *testing.T) {
+	valid := mustJobInState(t, StateRunning)
+
+	for _, test := range []struct {
+		name   string
+		mutate func(*Job)
+	}{
+		{
+			name: "invalid ID",
+			mutate: func(value *Job) {
+				value.ID = "not-an-id"
+			},
+		},
+		{
+			name: "invalid state",
+			mutate: func(value *Job) {
+				value.State = "paused"
+			},
+		},
+		{
+			name: "backwards timestamps",
+			mutate: func(value *Job) {
+				value.UpdatedAt = value.CreatedAt.Add(-time.Second)
+			},
+		},
+		{
+			name: "unexpected failure",
+			mutate: func(value *Job) {
+				value.Failure = &Failure{Code: "unexpected", Message: "unexpected"}
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			value := valid
+			test.mutate(&value)
+			if err := value.Validate(); !errors.Is(err, ErrInvalidJob) {
+				t.Fatalf("Validate() error = %v, want ErrInvalidJob", err)
+			}
+		})
+	}
+}
+
 func mustJobInState(t *testing.T, target State) Job {
 	t.Helper()
 	id := mustParseID(t, "019abcdf-0123-4567-89ab-0123456789ab")
