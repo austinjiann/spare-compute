@@ -5,13 +5,19 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	localv1 "github.com/austinjiann/spare-compute/gen/go/computehop/local/v1"
 	"github.com/austinjiann/spare-compute/internal/infra/sqlite"
+	"github.com/austinjiann/spare-compute/internal/job"
 	"github.com/austinjiann/spare-compute/internal/platform/paths"
+	"github.com/austinjiann/spare-compute/internal/platform/permissions"
+	"github.com/austinjiann/spare-compute/internal/protocol/localipc"
+	"github.com/austinjiann/spare-compute/internal/protocol/mapper"
 )
 
 func TestRunCheckInitializesDurableState(t *testing.T) {
@@ -69,7 +75,7 @@ func TestRunVersionDoesNotCreateState(t *testing.T) {
 func TestRunStopsWhenContextIsCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	stateDir := filepath.Join(t.TempDir(), "state")
+	stateDir := shortStateDir(t)
 	var stdout bytes.Buffer
 	stderr := newSignalBuffer("computehopd started")
 	result := make(chan error, 1)
@@ -80,6 +86,8 @@ func TestRunStopsWhenContextIsCancelled(t *testing.T) {
 	select {
 	case <-stderr.matched:
 		cancel()
+	case err := <-result:
+		t.Fatalf("daemon exited before startup: %v; logs = %q", err, stderr.String())
 	case <-time.After(5 * time.Second):
 		t.Fatalf("daemon did not start; logs = %q", stderr.String())
 	}
@@ -94,6 +102,137 @@ func TestRunStopsWhenContextIsCancelled(t *testing.T) {
 	if logs := stderr.String(); !strings.Contains(logs, "computehopd started") || !strings.Contains(logs, "computehopd stopped") {
 		t.Fatalf("daemon lifecycle logs = %q", logs)
 	}
+}
+
+func TestDaemonLocalIPCRoundTripPersistsJobs(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows named-pipe transport is a later worker-management slice")
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	stateDir := shortStateDir(t)
+	stderr := newSignalBuffer("computehopd started")
+	result := make(chan error, 1)
+	go func() {
+		result <- run(ctx, []string{"--state-dir", stateDir}, &bytes.Buffer{}, stderr)
+	}()
+
+	select {
+	case <-stderr.matched:
+	case err := <-result:
+		t.Fatalf("daemon exited before startup: %v; logs = %q", err, stderr.String())
+	case <-time.After(5 * time.Second):
+		t.Fatalf("daemon did not start; logs = %q", stderr.String())
+	}
+
+	tokenPath, err := paths.CapabilityTokenPath(stateDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	token, err := permissions.LoadCapabilityToken(tokenPath)
+	if err != nil {
+		t.Fatalf("load daemon token: %v", err)
+	}
+	socketPath, err := paths.LocalSocketPath(stateDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, err := localipc.NewClient(socketPath, token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	spec, err := mapper.SpecToProto(job.Spec{
+		Executable:       "echo",
+		Arguments:        []string{"hello"},
+		WorkingDirectory: stateDir,
+		Executor:         job.ExecutorNative,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	submitted, err := client.Call(context.Background(), &localv1.Request{
+		Operation: &localv1.Request_SubmitJob{SubmitJob: &localv1.SubmitJobRequest{Spec: spec}},
+	})
+	if err != nil {
+		t.Fatalf("submit job: %v", err)
+	}
+	submittedJob, err := mapper.JobFromProto(submitted.GetSubmitJob().GetJob())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if submittedJob.State != job.StateQueued {
+		t.Fatalf("submitted state = %s, want queued", submittedJob.State)
+	}
+
+	listed, err := client.Call(context.Background(), &localv1.Request{
+		Operation: &localv1.Request_ListJobs{ListJobs: &localv1.ListJobsRequest{Limit: 10}},
+	})
+	if err != nil {
+		t.Fatalf("list jobs: %v", err)
+	}
+	if len(listed.GetListJobs().GetJobs()) != 1 {
+		t.Fatalf("listed jobs = %d, want 1", len(listed.GetListJobs().GetJobs()))
+	}
+
+	cancelled, err := client.Call(context.Background(), &localv1.Request{
+		Operation: &localv1.Request_CancelJob{CancelJob: &localv1.CancelJobRequest{
+			JobId: string(submittedJob.ID),
+		}},
+	})
+	if err != nil {
+		t.Fatalf("cancel job: %v", err)
+	}
+	cancelledJob, err := mapper.JobFromProto(cancelled.GetCancelJob().GetJob())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cancelledJob.State != job.StateCancelled {
+		t.Fatalf("cancelled state = %s, want cancelled", cancelledJob.State)
+	}
+
+	cancel()
+	select {
+	case err := <-result:
+		if err != nil {
+			t.Fatalf("daemon shutdown: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("daemon did not stop")
+	}
+	if _, err := os.Lstat(socketPath); !os.IsNotExist(err) {
+		t.Fatalf("socket remained after shutdown: %v", err)
+	}
+
+	databasePath, err := paths.DatabasePath(stateDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	database, err := sqlite.Open(context.Background(), databasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	persisted, err := database.Jobs().Get(context.Background(), submittedJob.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if persisted.State != job.StateCancelled {
+		t.Fatalf("persisted state = %s, want cancelled", persisted.State)
+	}
+}
+
+func shortStateDir(t *testing.T) string {
+	t.Helper()
+	base := "/tmp"
+	if runtime.GOOS == "windows" {
+		base = ""
+	}
+	directory, err := os.MkdirTemp(base, "ch-")
+	if err != nil {
+		t.Fatalf("create short state directory: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(directory) })
+	return directory
 }
 
 type signalBuffer struct {
@@ -143,5 +282,31 @@ func TestRunRejectsBlankStateDirectory(t *testing.T) {
 		&stderr,
 	); err == nil {
 		t.Fatalf("run() error = nil")
+	}
+}
+
+func TestRunRejectsUnsafeStateDirectoryWithoutChangingIt(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows permissions are represented by ACLs")
+	}
+	stateDir := filepath.Join(t.TempDir(), "open-state")
+	if err := os.Mkdir(stateDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	if err := run(
+		context.Background(),
+		[]string{"--check", "--state-dir", stateDir},
+		&stdout,
+		&stderr,
+	); err == nil {
+		t.Fatal("run() error = nil")
+	}
+	info, err := os.Stat(stateDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := info.Mode().Perm(); got != 0o755 {
+		t.Fatalf("state directory permissions changed to %o", got)
 	}
 }

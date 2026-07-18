@@ -10,10 +10,13 @@ import (
 	"os/signal"
 	"time"
 
+	"github.com/austinjiann/spare-compute/internal/app/orchestrator"
 	"github.com/austinjiann/spare-compute/internal/app/worker"
 	"github.com/austinjiann/spare-compute/internal/infra/sqlite"
 	"github.com/austinjiann/spare-compute/internal/job"
 	"github.com/austinjiann/spare-compute/internal/platform/paths"
+	"github.com/austinjiann/spare-compute/internal/platform/permissions"
+	"github.com/austinjiann/spare-compute/internal/protocol/localipc"
 )
 
 var version = "dev"
@@ -55,6 +58,9 @@ func run(ctx context.Context, arguments []string, stdout, stderr io.Writer) (run
 	if err != nil {
 		return err
 	}
+	if err := permissions.EnsurePrivateDirectory(stateDir); err != nil {
+		return fmt.Errorf("secure state directory: %w", err)
+	}
 
 	database, err := sqlite.Open(ctx, databasePath)
 	if err != nil {
@@ -66,7 +72,7 @@ func run(ctx context.Context, arguments []string, stdout, stderr io.Writer) (run
 		}
 	}()
 
-	_, err = worker.NewJobService(worker.Dependencies{
+	jobService, err := worker.NewJobService(worker.Dependencies{
 		Jobs:       database.Jobs(),
 		GenerateID: job.NewID,
 		Now:        time.Now,
@@ -81,8 +87,39 @@ func run(ctx context.Context, arguments []string, stdout, stderr io.Writer) (run
 	}
 
 	logger := slog.New(slog.NewTextHandler(stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
-	logger.Info("computehopd started", "database", databasePath, "version", version)
-	<-ctx.Done()
+	if !localIPCSupported {
+		logger.Info("computehopd started", "database", databasePath, "version", version, "local_ipc", "unsupported")
+		<-ctx.Done()
+		logger.Info("computehopd stopped")
+		return nil
+	}
+
+	tokenPath, err := paths.CapabilityTokenPath(stateDir)
+	if err != nil {
+		return err
+	}
+	token, err := permissions.LoadOrCreateCapabilityToken(tokenPath)
+	if err != nil {
+		return fmt.Errorf("initialize local IPC authentication: %w", err)
+	}
+	socketPath, err := paths.LocalSocketPath(stateDir)
+	if err != nil {
+		return err
+	}
+	handler, err := orchestrator.NewLocalHandler(jobService, version)
+	if err != nil {
+		return fmt.Errorf("initialize local IPC handler: %w", err)
+	}
+	server, err := localipc.NewServer(socketPath, token, handler)
+	if err != nil {
+		return fmt.Errorf("initialize local IPC server: %w", err)
+	}
+	defer server.Close()
+
+	logger.Info("computehopd started", "database", databasePath, "socket", socketPath, "version", version)
+	if err := server.Serve(ctx); err != nil {
+		return fmt.Errorf("serve local IPC: %w", err)
+	}
 	logger.Info("computehopd stopped")
 	return nil
 }

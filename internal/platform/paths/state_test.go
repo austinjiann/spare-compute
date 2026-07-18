@@ -89,15 +89,27 @@ func TestResolveStateDirPropagatesPlatformError(t *testing.T) {
 }
 
 func TestDatabasePath(t *testing.T) {
-	got, err := DatabasePath("/state")
-	if err != nil {
-		t.Fatalf("DatabasePath() error = %v", err)
-	}
-	if want := filepath.Join("/state", DatabaseFilename); got != want {
-		t.Fatalf("DatabasePath() = %q, want %q", got, want)
-	}
+	for _, test := range []struct {
+		name     string
+		resolve  func(string) (string, error)
+		filename string
+	}{
+		{name: "database", resolve: DatabasePath, filename: DatabaseFilename},
+		{name: "socket", resolve: LocalSocketPath, filename: LocalSocketFilename},
+		{name: "capability token", resolve: CapabilityTokenPath, filename: CapabilityTokenFilename},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := test.resolve("/state")
+			if err != nil {
+				t.Fatalf("resolve() error = %v", err)
+			}
+			if want := filepath.Join("/state", test.filename); got != want {
+				t.Fatalf("resolve() = %q, want %q", got, want)
+			}
 
-	if _, err := DatabasePath(""); err == nil {
-		t.Fatalf("DatabasePath(\"\") error = nil")
+			if _, err := test.resolve(""); err == nil {
+				t.Fatalf("resolve(\"\") error = nil")
+			}
+		})
 	}
 }
