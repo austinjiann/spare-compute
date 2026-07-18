@@ -19,5 +19,16 @@ execution, deployment, and launch plan.
 - `deploy/` contains hosted connectivity deployment configuration.
 
 The generic job model lives under `internal/job/`, with local durable metadata
-implemented by `internal/infra/sqlite/`. The first working vertical slice will
-connect these pieces to native execution through the daemon and CLI.
+implemented by `internal/infra/sqlite/`. The worker application service can
+durably accept and manage queued jobs, and `computehopd` can initialize that
+state and run as the background process.
+
+The daemon does not expose IPC or execute commands yet. Those are the next
+parts of the first working vertical slice.
+
+To verify daemon state initialization during development:
+
+```bash
+computehop_state_dir="$(mktemp -d)"
+go run ./cmd/computehopd --check --state-dir "$computehop_state_dir"
+```
