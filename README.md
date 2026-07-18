@@ -18,6 +18,6 @@ execution, deployment, and launch plan.
 - `packaging/` contains native installer definitions.
 - `deploy/` contains hosted connectivity deployment configuration.
 
-The first implemented contract is the generic job model under `internal/job/`.
-The first working vertical slice will be durable local execution through the
-daemon and CLI.
+The generic job model lives under `internal/job/`, with local durable metadata
+implemented by `internal/infra/sqlite/`. The first working vertical slice will
+connect these pieces to native execution through the daemon and CLI.
