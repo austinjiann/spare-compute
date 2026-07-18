@@ -9,7 +9,11 @@ import (
 	"strings"
 )
 
-const DatabaseFilename = "computehop.db"
+const (
+	DatabaseFilename        = "computehop.db"
+	LocalSocketFilename     = "computehop.sock"
+	CapabilityTokenFilename = "local-ipc.token"
+)
 
 // StateDir returns the default directory for durable local ComputeHop state.
 func StateDir() (string, error) {
@@ -24,10 +28,24 @@ func StateDir() (string, error) {
 
 // DatabasePath resolves the daemon database inside stateDir.
 func DatabasePath(stateDir string) (string, error) {
+	return stateFilePath(stateDir, DatabaseFilename)
+}
+
+// LocalSocketPath resolves the user-owned daemon socket inside stateDir.
+func LocalSocketPath(stateDir string) (string, error) {
+	return stateFilePath(stateDir, LocalSocketFilename)
+}
+
+// CapabilityTokenPath resolves the local IPC capability token inside stateDir.
+func CapabilityTokenPath(stateDir string) (string, error) {
+	return stateFilePath(stateDir, CapabilityTokenFilename)
+}
+
+func stateFilePath(stateDir, filename string) (string, error) {
 	if strings.TrimSpace(stateDir) == "" {
 		return "", errors.New("state directory is required")
 	}
-	return filepath.Join(stateDir, DatabaseFilename), nil
+	return filepath.Join(stateDir, filename), nil
 }
 
 func resolveStateDir(
