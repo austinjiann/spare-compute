@@ -1,0 +1,24 @@
+# macOS
+.DS_Store
+
+# Editors
+.idea/
+.vscode/
+*.swp
+
+# Go build and test output
+/bin/
+/dist/
+*.test
+coverage.out
+
+# Local ComputeHop state
+*.db
+*.db-shm
+*.db-wal
+*.sock
+
+# Xcode user state and build output
+DerivedData/
+*.xcuserstate
+xcuserdata/
