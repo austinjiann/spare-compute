@@ -12,6 +12,7 @@ import (
 	"time"
 
 	localv1 "github.com/austinjiann/spare-compute/gen/go/computehop/local/v1"
+	"github.com/austinjiann/spare-compute/internal/device"
 	"github.com/austinjiann/spare-compute/internal/infra/sqlite"
 	"github.com/austinjiann/spare-compute/internal/job"
 	"github.com/austinjiann/spare-compute/internal/platform/paths"
@@ -42,6 +43,13 @@ func TestRunCheckInitializesDurableState(t *testing.T) {
 	}
 	if _, err := os.Stat(databasePath); err != nil {
 		t.Fatalf("database was not created: %v", err)
+	}
+	identityPath, err := paths.DeviceIdentityPath(stateDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(identityPath); err != nil {
+		t.Fatalf("device identity was not created: %v", err)
 	}
 	database, err := sqlite.Open(context.Background(), databasePath)
 	if err != nil {
@@ -80,7 +88,13 @@ func TestRunStopsWhenContextIsCancelled(t *testing.T) {
 	stderr := newSignalBuffer("computehopd started")
 	result := make(chan error, 1)
 	go func() {
-		result <- run(ctx, []string{"--state-dir", stateDir}, &stdout, stderr)
+		result <- runWithDependencies(
+			ctx,
+			[]string{"--state-dir", stateDir},
+			&stdout,
+			stderr,
+			runtimeDependencies{discovery: idleTestDiscovery{}},
+		)
 	}()
 
 	select {
@@ -119,7 +133,7 @@ func TestDaemonLocalIPCRoundTripPersistsJobs(t *testing.T) {
 			[]string{"--state-dir", stateDir},
 			&bytes.Buffer{},
 			stderr,
-			runtimeDependencies{disableDispatcher: true},
+			runtimeDependencies{disableDispatcher: true, discovery: idleTestDiscovery{}},
 		)
 	}()
 
@@ -225,6 +239,19 @@ func TestDaemonLocalIPCRoundTripPersistsJobs(t *testing.T) {
 	if persisted.State != job.StateCancelled {
 		t.Fatalf("persisted state = %s, want cancelled", persisted.State)
 	}
+}
+
+type idleTestDiscovery struct{}
+
+func (idleTestDiscovery) Run(
+	ctx context.Context,
+	_ device.Announcement,
+	_ func(device.Observation),
+	ready func(),
+) error {
+	ready()
+	<-ctx.Done()
+	return nil
 }
 
 func shortStateDir(t *testing.T) string {

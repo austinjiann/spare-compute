@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"flag"
 	"fmt"
@@ -13,6 +14,9 @@ import (
 
 	"github.com/austinjiann/spare-compute/internal/app/orchestrator"
 	"github.com/austinjiann/spare-compute/internal/app/worker"
+	"github.com/austinjiann/spare-compute/internal/device"
+	"github.com/austinjiann/spare-compute/internal/infra/discovery/mdns"
+	identityinfra "github.com/austinjiann/spare-compute/internal/infra/identity"
 	"github.com/austinjiann/spare-compute/internal/infra/sqlite"
 	"github.com/austinjiann/spare-compute/internal/job"
 	joblogging "github.com/austinjiann/spare-compute/internal/logging"
@@ -29,11 +33,14 @@ type options struct {
 	checkOnly   bool
 	showVersion bool
 	runnerJob   string
+	deviceName  string
 }
 
 type runtimeDependencies struct {
 	disableDispatcher bool
 	executable        func() (string, error)
+	discovery         device.LANDiscovery
+	hostname          func() (string, error)
 }
 
 func main() {
@@ -106,10 +113,6 @@ func runWithDependencies(
 		return fmt.Errorf("initialize worker job service: %w", err)
 	}
 
-	if parsed.checkOnly {
-		_, err := fmt.Fprintln(stdout, "computehopd ready")
-		return err
-	}
 	if parsed.runnerJob != "" {
 		id, err := job.ParseID(parsed.runnerJob)
 		if err != nil {
@@ -132,9 +135,71 @@ func runWithDependencies(
 	}
 
 	logger := slog.New(slog.NewTextHandler(stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	identityPath, err := paths.DeviceIdentityPath(stateDir)
+	if err != nil {
+		return err
+	}
+	identityStore, err := identityinfra.NewStore(identityPath)
+	if err != nil {
+		return fmt.Errorf("initialize device identity store: %w", err)
+	}
+	localIdentity, err := identityStore.LoadOrCreate()
+	if err != nil {
+		return fmt.Errorf("load device identity: %w", err)
+	}
+	if dependencies.hostname == nil {
+		dependencies.hostname = os.Hostname
+	}
+	deviceName := parsed.deviceName
+	if deviceName == "" {
+		deviceName, err = dependencies.hostname()
+		if err != nil {
+			return fmt.Errorf("resolve device name: %w", err)
+		}
+	}
+	presenceID, err := device.NewPresenceID(rand.Reader)
+	if err != nil {
+		return err
+	}
+	localAnnouncement := device.Announcement{
+		PresenceID: presenceID, Name: deviceName, Role: device.RoleWorker,
+		ProtocolVersion: device.DiscoveryProtocolVersion,
+		Port:            mdns.DefaultPort,
+		EndpointReady:   false,
+	}
+	if err := localAnnouncement.Validate(); err != nil {
+		return fmt.Errorf("configure local device announcement: %w", err)
+	}
+	if dependencies.discovery == nil {
+		dependencies.discovery = mdns.New()
+	}
+	deviceService, err := orchestrator.NewDeviceService(orchestrator.DeviceDependencies{
+		Local:       localAnnouncement,
+		Discovery:   dependencies.discovery,
+		Now:         time.Now,
+		ReportError: func(err error) { logger.Warn("LAN discovery unavailable", "error", err) },
+	})
+	if err != nil {
+		return fmt.Errorf("initialize LAN discovery: %w", err)
+	}
+
+	if parsed.checkOnly {
+		_, err := fmt.Fprintln(stdout, "computehopd ready")
+		return err
+	}
+
 	if !localIPCSupported {
-		logger.Info("computehopd started", "database", databasePath, "version", version, "local_ipc", "unsupported")
-		<-ctx.Done()
+		logger.Info(
+			"computehopd started",
+			"database", databasePath,
+			"device", deviceName,
+			"device_id", localIdentity.ID().Short(),
+			"version", version,
+			"local_ipc", "unsupported",
+		)
+		if err := deviceService.Run(ctx); err != nil {
+			return fmt.Errorf("run LAN discovery: %w", err)
+		}
 		logger.Info("computehopd stopped")
 		return nil
 	}
@@ -151,7 +216,7 @@ func runWithDependencies(
 	if err != nil {
 		return err
 	}
-	handler, err := orchestrator.NewLocalHandler(jobService, version)
+	handler, err := orchestrator.NewLocalHandler(jobService, deviceService, version)
 	if err != nil {
 		return fmt.Errorf("initialize local IPC handler: %w", err)
 	}
@@ -190,27 +255,40 @@ func runWithDependencies(
 		}
 	}
 
-	logger.Info("computehopd started", "database", databasePath, "socket", socketPath, "version", version)
+	logger.Info(
+		"computehopd started",
+		"database", databasePath,
+		"socket", socketPath,
+		"device", deviceName,
+		"device_id", localIdentity.ID().Short(),
+		"version", version,
+	)
 	serveContext, stopServing := context.WithCancel(ctx)
 	defer stopServing()
-	dispatchResult := make(chan error, 1)
+	backgroundResult := make(chan error, 2)
+	backgroundCount := 1
+	go func() {
+		backgroundResult <- deviceService.Run(serveContext)
+		stopServing()
+	}()
 	if dispatcher != nil {
+		backgroundCount++
 		go func() {
-			dispatchResult <- dispatcher.Run(serveContext)
+			backgroundResult <- dispatcher.Run(serveContext)
 			stopServing()
 		}()
 	}
 	serveErr := server.Serve(serveContext)
 	stopServing()
-	var dispatchErr error
-	if dispatcher != nil {
-		dispatchErr = <-dispatchResult
+	var backgroundErr error
+	for range backgroundCount {
+		backgroundErr = errors.Join(backgroundErr, <-backgroundResult)
 	}
 	if serveErr != nil {
 		return fmt.Errorf("serve local IPC: %w", serveErr)
 	}
-	if dispatchErr != nil {
-		return fmt.Errorf("dispatch jobs: %w", dispatchErr)
+	if backgroundErr != nil {
+		return fmt.Errorf("run daemon background services: %w", backgroundErr)
 	}
 	logger.Info("computehopd stopped")
 	return nil
@@ -224,6 +302,7 @@ func parseOptions(arguments []string, stderr io.Writer) (options, error) {
 	flags.BoolVar(&parsed.checkOnly, "check", false, "initialize and verify local state, then exit")
 	flags.BoolVar(&parsed.showVersion, "version", false, "print version and exit")
 	flags.StringVar(&parsed.runnerJob, "runner-job", "", "run one internally dispatched job")
+	flags.StringVar(&parsed.deviceName, "device-name", "", "human-readable LAN device name")
 	if err := flags.Parse(arguments); err != nil {
 		return options{}, err
 	}

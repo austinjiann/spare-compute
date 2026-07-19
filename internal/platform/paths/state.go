@@ -15,6 +15,7 @@ const (
 	DatabaseFilename        = "computehop.db"
 	LocalSocketFilename     = "computehop.sock"
 	CapabilityTokenFilename = "local-ipc.token"
+	DeviceIdentityFilename  = "device-identity.pem"
 	JobsDirectoryName       = "jobs"
 	JobLogFilename          = "output.log"
 )
@@ -43,6 +44,11 @@ func LocalSocketPath(stateDir string) (string, error) {
 // CapabilityTokenPath resolves the local IPC capability token inside stateDir.
 func CapabilityTokenPath(stateDir string) (string, error) {
 	return stateFilePath(stateDir, CapabilityTokenFilename)
+}
+
+// DeviceIdentityPath resolves the long-lived local identity key file.
+func DeviceIdentityPath(stateDir string) (string, error) {
+	return stateFilePath(stateDir, DeviceIdentityFilename)
 }
 
 // JobDataDir resolves the private durable-data directory for id.

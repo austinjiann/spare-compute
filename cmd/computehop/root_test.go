@@ -8,6 +8,7 @@ import (
 	"time"
 
 	localv1 "github.com/austinjiann/spare-compute/gen/go/computehop/local/v1"
+	"github.com/austinjiann/spare-compute/internal/device"
 	"github.com/austinjiann/spare-compute/internal/job"
 	"github.com/austinjiann/spare-compute/internal/protocol/mapper"
 )
@@ -89,6 +90,51 @@ func TestJobsCommandPrintsDurableJobs(t *testing.T) {
 		if !strings.Contains(output, want) {
 			t.Fatalf("stdout %q does not contain %q", output, want)
 		}
+	}
+}
+
+func TestDevicesCommandPrintsNearbyDevicesAsUnpaired(t *testing.T) {
+	presenceID, err := device.NewPresenceID(bytes.NewReader(make([]byte, 16)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := time.Date(2026, time.July, 19, 12, 0, 0, 0, time.UTC)
+	var stdout, stderr bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout,
+		stderr: &stderr,
+		getwd:  func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+				if request.GetListDevices() == nil {
+					t.Fatalf("request = %#v", request)
+				}
+				return &localv1.Response{Result: &localv1.Response_ListDevices{
+					ListDevices: &localv1.ListDevicesResponse{
+						DiscoveryState: localv1.DiscoveryState_DISCOVERY_STATE_AVAILABLE,
+						Devices: []*localv1.NearbyDevice{{
+							PresenceId: string(presenceID), Name: "Gaming PC",
+							Role:      localv1.DeviceRole_DEVICE_ROLE_WORKER,
+							Addresses: []string{"192.0.2.20"}, Port: 47823,
+							LastSeenAtUnixNano: seen.UnixNano(),
+							TrustState:         localv1.DeviceTrustState_DEVICE_TRUST_STATE_UNPAIRED,
+						}},
+					},
+				}}, nil
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"devices"})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	for _, want := range []string{"Gaming PC", presenceID.Short(), "unpaired", "worker", "192.0.2.20 (discovery only)", "2026-07-19T12:00:00Z"} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
+		}
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q", stderr.String())
 	}
 }
 
