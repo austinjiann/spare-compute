@@ -4,6 +4,8 @@ import (
 	"errors"
 	"path/filepath"
 	"testing"
+
+	"github.com/austinjiann/spare-compute/internal/job"
 )
 
 func TestResolveStateDir(t *testing.T) {
@@ -112,4 +114,35 @@ func TestDatabasePath(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestJobPaths(t *testing.T) {
+	id := mustPathJobID(t, "7a338fa3-7ba4-4c54-bf59-da1161f6b76f")
+	directory, err := JobDataDir("/state", id)
+	if err != nil {
+		t.Fatalf("JobDataDir() error = %v", err)
+	}
+	wantDirectory := filepath.Join("/state", JobsDirectoryName, string(id))
+	if directory != wantDirectory {
+		t.Fatalf("JobDataDir() = %q, want %q", directory, wantDirectory)
+	}
+	logPath, err := JobLogPath("/state", id)
+	if err != nil {
+		t.Fatalf("JobLogPath() error = %v", err)
+	}
+	if want := filepath.Join(wantDirectory, JobLogFilename); logPath != want {
+		t.Fatalf("JobLogPath() = %q, want %q", logPath, want)
+	}
+	if _, err := JobDataDir("/state", "bad"); !errors.Is(err, job.ErrInvalidID) {
+		t.Fatalf("JobDataDir(invalid ID) error = %v", err)
+	}
+}
+
+func mustPathJobID(t *testing.T, value string) job.ID {
+	t.Helper()
+	id, err := job.ParseID(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return id
 }

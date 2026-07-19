@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/austinjiann/spare-compute/internal/execution"
 	"github.com/austinjiann/spare-compute/internal/job"
+	joblogging "github.com/austinjiann/spare-compute/internal/logging"
 )
 
 var (
@@ -19,13 +21,35 @@ var (
 // constructor without global clocks or random generators.
 type Dependencies struct {
 	Jobs       job.Repository
+	Executions ExecutionController
+	Logs       LogReader
 	GenerateID func() (job.ID, error)
 	Now        func() time.Time
+}
+
+// ExecutionController is the execution state required by local job commands.
+type ExecutionController interface {
+	RequestCancellation(context.Context, job.ID, time.Time) error
+	Get(context.Context, job.ID) (execution.Attempt, error)
+}
+
+// LogReader pages durable, globally sequenced process output.
+type LogReader interface {
+	Read(context.Context, job.ID, uint64, int) (joblogging.Page, error)
+}
+
+// JobLogs is one authoritative snapshot used by the local logs command.
+type JobLogs struct {
+	Job       job.Job
+	Execution *execution.Attempt
+	Page      joblogging.Page
 }
 
 // JobService coordinates durable worker-side job state.
 type JobService struct {
 	jobs       job.Repository
+	executions ExecutionController
+	logs       LogReader
 	generateID func() (job.ID, error)
 	now        func() time.Time
 }
@@ -35,6 +59,12 @@ func NewJobService(dependencies Dependencies) (*JobService, error) {
 	if dependencies.Jobs == nil {
 		return nil, fmt.Errorf("%w: Jobs", ErrMissingDependency)
 	}
+	if dependencies.Executions == nil {
+		return nil, fmt.Errorf("%w: Executions", ErrMissingDependency)
+	}
+	if dependencies.Logs == nil {
+		return nil, fmt.Errorf("%w: Logs", ErrMissingDependency)
+	}
 	if dependencies.GenerateID == nil {
 		return nil, fmt.Errorf("%w: GenerateID", ErrMissingDependency)
 	}
@@ -43,6 +73,8 @@ func NewJobService(dependencies Dependencies) (*JobService, error) {
 	}
 	return &JobService{
 		jobs:       dependencies.Jobs,
+		executions: dependencies.Executions,
+		logs:       dependencies.Logs,
 		generateID: dependencies.GenerateID,
 		now:        dependencies.Now,
 	}, nil
@@ -83,6 +115,34 @@ func (service *JobService) List(ctx context.Context, options job.ListOptions) ([
 	return service.jobs.List(ctx, options)
 }
 
+// ReadLogs returns a job, its optional attempt, and one resumable output page.
+func (service *JobService) ReadLogs(
+	ctx context.Context,
+	id job.ID,
+	after uint64,
+	limit int,
+) (JobLogs, error) {
+	current, err := service.jobs.Get(ctx, id)
+	if err != nil {
+		return JobLogs{}, err
+	}
+	result := JobLogs{Job: current}
+	attempt, err := service.executions.Get(ctx, id)
+	if err == nil {
+		result.Execution = &attempt
+	} else if !errors.Is(err, execution.ErrNotFound) {
+		return JobLogs{}, err
+	}
+	if result.Execution == nil {
+		return result, nil
+	}
+	result.Page, err = service.logs.Read(ctx, id, after, limit)
+	if err != nil {
+		return JobLogs{}, err
+	}
+	return result, nil
+}
+
 // Advance performs one validated, atomic state transition.
 func (service *JobService) Advance(
 	ctx context.Context,
@@ -97,20 +157,35 @@ func (service *JobService) Advance(
 	return service.advanceLoaded(ctx, current, to, failure)
 }
 
-// Cancel records an acknowledged cancellation. Repeating cancellation after a
-// job is cancelled is idempotent and returns the existing terminal state.
+// Cancel either cancels a job that has not started or durably asks its owning
+// runner to stop. Running jobs become cancelled only after the process tree exits.
 func (service *JobService) Cancel(ctx context.Context, id job.ID) (job.Job, error) {
-	current, err := service.jobs.Get(ctx, id)
-	if err != nil {
-		return job.Job{}, err
+	for attempts := 0; attempts < 2; attempts++ {
+		current, err := service.jobs.Get(ctx, id)
+		if err != nil {
+			return job.Job{}, err
+		}
+		if current.State == job.StateCancelled {
+			return current, nil
+		}
+		if current.State.Terminal() {
+			return job.Job{}, fmt.Errorf("%w: %s is %s", ErrJobTerminal, id, current.State)
+		}
+		if current.State == job.StateStarting || current.State == job.StateRunning {
+			if err := service.executions.RequestCancellation(ctx, id, service.now()); err != nil {
+				if errors.Is(err, execution.ErrAttemptCompleted) {
+					return service.jobs.Get(ctx, id)
+				}
+				return job.Job{}, err
+			}
+			return service.jobs.Get(ctx, id)
+		}
+		cancelled, err := service.advanceLoaded(ctx, current, job.StateCancelled, nil)
+		if !errors.Is(err, job.ErrConflict) {
+			return cancelled, err
+		}
 	}
-	if current.State == job.StateCancelled {
-		return current, nil
-	}
-	if current.State.Terminal() {
-		return job.Job{}, fmt.Errorf("%w: %s is %s", ErrJobTerminal, id, current.State)
-	}
-	return service.advanceLoaded(ctx, current, job.StateCancelled, nil)
+	return job.Job{}, job.ErrConflict
 }
 
 func (service *JobService) advanceLoaded(

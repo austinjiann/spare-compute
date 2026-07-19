@@ -16,6 +16,7 @@ message Request {
     GetJobRequest get_job = 12;
     ListJobsRequest list_jobs = 13;
     CancelJobRequest cancel_job = 14;
+    ReadJobLogsRequest read_job_logs = 15;
   }
 }
 
@@ -31,6 +32,7 @@ message Response {
     GetJobResponse get_job = 12;
     ListJobsResponse list_jobs = 13;
     CancelJobResponse cancel_job = 14;
+    ReadJobLogsResponse read_job_logs = 15;
   }
 }
 
@@ -71,6 +73,25 @@ message CancelJobRequest {
 
 message CancelJobResponse {
   Job job = 1;
+}
+
+message ReadJobLogsRequest {
+  string job_id = 1;
+  uint64 after_sequence = 2;
+  uint32 limit = 3;
+}
+
+message ReadJobLogsResponse {
+  Job job = 1;
+  repeated JobLogRecord records = 2;
+  bool has_more = 3;
+}
+
+message JobLogRecord {
+  uint64 sequence = 1;
+  JobLogStream stream = 2;
+  bytes data = 3;
+  int64 at_unix_nano = 4;
 }
 
 message JobSpec {
@@ -135,4 +156,10 @@ enum ErrorCode {
   ERROR_CODE_INTERNAL = 5;
   ERROR_CODE_UNAUTHENTICATED = 6;
   ERROR_CODE_UNSUPPORTED_VERSION = 7;
+}
+
+enum JobLogStream {
+  JOB_LOG_STREAM_UNSPECIFIED = 0;
+  JOB_LOG_STREAM_STDOUT = 1;
+  JOB_LOG_STREAM_STDERR = 2;
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -14,8 +15,10 @@ import (
 	"github.com/austinjiann/spare-compute/internal/app/worker"
 	"github.com/austinjiann/spare-compute/internal/infra/sqlite"
 	"github.com/austinjiann/spare-compute/internal/job"
+	joblogging "github.com/austinjiann/spare-compute/internal/logging"
 	"github.com/austinjiann/spare-compute/internal/platform/paths"
 	"github.com/austinjiann/spare-compute/internal/platform/permissions"
+	"github.com/austinjiann/spare-compute/internal/platform/processes"
 	"github.com/austinjiann/spare-compute/internal/protocol/localipc"
 )
 
@@ -25,6 +28,12 @@ type options struct {
 	stateDir    string
 	checkOnly   bool
 	showVersion bool
+	runnerJob   string
+}
+
+type runtimeDependencies struct {
+	disableDispatcher bool
+	executable        func() (string, error)
 }
 
 func main() {
@@ -38,6 +47,16 @@ func main() {
 }
 
 func run(ctx context.Context, arguments []string, stdout, stderr io.Writer) (runErr error) {
+	return runWithDependencies(ctx, arguments, stdout, stderr, runtimeDependencies{})
+}
+
+func runWithDependencies(
+	ctx context.Context,
+	arguments []string,
+	stdout io.Writer,
+	stderr io.Writer,
+	dependencies runtimeDependencies,
+) (runErr error) {
 	parsed, err := parseOptions(arguments, stderr)
 	if err != nil {
 		return err
@@ -71,9 +90,15 @@ func run(ctx context.Context, arguments []string, stdout, stderr io.Writer) (run
 			runErr = fmt.Errorf("close daemon database: %w", err)
 		}
 	}()
+	logStore, err := joblogging.NewStore(stateDir, database.Executions(), time.Now)
+	if err != nil {
+		return fmt.Errorf("initialize durable job logs: %w", err)
+	}
 
 	jobService, err := worker.NewJobService(worker.Dependencies{
 		Jobs:       database.Jobs(),
+		Executions: database.Executions(),
+		Logs:       logStore,
 		GenerateID: job.NewID,
 		Now:        time.Now,
 	})
@@ -84,6 +109,26 @@ func run(ctx context.Context, arguments []string, stdout, stderr io.Writer) (run
 	if parsed.checkOnly {
 		_, err := fmt.Fprintln(stdout, "computehopd ready")
 		return err
+	}
+	if parsed.runnerJob != "" {
+		id, err := job.ParseID(parsed.runnerJob)
+		if err != nil {
+			return err
+		}
+		runner, err := worker.NewRunner(worker.RunnerDependencies{
+			Jobs:       database.Jobs(),
+			Executions: database.Executions(),
+			Logs:       logStore,
+			StartProcess: func(spec job.Spec, stdout, stderr io.Writer) (worker.NativeProcess, error) {
+				return processes.Start(spec, stdout, stderr)
+			},
+			RunnerPID: os.Getpid,
+			Now:       time.Now,
+		})
+		if err != nil {
+			return fmt.Errorf("initialize native runner: %w", err)
+		}
+		return runner.Run(ctx, id)
 	}
 
 	logger := slog.New(slog.NewTextHandler(stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
@@ -116,9 +161,56 @@ func run(ctx context.Context, arguments []string, stdout, stderr io.Writer) (run
 	}
 	defer server.Close()
 
+	if dependencies.executable == nil {
+		dependencies.executable = os.Executable
+	}
+	var dispatcher *worker.Dispatcher
+	if !dependencies.disableDispatcher {
+		executable, err := dependencies.executable()
+		if err != nil {
+			return fmt.Errorf("resolve daemon executable: %w", err)
+		}
+		launcher, err := processes.NewRunnerLauncher(executable, stateDir)
+		if err != nil {
+			return fmt.Errorf("initialize runner launcher: %w", err)
+		}
+		dispatcher, err = worker.NewDispatcher(worker.DispatcherDependencies{
+			Jobs:            database.Jobs(),
+			Executions:      database.Executions(),
+			Launcher:        launcher,
+			ProcessAlive:    processes.Alive,
+			KillProcessTree: processes.KillTree,
+			Now:             time.Now,
+			ReportError: func(err error) {
+				logger.Error("job dispatcher reconciliation failed", "error", err)
+			},
+		})
+		if err != nil {
+			return fmt.Errorf("initialize job dispatcher: %w", err)
+		}
+	}
+
 	logger.Info("computehopd started", "database", databasePath, "socket", socketPath, "version", version)
-	if err := server.Serve(ctx); err != nil {
-		return fmt.Errorf("serve local IPC: %w", err)
+	serveContext, stopServing := context.WithCancel(ctx)
+	defer stopServing()
+	dispatchResult := make(chan error, 1)
+	if dispatcher != nil {
+		go func() {
+			dispatchResult <- dispatcher.Run(serveContext)
+			stopServing()
+		}()
+	}
+	serveErr := server.Serve(serveContext)
+	stopServing()
+	var dispatchErr error
+	if dispatcher != nil {
+		dispatchErr = <-dispatchResult
+	}
+	if serveErr != nil {
+		return fmt.Errorf("serve local IPC: %w", serveErr)
+	}
+	if dispatchErr != nil {
+		return fmt.Errorf("dispatch jobs: %w", dispatchErr)
 	}
 	logger.Info("computehopd stopped")
 	return nil
@@ -131,11 +223,15 @@ func parseOptions(arguments []string, stderr io.Writer) (options, error) {
 	flags.StringVar(&parsed.stateDir, "state-dir", "", "directory for durable local state")
 	flags.BoolVar(&parsed.checkOnly, "check", false, "initialize and verify local state, then exit")
 	flags.BoolVar(&parsed.showVersion, "version", false, "print version and exit")
+	flags.StringVar(&parsed.runnerJob, "runner-job", "", "run one internally dispatched job")
 	if err := flags.Parse(arguments); err != nil {
 		return options{}, err
 	}
 	if flags.NArg() != 0 {
 		return options{}, fmt.Errorf("unexpected arguments: %v", flags.Args())
+	}
+	if parsed.runnerJob != "" && (parsed.checkOnly || parsed.showVersion) {
+		return options{}, errors.New("--runner-job cannot be combined with --check or --version")
 	}
 	return parsed, nil
 }

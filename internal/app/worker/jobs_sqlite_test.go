@@ -10,6 +10,7 @@ import (
 	"github.com/austinjiann/spare-compute/internal/app/worker"
 	"github.com/austinjiann/spare-compute/internal/infra/sqlite"
 	"github.com/austinjiann/spare-compute/internal/job"
+	joblogging "github.com/austinjiann/spare-compute/internal/logging"
 )
 
 func TestJobServiceSubmissionSurvivesDatabaseReopen(t *testing.T) {
@@ -27,6 +28,8 @@ func TestJobServiceSubmissionSurvivesDatabaseReopen(t *testing.T) {
 	now := time.Date(2026, time.July, 18, 12, 0, 0, 0, time.UTC)
 	service, err := worker.NewJobService(worker.Dependencies{
 		Jobs:       database.Jobs(),
+		Executions: database.Executions(),
+		Logs:       mustLogStore(t, filepath.Dir(path), database),
 		GenerateID: func() (job.ID, error) { return id, nil },
 		Now: func() time.Time {
 			now = now.Add(time.Second)
@@ -61,4 +64,13 @@ func TestJobServiceSubmissionSurvivesDatabaseReopen(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("job after reopen = %#v, want %#v", got, want)
 	}
+}
+
+func mustLogStore(t *testing.T, stateDir string, database *sqlite.Database) *joblogging.Store {
+	t.Helper()
+	store, err := joblogging.NewStore(stateDir, database.Executions(), time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return store
 }

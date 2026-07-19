@@ -7,6 +7,7 @@ import (
 	"time"
 
 	localv1 "github.com/austinjiann/spare-compute/gen/go/computehop/local/v1"
+	"github.com/austinjiann/spare-compute/internal/app/worker"
 	"github.com/austinjiann/spare-compute/internal/job"
 )
 
@@ -15,6 +16,7 @@ type stubJobController struct {
 	get    func(context.Context, job.ID) (job.Job, error)
 	list   func(context.Context, job.ListOptions) ([]job.Job, error)
 	cancel func(context.Context, job.ID) (job.Job, error)
+	logs   func(context.Context, job.ID, uint64, int) (worker.JobLogs, error)
 }
 
 func (stub stubJobController) Submit(ctx context.Context, spec job.Spec) (job.Job, error) {
@@ -31,6 +33,15 @@ func (stub stubJobController) List(ctx context.Context, options job.ListOptions)
 
 func (stub stubJobController) Cancel(ctx context.Context, id job.ID) (job.Job, error) {
 	return stub.cancel(ctx, id)
+}
+
+func (stub stubJobController) ReadLogs(
+	ctx context.Context,
+	id job.ID,
+	after uint64,
+	limit int,
+) (worker.JobLogs, error) {
+	return stub.logs(ctx, id, after, limit)
 }
 
 func TestLocalHandlerPing(t *testing.T) {

@@ -219,6 +219,55 @@ func (ErrorCode) EnumDescriptor() ([]byte, []int) {
 	return file_computehop_local_v1_local_proto_rawDescGZIP(), []int{2}
 }
 
+type JobLogStream int32
+
+const (
+	JobLogStream_JOB_LOG_STREAM_UNSPECIFIED JobLogStream = 0
+	JobLogStream_JOB_LOG_STREAM_STDOUT      JobLogStream = 1
+	JobLogStream_JOB_LOG_STREAM_STDERR      JobLogStream = 2
+)
+
+// Enum value maps for JobLogStream.
+var (
+	JobLogStream_name = map[int32]string{
+		0: "JOB_LOG_STREAM_UNSPECIFIED",
+		1: "JOB_LOG_STREAM_STDOUT",
+		2: "JOB_LOG_STREAM_STDERR",
+	}
+	JobLogStream_value = map[string]int32{
+		"JOB_LOG_STREAM_UNSPECIFIED": 0,
+		"JOB_LOG_STREAM_STDOUT":      1,
+		"JOB_LOG_STREAM_STDERR":      2,
+	}
+)
+
+func (x JobLogStream) Enum() *JobLogStream {
+	p := new(JobLogStream)
+	*p = x
+	return p
+}
+
+func (x JobLogStream) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (JobLogStream) Descriptor() protoreflect.EnumDescriptor {
+	return file_computehop_local_v1_local_proto_enumTypes[3].Descriptor()
+}
+
+func (JobLogStream) Type() protoreflect.EnumType {
+	return &file_computehop_local_v1_local_proto_enumTypes[3]
+}
+
+func (x JobLogStream) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use JobLogStream.Descriptor instead.
+func (JobLogStream) EnumDescriptor() ([]byte, []int) {
+	return file_computehop_local_v1_local_proto_rawDescGZIP(), []int{3}
+}
+
 // Request is one authenticated operation sent by a local ComputeHop client.
 type Request struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
@@ -232,6 +281,7 @@ type Request struct {
 	//	*Request_GetJob
 	//	*Request_ListJobs
 	//	*Request_CancelJob
+	//	*Request_ReadJobLogs
 	Operation     isRequest_Operation `protobuf_oneof:"operation"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -340,6 +390,15 @@ func (x *Request) GetCancelJob() *CancelJobRequest {
 	return nil
 }
 
+func (x *Request) GetReadJobLogs() *ReadJobLogsRequest {
+	if x != nil {
+		if x, ok := x.Operation.(*Request_ReadJobLogs); ok {
+			return x.ReadJobLogs
+		}
+	}
+	return nil
+}
+
 type isRequest_Operation interface {
 	isRequest_Operation()
 }
@@ -364,6 +423,10 @@ type Request_CancelJob struct {
 	CancelJob *CancelJobRequest `protobuf:"bytes,14,opt,name=cancel_job,json=cancelJob,proto3,oneof"`
 }
 
+type Request_ReadJobLogs struct {
+	ReadJobLogs *ReadJobLogsRequest `protobuf:"bytes,15,opt,name=read_job_logs,json=readJobLogs,proto3,oneof"`
+}
+
 func (*Request_Ping) isRequest_Operation() {}
 
 func (*Request_SubmitJob) isRequest_Operation() {}
@@ -373,6 +436,8 @@ func (*Request_GetJob) isRequest_Operation() {}
 func (*Request_ListJobs) isRequest_Operation() {}
 
 func (*Request_CancelJob) isRequest_Operation() {}
+
+func (*Request_ReadJobLogs) isRequest_Operation() {}
 
 // Response is the result corresponding to one request.
 type Response struct {
@@ -387,6 +452,7 @@ type Response struct {
 	//	*Response_GetJob
 	//	*Response_ListJobs
 	//	*Response_CancelJob
+	//	*Response_ReadJobLogs
 	Result        isResponse_Result `protobuf_oneof:"result"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -495,6 +561,15 @@ func (x *Response) GetCancelJob() *CancelJobResponse {
 	return nil
 }
 
+func (x *Response) GetReadJobLogs() *ReadJobLogsResponse {
+	if x != nil {
+		if x, ok := x.Result.(*Response_ReadJobLogs); ok {
+			return x.ReadJobLogs
+		}
+	}
+	return nil
+}
+
 type isResponse_Result interface {
 	isResponse_Result()
 }
@@ -519,6 +594,10 @@ type Response_CancelJob struct {
 	CancelJob *CancelJobResponse `protobuf:"bytes,14,opt,name=cancel_job,json=cancelJob,proto3,oneof"`
 }
 
+type Response_ReadJobLogs struct {
+	ReadJobLogs *ReadJobLogsResponse `protobuf:"bytes,15,opt,name=read_job_logs,json=readJobLogs,proto3,oneof"`
+}
+
 func (*Response_Ping) isResponse_Result() {}
 
 func (*Response_SubmitJob) isResponse_Result() {}
@@ -528,6 +607,8 @@ func (*Response_GetJob) isResponse_Result() {}
 func (*Response_ListJobs) isResponse_Result() {}
 
 func (*Response_CancelJob) isResponse_Result() {}
+
+func (*Response_ReadJobLogs) isResponse_Result() {}
 
 type PingRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -969,6 +1050,194 @@ func (x *CancelJobResponse) GetJob() *Job {
 	return nil
 }
 
+type ReadJobLogsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	JobId         string                 `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	AfterSequence uint64                 `protobuf:"varint,2,opt,name=after_sequence,json=afterSequence,proto3" json:"after_sequence,omitempty"`
+	Limit         uint32                 `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReadJobLogsRequest) Reset() {
+	*x = ReadJobLogsRequest{}
+	mi := &file_computehop_local_v1_local_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReadJobLogsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReadJobLogsRequest) ProtoMessage() {}
+
+func (x *ReadJobLogsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_computehop_local_v1_local_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReadJobLogsRequest.ProtoReflect.Descriptor instead.
+func (*ReadJobLogsRequest) Descriptor() ([]byte, []int) {
+	return file_computehop_local_v1_local_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *ReadJobLogsRequest) GetJobId() string {
+	if x != nil {
+		return x.JobId
+	}
+	return ""
+}
+
+func (x *ReadJobLogsRequest) GetAfterSequence() uint64 {
+	if x != nil {
+		return x.AfterSequence
+	}
+	return 0
+}
+
+func (x *ReadJobLogsRequest) GetLimit() uint32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+type ReadJobLogsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Job           *Job                   `protobuf:"bytes,1,opt,name=job,proto3" json:"job,omitempty"`
+	Records       []*JobLogRecord        `protobuf:"bytes,2,rep,name=records,proto3" json:"records,omitempty"`
+	HasMore       bool                   `protobuf:"varint,3,opt,name=has_more,json=hasMore,proto3" json:"has_more,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReadJobLogsResponse) Reset() {
+	*x = ReadJobLogsResponse{}
+	mi := &file_computehop_local_v1_local_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReadJobLogsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReadJobLogsResponse) ProtoMessage() {}
+
+func (x *ReadJobLogsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_computehop_local_v1_local_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReadJobLogsResponse.ProtoReflect.Descriptor instead.
+func (*ReadJobLogsResponse) Descriptor() ([]byte, []int) {
+	return file_computehop_local_v1_local_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *ReadJobLogsResponse) GetJob() *Job {
+	if x != nil {
+		return x.Job
+	}
+	return nil
+}
+
+func (x *ReadJobLogsResponse) GetRecords() []*JobLogRecord {
+	if x != nil {
+		return x.Records
+	}
+	return nil
+}
+
+func (x *ReadJobLogsResponse) GetHasMore() bool {
+	if x != nil {
+		return x.HasMore
+	}
+	return false
+}
+
+type JobLogRecord struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Sequence      uint64                 `protobuf:"varint,1,opt,name=sequence,proto3" json:"sequence,omitempty"`
+	Stream        JobLogStream           `protobuf:"varint,2,opt,name=stream,proto3,enum=computehop.local.v1.JobLogStream" json:"stream,omitempty"`
+	Data          []byte                 `protobuf:"bytes,3,opt,name=data,proto3" json:"data,omitempty"`
+	AtUnixNano    int64                  `protobuf:"varint,4,opt,name=at_unix_nano,json=atUnixNano,proto3" json:"at_unix_nano,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *JobLogRecord) Reset() {
+	*x = JobLogRecord{}
+	mi := &file_computehop_local_v1_local_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *JobLogRecord) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*JobLogRecord) ProtoMessage() {}
+
+func (x *JobLogRecord) ProtoReflect() protoreflect.Message {
+	mi := &file_computehop_local_v1_local_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use JobLogRecord.ProtoReflect.Descriptor instead.
+func (*JobLogRecord) Descriptor() ([]byte, []int) {
+	return file_computehop_local_v1_local_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *JobLogRecord) GetSequence() uint64 {
+	if x != nil {
+		return x.Sequence
+	}
+	return 0
+}
+
+func (x *JobLogRecord) GetStream() JobLogStream {
+	if x != nil {
+		return x.Stream
+	}
+	return JobLogStream_JOB_LOG_STREAM_UNSPECIFIED
+}
+
+func (x *JobLogRecord) GetData() []byte {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+func (x *JobLogRecord) GetAtUnixNano() int64 {
+	if x != nil {
+		return x.AtUnixNano
+	}
+	return 0
+}
+
 type JobSpec struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	Executable       string                 `protobuf:"bytes,1,opt,name=executable,proto3" json:"executable,omitempty"`
@@ -983,7 +1252,7 @@ type JobSpec struct {
 
 func (x *JobSpec) Reset() {
 	*x = JobSpec{}
-	mi := &file_computehop_local_v1_local_proto_msgTypes[12]
+	mi := &file_computehop_local_v1_local_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -995,7 +1264,7 @@ func (x *JobSpec) String() string {
 func (*JobSpec) ProtoMessage() {}
 
 func (x *JobSpec) ProtoReflect() protoreflect.Message {
-	mi := &file_computehop_local_v1_local_proto_msgTypes[12]
+	mi := &file_computehop_local_v1_local_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1008,7 +1277,7 @@ func (x *JobSpec) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JobSpec.ProtoReflect.Descriptor instead.
 func (*JobSpec) Descriptor() ([]byte, []int) {
-	return file_computehop_local_v1_local_proto_rawDescGZIP(), []int{12}
+	return file_computehop_local_v1_local_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *JobSpec) GetExecutable() string {
@@ -1067,7 +1336,7 @@ type Job struct {
 
 func (x *Job) Reset() {
 	*x = Job{}
-	mi := &file_computehop_local_v1_local_proto_msgTypes[13]
+	mi := &file_computehop_local_v1_local_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1079,7 +1348,7 @@ func (x *Job) String() string {
 func (*Job) ProtoMessage() {}
 
 func (x *Job) ProtoReflect() protoreflect.Message {
-	mi := &file_computehop_local_v1_local_proto_msgTypes[13]
+	mi := &file_computehop_local_v1_local_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1092,7 +1361,7 @@ func (x *Job) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Job.ProtoReflect.Descriptor instead.
 func (*Job) Descriptor() ([]byte, []int) {
-	return file_computehop_local_v1_local_proto_rawDescGZIP(), []int{13}
+	return file_computehop_local_v1_local_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *Job) GetId() string {
@@ -1148,7 +1417,7 @@ type Failure struct {
 
 func (x *Failure) Reset() {
 	*x = Failure{}
-	mi := &file_computehop_local_v1_local_proto_msgTypes[14]
+	mi := &file_computehop_local_v1_local_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1160,7 +1429,7 @@ func (x *Failure) String() string {
 func (*Failure) ProtoMessage() {}
 
 func (x *Failure) ProtoReflect() protoreflect.Message {
-	mi := &file_computehop_local_v1_local_proto_msgTypes[14]
+	mi := &file_computehop_local_v1_local_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1173,7 +1442,7 @@ func (x *Failure) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Failure.ProtoReflect.Descriptor instead.
 func (*Failure) Descriptor() ([]byte, []int) {
-	return file_computehop_local_v1_local_proto_rawDescGZIP(), []int{14}
+	return file_computehop_local_v1_local_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *Failure) GetCode() string {
@@ -1207,7 +1476,7 @@ type Error struct {
 
 func (x *Error) Reset() {
 	*x = Error{}
-	mi := &file_computehop_local_v1_local_proto_msgTypes[15]
+	mi := &file_computehop_local_v1_local_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1219,7 +1488,7 @@ func (x *Error) String() string {
 func (*Error) ProtoMessage() {}
 
 func (x *Error) ProtoReflect() protoreflect.Message {
-	mi := &file_computehop_local_v1_local_proto_msgTypes[15]
+	mi := &file_computehop_local_v1_local_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1232,7 +1501,7 @@ func (x *Error) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Error.ProtoReflect.Descriptor instead.
 func (*Error) Descriptor() ([]byte, []int) {
-	return file_computehop_local_v1_local_proto_rawDescGZIP(), []int{15}
+	return file_computehop_local_v1_local_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *Error) GetCode() ErrorCode {
@@ -1253,7 +1522,7 @@ var File_computehop_local_v1_local_proto protoreflect.FileDescriptor
 
 const file_computehop_local_v1_local_proto_rawDesc = "" +
 	"\n" +
-	"\x1fcomputehop/local/v1/local.proto\x12\x13computehop.local.v1\"\xd7\x03\n" +
+	"\x1fcomputehop/local/v1/local.proto\x12\x13computehop.local.v1\"\xa6\x04\n" +
 	"\aRequest\x12)\n" +
 	"\x10protocol_version\x18\x01 \x01(\rR\x0fprotocolVersion\x12\x1d\n" +
 	"\n" +
@@ -1266,8 +1535,9 @@ const file_computehop_local_v1_local_proto_rawDesc = "" +
 	"\aget_job\x18\f \x01(\v2\".computehop.local.v1.GetJobRequestH\x00R\x06getJob\x12C\n" +
 	"\tlist_jobs\x18\r \x01(\v2$.computehop.local.v1.ListJobsRequestH\x00R\blistJobs\x12F\n" +
 	"\n" +
-	"cancel_job\x18\x0e \x01(\v2%.computehop.local.v1.CancelJobRequestH\x00R\tcancelJobB\v\n" +
-	"\toperation\"\xe1\x03\n" +
+	"cancel_job\x18\x0e \x01(\v2%.computehop.local.v1.CancelJobRequestH\x00R\tcancelJob\x12M\n" +
+	"\rread_job_logs\x18\x0f \x01(\v2'.computehop.local.v1.ReadJobLogsRequestH\x00R\vreadJobLogsB\v\n" +
+	"\toperation\"\xb1\x04\n" +
 	"\bResponse\x12)\n" +
 	"\x10protocol_version\x18\x01 \x01(\rR\x0fprotocolVersion\x12\x1d\n" +
 	"\n" +
@@ -1280,7 +1550,8 @@ const file_computehop_local_v1_local_proto_rawDesc = "" +
 	"\aget_job\x18\f \x01(\v2#.computehop.local.v1.GetJobResponseH\x00R\x06getJob\x12D\n" +
 	"\tlist_jobs\x18\r \x01(\v2%.computehop.local.v1.ListJobsResponseH\x00R\blistJobs\x12G\n" +
 	"\n" +
-	"cancel_job\x18\x0e \x01(\v2&.computehop.local.v1.CancelJobResponseH\x00R\tcancelJobB\b\n" +
+	"cancel_job\x18\x0e \x01(\v2&.computehop.local.v1.CancelJobResponseH\x00R\tcancelJob\x12N\n" +
+	"\rread_job_logs\x18\x0f \x01(\v2(.computehop.local.v1.ReadJobLogsResponseH\x00R\vreadJobLogsB\b\n" +
 	"\x06result\"\r\n" +
 	"\vPingRequest\"5\n" +
 	"\fPingResponse\x12%\n" +
@@ -1301,7 +1572,21 @@ const file_computehop_local_v1_local_proto_rawDesc = "" +
 	"\x10CancelJobRequest\x12\x15\n" +
 	"\x06job_id\x18\x01 \x01(\tR\x05jobId\"?\n" +
 	"\x11CancelJobResponse\x12*\n" +
-	"\x03job\x18\x01 \x01(\v2\x18.computehop.local.v1.JobR\x03job\"\xe9\x02\n" +
+	"\x03job\x18\x01 \x01(\v2\x18.computehop.local.v1.JobR\x03job\"h\n" +
+	"\x12ReadJobLogsRequest\x12\x15\n" +
+	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12%\n" +
+	"\x0eafter_sequence\x18\x02 \x01(\x04R\rafterSequence\x12\x14\n" +
+	"\x05limit\x18\x03 \x01(\rR\x05limit\"\x99\x01\n" +
+	"\x13ReadJobLogsResponse\x12*\n" +
+	"\x03job\x18\x01 \x01(\v2\x18.computehop.local.v1.JobR\x03job\x12;\n" +
+	"\arecords\x18\x02 \x03(\v2!.computehop.local.v1.JobLogRecordR\arecords\x12\x19\n" +
+	"\bhas_more\x18\x03 \x01(\bR\ahasMore\"\x9b\x01\n" +
+	"\fJobLogRecord\x12\x1a\n" +
+	"\bsequence\x18\x01 \x01(\x04R\bsequence\x129\n" +
+	"\x06stream\x18\x02 \x01(\x0e2!.computehop.local.v1.JobLogStreamR\x06stream\x12\x12\n" +
+	"\x04data\x18\x03 \x01(\fR\x04data\x12 \n" +
+	"\fat_unix_nano\x18\x04 \x01(\x03R\n" +
+	"atUnixNano\"\xe9\x02\n" +
 	"\aJobSpec\x12\x1e\n" +
 	"\n" +
 	"executable\x18\x01 \x01(\tR\n" +
@@ -1357,7 +1642,11 @@ const file_computehop_local_v1_local_proto_rawDesc = "" +
 	"\x17ERROR_CODE_JOB_TERMINAL\x10\x04\x12\x17\n" +
 	"\x13ERROR_CODE_INTERNAL\x10\x05\x12\x1e\n" +
 	"\x1aERROR_CODE_UNAUTHENTICATED\x10\x06\x12\"\n" +
-	"\x1eERROR_CODE_UNSUPPORTED_VERSION\x10\aBIZGgithub.com/austinjiann/spare-compute/gen/go/computehop/local/v1;localv1b\x06proto3"
+	"\x1eERROR_CODE_UNSUPPORTED_VERSION\x10\a*d\n" +
+	"\fJobLogStream\x12\x1e\n" +
+	"\x1aJOB_LOG_STREAM_UNSPECIFIED\x10\x00\x12\x19\n" +
+	"\x15JOB_LOG_STREAM_STDOUT\x10\x01\x12\x19\n" +
+	"\x15JOB_LOG_STREAM_STDERR\x10\x02BIZGgithub.com/austinjiann/spare-compute/gen/go/computehop/local/v1;localv1b\x06proto3"
 
 var (
 	file_computehop_local_v1_local_proto_rawDescOnce sync.Once
@@ -1371,59 +1660,68 @@ func file_computehop_local_v1_local_proto_rawDescGZIP() []byte {
 	return file_computehop_local_v1_local_proto_rawDescData
 }
 
-var file_computehop_local_v1_local_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_computehop_local_v1_local_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
+var file_computehop_local_v1_local_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
+var file_computehop_local_v1_local_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
 var file_computehop_local_v1_local_proto_goTypes = []any{
-	(Executor)(0),             // 0: computehop.local.v1.Executor
-	(JobState)(0),             // 1: computehop.local.v1.JobState
-	(ErrorCode)(0),            // 2: computehop.local.v1.ErrorCode
-	(*Request)(nil),           // 3: computehop.local.v1.Request
-	(*Response)(nil),          // 4: computehop.local.v1.Response
-	(*PingRequest)(nil),       // 5: computehop.local.v1.PingRequest
-	(*PingResponse)(nil),      // 6: computehop.local.v1.PingResponse
-	(*SubmitJobRequest)(nil),  // 7: computehop.local.v1.SubmitJobRequest
-	(*SubmitJobResponse)(nil), // 8: computehop.local.v1.SubmitJobResponse
-	(*GetJobRequest)(nil),     // 9: computehop.local.v1.GetJobRequest
-	(*GetJobResponse)(nil),    // 10: computehop.local.v1.GetJobResponse
-	(*ListJobsRequest)(nil),   // 11: computehop.local.v1.ListJobsRequest
-	(*ListJobsResponse)(nil),  // 12: computehop.local.v1.ListJobsResponse
-	(*CancelJobRequest)(nil),  // 13: computehop.local.v1.CancelJobRequest
-	(*CancelJobResponse)(nil), // 14: computehop.local.v1.CancelJobResponse
-	(*JobSpec)(nil),           // 15: computehop.local.v1.JobSpec
-	(*Job)(nil),               // 16: computehop.local.v1.Job
-	(*Failure)(nil),           // 17: computehop.local.v1.Failure
-	(*Error)(nil),             // 18: computehop.local.v1.Error
-	nil,                       // 19: computehop.local.v1.JobSpec.EnvironmentEntry
+	(Executor)(0),               // 0: computehop.local.v1.Executor
+	(JobState)(0),               // 1: computehop.local.v1.JobState
+	(ErrorCode)(0),              // 2: computehop.local.v1.ErrorCode
+	(JobLogStream)(0),           // 3: computehop.local.v1.JobLogStream
+	(*Request)(nil),             // 4: computehop.local.v1.Request
+	(*Response)(nil),            // 5: computehop.local.v1.Response
+	(*PingRequest)(nil),         // 6: computehop.local.v1.PingRequest
+	(*PingResponse)(nil),        // 7: computehop.local.v1.PingResponse
+	(*SubmitJobRequest)(nil),    // 8: computehop.local.v1.SubmitJobRequest
+	(*SubmitJobResponse)(nil),   // 9: computehop.local.v1.SubmitJobResponse
+	(*GetJobRequest)(nil),       // 10: computehop.local.v1.GetJobRequest
+	(*GetJobResponse)(nil),      // 11: computehop.local.v1.GetJobResponse
+	(*ListJobsRequest)(nil),     // 12: computehop.local.v1.ListJobsRequest
+	(*ListJobsResponse)(nil),    // 13: computehop.local.v1.ListJobsResponse
+	(*CancelJobRequest)(nil),    // 14: computehop.local.v1.CancelJobRequest
+	(*CancelJobResponse)(nil),   // 15: computehop.local.v1.CancelJobResponse
+	(*ReadJobLogsRequest)(nil),  // 16: computehop.local.v1.ReadJobLogsRequest
+	(*ReadJobLogsResponse)(nil), // 17: computehop.local.v1.ReadJobLogsResponse
+	(*JobLogRecord)(nil),        // 18: computehop.local.v1.JobLogRecord
+	(*JobSpec)(nil),             // 19: computehop.local.v1.JobSpec
+	(*Job)(nil),                 // 20: computehop.local.v1.Job
+	(*Failure)(nil),             // 21: computehop.local.v1.Failure
+	(*Error)(nil),               // 22: computehop.local.v1.Error
+	nil,                         // 23: computehop.local.v1.JobSpec.EnvironmentEntry
 }
 var file_computehop_local_v1_local_proto_depIdxs = []int32{
-	5,  // 0: computehop.local.v1.Request.ping:type_name -> computehop.local.v1.PingRequest
-	7,  // 1: computehop.local.v1.Request.submit_job:type_name -> computehop.local.v1.SubmitJobRequest
-	9,  // 2: computehop.local.v1.Request.get_job:type_name -> computehop.local.v1.GetJobRequest
-	11, // 3: computehop.local.v1.Request.list_jobs:type_name -> computehop.local.v1.ListJobsRequest
-	13, // 4: computehop.local.v1.Request.cancel_job:type_name -> computehop.local.v1.CancelJobRequest
-	18, // 5: computehop.local.v1.Response.error:type_name -> computehop.local.v1.Error
-	6,  // 6: computehop.local.v1.Response.ping:type_name -> computehop.local.v1.PingResponse
-	8,  // 7: computehop.local.v1.Response.submit_job:type_name -> computehop.local.v1.SubmitJobResponse
-	10, // 8: computehop.local.v1.Response.get_job:type_name -> computehop.local.v1.GetJobResponse
-	12, // 9: computehop.local.v1.Response.list_jobs:type_name -> computehop.local.v1.ListJobsResponse
-	14, // 10: computehop.local.v1.Response.cancel_job:type_name -> computehop.local.v1.CancelJobResponse
-	15, // 11: computehop.local.v1.SubmitJobRequest.spec:type_name -> computehop.local.v1.JobSpec
-	16, // 12: computehop.local.v1.SubmitJobResponse.job:type_name -> computehop.local.v1.Job
-	16, // 13: computehop.local.v1.GetJobResponse.job:type_name -> computehop.local.v1.Job
-	1,  // 14: computehop.local.v1.ListJobsRequest.states:type_name -> computehop.local.v1.JobState
-	16, // 15: computehop.local.v1.ListJobsResponse.jobs:type_name -> computehop.local.v1.Job
-	16, // 16: computehop.local.v1.CancelJobResponse.job:type_name -> computehop.local.v1.Job
-	19, // 17: computehop.local.v1.JobSpec.environment:type_name -> computehop.local.v1.JobSpec.EnvironmentEntry
-	0,  // 18: computehop.local.v1.JobSpec.executor:type_name -> computehop.local.v1.Executor
-	15, // 19: computehop.local.v1.Job.spec:type_name -> computehop.local.v1.JobSpec
-	1,  // 20: computehop.local.v1.Job.state:type_name -> computehop.local.v1.JobState
-	17, // 21: computehop.local.v1.Job.failure:type_name -> computehop.local.v1.Failure
-	2,  // 22: computehop.local.v1.Error.code:type_name -> computehop.local.v1.ErrorCode
-	23, // [23:23] is the sub-list for method output_type
-	23, // [23:23] is the sub-list for method input_type
-	23, // [23:23] is the sub-list for extension type_name
-	23, // [23:23] is the sub-list for extension extendee
-	0,  // [0:23] is the sub-list for field type_name
+	6,  // 0: computehop.local.v1.Request.ping:type_name -> computehop.local.v1.PingRequest
+	8,  // 1: computehop.local.v1.Request.submit_job:type_name -> computehop.local.v1.SubmitJobRequest
+	10, // 2: computehop.local.v1.Request.get_job:type_name -> computehop.local.v1.GetJobRequest
+	12, // 3: computehop.local.v1.Request.list_jobs:type_name -> computehop.local.v1.ListJobsRequest
+	14, // 4: computehop.local.v1.Request.cancel_job:type_name -> computehop.local.v1.CancelJobRequest
+	16, // 5: computehop.local.v1.Request.read_job_logs:type_name -> computehop.local.v1.ReadJobLogsRequest
+	22, // 6: computehop.local.v1.Response.error:type_name -> computehop.local.v1.Error
+	7,  // 7: computehop.local.v1.Response.ping:type_name -> computehop.local.v1.PingResponse
+	9,  // 8: computehop.local.v1.Response.submit_job:type_name -> computehop.local.v1.SubmitJobResponse
+	11, // 9: computehop.local.v1.Response.get_job:type_name -> computehop.local.v1.GetJobResponse
+	13, // 10: computehop.local.v1.Response.list_jobs:type_name -> computehop.local.v1.ListJobsResponse
+	15, // 11: computehop.local.v1.Response.cancel_job:type_name -> computehop.local.v1.CancelJobResponse
+	17, // 12: computehop.local.v1.Response.read_job_logs:type_name -> computehop.local.v1.ReadJobLogsResponse
+	19, // 13: computehop.local.v1.SubmitJobRequest.spec:type_name -> computehop.local.v1.JobSpec
+	20, // 14: computehop.local.v1.SubmitJobResponse.job:type_name -> computehop.local.v1.Job
+	20, // 15: computehop.local.v1.GetJobResponse.job:type_name -> computehop.local.v1.Job
+	1,  // 16: computehop.local.v1.ListJobsRequest.states:type_name -> computehop.local.v1.JobState
+	20, // 17: computehop.local.v1.ListJobsResponse.jobs:type_name -> computehop.local.v1.Job
+	20, // 18: computehop.local.v1.CancelJobResponse.job:type_name -> computehop.local.v1.Job
+	20, // 19: computehop.local.v1.ReadJobLogsResponse.job:type_name -> computehop.local.v1.Job
+	18, // 20: computehop.local.v1.ReadJobLogsResponse.records:type_name -> computehop.local.v1.JobLogRecord
+	3,  // 21: computehop.local.v1.JobLogRecord.stream:type_name -> computehop.local.v1.JobLogStream
+	23, // 22: computehop.local.v1.JobSpec.environment:type_name -> computehop.local.v1.JobSpec.EnvironmentEntry
+	0,  // 23: computehop.local.v1.JobSpec.executor:type_name -> computehop.local.v1.Executor
+	19, // 24: computehop.local.v1.Job.spec:type_name -> computehop.local.v1.JobSpec
+	1,  // 25: computehop.local.v1.Job.state:type_name -> computehop.local.v1.JobState
+	21, // 26: computehop.local.v1.Job.failure:type_name -> computehop.local.v1.Failure
+	2,  // 27: computehop.local.v1.Error.code:type_name -> computehop.local.v1.ErrorCode
+	28, // [28:28] is the sub-list for method output_type
+	28, // [28:28] is the sub-list for method input_type
+	28, // [28:28] is the sub-list for extension type_name
+	28, // [28:28] is the sub-list for extension extendee
+	0,  // [0:28] is the sub-list for field type_name
 }
 
 func init() { file_computehop_local_v1_local_proto_init() }
@@ -1437,6 +1735,7 @@ func file_computehop_local_v1_local_proto_init() {
 		(*Request_GetJob)(nil),
 		(*Request_ListJobs)(nil),
 		(*Request_CancelJob)(nil),
+		(*Request_ReadJobLogs)(nil),
 	}
 	file_computehop_local_v1_local_proto_msgTypes[1].OneofWrappers = []any{
 		(*Response_Ping)(nil),
@@ -1444,14 +1743,15 @@ func file_computehop_local_v1_local_proto_init() {
 		(*Response_GetJob)(nil),
 		(*Response_ListJobs)(nil),
 		(*Response_CancelJob)(nil),
+		(*Response_ReadJobLogs)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_computehop_local_v1_local_proto_rawDesc), len(file_computehop_local_v1_local_proto_rawDesc)),
-			NumEnums:      3,
-			NumMessages:   17,
+			NumEnums:      4,
+			NumMessages:   20,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -114,7 +114,13 @@ func TestDaemonLocalIPCRoundTripPersistsJobs(t *testing.T) {
 	stderr := newSignalBuffer("computehopd started")
 	result := make(chan error, 1)
 	go func() {
-		result <- run(ctx, []string{"--state-dir", stateDir}, &bytes.Buffer{}, stderr)
+		result <- runWithDependencies(
+			ctx,
+			[]string{"--state-dir", stateDir},
+			&bytes.Buffer{},
+			stderr,
+			runtimeDependencies{disableDispatcher: true},
+		)
 	}()
 
 	select {

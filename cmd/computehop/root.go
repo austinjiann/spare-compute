@@ -43,6 +43,7 @@ func newRootCommand(dependencies dependencies) *cobra.Command {
 	root.AddCommand(newRunCommand(dependencies.stdout, dependencies.getwd, clientForCommand))
 	root.AddCommand(newJobsCommand(dependencies.stdout, clientForCommand))
 	root.AddCommand(newCancelCommand(dependencies.stdout, clientForCommand))
+	root.AddCommand(newLogsCommand(dependencies.stdout, dependencies.stderr, clientForCommand))
 	return root
 }
 
@@ -222,8 +223,91 @@ func newCancelCommand(
 			if err != nil {
 				return fmt.Errorf("%w: %v", ErrInvalidDaemonResponse, err)
 			}
-			_, err = fmt.Fprintf(stdout, "Cancelled %s\n", value.ID)
+			if value.State == job.StateCancelled {
+				_, err = fmt.Fprintf(stdout, "Cancelled %s\n", value.ID)
+			} else {
+				_, err = fmt.Fprintf(stdout, "Cancellation requested for %s (%s)\n", value.ID, value.State)
+			}
 			return err
 		},
 	}
+}
+
+func newLogsCommand(
+	stdout io.Writer,
+	stderr io.Writer,
+	clientForCommand func() (caller, error),
+) *cobra.Command {
+	var follow bool
+	command := &cobra.Command{
+		Use:   "logs <job-id>",
+		Short: "Read durable stdout and stderr for a job",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(command *cobra.Command, arguments []string) error {
+			id, err := job.ParseID(arguments[0])
+			if err != nil {
+				return err
+			}
+			client, err := clientForCommand()
+			if err != nil {
+				return err
+			}
+			var after uint64
+			for {
+				response, err := client.Call(command.Context(), &localv1.Request{
+					Operation: &localv1.Request_ReadJobLogs{ReadJobLogs: &localv1.ReadJobLogsRequest{
+						JobId:         string(id),
+						AfterSequence: after,
+						Limit:         32,
+					}},
+				})
+				if err != nil {
+					return err
+				}
+				result := response.GetReadJobLogs()
+				if result == nil {
+					return fmt.Errorf("%w: missing job logs result", ErrInvalidDaemonResponse)
+				}
+				for _, record := range result.GetRecords() {
+					if record.GetSequence() <= after {
+						return fmt.Errorf("%w: job log sequence did not advance", ErrInvalidDaemonResponse)
+					}
+					var destination io.Writer
+					switch record.GetStream() {
+					case localv1.JobLogStream_JOB_LOG_STREAM_STDOUT:
+						destination = stdout
+					case localv1.JobLogStream_JOB_LOG_STREAM_STDERR:
+						destination = stderr
+					default:
+						return fmt.Errorf("%w: invalid job log stream", ErrInvalidDaemonResponse)
+					}
+					if _, err := destination.Write(record.GetData()); err != nil {
+						return err
+					}
+					after = record.GetSequence()
+				}
+				if result.GetHasMore() {
+					continue
+				}
+				value, err := mapper.JobFromProto(result.GetJob())
+				if err != nil {
+					return fmt.Errorf("%w: %v", ErrInvalidDaemonResponse, err)
+				}
+				if !follow || value.State.Terminal() {
+					return nil
+				}
+				timer := time.NewTimer(250 * time.Millisecond)
+				select {
+				case <-command.Context().Done():
+					if !timer.Stop() {
+						<-timer.C
+					}
+					return command.Context().Err()
+				case <-timer.C:
+				}
+			}
+		},
+	}
+	command.Flags().BoolVarP(&follow, "follow", "f", false, "wait for new output until the job finishes")
+	return command
 }

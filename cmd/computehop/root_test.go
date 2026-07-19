@@ -110,6 +110,43 @@ func TestStatusRejectsMissingResult(t *testing.T) {
 	}
 }
 
+func TestLogsCommandRoutesDurableStreams(t *testing.T) {
+	value := cliJobForTest(job.StateSucceeded)
+	message, err := mapper.JobToProto(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout,
+		stderr: &stderr,
+		getwd:  func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+				if request.GetReadJobLogs().GetAfterSequence() != 0 {
+					t.Fatalf("after sequence = %d", request.GetReadJobLogs().GetAfterSequence())
+				}
+				return &localv1.Response{Result: &localv1.Response_ReadJobLogs{
+					ReadJobLogs: &localv1.ReadJobLogsResponse{
+						Job: message,
+						Records: []*localv1.JobLogRecord{
+							{Sequence: 1, Stream: localv1.JobLogStream_JOB_LOG_STREAM_STDOUT, Data: []byte("output\n")},
+							{Sequence: 2, Stream: localv1.JobLogStream_JOB_LOG_STREAM_STDERR, Data: []byte("problem\n")},
+						},
+					},
+				}}, nil
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"logs", string(value.ID)})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if stdout.String() != "output\n" || stderr.String() != "problem\n" {
+		t.Fatalf("stdout = %q, stderr = %q", stdout.String(), stderr.String())
+	}
+}
+
 func cliJobForTest(state job.State) job.Job {
 	created := time.Unix(1_700_000_000, 0).UTC()
 	return job.Job{
