@@ -78,9 +78,20 @@ func NewIdentity(privateKey ed25519.PrivateKey) (Identity, error) {
 		return Identity{}, ErrInvalidIdentity
 	}
 	storedPublic := append(ed25519.PublicKey(nil), publicKey...)
-	digest := sha256.Sum256(storedPublic)
-	id := ID(strings.ToLower(base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(digest[:])))
+	id, err := IDFromPublicKey(storedPublic)
+	if err != nil {
+		return Identity{}, err
+	}
 	return Identity{id: id, publicKey: storedPublic, privateKey: storedPrivate}, nil
+}
+
+// IDFromPublicKey returns the canonical fingerprint for an Ed25519 public key.
+func IDFromPublicKey(publicKey ed25519.PublicKey) (ID, error) {
+	if len(publicKey) != ed25519.PublicKeySize {
+		return "", fmt.Errorf("%w: public key length", ErrInvalidIdentity)
+	}
+	digest := sha256.Sum256(publicKey)
+	return ID(strings.ToLower(base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(digest[:]))), nil
 }
 
 // ID returns the public installation fingerprint.

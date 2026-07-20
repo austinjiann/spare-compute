@@ -11,6 +11,7 @@ import (
 	"github.com/austinjiann/spare-compute/internal/device"
 	"github.com/austinjiann/spare-compute/internal/job"
 	"github.com/austinjiann/spare-compute/internal/protocol/mapper"
+	"github.com/austinjiann/spare-compute/internal/trust"
 )
 
 type stubCaller struct {
@@ -138,6 +139,40 @@ func TestDevicesCommandPrintsNearbyDevicesAsUnpaired(t *testing.T) {
 	}
 }
 
+func TestPairCommandPrintsConnectionBoundVerificationInstructions(t *testing.T) {
+	value := cliPairingForTest(t)
+	message, err := mapper.PairingToProto(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &stderr, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+				if got := request.GetBeginPairing().GetDeviceSelector(); got != "Gaming PC" {
+					t.Fatalf("device selector = %q", got)
+				}
+				return &localv1.Response{Result: &localv1.Response_BeginPairing{
+					BeginPairing: &localv1.BeginPairingResponse{Pairing: message},
+				}}, nil
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"pair", "Gaming PC"})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	for _, want := range []string{
+		value.ID.Short(), value.PeerName, string(value.Verification),
+		"Compare this exact code on both devices", "pair confirm " + value.ID.Short(),
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
+		}
+	}
+}
+
 func TestStatusRejectsMissingResult(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	command := newRootCommand(dependencies{
@@ -205,5 +240,24 @@ func cliJobForTest(state job.State) job.Job {
 		State:     state,
 		CreatedAt: created,
 		UpdatedAt: created.Add(time.Second),
+	}
+}
+
+func cliPairingForTest(t *testing.T) trust.Pairing {
+	t.Helper()
+	identity, err := device.GenerateIdentity(bytes.NewReader(bytes.Repeat([]byte{7}, 64)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pairID, err := trust.NewPairID(bytes.NewReader(bytes.Repeat([]byte{8}, 16)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	started := time.Unix(1_700_000_000, 0).UTC()
+	return trust.Pairing{
+		ID: pairID, PeerID: identity.ID(), PeerPublicKey: identity.PublicKey(),
+		PeerName: "Gaming PC", PeerRole: device.RoleWorker,
+		Verification: "0123-4567-89AB-CDEF", Direction: trust.DirectionOutbound,
+		State: trust.PairingWaiting, StartedAt: started, ExpiresAt: started.Add(5 * time.Minute),
 	}
 }

@@ -153,3 +153,8 @@ func validateName(name string) error {
 	}
 	return nil
 }
+
+// ValidateName checks a user-visible device name at every trust boundary.
+func ValidateName(name string) error {
+	return validateName(name)
+}
