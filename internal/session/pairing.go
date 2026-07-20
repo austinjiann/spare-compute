@@ -7,6 +7,7 @@ import (
 	"errors"
 
 	"github.com/austinjiann/spare-compute/internal/device"
+	remoteprotocol "github.com/austinjiann/spare-compute/internal/protocol/remote"
 	"github.com/austinjiann/spare-compute/internal/trust"
 )
 
@@ -69,11 +70,18 @@ type PairingChannel interface {
 	Close() error
 }
 
-// PairingEndpoint owns the shared QUIC listener and can initiate pairings with
-// an explicitly selected, still-untrusted discovery observation.
-type PairingEndpoint interface {
-	Port() uint16
-	Run(context.Context, func(PairingChannel)) error
-	Dial(context.Context, device.NearbyDevice) (PairingChannel, error)
+// PairingDialer initiates a ceremony with an explicitly selected, still-untrusted
+// discovery observation.
+type PairingDialer interface {
+	DialPairing(context.Context, device.NearbyDevice) (PairingChannel, error)
 	Close() error
+}
+
+// Endpoint owns the shared QUIC listener used for both pairing ceremonies and
+// already-paired remote job control.
+type Endpoint interface {
+	PairingDialer
+	Port() uint16
+	Run(context.Context, func(PairingChannel), remoteprotocol.Handler) error
+	DialRemote(context.Context, device.NearbyDevice, trust.Peer) (remoteprotocol.Caller, error)
 }

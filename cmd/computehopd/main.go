@@ -28,6 +28,7 @@ import (
 	"github.com/austinjiann/spare-compute/internal/platform/processes"
 	"github.com/austinjiann/spare-compute/internal/protocol/localipc"
 	"github.com/austinjiann/spare-compute/internal/session"
+	"github.com/austinjiann/spare-compute/internal/trust"
 )
 
 var version = "dev"
@@ -46,7 +47,7 @@ type runtimeDependencies struct {
 	executable        func() (string, error)
 	discovery         device.LANDiscovery
 	hostname          func() (string, error)
-	pairingEndpoint   func(string, session.LocalDevice) (session.PairingEndpoint, error)
+	pairingEndpoint   func(string, session.LocalDevice, trust.Repository) (session.Endpoint, error)
 }
 
 func main() {
@@ -186,12 +187,16 @@ func runWithDependencies(
 	}
 
 	if dependencies.pairingEndpoint == nil {
-		dependencies.pairingEndpoint = func(address string, local session.LocalDevice) (session.PairingEndpoint, error) {
-			return quictransport.Listen(address, local)
+		dependencies.pairingEndpoint = func(
+			address string,
+			local session.LocalDevice,
+			repository trust.Repository,
+		) (session.Endpoint, error) {
+			return quictransport.Listen(address, local, repository)
 		}
 	}
 	pairingEndpoint, err := dependencies.pairingEndpoint(
-		fmt.Sprintf(":%d", mdns.DefaultPort), localDevice,
+		fmt.Sprintf(":%d", mdns.DefaultPort), localDevice, database.Trust(),
 	)
 	if err != nil {
 		return fmt.Errorf("initialize pairing endpoint: %w", err)
@@ -229,6 +234,16 @@ func runWithDependencies(
 	if err != nil {
 		return fmt.Errorf("initialize pairing service: %w", err)
 	}
+	remoteHandler, err := worker.NewRemoteHandler(jobService)
+	if err != nil {
+		return fmt.Errorf("initialize remote worker handler: %w", err)
+	}
+	remoteJobs, err := orchestrator.NewRemoteJobService(orchestrator.RemoteDependencies{
+		Nearby: deviceService, Trust: database.Trust(), Dialer: pairingEndpoint,
+	})
+	if err != nil {
+		return fmt.Errorf("initialize remote job service: %w", err)
+	}
 
 	tokenPath, err := paths.CapabilityTokenPath(stateDir)
 	if err != nil {
@@ -242,7 +257,7 @@ func runWithDependencies(
 	if err != nil {
 		return err
 	}
-	handler, err := orchestrator.NewLocalHandler(jobService, deviceService, pairingService, version)
+	handler, err := orchestrator.NewLocalHandler(jobService, remoteJobs, deviceService, pairingService, version)
 	if err != nil {
 		return fmt.Errorf("initialize local IPC handler: %w", err)
 	}
@@ -299,7 +314,11 @@ func runWithDependencies(
 		stopServing()
 	}()
 	go func() {
-		backgroundResult <- pairingService.Run(serveContext)
+		backgroundResult <- pairingEndpoint.Run(
+			serveContext,
+			func(channel session.PairingChannel) { pairingService.Accept(serveContext, channel) },
+			remoteHandler,
+		)
 		stopServing()
 	}()
 	if dispatcher != nil {

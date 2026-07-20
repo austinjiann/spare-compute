@@ -8,10 +8,12 @@ import (
 	"testing"
 	"time"
 
+	computehopv1 "github.com/austinjiann/spare-compute/gen/go/computehop/v1"
 	pairingapp "github.com/austinjiann/spare-compute/internal/app/pairing"
 	"github.com/austinjiann/spare-compute/internal/device"
 	"github.com/austinjiann/spare-compute/internal/infra/sqlite"
 	quictransport "github.com/austinjiann/spare-compute/internal/infra/transport/quic"
+	remoteprotocol "github.com/austinjiann/spare-compute/internal/protocol/remote"
 	"github.com/austinjiann/spare-compute/internal/session"
 	"github.com/austinjiann/spare-compute/internal/trust"
 )
@@ -19,16 +21,6 @@ import (
 func TestTwoDaemonsRequireMatchingLocalConfirmationsBeforePersistingTrust(t *testing.T) {
 	worker := localDeviceForPairingTest(t, 11, "Gaming PC", device.RoleWorker)
 	orchestrator := localDeviceForPairingTest(t, 12, "MacBook", device.RoleOrchestrator)
-	workerEndpoint, err := quictransport.Listen("127.0.0.1:0", worker)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer workerEndpoint.Close()
-	orchestratorEndpoint, err := quictransport.Listen("127.0.0.1:0", orchestrator)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer orchestratorEndpoint.Close()
 	workerDatabase, err := sqlite.Open(context.Background(), ":memory:")
 	if err != nil {
 		t.Fatal(err)
@@ -39,6 +31,18 @@ func TestTwoDaemonsRequireMatchingLocalConfirmationsBeforePersistingTrust(t *tes
 		t.Fatal(err)
 	}
 	defer orchestratorDatabase.Close()
+	workerEndpoint, err := quictransport.Listen("127.0.0.1:0", worker, workerDatabase.Trust())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer workerEndpoint.Close()
+	orchestratorEndpoint, err := quictransport.Listen(
+		"127.0.0.1:0", orchestrator, orchestratorDatabase.Trust(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer orchestratorEndpoint.Close()
 	target := nearbyWorkerForPairingTest(t, worker, workerEndpoint.Port())
 	workerService := newPairingServiceForTest(t, worker, workerEndpoint, staticResolver{}, workerDatabase.Trust())
 	orchestratorService := newPairingServiceForTest(
@@ -47,7 +51,21 @@ func TestTwoDaemonsRequireMatchingLocalConfirmationsBeforePersistingTrust(t *tes
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	serveResult := make(chan error, 1)
-	go func() { serveResult <- workerService.Run(ctx) }()
+	go func() {
+		serveResult <- workerEndpoint.Run(
+			ctx,
+			func(channel session.PairingChannel) { workerService.Accept(ctx, channel) },
+			remoteprotocol.HandlerFunc(func(
+				context.Context,
+				*computehopv1.RemoteRequest,
+			) *computehopv1.RemoteResponse {
+				return &computehopv1.RemoteResponse{Error: &computehopv1.RemoteError{
+					Code:    computehopv1.RemoteErrorCode_REMOTE_ERROR_CODE_INTERNAL,
+					Message: "not used",
+				}}
+			}),
+		)
+	}()
 
 	outbound, err := orchestratorService.Begin(context.Background(), "Gaming PC")
 	if err != nil {
@@ -120,7 +138,7 @@ func (resolver staticResolver) ResolveNearby(context.Context, string) (device.Ne
 func newPairingServiceForTest(
 	t *testing.T,
 	local session.LocalDevice,
-	endpoint session.PairingEndpoint,
+	endpoint session.PairingDialer,
 	resolver pairingapp.NearbyResolver,
 	repository trust.Repository,
 ) *pairingapp.Service {

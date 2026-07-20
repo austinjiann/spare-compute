@@ -7,11 +7,13 @@ import (
 	"fmt"
 
 	localv1 "github.com/austinjiann/spare-compute/gen/go/computehop/local/v1"
+	computehopv1 "github.com/austinjiann/spare-compute/gen/go/computehop/v1"
 	"github.com/austinjiann/spare-compute/internal/app/worker"
 	"github.com/austinjiann/spare-compute/internal/device"
 	"github.com/austinjiann/spare-compute/internal/job"
 	joblogging "github.com/austinjiann/spare-compute/internal/logging"
 	"github.com/austinjiann/spare-compute/internal/protocol/mapper"
+	remoteprotocol "github.com/austinjiann/spare-compute/internal/protocol/remote"
 	"github.com/austinjiann/spare-compute/internal/trust"
 )
 
@@ -19,6 +21,7 @@ const maximumLocalListLimit = 500
 
 var (
 	ErrMissingJobController     = errors.New("local handler job controller is required")
+	ErrMissingRemoteController  = errors.New("local handler remote job controller is required")
 	ErrMissingDeviceController  = errors.New("local handler device controller is required")
 	ErrMissingPairingController = errors.New("local handler pairing controller is required")
 )
@@ -30,6 +33,15 @@ type JobController interface {
 	List(context.Context, job.ListOptions) ([]job.Job, error)
 	Cancel(context.Context, job.ID) (job.Job, error)
 	ReadLogs(context.Context, job.ID, uint64, int) (worker.JobLogs, error)
+}
+
+// PairedJobController routes explicit operations to one trusted LAN worker.
+type PairedJobController interface {
+	Submit(context.Context, string, job.Spec) (job.Job, error)
+	Get(context.Context, string, job.ID) (job.Job, error)
+	List(context.Context, string, job.ListOptions) ([]job.Job, error)
+	Cancel(context.Context, string, job.ID) (job.Job, error)
+	ReadLogs(context.Context, string, job.ID, uint64, int) (worker.JobLogs, error)
 }
 
 // DeviceController is the narrow nearby-device boundary exposed over local IPC.
@@ -50,6 +62,7 @@ type PairingController interface {
 // LocalHandler maps authenticated protocol requests to application use cases.
 type LocalHandler struct {
 	jobs     JobController
+	remote   PairedJobController
 	devices  DeviceController
 	pairings PairingController
 	version  string
@@ -58,6 +71,7 @@ type LocalHandler struct {
 // NewLocalHandler constructs the local orchestrator control handler.
 func NewLocalHandler(
 	jobs JobController,
+	remote PairedJobController,
 	devices DeviceController,
 	pairings PairingController,
 	version string,
@@ -65,13 +79,16 @@ func NewLocalHandler(
 	if jobs == nil {
 		return nil, ErrMissingJobController
 	}
+	if remote == nil {
+		return nil, ErrMissingRemoteController
+	}
 	if devices == nil {
 		return nil, ErrMissingDeviceController
 	}
 	if pairings == nil {
 		return nil, ErrMissingPairingController
 	}
-	return &LocalHandler{jobs: jobs, devices: devices, pairings: pairings, version: version}, nil
+	return &LocalHandler{jobs: jobs, remote: remote, devices: devices, pairings: pairings, version: version}, nil
 }
 
 // Handle executes one already-authenticated local request.
@@ -273,7 +290,14 @@ func (handler *LocalHandler) readLogs(
 	if err != nil {
 		return errorResponse(err)
 	}
-	result, err := handler.jobs.ReadLogs(ctx, id, request.GetAfterSequence(), int(request.GetLimit()))
+	var result worker.JobLogs
+	if request.GetDeviceSelector() == "" {
+		result, err = handler.jobs.ReadLogs(ctx, id, request.GetAfterSequence(), int(request.GetLimit()))
+	} else {
+		result, err = handler.remote.ReadLogs(
+			ctx, request.GetDeviceSelector(), id, request.GetAfterSequence(), int(request.GetLimit()),
+		)
+	}
 	if err != nil {
 		return errorResponse(err)
 	}
@@ -303,7 +327,12 @@ func (handler *LocalHandler) submit(
 	if err != nil {
 		return errorResponse(err)
 	}
-	value, err := handler.jobs.Submit(ctx, spec)
+	var value job.Job
+	if request.GetDeviceSelector() == "" {
+		value, err = handler.jobs.Submit(ctx, spec)
+	} else {
+		value, err = handler.remote.Submit(ctx, request.GetDeviceSelector(), spec)
+	}
 	if err != nil {
 		return errorResponse(err)
 	}
@@ -324,7 +353,12 @@ func (handler *LocalHandler) get(ctx context.Context, request *localv1.GetJobReq
 	if err != nil {
 		return errorResponse(err)
 	}
-	value, err := handler.jobs.Get(ctx, id)
+	var value job.Job
+	if request.GetDeviceSelector() == "" {
+		value, err = handler.jobs.Get(ctx, id)
+	} else {
+		value, err = handler.remote.Get(ctx, request.GetDeviceSelector(), id)
+	}
 	if err != nil {
 		return errorResponse(err)
 	}
@@ -351,7 +385,13 @@ func (handler *LocalHandler) list(ctx context.Context, request *localv1.ListJobs
 	if err != nil {
 		return errorResponse(err)
 	}
-	values, err := handler.jobs.List(ctx, job.ListOptions{States: states, Limit: int(request.GetLimit())})
+	options := job.ListOptions{States: states, Limit: int(request.GetLimit())}
+	var values []job.Job
+	if request.GetDeviceSelector() == "" {
+		values, err = handler.jobs.List(ctx, options)
+	} else {
+		values, err = handler.remote.List(ctx, request.GetDeviceSelector(), options)
+	}
 	if err != nil {
 		return errorResponse(err)
 	}
@@ -375,7 +415,12 @@ func (handler *LocalHandler) cancel(ctx context.Context, request *localv1.Cancel
 	if err != nil {
 		return errorResponse(err)
 	}
-	value, err := handler.jobs.Cancel(ctx, id)
+	var value job.Job
+	if request.GetDeviceSelector() == "" {
+		value, err = handler.jobs.Cancel(ctx, id)
+	} else {
+		value, err = handler.remote.Cancel(ctx, request.GetDeviceSelector(), id)
+	}
 	if err != nil {
 		return errorResponse(err)
 	}
@@ -389,6 +434,25 @@ func (handler *LocalHandler) cancel(ctx context.Context, request *localv1.Cancel
 }
 
 func errorResponse(err error) *localv1.Response {
+	var remoteError *remoteprotocol.Error
+	if errors.As(err, &remoteError) {
+		code := localv1.ErrorCode_ERROR_CODE_INTERNAL
+		switch remoteError.Code {
+		case computehopv1.RemoteErrorCode_REMOTE_ERROR_CODE_INVALID_ARGUMENT:
+			code = localv1.ErrorCode_ERROR_CODE_INVALID_ARGUMENT
+		case computehopv1.RemoteErrorCode_REMOTE_ERROR_CODE_NOT_FOUND:
+			code = localv1.ErrorCode_ERROR_CODE_NOT_FOUND
+		case computehopv1.RemoteErrorCode_REMOTE_ERROR_CODE_CONFLICT:
+			code = localv1.ErrorCode_ERROR_CODE_CONFLICT
+		case computehopv1.RemoteErrorCode_REMOTE_ERROR_CODE_JOB_TERMINAL:
+			code = localv1.ErrorCode_ERROR_CODE_JOB_TERMINAL
+		case computehopv1.RemoteErrorCode_REMOTE_ERROR_CODE_UNAUTHENTICATED:
+			code = localv1.ErrorCode_ERROR_CODE_UNAUTHENTICATED
+		case computehopv1.RemoteErrorCode_REMOTE_ERROR_CODE_UNSUPPORTED_VERSION:
+			code = localv1.ErrorCode_ERROR_CODE_UNSUPPORTED_VERSION
+		}
+		return failureResponse(code, remoteError.Message)
+	}
 	code := localv1.ErrorCode_ERROR_CODE_INTERNAL
 	message := "internal daemon error"
 	switch {
@@ -419,6 +483,9 @@ func errorResponse(err error) *localv1.Response {
 		message = err.Error()
 	case errors.Is(err, trust.ErrPairingUnavailable):
 		code = localv1.ErrorCode_ERROR_CODE_PAIRING_UNAVAILABLE
+		message = err.Error()
+	case errors.Is(err, ErrRemoteWorkerUnavailable):
+		code = localv1.ErrorCode_ERROR_CODE_DEVICE_UNAVAILABLE
 		message = err.Error()
 	}
 	return failureResponse(code, message)

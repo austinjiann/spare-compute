@@ -8,6 +8,26 @@ This document is the product and implementation plan for ComputeHop. It defines 
 intended user experience, initial architecture, execution contract, security
 model, delivery milestones, and acceptance criteria.
 
+### Implementation snapshot
+
+Last updated: 2026-07-20.
+
+| Slice | Status | Delivered behavior |
+| --- | --- | --- |
+| Job foundation and SQLite persistence | Complete | Versioned job model, validated state transitions, migrations, and durable repositories. |
+| Local daemon, IPC, and CLI | Complete | Authenticated user-local control plane with `status`, `run`, `jobs`, `logs`, and `cancel`. |
+| Durable native execution | Complete | Detached process-tree supervision, reconnectable logs, cancellation, terminal results, and daemon-restart reconciliation. |
+| Privacy-safe LAN discovery | Complete | Cross-platform mDNS presence with expiring in-memory observations and no durable identity in advertisements. |
+| Device pairing and trust | Complete | QUIC/TLS pairing, two-sided verification codes, persistent Ed25519 identity pins, revocation, and re-pairing. |
+| Explicit remote execution | In progress | Submit to a selected paired LAN worker, observe durable state and logs, and cancel remotely. |
+| Cross-network connectivity and later launch slices | Not started | Rendezvous/ICE/TURN, project snapshots, artifacts, scheduling, adapters, menu-bar UI, packaging, and release operations. |
+
+“Complete” here means implemented with automated coverage and merged to `main`.
+Physical multi-machine validation remains required by the launch acceptance
+criteria. The current implementation boundary is also summarized in the root
+README; later sections in this document describe the intended launch product,
+not functionality that already exists.
+
 ComputeHop has one complete launch target. The build phases later in this document
 describe implementation order only; they are not separate public releases or a
 reduced MVP. The product launches after the complete acceptance criteria are met.
@@ -1162,6 +1182,13 @@ logs, can be cancelled without orphaning children, and has the correct state
 after a daemon restart.
 
 ### Step 2: LAN discovery, trust, and explicit remote execution
+
+**Implementation status:** discovery and pairing are merged. The current
+development slice adds explicit LAN-only `run`, `jobs`, `logs`, and `cancel`
+routing through identity-pinned QUIC. Project contents are not transferred, so
+an explicitly supplied remote working directory must already exist on the
+worker. The checkpoint remains open until this slice is merged and exercised on
+physical macOS, Windows, and Linux machines.
 
 - Advertise and browse daemon endpoints with mDNS without treating discovery as
   authentication.

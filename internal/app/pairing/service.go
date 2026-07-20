@@ -34,7 +34,7 @@ type Dependencies struct {
 	Local       session.LocalDevice
 	Nearby      NearbyResolver
 	Trust       trust.Repository
-	Endpoint    session.PairingEndpoint
+	Endpoint    session.PairingDialer
 	Now         func() time.Time
 	Lifetime    time.Duration
 	ReportError func(error)
@@ -45,7 +45,7 @@ type Service struct {
 	local       session.LocalDevice
 	nearby      NearbyResolver
 	repository  trust.Repository
-	endpoint    session.PairingEndpoint
+	endpoint    session.PairingDialer
 	now         func() time.Time
 	lifetime    time.Duration
 	reportError func(error)
@@ -111,14 +111,12 @@ func ValidateLocalRole(ctx context.Context, localRole device.Role, repository tr
 	return nil
 }
 
-// Run accepts inbound pairings. The endpoint was bound before discovery started.
-func (service *Service) Run(ctx context.Context) error {
-	return service.endpoint.Run(ctx, func(channel session.PairingChannel) {
-		if err := service.acceptInbound(ctx, channel); err != nil {
-			service.reportError(err)
-			_ = channel.Close()
-		}
-	})
+// Accept handles one inbound pairing supplied by the shared QUIC endpoint.
+func (service *Service) Accept(ctx context.Context, channel session.PairingChannel) {
+	if err := service.acceptInbound(ctx, channel); err != nil {
+		service.reportError(err)
+		_ = channel.Close()
+	}
 }
 
 // Begin connects an orchestrator to one explicitly selected nearby worker.
@@ -142,7 +140,7 @@ func (service *Service) Begin(ctx context.Context, selector string) (trust.Pairi
 		dialContext, cancel = context.WithTimeout(ctx, pairingConnectTimeout)
 		defer cancel()
 	}
-	channel, err := service.endpoint.Dial(dialContext, target)
+	channel, err := service.endpoint.DialPairing(dialContext, target)
 	if err != nil {
 		return trust.Pairing{}, fmt.Errorf("%w: connect to %s: %v", trust.ErrPairingUnavailable, target.Announcement.Name, err)
 	}

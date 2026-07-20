@@ -167,6 +167,7 @@ const (
 	ErrorCode_ERROR_CODE_UNAUTHENTICATED     ErrorCode = 6
 	ErrorCode_ERROR_CODE_UNSUPPORTED_VERSION ErrorCode = 7
 	ErrorCode_ERROR_CODE_PAIRING_UNAVAILABLE ErrorCode = 8
+	ErrorCode_ERROR_CODE_DEVICE_UNAVAILABLE  ErrorCode = 9
 )
 
 // Enum value maps for ErrorCode.
@@ -181,6 +182,7 @@ var (
 		6: "ERROR_CODE_UNAUTHENTICATED",
 		7: "ERROR_CODE_UNSUPPORTED_VERSION",
 		8: "ERROR_CODE_PAIRING_UNAVAILABLE",
+		9: "ERROR_CODE_DEVICE_UNAVAILABLE",
 	}
 	ErrorCode_value = map[string]int32{
 		"ERROR_CODE_UNSPECIFIED":         0,
@@ -192,6 +194,7 @@ var (
 		"ERROR_CODE_UNAUTHENTICATED":     6,
 		"ERROR_CODE_UNSUPPORTED_VERSION": 7,
 		"ERROR_CODE_PAIRING_UNAVAILABLE": 8,
+		"ERROR_CODE_DEVICE_UNAVAILABLE":  9,
 	}
 )
 
@@ -1178,10 +1181,11 @@ func (x *PingResponse) GetDaemonVersion() string {
 }
 
 type SubmitJobRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Spec          *JobSpec               `protobuf:"bytes,1,opt,name=spec,proto3" json:"spec,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Spec           *JobSpec               `protobuf:"bytes,1,opt,name=spec,proto3" json:"spec,omitempty"`
+	DeviceSelector string                 `protobuf:"bytes,2,opt,name=device_selector,json=deviceSelector,proto3" json:"device_selector,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *SubmitJobRequest) Reset() {
@@ -1219,6 +1223,13 @@ func (x *SubmitJobRequest) GetSpec() *JobSpec {
 		return x.Spec
 	}
 	return nil
+}
+
+func (x *SubmitJobRequest) GetDeviceSelector() string {
+	if x != nil {
+		return x.DeviceSelector
+	}
+	return ""
 }
 
 type SubmitJobResponse struct {
@@ -1266,10 +1277,11 @@ func (x *SubmitJobResponse) GetJob() *Job {
 }
 
 type GetJobRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	JobId         string                 `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	JobId          string                 `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	DeviceSelector string                 `protobuf:"bytes,2,opt,name=device_selector,json=deviceSelector,proto3" json:"device_selector,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *GetJobRequest) Reset() {
@@ -1305,6 +1317,13 @@ func (*GetJobRequest) Descriptor() ([]byte, []int) {
 func (x *GetJobRequest) GetJobId() string {
 	if x != nil {
 		return x.JobId
+	}
+	return ""
+}
+
+func (x *GetJobRequest) GetDeviceSelector() string {
+	if x != nil {
+		return x.DeviceSelector
 	}
 	return ""
 }
@@ -1354,11 +1373,12 @@ func (x *GetJobResponse) GetJob() *Job {
 }
 
 type ListJobsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	States        []JobState             `protobuf:"varint,1,rep,packed,name=states,proto3,enum=computehop.local.v1.JobState" json:"states,omitempty"`
-	Limit         uint32                 `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	States         []JobState             `protobuf:"varint,1,rep,packed,name=states,proto3,enum=computehop.local.v1.JobState" json:"states,omitempty"`
+	Limit          uint32                 `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
+	DeviceSelector string                 `protobuf:"bytes,3,opt,name=device_selector,json=deviceSelector,proto3" json:"device_selector,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *ListJobsRequest) Reset() {
@@ -1403,6 +1423,13 @@ func (x *ListJobsRequest) GetLimit() uint32 {
 		return x.Limit
 	}
 	return 0
+}
+
+func (x *ListJobsRequest) GetDeviceSelector() string {
+	if x != nil {
+		return x.DeviceSelector
+	}
+	return ""
 }
 
 type ListJobsResponse struct {
@@ -1450,10 +1477,11 @@ func (x *ListJobsResponse) GetJobs() []*Job {
 }
 
 type CancelJobRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	JobId         string                 `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	JobId          string                 `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	DeviceSelector string                 `protobuf:"bytes,2,opt,name=device_selector,json=deviceSelector,proto3" json:"device_selector,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *CancelJobRequest) Reset() {
@@ -1489,6 +1517,13 @@ func (*CancelJobRequest) Descriptor() ([]byte, []int) {
 func (x *CancelJobRequest) GetJobId() string {
 	if x != nil {
 		return x.JobId
+	}
+	return ""
+}
+
+func (x *CancelJobRequest) GetDeviceSelector() string {
+	if x != nil {
+		return x.DeviceSelector
 	}
 	return ""
 }
@@ -1538,12 +1573,13 @@ func (x *CancelJobResponse) GetJob() *Job {
 }
 
 type ReadJobLogsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	JobId         string                 `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
-	AfterSequence uint64                 `protobuf:"varint,2,opt,name=after_sequence,json=afterSequence,proto3" json:"after_sequence,omitempty"`
-	Limit         uint32                 `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	JobId          string                 `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	AfterSequence  uint64                 `protobuf:"varint,2,opt,name=after_sequence,json=afterSequence,proto3" json:"after_sequence,omitempty"`
+	Limit          uint32                 `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
+	DeviceSelector string                 `protobuf:"bytes,4,opt,name=device_selector,json=deviceSelector,proto3" json:"device_selector,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *ReadJobLogsRequest) Reset() {
@@ -1595,6 +1631,13 @@ func (x *ReadJobLogsRequest) GetLimit() uint32 {
 		return x.Limit
 	}
 	return 0
+}
+
+func (x *ReadJobLogsRequest) GetDeviceSelector() string {
+	if x != nil {
+		return x.DeviceSelector
+	}
+	return ""
 }
 
 type ReadJobLogsResponse struct {
@@ -3068,28 +3111,33 @@ const file_computehop_local_v1_local_proto_rawDesc = "" +
 	"\x06result\"\r\n" +
 	"\vPingRequest\"5\n" +
 	"\fPingResponse\x12%\n" +
-	"\x0edaemon_version\x18\x01 \x01(\tR\rdaemonVersion\"D\n" +
+	"\x0edaemon_version\x18\x01 \x01(\tR\rdaemonVersion\"m\n" +
 	"\x10SubmitJobRequest\x120\n" +
-	"\x04spec\x18\x01 \x01(\v2\x1c.computehop.local.v1.JobSpecR\x04spec\"?\n" +
+	"\x04spec\x18\x01 \x01(\v2\x1c.computehop.local.v1.JobSpecR\x04spec\x12'\n" +
+	"\x0fdevice_selector\x18\x02 \x01(\tR\x0edeviceSelector\"?\n" +
 	"\x11SubmitJobResponse\x12*\n" +
-	"\x03job\x18\x01 \x01(\v2\x18.computehop.local.v1.JobR\x03job\"&\n" +
+	"\x03job\x18\x01 \x01(\v2\x18.computehop.local.v1.JobR\x03job\"O\n" +
 	"\rGetJobRequest\x12\x15\n" +
-	"\x06job_id\x18\x01 \x01(\tR\x05jobId\"<\n" +
+	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12'\n" +
+	"\x0fdevice_selector\x18\x02 \x01(\tR\x0edeviceSelector\"<\n" +
 	"\x0eGetJobResponse\x12*\n" +
-	"\x03job\x18\x01 \x01(\v2\x18.computehop.local.v1.JobR\x03job\"^\n" +
+	"\x03job\x18\x01 \x01(\v2\x18.computehop.local.v1.JobR\x03job\"\x87\x01\n" +
 	"\x0fListJobsRequest\x125\n" +
 	"\x06states\x18\x01 \x03(\x0e2\x1d.computehop.local.v1.JobStateR\x06states\x12\x14\n" +
-	"\x05limit\x18\x02 \x01(\rR\x05limit\"@\n" +
+	"\x05limit\x18\x02 \x01(\rR\x05limit\x12'\n" +
+	"\x0fdevice_selector\x18\x03 \x01(\tR\x0edeviceSelector\"@\n" +
 	"\x10ListJobsResponse\x12,\n" +
-	"\x04jobs\x18\x01 \x03(\v2\x18.computehop.local.v1.JobR\x04jobs\")\n" +
+	"\x04jobs\x18\x01 \x03(\v2\x18.computehop.local.v1.JobR\x04jobs\"R\n" +
 	"\x10CancelJobRequest\x12\x15\n" +
-	"\x06job_id\x18\x01 \x01(\tR\x05jobId\"?\n" +
+	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12'\n" +
+	"\x0fdevice_selector\x18\x02 \x01(\tR\x0edeviceSelector\"?\n" +
 	"\x11CancelJobResponse\x12*\n" +
-	"\x03job\x18\x01 \x01(\v2\x18.computehop.local.v1.JobR\x03job\"h\n" +
+	"\x03job\x18\x01 \x01(\v2\x18.computehop.local.v1.JobR\x03job\"\x91\x01\n" +
 	"\x12ReadJobLogsRequest\x12\x15\n" +
 	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12%\n" +
 	"\x0eafter_sequence\x18\x02 \x01(\x04R\rafterSequence\x12\x14\n" +
-	"\x05limit\x18\x03 \x01(\rR\x05limit\"\x99\x01\n" +
+	"\x05limit\x18\x03 \x01(\rR\x05limit\x12'\n" +
+	"\x0fdevice_selector\x18\x04 \x01(\tR\x0edeviceSelector\"\x99\x01\n" +
 	"\x13ReadJobLogsResponse\x12*\n" +
 	"\x03job\x18\x01 \x01(\v2\x18.computehop.local.v1.JobR\x03job\x12;\n" +
 	"\arecords\x18\x02 \x03(\v2!.computehop.local.v1.JobLogRecordR\arecords\x12\x19\n" +
@@ -3219,7 +3267,7 @@ const file_computehop_local_v1_local_proto_rawDesc = "" +
 	"\x10JOB_STATE_FAILED\x10\v\x12\x17\n" +
 	"\x13JOB_STATE_CANCELLED\x10\f\x12\x16\n" +
 	"\x12JOB_STATE_REJECTED\x10\r\x12\x12\n" +
-	"\x0eJOB_STATE_LOST\x10\x0e*\x99\x02\n" +
+	"\x0eJOB_STATE_LOST\x10\x0e*\xbc\x02\n" +
 	"\tErrorCode\x12\x1a\n" +
 	"\x16ERROR_CODE_UNSPECIFIED\x10\x00\x12\x1f\n" +
 	"\x1bERROR_CODE_INVALID_ARGUMENT\x10\x01\x12\x18\n" +
@@ -3229,7 +3277,8 @@ const file_computehop_local_v1_local_proto_rawDesc = "" +
 	"\x13ERROR_CODE_INTERNAL\x10\x05\x12\x1e\n" +
 	"\x1aERROR_CODE_UNAUTHENTICATED\x10\x06\x12\"\n" +
 	"\x1eERROR_CODE_UNSUPPORTED_VERSION\x10\a\x12\"\n" +
-	"\x1eERROR_CODE_PAIRING_UNAVAILABLE\x10\b*d\n" +
+	"\x1eERROR_CODE_PAIRING_UNAVAILABLE\x10\b\x12!\n" +
+	"\x1dERROR_CODE_DEVICE_UNAVAILABLE\x10\t*d\n" +
 	"\fJobLogStream\x12\x1e\n" +
 	"\x1aJOB_LOG_STREAM_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15JOB_LOG_STREAM_STDOUT\x10\x01\x12\x19\n" +

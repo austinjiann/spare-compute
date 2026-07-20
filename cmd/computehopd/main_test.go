@@ -20,7 +20,9 @@ import (
 	"github.com/austinjiann/spare-compute/internal/platform/permissions"
 	"github.com/austinjiann/spare-compute/internal/protocol/localipc"
 	"github.com/austinjiann/spare-compute/internal/protocol/mapper"
+	remoteprotocol "github.com/austinjiann/spare-compute/internal/protocol/remote"
 	"github.com/austinjiann/spare-compute/internal/session"
+	"github.com/austinjiann/spare-compute/internal/trust"
 )
 
 func TestRunCheckInitializesDurableState(t *testing.T) {
@@ -257,17 +259,28 @@ func (idleTestDiscovery) Run(
 
 type idlePairingEndpoint struct{}
 
-func idlePairingEndpointFactory(string, session.LocalDevice) (session.PairingEndpoint, error) {
+func idlePairingEndpointFactory(string, session.LocalDevice, trust.Repository) (session.Endpoint, error) {
 	return idlePairingEndpoint{}, nil
 }
 
 func (idlePairingEndpoint) Port() uint16 { return 47823 }
-func (idlePairingEndpoint) Run(ctx context.Context, _ func(session.PairingChannel)) error {
+func (idlePairingEndpoint) Run(
+	ctx context.Context,
+	_ func(session.PairingChannel),
+	_ remoteprotocol.Handler,
+) error {
 	<-ctx.Done()
 	return nil
 }
-func (idlePairingEndpoint) Dial(context.Context, device.NearbyDevice) (session.PairingChannel, error) {
+func (idlePairingEndpoint) DialPairing(context.Context, device.NearbyDevice) (session.PairingChannel, error) {
 	return nil, errors.New("unexpected test pairing dial")
+}
+func (idlePairingEndpoint) DialRemote(
+	context.Context,
+	device.NearbyDevice,
+	trust.Peer,
+) (remoteprotocol.Caller, error) {
+	return nil, errors.New("unexpected test remote dial")
 }
 func (idlePairingEndpoint) Close() error { return nil }
 

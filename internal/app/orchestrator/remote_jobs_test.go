@@ -1,0 +1,169 @@
+package orchestrator
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"net/netip"
+	"testing"
+	"time"
+
+	computehopv1 "github.com/austinjiann/spare-compute/gen/go/computehop/v1"
+	"github.com/austinjiann/spare-compute/internal/device"
+	"github.com/austinjiann/spare-compute/internal/job"
+	"github.com/austinjiann/spare-compute/internal/protocol/mapper"
+	remoteprotocol "github.com/austinjiann/spare-compute/internal/protocol/remote"
+	"github.com/austinjiann/spare-compute/internal/trust"
+)
+
+func TestRemoteJobServiceRoutesOnlyThroughSelectedWorkerPin(t *testing.T) {
+	peer := activeWorkerPeer(t, 8, "Gaming PC")
+	nearby := nearbyWorker(t, "Gaming PC", 47823)
+	want := queuedJobForTest()
+	message, err := mapper.JobToRemoteProto(want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dialed := false
+	service, err := NewRemoteJobService(RemoteDependencies{
+		Nearby: stubDeviceController{list: func(context.Context) (device.DiscoverySnapshot, error) {
+			return device.DiscoverySnapshot{Available: true, Devices: []device.NearbyDevice{nearby}}, nil
+		}},
+		Trust: remoteTrustStub{peers: []trust.Peer{peer}},
+		Dialer: remoteDialerFunc(func(
+			_ context.Context,
+			target device.NearbyDevice,
+			pinned trust.Peer,
+		) (remoteprotocol.Caller, error) {
+			dialed = true
+			if target.Announcement.PresenceID != nearby.Announcement.PresenceID ||
+				pinned.DeviceID != peer.DeviceID {
+				t.Fatalf("target = %#v; peer = %#v", target, pinned)
+			}
+			return &remoteCallerStub{call: func(
+				_ context.Context,
+				request *computehopv1.RemoteRequest,
+			) (*computehopv1.RemoteResponse, error) {
+				if request.GetSubmitJob().GetSpec().GetExecutable() != "echo" {
+					t.Fatalf("request = %#v", request)
+				}
+				return &computehopv1.RemoteResponse{Result: &computehopv1.RemoteResponse_SubmitJob{
+					SubmitJob: &computehopv1.SubmitJobResponse{Job: message},
+				}}, nil
+			}}, nil
+		}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := service.Submit(context.Background(), "Gaming PC", want.Spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !dialed || got.ID != want.ID || got.State != want.State {
+		t.Fatalf("job = %#v; dialed = %t", got, dialed)
+	}
+}
+
+func TestRemoteJobServiceRequiresAnActiveNearbyPin(t *testing.T) {
+	peer := activeWorkerPeer(t, 9, "Offline PC")
+	service, err := NewRemoteJobService(RemoteDependencies{
+		Nearby: stubDeviceController{},
+		Trust:  remoteTrustStub{peers: []trust.Peer{peer}},
+		Dialer: remoteDialerFunc(func(
+			context.Context,
+			device.NearbyDevice,
+			trust.Peer,
+		) (remoteprotocol.Caller, error) {
+			t.Fatal("offline worker was dialed")
+			return nil, nil
+		}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = service.List(context.Background(), "Offline PC", job.ListOptions{Limit: 10})
+	if !errors.Is(err, ErrRemoteWorkerUnavailable) {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+type remoteDialerFunc func(context.Context, device.NearbyDevice, trust.Peer) (remoteprotocol.Caller, error)
+
+func (function remoteDialerFunc) DialRemote(
+	ctx context.Context,
+	target device.NearbyDevice,
+	peer trust.Peer,
+) (remoteprotocol.Caller, error) {
+	return function(ctx, target, peer)
+}
+
+type remoteCallerStub struct {
+	call func(context.Context, *computehopv1.RemoteRequest) (*computehopv1.RemoteResponse, error)
+}
+
+func (caller *remoteCallerStub) Call(
+	ctx context.Context,
+	request *computehopv1.RemoteRequest,
+) (*computehopv1.RemoteResponse, error) {
+	return caller.call(ctx, request)
+}
+
+func (*remoteCallerStub) Close() error { return nil }
+
+type remoteTrustStub struct {
+	peers []trust.Peer
+}
+
+func (stub remoteTrustStub) Activate(context.Context, trust.Peer) error {
+	return errors.New("not implemented")
+}
+func (stub remoteTrustStub) Get(context.Context, device.ID) (trust.Peer, error) {
+	return trust.Peer{}, trust.ErrNotFound
+}
+func (stub remoteTrustStub) List(context.Context) ([]trust.Peer, error) {
+	result := make([]trust.Peer, len(stub.peers))
+	for index, peer := range stub.peers {
+		result[index] = peer.Clone()
+	}
+	return result, nil
+}
+func (stub remoteTrustStub) Revoke(context.Context, device.ID, time.Time) (trust.Peer, error) {
+	return trust.Peer{}, errors.New("not implemented")
+}
+
+func activeWorkerPeer(t *testing.T, seed byte, name string) trust.Peer {
+	t.Helper()
+	identity, err := device.GenerateIdentity(bytes.NewReader(bytes.Repeat([]byte{seed}, 64)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pairID, err := trust.NewPairID(bytes.NewReader(bytes.Repeat([]byte{seed + 1}, 16)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Unix(1_700_000_000, 0).UTC()
+	return trust.Peer{
+		PairID: pairID, DeviceID: identity.ID(), PublicKey: identity.PublicKey(),
+		Name: name, Role: device.RoleWorker, State: trust.StateActive,
+		PairedAt: now, UpdatedAt: now,
+	}
+}
+
+func nearbyWorker(t *testing.T, name string, port uint16) device.NearbyDevice {
+	t.Helper()
+	presence, err := device.NewPresenceID(bytes.NewReader(bytes.Repeat([]byte{6}, 16)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	observation := device.Observation{
+		Key: "worker", Announcement: device.Announcement{
+			PresenceID: presence, Name: name, Role: device.RoleWorker,
+			ProtocolVersion: device.DiscoveryProtocolVersion, Port: port, EndpointReady: true,
+		},
+		Instance: name, HostName: "worker.local.", Addresses: []netip.Addr{netip.MustParseAddr("192.0.2.10")},
+		SeenAt: now, ExpiresAt: now.Add(time.Minute),
+	}
+	return device.NearbyDevice{Observation: observation, FirstSeenAt: now}
+}

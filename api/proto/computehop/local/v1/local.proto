@@ -58,6 +58,7 @@ message PingResponse {
 
 message SubmitJobRequest {
   JobSpec spec = 1;
+  string device_selector = 2;
 }
 
 message SubmitJobResponse {
@@ -66,6 +67,7 @@ message SubmitJobResponse {
 
 message GetJobRequest {
   string job_id = 1;
+  string device_selector = 2;
 }
 
 message GetJobResponse {
@@ -75,6 +77,7 @@ message GetJobResponse {
 message ListJobsRequest {
   repeated JobState states = 1;
   uint32 limit = 2;
+  string device_selector = 3;
 }
 
 message ListJobsResponse {
@@ -83,6 +86,7 @@ message ListJobsResponse {
 
 message CancelJobRequest {
   string job_id = 1;
+  string device_selector = 2;
 }
 
 message CancelJobResponse {
@@ -93,6 +97,7 @@ message ReadJobLogsRequest {
   string job_id = 1;
   uint64 after_sequence = 2;
   uint32 limit = 3;
+  string device_selector = 4;
 }
 
 message ReadJobLogsResponse {
@@ -269,6 +274,7 @@ enum ErrorCode {
   ERROR_CODE_UNAUTHENTICATED = 6;
   ERROR_CODE_UNSUPPORTED_VERSION = 7;
   ERROR_CODE_PAIRING_UNAVAILABLE = 8;
+  ERROR_CODE_DEVICE_UNAVAILABLE = 9;
 }
 
 enum JobLogStream {
