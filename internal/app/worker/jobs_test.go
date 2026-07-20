@@ -10,7 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/austinjiann/spare-compute/internal/execution"
 	"github.com/austinjiann/spare-compute/internal/job"
+	joblogging "github.com/austinjiann/spare-compute/internal/logging"
 )
 
 func TestSubmitDurablyQueuesJob(t *testing.T) {
@@ -53,7 +55,9 @@ func TestSubmitRejectsInvalidSpecBeforePersistence(t *testing.T) {
 
 func TestSubmitPropagatesIDGenerationFailure(t *testing.T) {
 	service, err := NewJobService(Dependencies{
-		Jobs: newMemoryRepository(),
+		Jobs:       newMemoryRepository(),
+		Executions: &fakeExecutionController{},
+		Logs:       fakeLogReader{},
 		GenerateID: func() (job.ID, error) {
 			return "", errors.New("entropy unavailable")
 		},
@@ -68,7 +72,7 @@ func TestSubmitPropagatesIDGenerationFailure(t *testing.T) {
 	}
 }
 
-func TestAdvanceAndIdempotentCancel(t *testing.T) {
+func TestCancelQueuedJobIsImmediateAndIdempotent(t *testing.T) {
 	repository := newMemoryRepository()
 	service := newTestService(t, repository)
 	current, err := service.Submit(context.Background(), validSpec())
@@ -76,12 +80,6 @@ func TestAdvanceAndIdempotentCancel(t *testing.T) {
 		t.Fatalf("Submit() error = %v", err)
 	}
 
-	for _, state := range []job.State{job.StateStarting, job.StateRunning} {
-		current, err = service.Advance(context.Background(), current.ID, state, nil)
-		if err != nil {
-			t.Fatalf("Advance(%s) error = %v", state, err)
-		}
-	}
 	cancelled, err := service.Cancel(context.Background(), current.ID)
 	if err != nil {
 		t.Fatalf("Cancel() error = %v", err)
@@ -150,6 +148,8 @@ func TestGetAndListUseRepository(t *testing.T) {
 func TestNewJobServiceRequiresDependencies(t *testing.T) {
 	valid := Dependencies{
 		Jobs:       newMemoryRepository(),
+		Executions: &fakeExecutionController{},
+		Logs:       fakeLogReader{},
 		GenerateID: job.NewID,
 		Now:        time.Now,
 	}
@@ -159,6 +159,8 @@ func TestNewJobServiceRequiresDependencies(t *testing.T) {
 		mutate func(*Dependencies)
 	}{
 		{"jobs", func(value *Dependencies) { value.Jobs = nil }},
+		{"executions", func(value *Dependencies) { value.Executions = nil }},
+		{"logs", func(value *Dependencies) { value.Logs = nil }},
 		{"ID generator", func(value *Dependencies) { value.GenerateID = nil }},
 		{"clock", func(value *Dependencies) { value.Now = nil }},
 	} {
@@ -178,6 +180,8 @@ func newTestService(t *testing.T, repository job.Repository) *JobService {
 	now := time.Date(2026, time.July, 18, 12, 0, 0, 0, time.UTC)
 	service, err := NewJobService(Dependencies{
 		Jobs:       repository,
+		Executions: &fakeExecutionController{},
+		Logs:       fakeLogReader{},
 		GenerateID: func() (job.ID, error) { return id, nil },
 		Now: func() time.Time {
 			now = now.Add(time.Second)
@@ -188,6 +192,33 @@ func newTestService(t *testing.T, repository job.Repository) *JobService {
 		t.Fatalf("NewJobService() error = %v", err)
 	}
 	return service
+}
+
+type fakeExecutionController struct {
+	attempt   execution.Attempt
+	requested bool
+}
+
+func (controller *fakeExecutionController) RequestCancellation(
+	context.Context,
+	job.ID,
+	time.Time,
+) error {
+	controller.requested = true
+	return nil
+}
+
+func (controller *fakeExecutionController) Get(context.Context, job.ID) (execution.Attempt, error) {
+	if !controller.attempt.JobID.Valid() {
+		return execution.Attempt{}, execution.ErrNotFound
+	}
+	return controller.attempt, nil
+}
+
+type fakeLogReader struct{}
+
+func (fakeLogReader) Read(context.Context, job.ID, uint64, int) (joblogging.Page, error) {
+	return joblogging.Page{}, nil
 }
 
 func validSpec() job.Spec {

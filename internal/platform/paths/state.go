@@ -7,12 +7,17 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	"github.com/austinjiann/spare-compute/internal/job"
 )
 
 const (
 	DatabaseFilename        = "computehop.db"
 	LocalSocketFilename     = "computehop.sock"
 	CapabilityTokenFilename = "local-ipc.token"
+	DeviceIdentityFilename  = "device-identity.pem"
+	JobsDirectoryName       = "jobs"
+	JobLogFilename          = "output.log"
 )
 
 // StateDir returns the default directory for durable local ComputeHop state.
@@ -39,6 +44,32 @@ func LocalSocketPath(stateDir string) (string, error) {
 // CapabilityTokenPath resolves the local IPC capability token inside stateDir.
 func CapabilityTokenPath(stateDir string) (string, error) {
 	return stateFilePath(stateDir, CapabilityTokenFilename)
+}
+
+// DeviceIdentityPath resolves the long-lived local identity key file.
+func DeviceIdentityPath(stateDir string) (string, error) {
+	return stateFilePath(stateDir, DeviceIdentityFilename)
+}
+
+// JobDataDir resolves the private durable-data directory for id.
+func JobDataDir(stateDir string, id job.ID) (string, error) {
+	if !id.Valid() {
+		return "", job.ErrInvalidID
+	}
+	jobsDirectory, err := stateFilePath(stateDir, JobsDirectoryName)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(jobsDirectory, string(id)), nil
+}
+
+// JobLogPath resolves the append-only job log data file for id.
+func JobLogPath(stateDir string, id job.ID) (string, error) {
+	directory, err := JobDataDir(stateDir, id)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(directory, JobLogFilename), nil
 }
 
 func stateFilePath(stateDir, filename string) (string, error) {

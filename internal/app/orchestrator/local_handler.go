@@ -8,13 +8,18 @@ import (
 
 	localv1 "github.com/austinjiann/spare-compute/gen/go/computehop/local/v1"
 	"github.com/austinjiann/spare-compute/internal/app/worker"
+	"github.com/austinjiann/spare-compute/internal/device"
 	"github.com/austinjiann/spare-compute/internal/job"
+	joblogging "github.com/austinjiann/spare-compute/internal/logging"
 	"github.com/austinjiann/spare-compute/internal/protocol/mapper"
 )
 
 const maximumLocalListLimit = 500
 
-var ErrMissingJobController = errors.New("local handler job controller is required")
+var (
+	ErrMissingJobController    = errors.New("local handler job controller is required")
+	ErrMissingDeviceController = errors.New("local handler device controller is required")
+)
 
 // JobController is the narrow application boundary exposed over local IPC.
 type JobController interface {
@@ -22,20 +27,30 @@ type JobController interface {
 	Get(context.Context, job.ID) (job.Job, error)
 	List(context.Context, job.ListOptions) ([]job.Job, error)
 	Cancel(context.Context, job.ID) (job.Job, error)
+	ReadLogs(context.Context, job.ID, uint64, int) (worker.JobLogs, error)
+}
+
+// DeviceController is the narrow nearby-device boundary exposed over local IPC.
+type DeviceController interface {
+	ListNearby(context.Context) (device.DiscoverySnapshot, error)
 }
 
 // LocalHandler maps authenticated protocol requests to application use cases.
 type LocalHandler struct {
 	jobs    JobController
+	devices DeviceController
 	version string
 }
 
 // NewLocalHandler constructs the local orchestrator control handler.
-func NewLocalHandler(jobs JobController, version string) (*LocalHandler, error) {
+func NewLocalHandler(jobs JobController, devices DeviceController, version string) (*LocalHandler, error) {
 	if jobs == nil {
 		return nil, ErrMissingJobController
 	}
-	return &LocalHandler{jobs: jobs, version: version}, nil
+	if devices == nil {
+		return nil, ErrMissingDeviceController
+	}
+	return &LocalHandler{jobs: jobs, devices: devices, version: version}, nil
 }
 
 // Handle executes one already-authenticated local request.
@@ -53,9 +68,67 @@ func (handler *LocalHandler) Handle(ctx context.Context, request *localv1.Reques
 		return handler.list(ctx, operation.ListJobs)
 	case *localv1.Request_CancelJob:
 		return handler.cancel(ctx, operation.CancelJob)
+	case *localv1.Request_ReadJobLogs:
+		return handler.readLogs(ctx, operation.ReadJobLogs)
+	case *localv1.Request_ListDevices:
+		return handler.listDevices(ctx, operation.ListDevices)
 	default:
 		return failureResponse(localv1.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "unsupported local operation")
 	}
+}
+
+func (handler *LocalHandler) listDevices(
+	ctx context.Context,
+	request *localv1.ListDevicesRequest,
+) *localv1.Response {
+	if request == nil {
+		return failureResponse(localv1.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "device list request is required")
+	}
+	snapshot, err := handler.devices.ListNearby(ctx)
+	if err != nil {
+		return errorResponse(err)
+	}
+	message, err := mapper.DiscoverySnapshotToProto(snapshot)
+	if err != nil {
+		return errorResponse(err)
+	}
+	return &localv1.Response{Result: &localv1.Response_ListDevices{ListDevices: message}}
+}
+
+func (handler *LocalHandler) readLogs(
+	ctx context.Context,
+	request *localv1.ReadJobLogsRequest,
+) *localv1.Response {
+	if request == nil {
+		return failureResponse(localv1.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "log request is required")
+	}
+	if request.GetLimit() > joblogging.MaximumPageLimit {
+		return failureResponse(
+			localv1.ErrorCode_ERROR_CODE_INVALID_ARGUMENT,
+			fmt.Sprintf("job log limit cannot exceed %d", joblogging.MaximumPageLimit),
+		)
+	}
+	id, err := job.ParseID(request.GetJobId())
+	if err != nil {
+		return errorResponse(err)
+	}
+	result, err := handler.jobs.ReadLogs(ctx, id, request.GetAfterSequence(), int(request.GetLimit()))
+	if err != nil {
+		return errorResponse(err)
+	}
+	jobMessage, err := mapper.JobToProto(result.Job)
+	if err != nil {
+		return errorResponse(err)
+	}
+	records, err := mapper.LogRecordsToProto(result.Page.Records)
+	if err != nil {
+		return errorResponse(err)
+	}
+	return &localv1.Response{Result: &localv1.Response_ReadJobLogs{ReadJobLogs: &localv1.ReadJobLogsResponse{
+		Job:     jobMessage,
+		Records: records,
+		HasMore: result.Page.HasMore,
+	}}}
 }
 
 func (handler *LocalHandler) submit(
@@ -162,10 +235,12 @@ func errorResponse(err error) *localv1.Response {
 		errors.Is(err, job.ErrInvalidSpec),
 		errors.Is(err, job.ErrInvalidJob),
 		errors.Is(err, job.ErrInvalidState),
-		errors.Is(err, job.ErrInvalidTransition):
+		errors.Is(err, job.ErrInvalidTransition),
+		errors.Is(err, joblogging.ErrInvalidPage),
+		errors.Is(err, joblogging.ErrInvalidRecord):
 		code = localv1.ErrorCode_ERROR_CODE_INVALID_ARGUMENT
 		message = err.Error()
-	case errors.Is(err, job.ErrNotFound):
+	case errors.Is(err, job.ErrNotFound), errors.Is(err, joblogging.ErrNotFound):
 		code = localv1.ErrorCode_ERROR_CODE_NOT_FOUND
 		message = err.Error()
 	case errors.Is(err, job.ErrConflict):

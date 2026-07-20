@@ -170,7 +170,21 @@ func (repository *JobRepository) ApplyTransition(ctx context.Context, transition
 	defer func() {
 		_ = transaction.Rollback()
 	}()
+	next, err := applyJobTransition(ctx, transaction, transition)
+	if err != nil {
+		return job.Job{}, err
+	}
+	if err := transaction.Commit(); err != nil {
+		return job.Job{}, fmt.Errorf("commit job transition: %w", err)
+	}
+	return next, nil
+}
 
+func applyJobTransition(
+	ctx context.Context,
+	transaction *sql.Tx,
+	transition job.Transition,
+) (job.Job, error) {
 	current, err := queryJob(
 		ctx,
 		transaction,
@@ -251,9 +265,6 @@ func (repository *JobRepository) ApplyTransition(ctx context.Context, transition
 		return job.Job{}, fmt.Errorf("record job transition: %w", err)
 	}
 
-	if err := transaction.Commit(); err != nil {
-		return job.Job{}, fmt.Errorf("commit job transition: %w", err)
-	}
 	return next, nil
 }
 

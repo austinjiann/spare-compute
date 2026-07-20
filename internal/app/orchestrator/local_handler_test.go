@@ -7,6 +7,8 @@ import (
 	"time"
 
 	localv1 "github.com/austinjiann/spare-compute/gen/go/computehop/local/v1"
+	"github.com/austinjiann/spare-compute/internal/app/worker"
+	"github.com/austinjiann/spare-compute/internal/device"
 	"github.com/austinjiann/spare-compute/internal/job"
 )
 
@@ -15,6 +17,7 @@ type stubJobController struct {
 	get    func(context.Context, job.ID) (job.Job, error)
 	list   func(context.Context, job.ListOptions) ([]job.Job, error)
 	cancel func(context.Context, job.ID) (job.Job, error)
+	logs   func(context.Context, job.ID, uint64, int) (worker.JobLogs, error)
 }
 
 func (stub stubJobController) Submit(ctx context.Context, spec job.Spec) (job.Job, error) {
@@ -33,6 +36,15 @@ func (stub stubJobController) Cancel(ctx context.Context, id job.ID) (job.Job, e
 	return stub.cancel(ctx, id)
 }
 
+func (stub stubJobController) ReadLogs(
+	ctx context.Context,
+	id job.ID,
+	after uint64,
+	limit int,
+) (worker.JobLogs, error) {
+	return stub.logs(ctx, id, after, limit)
+}
+
 func TestLocalHandlerPing(t *testing.T) {
 	handler := newHandlerForTest(t, stubJobController{})
 	response := handler.Handle(context.Background(), &localv1.Request{
@@ -40,6 +52,26 @@ func TestLocalHandlerPing(t *testing.T) {
 	})
 	if got := response.GetPing().GetDaemonVersion(); got != "test-version" {
 		t.Fatalf("daemon version = %q, want test-version", got)
+	}
+}
+
+func TestLocalHandlerListsDiscoveryHealth(t *testing.T) {
+	handler, err := NewLocalHandler(stubJobController{}, stubDeviceController{
+		list: func(context.Context) (device.DiscoverySnapshot, error) {
+			return device.DiscoverySnapshot{Available: true}, nil
+		},
+	}, "test-version")
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := handler.Handle(context.Background(), &localv1.Request{
+		Operation: &localv1.Request_ListDevices{ListDevices: &localv1.ListDevicesRequest{}},
+	})
+	if response.GetError() != nil {
+		t.Fatalf("response error = %v", response.GetError())
+	}
+	if got := response.GetListDevices().GetDiscoveryState(); got != localv1.DiscoveryState_DISCOVERY_STATE_AVAILABLE {
+		t.Fatalf("discovery state = %v", got)
 	}
 }
 
@@ -121,11 +153,22 @@ func TestLocalHandlerRejectsOversizedList(t *testing.T) {
 
 func newHandlerForTest(t *testing.T, controller JobController) *LocalHandler {
 	t.Helper()
-	handler, err := NewLocalHandler(controller, "test-version")
+	handler, err := NewLocalHandler(controller, stubDeviceController{}, "test-version")
 	if err != nil {
 		t.Fatalf("NewLocalHandler() error = %v", err)
 	}
 	return handler
+}
+
+type stubDeviceController struct {
+	list func(context.Context) (device.DiscoverySnapshot, error)
+}
+
+func (stub stubDeviceController) ListNearby(ctx context.Context) (device.DiscoverySnapshot, error) {
+	if stub.list == nil {
+		return device.DiscoverySnapshot{}, nil
+	}
+	return stub.list(ctx)
 }
 
 func queuedJobForTest() job.Job {

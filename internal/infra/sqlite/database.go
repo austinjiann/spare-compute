@@ -19,8 +19,9 @@ const (
 
 // Database owns the single local SQLite connection used by a ComputeHop daemon.
 type Database struct {
-	sql  *sql.DB
-	jobs *JobRepository
+	sql        *sql.DB
+	jobs       *JobRepository
+	executions *ExecutionRepository
 }
 
 // Open creates or opens a local ComputeHop database and applies all migrations.
@@ -63,7 +64,13 @@ func Open(ctx context.Context, path string) (*Database, error) {
 
 	result := &Database{sql: database}
 	result.jobs = &JobRepository{database: database}
+	result.executions = &ExecutionRepository{database: database}
 	return result, nil
+}
+
+// Executions returns the runner and job-log repository owned by this database.
+func (database *Database) Executions() *ExecutionRepository {
+	return database.executions
 }
 
 // Jobs returns the durable job repository owned by this database.

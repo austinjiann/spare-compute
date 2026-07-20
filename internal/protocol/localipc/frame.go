@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	ProtocolVersion   uint32 = 1
+	ProtocolVersion   uint32 = 2
 	maximumFrameBytes        = 1 << 20
 )
 
