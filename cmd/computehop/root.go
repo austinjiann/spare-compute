@@ -16,6 +16,7 @@ import (
 	"github.com/austinjiann/spare-compute/internal/device"
 	"github.com/austinjiann/spare-compute/internal/job"
 	"github.com/austinjiann/spare-compute/internal/protocol/mapper"
+	"github.com/austinjiann/spare-compute/internal/trust"
 )
 
 var ErrInvalidDaemonResponse = errors.New("invalid response from computehopd")
@@ -44,6 +45,8 @@ func newRootCommand(dependencies dependencies) *cobra.Command {
 	root.AddCommand(newVersionCommand(dependencies.stdout))
 	root.AddCommand(newStatusCommand(dependencies.stdout, clientForCommand))
 	root.AddCommand(newDevicesCommand(dependencies.stdout, dependencies.stderr, clientForCommand))
+	root.AddCommand(newPairCommand(dependencies.stdout, clientForCommand))
+	root.AddCommand(newUnpairCommand(dependencies.stdout, clientForCommand))
 	root.AddCommand(newRunCommand(dependencies.stdout, dependencies.getwd, clientForCommand))
 	root.AddCommand(newJobsCommand(dependencies.stdout, clientForCommand))
 	root.AddCommand(newCancelCommand(dependencies.stdout, clientForCommand))
@@ -78,8 +81,12 @@ func newDevicesCommand(
 			switch result.GetDiscoveryState() {
 			case localv1.DiscoveryState_DISCOVERY_STATE_STARTING:
 				if len(result.GetDevices()) == 0 {
-					_, err = fmt.Fprintln(stdout, "LAN discovery is starting.")
-					return err
+					if _, err = fmt.Fprintln(stdout, "LAN discovery is starting."); err != nil {
+						return err
+					}
+					if len(result.GetTrustedDevices()) == 0 {
+						return nil
+					}
 				}
 			case localv1.DiscoveryState_DISCOVERY_STATE_UNAVAILABLE:
 				message := result.GetDiscoveryError()
@@ -93,14 +100,26 @@ func newDevicesCommand(
 			default:
 				return fmt.Errorf("%w: invalid discovery state", ErrInvalidDaemonResponse)
 			}
-			if len(result.GetDevices()) == 0 {
+			if len(result.GetDevices()) == 0 && len(result.GetTrustedDevices()) == 0 {
 				_, err = fmt.Fprintln(stdout, "No nearby devices.")
 				return err
 			}
 
 			writer := tabwriter.NewWriter(stdout, 0, 4, 2, ' ', 0)
-			if _, err := fmt.Fprintln(writer, "NAME\tSESSION\tTRUST\tROLE\tADDRESS\tLAST SEEN"); err != nil {
+			if _, err := fmt.Fprintln(writer, "NAME\tIDENTIFIER\tTRUST\tROLE\tADDRESS\tUPDATED"); err != nil {
 				return err
+			}
+			for _, message := range result.GetTrustedDevices() {
+				peer, err := mapper.TrustedPeerFromProto(message)
+				if err != nil {
+					return fmt.Errorf("%w: %v", ErrInvalidDaemonResponse, err)
+				}
+				if _, err := fmt.Fprintf(
+					writer, "%s\t%s\t%s\t%s\t%s\t%s\n",
+					peer.Name, peer.DeviceID.Short(), peer.State, peer.Role, "—", peer.UpdatedAt.Format(time.RFC3339),
+				); err != nil {
+					return err
+				}
 			}
 			for _, nearby := range result.GetDevices() {
 				presenceID, err := device.ParsePresenceID(nearby.GetPresenceId())
@@ -143,6 +162,192 @@ func newDevicesCommand(
 			return writer.Flush()
 		},
 	}
+}
+
+func newPairCommand(
+	stdout io.Writer,
+	clientForCommand func() (caller, error),
+) *cobra.Command {
+	command := &cobra.Command{
+		Use:   "pair [device]",
+		Short: "Start pairing or list current verification requests",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(command *cobra.Command, arguments []string) error {
+			client, err := clientForCommand()
+			if err != nil {
+				return err
+			}
+			if len(arguments) == 0 {
+				return listPairings(command, stdout, client)
+			}
+			response, err := client.Call(command.Context(), &localv1.Request{
+				Operation: &localv1.Request_BeginPairing{BeginPairing: &localv1.BeginPairingRequest{
+					DeviceSelector: arguments[0],
+				}},
+			})
+			if err != nil {
+				return err
+			}
+			result := response.GetBeginPairing()
+			if result == nil {
+				return fmt.Errorf("%w: missing begin-pairing result", ErrInvalidDaemonResponse)
+			}
+			value, err := mapper.PairingFromProto(result.GetPairing())
+			if err != nil {
+				return fmt.Errorf("%w: %v", ErrInvalidDaemonResponse, err)
+			}
+			return printPairingInstructions(stdout, value)
+		},
+	}
+	command.AddCommand(newPairDecisionCommand(stdout, clientForCommand, true))
+	command.AddCommand(newPairDecisionCommand(stdout, clientForCommand, false))
+	return command
+}
+
+func listPairings(command *cobra.Command, stdout io.Writer, client caller) error {
+	response, err := client.Call(command.Context(), &localv1.Request{
+		Operation: &localv1.Request_ListPairings{ListPairings: &localv1.ListPairingsRequest{}},
+	})
+	if err != nil {
+		return err
+	}
+	result := response.GetListPairings()
+	if result == nil {
+		return fmt.Errorf("%w: missing pairing list result", ErrInvalidDaemonResponse)
+	}
+	if len(result.GetPairings()) == 0 {
+		_, err = fmt.Fprintln(stdout, "No pairing requests.")
+		return err
+	}
+	writer := tabwriter.NewWriter(stdout, 0, 4, 2, ' ', 0)
+	if _, err := fmt.Fprintln(writer, "ID\tDEVICE\tCODE\tDIRECTION\tLOCAL\tREMOTE\tSTATE\tEXPIRES"); err != nil {
+		return err
+	}
+	for _, message := range result.GetPairings() {
+		value, err := mapper.PairingFromProto(message)
+		if err != nil {
+			return fmt.Errorf("%w: %v", ErrInvalidDaemonResponse, err)
+		}
+		if _, err := fmt.Fprintf(
+			writer, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+			value.ID.Short(), value.PeerName, value.Verification, value.Direction,
+			yesNo(value.LocalConfirmed), yesNo(value.RemoteConfirmed), value.State,
+			value.ExpiresAt.Format(time.RFC3339),
+		); err != nil {
+			return err
+		}
+	}
+	return writer.Flush()
+}
+
+func newPairDecisionCommand(
+	stdout io.Writer,
+	clientForCommand func() (caller, error),
+	confirmed bool,
+) *cobra.Command {
+	verb := "confirm"
+	short := "Confirm that the verification code matches on this device"
+	if !confirmed {
+		verb = "reject"
+		short = "Reject a pairing request on this device"
+	}
+	return &cobra.Command{
+		Use:   verb + " <pairing>",
+		Short: short,
+		Args:  cobra.ExactArgs(1),
+		RunE: func(command *cobra.Command, arguments []string) error {
+			client, err := clientForCommand()
+			if err != nil {
+				return err
+			}
+			var request *localv1.Request
+			if confirmed {
+				request = &localv1.Request{Operation: &localv1.Request_ConfirmPairing{
+					ConfirmPairing: &localv1.ConfirmPairingRequest{PairingSelector: arguments[0]},
+				}}
+			} else {
+				request = &localv1.Request{Operation: &localv1.Request_RejectPairing{
+					RejectPairing: &localv1.RejectPairingRequest{PairingSelector: arguments[0]},
+				}}
+			}
+			response, err := client.Call(command.Context(), request)
+			if err != nil {
+				return err
+			}
+			var message *localv1.Pairing
+			if confirmed && response.GetConfirmPairing() != nil {
+				message = response.GetConfirmPairing().GetPairing()
+			}
+			if !confirmed && response.GetRejectPairing() != nil {
+				message = response.GetRejectPairing().GetPairing()
+			}
+			value, err := mapper.PairingFromProto(message)
+			if err != nil {
+				return fmt.Errorf("%w: %v", ErrInvalidDaemonResponse, err)
+			}
+			if confirmed {
+				_, err = fmt.Fprintf(stdout, "Confirmed %s locally; state: %s.\n", value.PeerName, value.State)
+			} else {
+				_, err = fmt.Fprintf(stdout, "Rejected pairing with %s.\n", value.PeerName)
+			}
+			return err
+		},
+	}
+}
+
+func newUnpairCommand(
+	stdout io.Writer,
+	clientForCommand func() (caller, error),
+) *cobra.Command {
+	return &cobra.Command{
+		Use:   "unpair <device>",
+		Short: "Revoke a paired device's pinned identity",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(command *cobra.Command, arguments []string) error {
+			client, err := clientForCommand()
+			if err != nil {
+				return err
+			}
+			response, err := client.Call(command.Context(), &localv1.Request{
+				Operation: &localv1.Request_UnpairDevice{UnpairDevice: &localv1.UnpairDeviceRequest{
+					DeviceSelector: arguments[0],
+				}},
+			})
+			if err != nil {
+				return err
+			}
+			if response.GetUnpairDevice() == nil {
+				return fmt.Errorf("%w: missing unpair result", ErrInvalidDaemonResponse)
+			}
+			peer, err := mapper.TrustedPeerFromProto(response.GetUnpairDevice().GetDevice())
+			if err != nil {
+				return fmt.Errorf("%w: %v", ErrInvalidDaemonResponse, err)
+			}
+			_, err = fmt.Fprintf(stdout, "Revoked %s (%s). Pair it again to restore trust.\n", peer.Name, peer.DeviceID.Short())
+			return err
+		},
+	}
+}
+
+func printPairingInstructions(stdout io.Writer, value trust.Pairing) error {
+	if _, err := fmt.Fprintf(stdout, "Pairing request %s opened with %s.\n", value.ID.Short(), value.PeerName); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(stdout, "Verification code: %s\n", value.Verification); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(stdout, "Compare this exact code on both devices. Do not confirm if it differs."); err != nil {
+		return err
+	}
+	_, err := fmt.Fprintf(stdout, "Confirm on this device with: computehop pair confirm %s\n", value.ID.Short())
+	return err
+}
+
+func yesNo(value bool) string {
+	if value {
+		return "yes"
+	}
+	return "no"
 }
 
 func newVersionCommand(stdout io.Writer) *cobra.Command {

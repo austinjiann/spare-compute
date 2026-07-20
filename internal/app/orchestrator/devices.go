@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/netip"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -18,6 +19,11 @@ const (
 )
 
 var ErrMissingDeviceDependency = errors.New("nearby device service dependency is required")
+
+var (
+	ErrNearbyDeviceNotFound  = errors.New("nearby device not found")
+	ErrNearbyDeviceAmbiguous = errors.New("nearby device selector is ambiguous")
+)
 
 // DeviceDependencies configure local LAN presence and the in-memory nearby view.
 type DeviceDependencies struct {
@@ -124,6 +130,34 @@ func (service *DeviceService) ListNearby(ctx context.Context) (device.DiscoveryS
 		return result.Devices[left].Key < result.Devices[right].Key
 	})
 	return result, nil
+}
+
+// ResolveNearby selects one current worker by exact name, full presence ID, or
+// an unambiguous presence-ID prefix. Discovery remains untrusted after lookup.
+func (service *DeviceService) ResolveNearby(ctx context.Context, selector string) (device.NearbyDevice, error) {
+	selector = strings.TrimSpace(selector)
+	if selector == "" {
+		return device.NearbyDevice{}, ErrNearbyDeviceNotFound
+	}
+	snapshot, err := service.ListNearby(ctx)
+	if err != nil {
+		return device.NearbyDevice{}, err
+	}
+	matches := make([]device.NearbyDevice, 0, 1)
+	for _, nearby := range snapshot.Devices {
+		presence := string(nearby.Announcement.PresenceID)
+		if nearby.Announcement.Name == selector || presence == selector || strings.HasPrefix(presence, selector) {
+			matches = append(matches, nearby)
+		}
+	}
+	switch len(matches) {
+	case 0:
+		return device.NearbyDevice{}, fmt.Errorf("%w: %s", ErrNearbyDeviceNotFound, selector)
+	case 1:
+		return matches[0], nil
+	default:
+		return device.NearbyDevice{}, fmt.Errorf("%w: %s matches %d devices", ErrNearbyDeviceAmbiguous, selector, len(matches))
+	}
 }
 
 func (service *DeviceService) observe(observation device.Observation) {

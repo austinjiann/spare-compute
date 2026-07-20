@@ -10,20 +10,24 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"runtime"
 	"time"
 
 	"github.com/austinjiann/spare-compute/internal/app/orchestrator"
+	pairingapp "github.com/austinjiann/spare-compute/internal/app/pairing"
 	"github.com/austinjiann/spare-compute/internal/app/worker"
 	"github.com/austinjiann/spare-compute/internal/device"
 	"github.com/austinjiann/spare-compute/internal/infra/discovery/mdns"
 	identityinfra "github.com/austinjiann/spare-compute/internal/infra/identity"
 	"github.com/austinjiann/spare-compute/internal/infra/sqlite"
+	quictransport "github.com/austinjiann/spare-compute/internal/infra/transport/quic"
 	"github.com/austinjiann/spare-compute/internal/job"
 	joblogging "github.com/austinjiann/spare-compute/internal/logging"
 	"github.com/austinjiann/spare-compute/internal/platform/paths"
 	"github.com/austinjiann/spare-compute/internal/platform/permissions"
 	"github.com/austinjiann/spare-compute/internal/platform/processes"
 	"github.com/austinjiann/spare-compute/internal/protocol/localipc"
+	"github.com/austinjiann/spare-compute/internal/session"
 )
 
 var version = "dev"
@@ -34,6 +38,7 @@ type options struct {
 	showVersion bool
 	runnerJob   string
 	deviceName  string
+	role        string
 }
 
 type runtimeDependencies struct {
@@ -41,6 +46,7 @@ type runtimeDependencies struct {
 	executable        func() (string, error)
 	discovery         device.LANDiscovery
 	hostname          func() (string, error)
+	pairingEndpoint   func(string, session.LocalDevice) (session.PairingEndpoint, error)
 }
 
 func main() {
@@ -161,11 +167,44 @@ func runWithDependencies(
 	if err != nil {
 		return err
 	}
+	localRole, err := configuredRole(parsed.role)
+	if err != nil {
+		return err
+	}
+	localDevice := session.LocalDevice{
+		Identity: localIdentity, Name: deviceName, Role: localRole, PresenceID: presenceID,
+	}
+	if err := localDevice.Validate(); err != nil {
+		return fmt.Errorf("configure local device: %w", err)
+	}
+	if err := pairingapp.ValidateLocalRole(ctx, localRole, database.Trust()); err != nil {
+		return fmt.Errorf("validate device role: %w", err)
+	}
+	if parsed.checkOnly {
+		_, err := fmt.Fprintln(stdout, "computehopd ready")
+		return err
+	}
+
+	if dependencies.pairingEndpoint == nil {
+		dependencies.pairingEndpoint = func(address string, local session.LocalDevice) (session.PairingEndpoint, error) {
+			return quictransport.Listen(address, local)
+		}
+	}
+	pairingEndpoint, err := dependencies.pairingEndpoint(
+		fmt.Sprintf(":%d", mdns.DefaultPort), localDevice,
+	)
+	if err != nil {
+		return fmt.Errorf("initialize pairing endpoint: %w", err)
+	}
+	defer pairingEndpoint.Close()
+	if pairingEndpoint.Port() == 0 {
+		return errors.New("initialize pairing endpoint: listener has no UDP port")
+	}
 	localAnnouncement := device.Announcement{
-		PresenceID: presenceID, Name: deviceName, Role: device.RoleWorker,
+		PresenceID: presenceID, Name: deviceName, Role: localRole,
 		ProtocolVersion: device.DiscoveryProtocolVersion,
-		Port:            mdns.DefaultPort,
-		EndpointReady:   false,
+		Port:            pairingEndpoint.Port(),
+		EndpointReady:   true,
 	}
 	if err := localAnnouncement.Validate(); err != nil {
 		return fmt.Errorf("configure local device announcement: %w", err)
@@ -182,26 +221,13 @@ func runWithDependencies(
 	if err != nil {
 		return fmt.Errorf("initialize LAN discovery: %w", err)
 	}
-
-	if parsed.checkOnly {
-		_, err := fmt.Fprintln(stdout, "computehopd ready")
-		return err
-	}
-
-	if !localIPCSupported {
-		logger.Info(
-			"computehopd started",
-			"database", databasePath,
-			"device", deviceName,
-			"device_id", localIdentity.ID().Short(),
-			"version", version,
-			"local_ipc", "unsupported",
-		)
-		if err := deviceService.Run(ctx); err != nil {
-			return fmt.Errorf("run LAN discovery: %w", err)
-		}
-		logger.Info("computehopd stopped")
-		return nil
+	pairingService, err := pairingapp.NewService(pairingapp.Dependencies{
+		Local: localDevice, Nearby: deviceService, Trust: database.Trust(),
+		Endpoint: pairingEndpoint, Now: time.Now,
+		ReportError: func(err error) { logger.Warn("device pairing failed", "error", err) },
+	})
+	if err != nil {
+		return fmt.Errorf("initialize pairing service: %w", err)
 	}
 
 	tokenPath, err := paths.CapabilityTokenPath(stateDir)
@@ -216,7 +242,7 @@ func runWithDependencies(
 	if err != nil {
 		return err
 	}
-	handler, err := orchestrator.NewLocalHandler(jobService, deviceService, version)
+	handler, err := orchestrator.NewLocalHandler(jobService, deviceService, pairingService, version)
 	if err != nil {
 		return fmt.Errorf("initialize local IPC handler: %w", err)
 	}
@@ -261,14 +287,19 @@ func runWithDependencies(
 		"socket", socketPath,
 		"device", deviceName,
 		"device_id", localIdentity.ID().Short(),
+		"role", localRole,
 		"version", version,
 	)
 	serveContext, stopServing := context.WithCancel(ctx)
 	defer stopServing()
-	backgroundResult := make(chan error, 2)
-	backgroundCount := 1
+	backgroundResult := make(chan error, 3)
+	backgroundCount := 2
 	go func() {
 		backgroundResult <- deviceService.Run(serveContext)
+		stopServing()
+	}()
+	go func() {
+		backgroundResult <- pairingService.Run(serveContext)
 		stopServing()
 	}()
 	if dispatcher != nil {
@@ -303,6 +334,7 @@ func parseOptions(arguments []string, stderr io.Writer) (options, error) {
 	flags.BoolVar(&parsed.showVersion, "version", false, "print version and exit")
 	flags.StringVar(&parsed.runnerJob, "runner-job", "", "run one internally dispatched job")
 	flags.StringVar(&parsed.deviceName, "device-name", "", "human-readable LAN device name")
+	flags.StringVar(&parsed.role, "role", "", "device role: orchestrator or worker")
 	if err := flags.Parse(arguments); err != nil {
 		return options{}, err
 	}
@@ -313,4 +345,21 @@ func parseOptions(arguments []string, stderr io.Writer) (options, error) {
 		return options{}, errors.New("--runner-job cannot be combined with --check or --version")
 	}
 	return parsed, nil
+}
+
+func configuredRole(value string) (device.Role, error) {
+	if value == "" {
+		if runtime.GOOS == "darwin" {
+			return device.RoleOrchestrator, nil
+		}
+		return device.RoleWorker, nil
+	}
+	role := device.Role(value)
+	if role != device.RoleOrchestrator && role != device.RoleWorker {
+		return "", fmt.Errorf("invalid device role %q: use orchestrator or worker", value)
+	}
+	if role == device.RoleOrchestrator && runtime.GOOS != "darwin" {
+		return "", errors.New("orchestrator role is supported only on macOS")
+	}
+	return role, nil
 }
