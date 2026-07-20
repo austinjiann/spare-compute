@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -11,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 
 	localv1 "github.com/austinjiann/spare-compute/gen/go/computehop/local/v1"
+	"github.com/austinjiann/spare-compute/internal/device"
 	"github.com/austinjiann/spare-compute/internal/job"
 	"github.com/austinjiann/spare-compute/internal/protocol/mapper"
 )
@@ -40,11 +43,106 @@ func newRootCommand(dependencies dependencies) *cobra.Command {
 
 	root.AddCommand(newVersionCommand(dependencies.stdout))
 	root.AddCommand(newStatusCommand(dependencies.stdout, clientForCommand))
+	root.AddCommand(newDevicesCommand(dependencies.stdout, dependencies.stderr, clientForCommand))
 	root.AddCommand(newRunCommand(dependencies.stdout, dependencies.getwd, clientForCommand))
 	root.AddCommand(newJobsCommand(dependencies.stdout, clientForCommand))
 	root.AddCommand(newCancelCommand(dependencies.stdout, clientForCommand))
 	root.AddCommand(newLogsCommand(dependencies.stdout, dependencies.stderr, clientForCommand))
 	return root
+}
+
+func newDevicesCommand(
+	stdout io.Writer,
+	stderr io.Writer,
+	clientForCommand func() (caller, error),
+) *cobra.Command {
+	return &cobra.Command{
+		Use:   "devices",
+		Short: "List nearby devices discovered on this LAN",
+		Args:  cobra.NoArgs,
+		RunE: func(command *cobra.Command, _ []string) error {
+			client, err := clientForCommand()
+			if err != nil {
+				return err
+			}
+			response, err := client.Call(command.Context(), &localv1.Request{
+				Operation: &localv1.Request_ListDevices{ListDevices: &localv1.ListDevicesRequest{}},
+			})
+			if err != nil {
+				return err
+			}
+			result := response.GetListDevices()
+			if result == nil {
+				return fmt.Errorf("%w: missing device list result", ErrInvalidDaemonResponse)
+			}
+			switch result.GetDiscoveryState() {
+			case localv1.DiscoveryState_DISCOVERY_STATE_STARTING:
+				if len(result.GetDevices()) == 0 {
+					_, err = fmt.Fprintln(stdout, "LAN discovery is starting.")
+					return err
+				}
+			case localv1.DiscoveryState_DISCOVERY_STATE_UNAVAILABLE:
+				message := result.GetDiscoveryError()
+				if message == "" {
+					message = "multicast DNS is unavailable"
+				}
+				if _, err := fmt.Fprintf(stderr, "LAN discovery unavailable: %s\n", message); err != nil {
+					return err
+				}
+			case localv1.DiscoveryState_DISCOVERY_STATE_AVAILABLE:
+			default:
+				return fmt.Errorf("%w: invalid discovery state", ErrInvalidDaemonResponse)
+			}
+			if len(result.GetDevices()) == 0 {
+				_, err = fmt.Fprintln(stdout, "No nearby devices.")
+				return err
+			}
+
+			writer := tabwriter.NewWriter(stdout, 0, 4, 2, ' ', 0)
+			if _, err := fmt.Fprintln(writer, "NAME\tSESSION\tTRUST\tROLE\tADDRESS\tLAST SEEN"); err != nil {
+				return err
+			}
+			for _, nearby := range result.GetDevices() {
+				presenceID, err := device.ParsePresenceID(nearby.GetPresenceId())
+				if err != nil {
+					return fmt.Errorf("%w: %v", ErrInvalidDaemonResponse, err)
+				}
+				if nearby.GetTrustState() != localv1.DeviceTrustState_DEVICE_TRUST_STATE_UNPAIRED {
+					return fmt.Errorf("%w: invalid nearby trust state", ErrInvalidDaemonResponse)
+				}
+				role := ""
+				switch nearby.GetRole() {
+				case localv1.DeviceRole_DEVICE_ROLE_WORKER:
+					role = "worker"
+				case localv1.DeviceRole_DEVICE_ROLE_ORCHESTRATOR:
+					role = "orchestrator"
+				default:
+					return fmt.Errorf("%w: invalid nearby device role", ErrInvalidDaemonResponse)
+				}
+				address := nearby.GetHostName()
+				if len(nearby.GetAddresses()) > 0 {
+					address = nearby.GetAddresses()[0]
+				}
+				if address != "" && nearby.GetEndpointReady() && nearby.GetPort() > 0 {
+					address = net.JoinHostPort(address, strconv.FormatUint(uint64(nearby.GetPort()), 10))
+				} else if address != "" {
+					address += " (discovery only)"
+				}
+				lastSeen := time.Unix(0, nearby.GetLastSeenAtUnixNano()).UTC()
+				if nearby.GetName() == "" || address == "" || nearby.GetLastSeenAtUnixNano() <= 0 {
+					return fmt.Errorf("%w: incomplete nearby device", ErrInvalidDaemonResponse)
+				}
+				if _, err := fmt.Fprintf(
+					writer,
+					"%s\t%s\tunpaired\t%s\t%s\t%s\n",
+					nearby.GetName(), presenceID.Short(), role, address, lastSeen.Format(time.RFC3339),
+				); err != nil {
+					return err
+				}
+			}
+			return writer.Flush()
+		},
+	}
 }
 
 func newVersionCommand(stdout io.Writer) *cobra.Command {

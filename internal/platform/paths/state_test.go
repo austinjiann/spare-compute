@@ -99,6 +99,7 @@ func TestDatabasePath(t *testing.T) {
 		{name: "database", resolve: DatabasePath, filename: DatabaseFilename},
 		{name: "socket", resolve: LocalSocketPath, filename: LocalSocketFilename},
 		{name: "capability token", resolve: CapabilityTokenPath, filename: CapabilityTokenFilename},
+		{name: "device identity", resolve: DeviceIdentityPath, filename: DeviceIdentityFilename},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			got, err := test.resolve("/state")

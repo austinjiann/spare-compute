@@ -8,6 +8,7 @@ import (
 
 	localv1 "github.com/austinjiann/spare-compute/gen/go/computehop/local/v1"
 	"github.com/austinjiann/spare-compute/internal/app/worker"
+	"github.com/austinjiann/spare-compute/internal/device"
 	"github.com/austinjiann/spare-compute/internal/job"
 	joblogging "github.com/austinjiann/spare-compute/internal/logging"
 	"github.com/austinjiann/spare-compute/internal/protocol/mapper"
@@ -15,7 +16,10 @@ import (
 
 const maximumLocalListLimit = 500
 
-var ErrMissingJobController = errors.New("local handler job controller is required")
+var (
+	ErrMissingJobController    = errors.New("local handler job controller is required")
+	ErrMissingDeviceController = errors.New("local handler device controller is required")
+)
 
 // JobController is the narrow application boundary exposed over local IPC.
 type JobController interface {
@@ -26,18 +30,27 @@ type JobController interface {
 	ReadLogs(context.Context, job.ID, uint64, int) (worker.JobLogs, error)
 }
 
+// DeviceController is the narrow nearby-device boundary exposed over local IPC.
+type DeviceController interface {
+	ListNearby(context.Context) (device.DiscoverySnapshot, error)
+}
+
 // LocalHandler maps authenticated protocol requests to application use cases.
 type LocalHandler struct {
 	jobs    JobController
+	devices DeviceController
 	version string
 }
 
 // NewLocalHandler constructs the local orchestrator control handler.
-func NewLocalHandler(jobs JobController, version string) (*LocalHandler, error) {
+func NewLocalHandler(jobs JobController, devices DeviceController, version string) (*LocalHandler, error) {
 	if jobs == nil {
 		return nil, ErrMissingJobController
 	}
-	return &LocalHandler{jobs: jobs, version: version}, nil
+	if devices == nil {
+		return nil, ErrMissingDeviceController
+	}
+	return &LocalHandler{jobs: jobs, devices: devices, version: version}, nil
 }
 
 // Handle executes one already-authenticated local request.
@@ -57,9 +70,29 @@ func (handler *LocalHandler) Handle(ctx context.Context, request *localv1.Reques
 		return handler.cancel(ctx, operation.CancelJob)
 	case *localv1.Request_ReadJobLogs:
 		return handler.readLogs(ctx, operation.ReadJobLogs)
+	case *localv1.Request_ListDevices:
+		return handler.listDevices(ctx, operation.ListDevices)
 	default:
 		return failureResponse(localv1.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "unsupported local operation")
 	}
+}
+
+func (handler *LocalHandler) listDevices(
+	ctx context.Context,
+	request *localv1.ListDevicesRequest,
+) *localv1.Response {
+	if request == nil {
+		return failureResponse(localv1.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "device list request is required")
+	}
+	snapshot, err := handler.devices.ListNearby(ctx)
+	if err != nil {
+		return errorResponse(err)
+	}
+	message, err := mapper.DiscoverySnapshotToProto(snapshot)
+	if err != nil {
+		return errorResponse(err)
+	}
+	return &localv1.Response{Result: &localv1.Response_ListDevices{ListDevices: message}}
 }
 
 func (handler *LocalHandler) readLogs(

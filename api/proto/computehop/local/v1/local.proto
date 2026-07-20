@@ -17,6 +17,7 @@ message Request {
     ListJobsRequest list_jobs = 13;
     CancelJobRequest cancel_job = 14;
     ReadJobLogsRequest read_job_logs = 15;
+    ListDevicesRequest list_devices = 16;
   }
 }
 
@@ -33,6 +34,7 @@ message Response {
     ListJobsResponse list_jobs = 13;
     CancelJobResponse cancel_job = 14;
     ReadJobLogsResponse read_job_logs = 15;
+    ListDevicesResponse list_devices = 16;
   }
 }
 
@@ -92,6 +94,31 @@ message JobLogRecord {
   JobLogStream stream = 2;
   bytes data = 3;
   int64 at_unix_nano = 4;
+}
+
+message ListDevicesRequest {}
+
+message ListDevicesResponse {
+  repeated NearbyDevice devices = 1;
+  DiscoveryState discovery_state = 2;
+  string discovery_error = 3;
+  int64 discovery_started_at_unix_nano = 4;
+}
+
+message NearbyDevice {
+  string presence_id = 1;
+  string name = 2;
+  DeviceRole role = 3;
+  uint32 protocol_version = 4;
+  string instance = 5;
+  string host_name = 6;
+  repeated string addresses = 7;
+  uint32 port = 8;
+  bool endpoint_ready = 9;
+  int64 first_seen_at_unix_nano = 10;
+  int64 last_seen_at_unix_nano = 11;
+  int64 expires_at_unix_nano = 12;
+  DeviceTrustState trust_state = 13;
 }
 
 message JobSpec {
@@ -162,4 +189,22 @@ enum JobLogStream {
   JOB_LOG_STREAM_UNSPECIFIED = 0;
   JOB_LOG_STREAM_STDOUT = 1;
   JOB_LOG_STREAM_STDERR = 2;
+}
+
+enum DeviceRole {
+  DEVICE_ROLE_UNSPECIFIED = 0;
+  DEVICE_ROLE_WORKER = 1;
+  DEVICE_ROLE_ORCHESTRATOR = 2;
+}
+
+enum DeviceTrustState {
+  DEVICE_TRUST_STATE_UNSPECIFIED = 0;
+  DEVICE_TRUST_STATE_UNPAIRED = 1;
+}
+
+enum DiscoveryState {
+  DISCOVERY_STATE_UNSPECIFIED = 0;
+  DISCOVERY_STATE_STARTING = 1;
+  DISCOVERY_STATE_AVAILABLE = 2;
+  DISCOVERY_STATE_UNAVAILABLE = 3;
 }
