@@ -1,6 +1,7 @@
 package orchestrator
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"testing"
@@ -10,6 +11,7 @@ import (
 	"github.com/austinjiann/spare-compute/internal/app/worker"
 	"github.com/austinjiann/spare-compute/internal/device"
 	"github.com/austinjiann/spare-compute/internal/job"
+	"github.com/austinjiann/spare-compute/internal/trust"
 )
 
 type stubJobController struct {
@@ -60,7 +62,7 @@ func TestLocalHandlerListsDiscoveryHealth(t *testing.T) {
 		list: func(context.Context) (device.DiscoverySnapshot, error) {
 			return device.DiscoverySnapshot{Available: true}, nil
 		},
-	}, "test-version")
+	}, stubPairingController{}, "test-version")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,6 +102,31 @@ func TestLocalHandlerSubmit(t *testing.T) {
 	}
 	if got := response.GetSubmitJob().GetJob().GetId(); got != string(wantJob.ID) {
 		t.Fatalf("submitted job ID = %q, want %q", got, wantJob.ID)
+	}
+}
+
+func TestLocalHandlerBeginsPairingThroughDedicatedController(t *testing.T) {
+	value := pairingForHandlerTest(t)
+	handler, err := NewLocalHandler(
+		stubJobController{}, stubDeviceController{},
+		stubPairingController{begin: func(_ context.Context, selector string) (trust.Pairing, error) {
+			if selector != "Gaming PC" {
+				t.Fatalf("selector = %q", selector)
+			}
+			return value, nil
+		}},
+		"test-version",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := handler.Handle(context.Background(), &localv1.Request{
+		Operation: &localv1.Request_BeginPairing{BeginPairing: &localv1.BeginPairingRequest{
+			DeviceSelector: "Gaming PC",
+		}},
+	})
+	if response.GetError() != nil || response.GetBeginPairing().GetPairing().GetId() != string(value.ID) {
+		t.Fatalf("response = %#v", response)
 	}
 }
 
@@ -153,11 +180,61 @@ func TestLocalHandlerRejectsOversizedList(t *testing.T) {
 
 func newHandlerForTest(t *testing.T, controller JobController) *LocalHandler {
 	t.Helper()
-	handler, err := NewLocalHandler(controller, stubDeviceController{}, "test-version")
+	handler, err := NewLocalHandler(controller, stubDeviceController{}, stubPairingController{}, "test-version")
 	if err != nil {
 		t.Fatalf("NewLocalHandler() error = %v", err)
 	}
 	return handler
+}
+
+type stubPairingController struct {
+	begin   func(context.Context, string) (trust.Pairing, error)
+	trusted func(context.Context) ([]trust.Peer, error)
+}
+
+func (stub stubPairingController) Begin(ctx context.Context, selector string) (trust.Pairing, error) {
+	if stub.begin != nil {
+		return stub.begin(ctx, selector)
+	}
+	return trust.Pairing{}, nil
+}
+func (stubPairingController) ListPairings(context.Context) ([]trust.Pairing, error) {
+	return nil, nil
+}
+func (stubPairingController) Confirm(context.Context, string) (trust.Pairing, error) {
+	return trust.Pairing{}, nil
+}
+func (stubPairingController) Reject(context.Context, string) (trust.Pairing, error) {
+	return trust.Pairing{}, nil
+}
+
+func (stub stubPairingController) ListTrusted(ctx context.Context) ([]trust.Peer, error) {
+	if stub.trusted != nil {
+		return stub.trusted(ctx)
+	}
+	return nil, nil
+}
+
+func pairingForHandlerTest(t *testing.T) trust.Pairing {
+	t.Helper()
+	identity, err := device.GenerateIdentity(bytes.NewReader(bytes.Repeat([]byte{3}, 64)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pairID, err := trust.NewPairID(bytes.NewReader(bytes.Repeat([]byte{4}, 16)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Unix(1_700_000_000, 0).UTC()
+	return trust.Pairing{
+		ID: pairID, PeerID: identity.ID(), PeerPublicKey: identity.PublicKey(),
+		PeerName: "Gaming PC", PeerRole: device.RoleWorker,
+		Verification: "0123-4567-89AB-CDEF", Direction: trust.DirectionOutbound,
+		State: trust.PairingWaiting, StartedAt: now, ExpiresAt: now.Add(time.Minute),
+	}
+}
+func (stubPairingController) Unpair(context.Context, string) (trust.Peer, error) {
+	return trust.Peer{}, nil
 }
 
 type stubDeviceController struct {

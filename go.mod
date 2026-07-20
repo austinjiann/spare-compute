@@ -3,7 +3,9 @@ module github.com/austinjiann/spare-compute
 go 1.26
 
 require (
+	github.com/Microsoft/go-winio v0.6.2
 	github.com/grandcat/zeroconf v1.0.0
+	github.com/quic-go/quic-go v0.60.0
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/sys v0.47.0
 	google.golang.org/protobuf v1.36.11
@@ -20,6 +22,7 @@ require (
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
+	golang.org/x/crypto v0.54.0 // indirect
 	golang.org/x/mod v0.37.0 // indirect
 	golang.org/x/net v0.57.0 // indirect
 	golang.org/x/sync v0.21.0 // indirect

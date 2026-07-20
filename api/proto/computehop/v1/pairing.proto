@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package computehop.v1;
+
+option go_package = "github.com/austinjiann/spare-compute/gen/go/computehop/v1;computehopv1";
+
+// PairingFrame is a bounded message exchanged only inside a mutually
+// authenticated TLS 1.3 QUIC connection.
+message PairingFrame {
+  uint32 protocol_version = 1;
+
+  oneof payload {
+    PairingHello hello = 10;
+    PairingDecision decision = 11;
+    PairingProtocolError error = 12;
+  }
+}
+
+// PairingHello binds human-readable metadata and the current anonymous LAN
+// presence to this connection. Device identity comes from the TLS certificate.
+message PairingHello {
+  bytes nonce = 1;
+  string device_name = 2;
+  string role = 3;
+  string presence_id = 4;
+  string expected_presence_id = 5;
+}
+
+// PairingDecision is accepted only for the pair ID derived from this TLS session.
+message PairingDecision {
+  string pairing_id = 1;
+  bool confirmed = 2;
+  bool committed = 3;
+}
+
+message PairingProtocolError {
+  string message = 1;
+}

@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -19,6 +20,7 @@ import (
 	"github.com/austinjiann/spare-compute/internal/platform/permissions"
 	"github.com/austinjiann/spare-compute/internal/protocol/localipc"
 	"github.com/austinjiann/spare-compute/internal/protocol/mapper"
+	"github.com/austinjiann/spare-compute/internal/session"
 )
 
 func TestRunCheckInitializesDurableState(t *testing.T) {
@@ -93,7 +95,7 @@ func TestRunStopsWhenContextIsCancelled(t *testing.T) {
 			[]string{"--state-dir", stateDir},
 			&stdout,
 			stderr,
-			runtimeDependencies{discovery: idleTestDiscovery{}},
+			runtimeDependencies{discovery: idleTestDiscovery{}, pairingEndpoint: idlePairingEndpointFactory},
 		)
 	}()
 
@@ -119,9 +121,6 @@ func TestRunStopsWhenContextIsCancelled(t *testing.T) {
 }
 
 func TestDaemonLocalIPCRoundTripPersistsJobs(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Windows named-pipe transport is a later worker-management slice")
-	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	stateDir := shortStateDir(t)
@@ -133,7 +132,9 @@ func TestDaemonLocalIPCRoundTripPersistsJobs(t *testing.T) {
 			[]string{"--state-dir", stateDir},
 			&bytes.Buffer{},
 			stderr,
-			runtimeDependencies{disableDispatcher: true, discovery: idleTestDiscovery{}},
+			runtimeDependencies{
+				disableDispatcher: true, discovery: idleTestDiscovery{}, pairingEndpoint: idlePairingEndpointFactory,
+			},
 		)
 	}()
 
@@ -253,6 +254,22 @@ func (idleTestDiscovery) Run(
 	<-ctx.Done()
 	return nil
 }
+
+type idlePairingEndpoint struct{}
+
+func idlePairingEndpointFactory(string, session.LocalDevice) (session.PairingEndpoint, error) {
+	return idlePairingEndpoint{}, nil
+}
+
+func (idlePairingEndpoint) Port() uint16 { return 47823 }
+func (idlePairingEndpoint) Run(ctx context.Context, _ func(session.PairingChannel)) error {
+	<-ctx.Done()
+	return nil
+}
+func (idlePairingEndpoint) Dial(context.Context, device.NearbyDevice) (session.PairingChannel, error) {
+	return nil, errors.New("unexpected test pairing dial")
+}
+func (idlePairingEndpoint) Close() error { return nil }
 
 func shortStateDir(t *testing.T) string {
 	t.Helper()
