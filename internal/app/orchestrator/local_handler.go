@@ -12,13 +12,15 @@ import (
 	"github.com/austinjiann/spare-compute/internal/job"
 	joblogging "github.com/austinjiann/spare-compute/internal/logging"
 	"github.com/austinjiann/spare-compute/internal/protocol/mapper"
+	"github.com/austinjiann/spare-compute/internal/trust"
 )
 
 const maximumLocalListLimit = 500
 
 var (
-	ErrMissingJobController    = errors.New("local handler job controller is required")
-	ErrMissingDeviceController = errors.New("local handler device controller is required")
+	ErrMissingJobController     = errors.New("local handler job controller is required")
+	ErrMissingDeviceController  = errors.New("local handler device controller is required")
+	ErrMissingPairingController = errors.New("local handler pairing controller is required")
 )
 
 // JobController is the narrow application boundary exposed over local IPC.
@@ -35,22 +37,41 @@ type DeviceController interface {
 	ListNearby(context.Context) (device.DiscoverySnapshot, error)
 }
 
+// PairingController is the narrow trust ceremony boundary exposed over local IPC.
+type PairingController interface {
+	Begin(context.Context, string) (trust.Pairing, error)
+	ListPairings(context.Context) ([]trust.Pairing, error)
+	Confirm(context.Context, string) (trust.Pairing, error)
+	Reject(context.Context, string) (trust.Pairing, error)
+	ListTrusted(context.Context) ([]trust.Peer, error)
+	Unpair(context.Context, string) (trust.Peer, error)
+}
+
 // LocalHandler maps authenticated protocol requests to application use cases.
 type LocalHandler struct {
-	jobs    JobController
-	devices DeviceController
-	version string
+	jobs     JobController
+	devices  DeviceController
+	pairings PairingController
+	version  string
 }
 
 // NewLocalHandler constructs the local orchestrator control handler.
-func NewLocalHandler(jobs JobController, devices DeviceController, version string) (*LocalHandler, error) {
+func NewLocalHandler(
+	jobs JobController,
+	devices DeviceController,
+	pairings PairingController,
+	version string,
+) (*LocalHandler, error) {
 	if jobs == nil {
 		return nil, ErrMissingJobController
 	}
 	if devices == nil {
 		return nil, ErrMissingDeviceController
 	}
-	return &LocalHandler{jobs: jobs, devices: devices, version: version}, nil
+	if pairings == nil {
+		return nil, ErrMissingPairingController
+	}
+	return &LocalHandler{jobs: jobs, devices: devices, pairings: pairings, version: version}, nil
 }
 
 // Handle executes one already-authenticated local request.
@@ -72,6 +93,18 @@ func (handler *LocalHandler) Handle(ctx context.Context, request *localv1.Reques
 		return handler.readLogs(ctx, operation.ReadJobLogs)
 	case *localv1.Request_ListDevices:
 		return handler.listDevices(ctx, operation.ListDevices)
+	case *localv1.Request_BeginPairing:
+		return handler.beginPairing(ctx, operation.BeginPairing)
+	case *localv1.Request_ListPairings:
+		return handler.listPairings(ctx, operation.ListPairings)
+	case *localv1.Request_ConfirmPairing:
+		return handler.confirmPairing(ctx, operation.ConfirmPairing)
+	case *localv1.Request_RejectPairing:
+		return handler.rejectPairing(ctx, operation.RejectPairing)
+	case *localv1.Request_ListTrustedDevices:
+		return handler.listTrustedDevices(ctx, operation.ListTrustedDevices)
+	case *localv1.Request_UnpairDevice:
+		return handler.unpairDevice(ctx, operation.UnpairDevice)
 	default:
 		return failureResponse(localv1.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "unsupported local operation")
 	}
@@ -92,7 +125,135 @@ func (handler *LocalHandler) listDevices(
 	if err != nil {
 		return errorResponse(err)
 	}
+	trusted, err := handler.pairings.ListTrusted(ctx)
+	if err != nil {
+		return errorResponse(err)
+	}
+	message.TrustedDevices, err = trustedPeersToProto(trusted)
+	if err != nil {
+		return errorResponse(err)
+	}
 	return &localv1.Response{Result: &localv1.Response_ListDevices{ListDevices: message}}
+}
+
+func (handler *LocalHandler) beginPairing(ctx context.Context, request *localv1.BeginPairingRequest) *localv1.Response {
+	if request == nil || request.GetDeviceSelector() == "" {
+		return failureResponse(localv1.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "device selector is required")
+	}
+	value, err := handler.pairings.Begin(ctx, request.GetDeviceSelector())
+	if err != nil {
+		return errorResponse(err)
+	}
+	message, err := mapper.PairingToProto(value)
+	if err != nil {
+		return errorResponse(err)
+	}
+	return &localv1.Response{Result: &localv1.Response_BeginPairing{
+		BeginPairing: &localv1.BeginPairingResponse{Pairing: message},
+	}}
+}
+
+func (handler *LocalHandler) listPairings(ctx context.Context, request *localv1.ListPairingsRequest) *localv1.Response {
+	if request == nil {
+		return failureResponse(localv1.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "pairing list request is required")
+	}
+	values, err := handler.pairings.ListPairings(ctx)
+	if err != nil {
+		return errorResponse(err)
+	}
+	messages := make([]*localv1.Pairing, len(values))
+	for index, value := range values {
+		messages[index], err = mapper.PairingToProto(value)
+		if err != nil {
+			return errorResponse(err)
+		}
+	}
+	return &localv1.Response{Result: &localv1.Response_ListPairings{
+		ListPairings: &localv1.ListPairingsResponse{Pairings: messages},
+	}}
+}
+
+func (handler *LocalHandler) confirmPairing(ctx context.Context, request *localv1.ConfirmPairingRequest) *localv1.Response {
+	if request == nil || request.GetPairingSelector() == "" {
+		return failureResponse(localv1.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "pairing selector is required")
+	}
+	value, err := handler.pairings.Confirm(ctx, request.GetPairingSelector())
+	if err != nil {
+		return errorResponse(err)
+	}
+	message, err := mapper.PairingToProto(value)
+	if err != nil {
+		return errorResponse(err)
+	}
+	return &localv1.Response{Result: &localv1.Response_ConfirmPairing{
+		ConfirmPairing: &localv1.ConfirmPairingResponse{Pairing: message},
+	}}
+}
+
+func (handler *LocalHandler) rejectPairing(ctx context.Context, request *localv1.RejectPairingRequest) *localv1.Response {
+	if request == nil || request.GetPairingSelector() == "" {
+		return failureResponse(localv1.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "pairing selector is required")
+	}
+	value, err := handler.pairings.Reject(ctx, request.GetPairingSelector())
+	if err != nil {
+		return errorResponse(err)
+	}
+	message, err := mapper.PairingToProto(value)
+	if err != nil {
+		return errorResponse(err)
+	}
+	return &localv1.Response{Result: &localv1.Response_RejectPairing{
+		RejectPairing: &localv1.RejectPairingResponse{Pairing: message},
+	}}
+}
+
+func (handler *LocalHandler) listTrustedDevices(
+	ctx context.Context,
+	request *localv1.ListTrustedDevicesRequest,
+) *localv1.Response {
+	if request == nil {
+		return failureResponse(localv1.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "trusted-device list request is required")
+	}
+	values, err := handler.pairings.ListTrusted(ctx)
+	if err != nil {
+		return errorResponse(err)
+	}
+	messages, err := trustedPeersToProto(values)
+	if err != nil {
+		return errorResponse(err)
+	}
+	return &localv1.Response{Result: &localv1.Response_ListTrustedDevices{
+		ListTrustedDevices: &localv1.ListTrustedDevicesResponse{Devices: messages},
+	}}
+}
+
+func (handler *LocalHandler) unpairDevice(ctx context.Context, request *localv1.UnpairDeviceRequest) *localv1.Response {
+	if request == nil || request.GetDeviceSelector() == "" {
+		return failureResponse(localv1.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "device selector is required")
+	}
+	peer, err := handler.pairings.Unpair(ctx, request.GetDeviceSelector())
+	if err != nil {
+		return errorResponse(err)
+	}
+	message, err := mapper.TrustedPeerToProto(peer)
+	if err != nil {
+		return errorResponse(err)
+	}
+	return &localv1.Response{Result: &localv1.Response_UnpairDevice{
+		UnpairDevice: &localv1.UnpairDeviceResponse{Device: message},
+	}}
+}
+
+func trustedPeersToProto(values []trust.Peer) ([]*localv1.TrustedDevice, error) {
+	messages := make([]*localv1.TrustedDevice, len(values))
+	var err error
+	for index, value := range values {
+		messages[index], err = mapper.TrustedPeerToProto(value)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return messages, nil
 }
 
 func (handler *LocalHandler) readLogs(
@@ -237,17 +398,27 @@ func errorResponse(err error) *localv1.Response {
 		errors.Is(err, job.ErrInvalidState),
 		errors.Is(err, job.ErrInvalidTransition),
 		errors.Is(err, joblogging.ErrInvalidPage),
-		errors.Is(err, joblogging.ErrInvalidRecord):
+		errors.Is(err, joblogging.ErrInvalidRecord),
+		errors.Is(err, trust.ErrInvalidPairID),
+		errors.Is(err, trust.ErrInvalidPairing),
+		errors.Is(err, trust.ErrInvalidPeer),
+		errors.Is(err, device.ErrInvalidID):
 		code = localv1.ErrorCode_ERROR_CODE_INVALID_ARGUMENT
 		message = err.Error()
-	case errors.Is(err, job.ErrNotFound), errors.Is(err, joblogging.ErrNotFound):
+	case errors.Is(err, job.ErrNotFound), errors.Is(err, joblogging.ErrNotFound),
+		errors.Is(err, trust.ErrNotFound), errors.Is(err, trust.ErrPairingNotFound),
+		errors.Is(err, ErrNearbyDeviceNotFound):
 		code = localv1.ErrorCode_ERROR_CODE_NOT_FOUND
 		message = err.Error()
-	case errors.Is(err, job.ErrConflict):
+	case errors.Is(err, job.ErrConflict), errors.Is(err, trust.ErrConflict),
+		errors.Is(err, ErrNearbyDeviceAmbiguous):
 		code = localv1.ErrorCode_ERROR_CODE_CONFLICT
 		message = err.Error()
 	case errors.Is(err, worker.ErrJobTerminal):
 		code = localv1.ErrorCode_ERROR_CODE_JOB_TERMINAL
+		message = err.Error()
+	case errors.Is(err, trust.ErrPairingUnavailable):
+		code = localv1.ErrorCode_ERROR_CODE_PAIRING_UNAVAILABLE
 		message = err.Error()
 	}
 	return failureResponse(code, message)
