@@ -57,6 +57,44 @@ func TestRunCommandSubmitsNativeSpec(t *testing.T) {
 	}
 }
 
+func TestRunCommandSelectsRemoteWorkerAndTargetDirectory(t *testing.T) {
+	value := cliJobForTest(job.StateQueued)
+	message, err := mapper.JobToProto(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout,
+		stderr: &stderr,
+		getwd: func() (string, error) {
+			t.Fatal("remote run resolved the orchestrator working directory")
+			return "", nil
+		},
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+				submit := request.GetSubmitJob()
+				if submit.GetDeviceSelector() != "Gaming PC" ||
+					submit.GetSpec().GetWorkingDirectory() != "D:\\projects\\demo" {
+					t.Fatalf("submit = %#v", submit)
+				}
+				return &localv1.Response{Result: &localv1.Response_SubmitJob{
+					SubmitJob: &localv1.SubmitJobResponse{Job: message},
+				}}, nil
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{
+		"run", "--device", "Gaming PC", "--working-directory", "D:\\projects\\demo", "--", "echo", "hello",
+	})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if got := stdout.String(); got != "Submitted "+string(value.ID)+" to Gaming PC (queued)\n" {
+		t.Fatalf("stdout = %q", got)
+	}
+}
+
 func TestJobsCommandPrintsDurableJobs(t *testing.T) {
 	value := cliJobForTest(job.StateQueued)
 	message, err := mapper.JobToProto(value)

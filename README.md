@@ -6,7 +6,9 @@ executes native commands under process-tree supervision, captures reconnectable
 stdout and stderr, persists terminal results, and discovers nearby ComputeHop
 daemons with mDNS. Nearby workers can now be paired through a mutually
 authenticated QUIC handshake with matching confirmation codes and durable,
-revocable public-key pins.
+revocable public-key pins. An orchestrator can explicitly submit, inspect,
+follow, and cancel a durable job on a paired worker that is currently reachable
+on the same LAN.
 
 See [`docs/PLAN.md`](docs/PLAN.md) for the product, architecture, security,
 execution, deployment, and launch plan.
@@ -30,12 +32,14 @@ contract and an owner-only random capability token. The daemon validates each
 request and owns all SQLite access. ComputeHop creates its state directory with
 owner-only permissions and rejects unsafe custom directories.
 
-For now, jobs run on the orchestrator Mac in the submitted working directory.
-Project snapshots, isolated per-job workspaces, artifact return, and remote
-execution are later slices. Pairing establishes identity and trust but does not
-yet authorize a remote job operation. Discovery records never authorize
-commands. Do not modify or remove a submitted working directory while its job
-is running.
+Jobs run on the orchestrator unless `--device` explicitly selects a paired LAN
+worker. Project snapshots, isolated per-job workspaces, artifact return,
+automatic placement, and cross-network reconnection are later slices. A remote
+working directory supplied with `--working-directory` must already exist on the
+worker; when omitted, the command inherits the worker daemon's working
+directory. Discovery records never authorize commands: the live QUIC
+certificate must match the selected active public-key pin. Do not modify or
+remove a submitted working directory while its job is running.
 
 To exercise the local control plane during development, start the daemon:
 
@@ -59,6 +63,21 @@ go run ./cmd/computehop --state-dir "$computehop_state_dir" logs --follow <job-i
 go run ./cmd/computehop --state-dir "$computehop_state_dir" cancel <job-id>
 ```
 
+After pairing a currently nearby worker, explicit remote job control uses the
+same commands with a device selector:
+
+```bash
+go run ./cmd/computehop --state-dir "$computehop_state_dir" run --device "Gaming PC" -- echo hello
+go run ./cmd/computehop --state-dir "$computehop_state_dir" run --device "Gaming PC" -C /existing/worker/path -- cargo build
+go run ./cmd/computehop --state-dir "$computehop_state_dir" jobs --device "Gaming PC"
+go run ./cmd/computehop --state-dir "$computehop_state_dir" logs --follow --device "Gaming PC" <job-id>
+go run ./cmd/computehop --state-dir "$computehop_state_dir" cancel --device "Gaming PC" <job-id>
+```
+
+Remote job IDs and history remain authoritative on the selected worker, so
+`jobs`, `logs`, and `cancel` also require `--device` in this slice. A later
+global orchestrator history will remember placement automatically.
+
 The orchestrator launches a detached runner for each job. The runner owns the
 native process tree, durable log writer, cancellation acknowledgement, and final
 state transition. Consequently, closing the submitting CLI—or restarting the
@@ -78,4 +97,6 @@ CLIs then show the same connection-bound verification code. Compare it exactly
 and run `computehop pair confirm <pairing-id>` on both machines. A worker stores
 at most one active orchestrator pin, while the orchestrator may store multiple
 workers. `computehop unpair` durably revokes the selected local pin; pairing
-again is explicit.
+again is explicit. Remote job connections use a separate protocol on the same
+QUIC listener, pin both endpoint identities, and re-check worker-side trust for
+every operation so revocation takes effect without waiting for a restart.

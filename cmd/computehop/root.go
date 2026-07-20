@@ -396,19 +396,25 @@ func newRunCommand(
 	getwd func() (string, error),
 	clientForCommand func() (caller, error),
 ) *cobra.Command {
-	return &cobra.Command{
+	var deviceSelector string
+	var workingDirectory string
+	command := &cobra.Command{
 		Use:   "run -- <program> [args...]",
 		Short: "Submit a background command",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(command *cobra.Command, arguments []string) error {
-			workingDirectory, err := getwd()
-			if err != nil {
-				return fmt.Errorf("resolve working directory: %w", err)
+			targetDirectory := workingDirectory
+			if targetDirectory == "" && deviceSelector == "" {
+				var err error
+				targetDirectory, err = getwd()
+				if err != nil {
+					return fmt.Errorf("resolve working directory: %w", err)
+				}
 			}
 			spec, err := mapper.SpecToProto(job.Spec{
 				Executable:       arguments[0],
 				Arguments:        arguments[1:],
-				WorkingDirectory: workingDirectory,
+				WorkingDirectory: targetDirectory,
 				Executor:         job.ExecutorNative,
 			})
 			if err != nil {
@@ -419,7 +425,9 @@ func newRunCommand(
 				return err
 			}
 			response, err := client.Call(command.Context(), &localv1.Request{
-				Operation: &localv1.Request_SubmitJob{SubmitJob: &localv1.SubmitJobRequest{Spec: spec}},
+				Operation: &localv1.Request_SubmitJob{SubmitJob: &localv1.SubmitJobRequest{
+					Spec: spec, DeviceSelector: deviceSelector,
+				}},
 			})
 			if err != nil {
 				return err
@@ -432,10 +440,23 @@ func newRunCommand(
 			if err != nil {
 				return fmt.Errorf("%w: %v", ErrInvalidDaemonResponse, err)
 			}
-			_, err = fmt.Fprintf(stdout, "Submitted %s (%s)\n", value.ID, value.State)
+			if deviceSelector == "" {
+				_, err = fmt.Fprintf(stdout, "Submitted %s (%s)\n", value.ID, value.State)
+			} else {
+				_, err = fmt.Fprintf(stdout, "Submitted %s to %s (%s)\n", value.ID, deviceSelector, value.State)
+			}
 			return err
 		},
 	}
+	command.Flags().StringVar(&deviceSelector, "device", "", "paired worker name or device ID")
+	command.Flags().StringVarP(
+		&workingDirectory,
+		"working-directory",
+		"C",
+		"",
+		"working directory on the selected target",
+	)
+	return command
 }
 
 func newJobsCommand(
@@ -443,6 +464,7 @@ func newJobsCommand(
 	clientForCommand func() (caller, error),
 ) *cobra.Command {
 	var limit uint32
+	var deviceSelector string
 	command := &cobra.Command{
 		Use:   "jobs",
 		Short: "List durable jobs",
@@ -453,7 +475,9 @@ func newJobsCommand(
 				return err
 			}
 			response, err := client.Call(command.Context(), &localv1.Request{
-				Operation: &localv1.Request_ListJobs{ListJobs: &localv1.ListJobsRequest{Limit: limit}},
+				Operation: &localv1.Request_ListJobs{ListJobs: &localv1.ListJobsRequest{
+					Limit: limit, DeviceSelector: deviceSelector,
+				}},
 			})
 			if err != nil {
 				return err
@@ -492,6 +516,7 @@ func newJobsCommand(
 		},
 	}
 	command.Flags().Uint32Var(&limit, "limit", 100, "maximum jobs to return")
+	command.Flags().StringVar(&deviceSelector, "device", "", "paired worker name or device ID")
 	return command
 }
 
@@ -499,7 +524,8 @@ func newCancelCommand(
 	stdout io.Writer,
 	clientForCommand func() (caller, error),
 ) *cobra.Command {
-	return &cobra.Command{
+	var deviceSelector string
+	command := &cobra.Command{
 		Use:   "cancel <job-id>",
 		Short: "Cancel a durable job",
 		Args:  cobra.ExactArgs(1),
@@ -513,7 +539,9 @@ func newCancelCommand(
 				return err
 			}
 			response, err := client.Call(command.Context(), &localv1.Request{
-				Operation: &localv1.Request_CancelJob{CancelJob: &localv1.CancelJobRequest{JobId: string(id)}},
+				Operation: &localv1.Request_CancelJob{CancelJob: &localv1.CancelJobRequest{
+					JobId: string(id), DeviceSelector: deviceSelector,
+				}},
 			})
 			if err != nil {
 				return err
@@ -534,6 +562,8 @@ func newCancelCommand(
 			return err
 		},
 	}
+	command.Flags().StringVar(&deviceSelector, "device", "", "paired worker name or device ID")
+	return command
 }
 
 func newLogsCommand(
@@ -542,6 +572,7 @@ func newLogsCommand(
 	clientForCommand func() (caller, error),
 ) *cobra.Command {
 	var follow bool
+	var deviceSelector string
 	command := &cobra.Command{
 		Use:   "logs <job-id>",
 		Short: "Read durable stdout and stderr for a job",
@@ -559,9 +590,10 @@ func newLogsCommand(
 			for {
 				response, err := client.Call(command.Context(), &localv1.Request{
 					Operation: &localv1.Request_ReadJobLogs{ReadJobLogs: &localv1.ReadJobLogsRequest{
-						JobId:         string(id),
-						AfterSequence: after,
-						Limit:         32,
+						JobId:          string(id),
+						AfterSequence:  after,
+						Limit:          32,
+						DeviceSelector: deviceSelector,
 					}},
 				})
 				if err != nil {
@@ -612,5 +644,6 @@ func newLogsCommand(
 		},
 	}
 	command.Flags().BoolVarP(&follow, "follow", "f", false, "wait for new output until the job finishes")
+	command.Flags().StringVar(&deviceSelector, "device", "", "paired worker name or device ID")
 	return command
 }

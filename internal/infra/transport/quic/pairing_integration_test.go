@@ -3,12 +3,15 @@ package quic
 import (
 	"bytes"
 	"context"
+	"errors"
 	"net/netip"
+	"sync"
 	"testing"
 	"time"
 
 	computehopv1 "github.com/austinjiann/spare-compute/gen/go/computehop/v1"
 	"github.com/austinjiann/spare-compute/internal/device"
+	remoteprotocol "github.com/austinjiann/spare-compute/internal/protocol/remote"
 	"github.com/austinjiann/spare-compute/internal/session"
 	"github.com/austinjiann/spare-compute/internal/trust"
 )
@@ -16,12 +19,12 @@ import (
 func TestPairingEndpointAuthenticatesBothDeviceKeysAndSharesBinding(t *testing.T) {
 	worker := localDeviceForTransportTest(t, 1, "Gaming PC", device.RoleWorker)
 	orchestrator := localDeviceForTransportTest(t, 2, "MacBook", device.RoleOrchestrator)
-	workerEndpoint, err := Listen("127.0.0.1:0", worker)
+	workerEndpoint, err := Listen("127.0.0.1:0", worker, newTransportTrustRepository())
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = workerEndpoint.Close() })
-	orchestratorEndpoint, err := Listen("127.0.0.1:0", orchestrator)
+	orchestratorEndpoint, err := Listen("127.0.0.1:0", orchestrator, newTransportTrustRepository())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,11 +35,15 @@ func TestPairingEndpointAuthenticatesBothDeviceKeysAndSharesBinding(t *testing.T
 	accepted := make(chan session.PairingChannel, 1)
 	serveResult := make(chan error, 1)
 	go func() {
-		serveResult <- workerEndpoint.Run(ctx, func(channel session.PairingChannel) { accepted <- channel })
+		serveResult <- workerEndpoint.Run(
+			ctx,
+			func(channel session.PairingChannel) { accepted <- channel },
+			noopRemoteHandler(),
+		)
 	}()
 
 	target := nearbyForTransportTest(t, worker, workerEndpoint.Port())
-	outbound, err := orchestratorEndpoint.Dial(context.Background(), target)
+	outbound, err := orchestratorEndpoint.DialPairing(context.Background(), target)
 	if err != nil {
 		t.Fatalf("Dial() error = %v", err)
 	}
@@ -85,19 +92,25 @@ func TestPairingEndpointAuthenticatesBothDeviceKeysAndSharesBinding(t *testing.T
 func TestPairingEndpointRejectsAReplayedPresenceAtAnotherEndpoint(t *testing.T) {
 	worker := localDeviceForTransportTest(t, 3, "Actual Worker", device.RoleWorker)
 	orchestrator := localDeviceForTransportTest(t, 4, "MacBook", device.RoleOrchestrator)
-	workerEndpoint, err := Listen("127.0.0.1:0", worker)
+	workerEndpoint, err := Listen("127.0.0.1:0", worker, newTransportTrustRepository())
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer workerEndpoint.Close()
-	orchestratorEndpoint, err := Listen("127.0.0.1:0", orchestrator)
+	orchestratorEndpoint, err := Listen("127.0.0.1:0", orchestrator, newTransportTrustRepository())
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer orchestratorEndpoint.Close()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	go func() { _ = workerEndpoint.Run(ctx, func(channel session.PairingChannel) { _ = channel.Close() }) }()
+	go func() {
+		_ = workerEndpoint.Run(
+			ctx,
+			func(channel session.PairingChannel) { _ = channel.Close() },
+			noopRemoteHandler(),
+		)
+	}()
 	target := nearbyForTransportTest(t, worker, workerEndpoint.Port())
 	forgedPresence, err := device.NewPresenceID(bytes.NewReader(bytes.Repeat([]byte{9}, 16)))
 	if err != nil {
@@ -106,10 +119,88 @@ func TestPairingEndpointRejectsAReplayedPresenceAtAnotherEndpoint(t *testing.T) 
 	target.Announcement.PresenceID = forgedPresence
 	dialContext, stopDial := context.WithTimeout(context.Background(), 3*time.Second)
 	defer stopDial()
-	if channel, err := orchestratorEndpoint.Dial(dialContext, target); err == nil {
+	if channel, err := orchestratorEndpoint.DialPairing(dialContext, target); err == nil {
 		_ = channel.Close()
 		t.Fatal("Dial() accepted an endpoint whose live presence did not match discovery")
 	}
+}
+
+func noopRemoteHandler() remoteprotocol.Handler {
+	return remoteprotocol.HandlerFunc(func(
+		context.Context,
+		*computehopv1.RemoteRequest,
+	) *computehopv1.RemoteResponse {
+		return &computehopv1.RemoteResponse{Error: &computehopv1.RemoteError{
+			Code: computehopv1.RemoteErrorCode_REMOTE_ERROR_CODE_INTERNAL, Message: "not used",
+		}}
+	})
+}
+
+type transportTrustRepository struct {
+	mu    sync.Mutex
+	peers map[device.ID]trust.Peer
+}
+
+func newTransportTrustRepository(peers ...trust.Peer) *transportTrustRepository {
+	repository := &transportTrustRepository{peers: make(map[device.ID]trust.Peer)}
+	for _, peer := range peers {
+		repository.peers[peer.DeviceID] = peer.Clone()
+	}
+	return repository
+}
+
+func (repository *transportTrustRepository) Activate(_ context.Context, peer trust.Peer) error {
+	if err := peer.Validate(); err != nil {
+		return err
+	}
+	repository.mu.Lock()
+	defer repository.mu.Unlock()
+	repository.peers[peer.DeviceID] = peer.Clone()
+	return nil
+}
+
+func (repository *transportTrustRepository) Get(_ context.Context, id device.ID) (trust.Peer, error) {
+	repository.mu.Lock()
+	defer repository.mu.Unlock()
+	peer, ok := repository.peers[id]
+	if !ok {
+		return trust.Peer{}, trust.ErrNotFound
+	}
+	return peer.Clone(), nil
+}
+
+func (repository *transportTrustRepository) List(context.Context) ([]trust.Peer, error) {
+	repository.mu.Lock()
+	defer repository.mu.Unlock()
+	peers := make([]trust.Peer, 0, len(repository.peers))
+	for _, peer := range repository.peers {
+		peers = append(peers, peer.Clone())
+	}
+	return peers, nil
+}
+
+func (repository *transportTrustRepository) Revoke(
+	_ context.Context,
+	id device.ID,
+	at time.Time,
+) (trust.Peer, error) {
+	repository.mu.Lock()
+	defer repository.mu.Unlock()
+	peer, ok := repository.peers[id]
+	if !ok {
+		return trust.Peer{}, trust.ErrNotFound
+	}
+	if peer.State == trust.StateRevoked {
+		return peer.Clone(), nil
+	}
+	if at.IsZero() {
+		return trust.Peer{}, errors.New("revocation time is required")
+	}
+	peer.State = trust.StateRevoked
+	peer.UpdatedAt = at.UTC()
+	peer.RevokedAt = &peer.UpdatedAt
+	repository.peers[id] = peer
+	return peer.Clone(), nil
 }
 
 func FuzzPairingFrameDecoder(f *testing.F) {

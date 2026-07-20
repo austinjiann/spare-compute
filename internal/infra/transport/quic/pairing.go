@@ -23,6 +23,7 @@ import (
 
 	computehopv1 "github.com/austinjiann/spare-compute/gen/go/computehop/v1"
 	"github.com/austinjiann/spare-compute/internal/device"
+	remoteprotocol "github.com/austinjiann/spare-compute/internal/protocol/remote"
 	"github.com/austinjiann/spare-compute/internal/session"
 	"github.com/austinjiann/spare-compute/internal/trust"
 )
@@ -32,7 +33,7 @@ const (
 	pairingProtocolVersion = 1
 	pairingNonceBytes      = 32
 	maximumPairingFrame    = 64 << 10
-	maximumPairingClients  = 16
+	maximumEndpointClients = 64
 	pairingHandshakeLimit  = 10 * time.Second
 	pairingIdleLimit       = 6 * time.Minute
 	pairingExporterLabel   = "EXPORTER-ComputeHop-Pairing-v1"
@@ -44,21 +45,22 @@ const (
 	closeRejected quicgo.ApplicationErrorCode = 2
 )
 
-// PairingEndpoint owns a ready QUIC listener and its immutable local identity.
-type PairingEndpoint struct {
+// Endpoint owns the ready QUIC listener shared by pairing and remote job control.
+type Endpoint struct {
 	local       session.LocalDevice
 	certificate tls.Certificate
+	trust       trust.Repository
 	listener    *quicgo.Listener
 
 	closeOnce sync.Once
 	closed    chan struct{}
 }
 
-var _ session.PairingEndpoint = (*PairingEndpoint)(nil)
+var _ session.Endpoint = (*Endpoint)(nil)
 
 // Listen creates the authenticated endpoint before it is advertised by mDNS.
-func Listen(address string, local session.LocalDevice) (*PairingEndpoint, error) {
-	if address == "" || local.Validate() != nil {
+func Listen(address string, local session.LocalDevice, repository trust.Repository) (*Endpoint, error) {
+	if address == "" || local.Validate() != nil || repository == nil {
 		return nil, session.ErrInvalidEndpoint
 	}
 	certificate, err := identityCertificate(local.Identity)
@@ -69,13 +71,14 @@ func Listen(address string, local session.LocalDevice) (*PairingEndpoint, error)
 	if err != nil {
 		return nil, fmt.Errorf("listen for ComputeHop pairing: %w", err)
 	}
-	return &PairingEndpoint{
-		local: local, certificate: certificate, listener: listener, closed: make(chan struct{}),
+	return &Endpoint{
+		local: local, certificate: certificate, trust: repository,
+		listener: listener, closed: make(chan struct{}),
 	}, nil
 }
 
 // Port returns the bound UDP port advertised through discovery.
-func (endpoint *PairingEndpoint) Port() uint16 {
+func (endpoint *Endpoint) Port() uint16 {
 	if endpoint == nil || endpoint.listener == nil {
 		return 0
 	}
@@ -86,12 +89,16 @@ func (endpoint *PairingEndpoint) Port() uint16 {
 	return uint16(address.Port)
 }
 
-// Run accepts bounded inbound pairing handshakes until shutdown.
-func (endpoint *PairingEndpoint) Run(ctx context.Context, handle func(session.PairingChannel)) error {
-	if endpoint == nil || endpoint.listener == nil || handle == nil {
+// Run accepts bounded pairing and trusted-control connections until shutdown.
+func (endpoint *Endpoint) Run(
+	ctx context.Context,
+	handlePairing func(session.PairingChannel),
+	remoteHandler remoteprotocol.Handler,
+) error {
+	if endpoint == nil || endpoint.listener == nil || handlePairing == nil || remoteHandler == nil {
 		return session.ErrInvalidEndpoint
 	}
-	semaphore := make(chan struct{}, maximumPairingClients)
+	semaphore := make(chan struct{}, maximumEndpointClients)
 	var wait sync.WaitGroup
 	defer wait.Wait()
 	for {
@@ -114,18 +121,25 @@ func (endpoint *PairingEndpoint) Run(ctx context.Context, handle func(session.Pa
 		wait.Add(1)
 		go func() {
 			defer func() { <-semaphore; wait.Done() }()
-			channel, err := endpoint.accept(ctx, connection)
-			if err != nil {
-				_ = connection.CloseWithError(closeProtocol, "invalid pairing handshake")
-				return
+			switch connection.ConnectionState().TLS.NegotiatedProtocol {
+			case pairingALPN:
+				channel, err := endpoint.acceptPairing(ctx, connection)
+				if err != nil {
+					_ = connection.CloseWithError(closeProtocol, "invalid pairing handshake")
+					return
+				}
+				handlePairing(channel)
+			case controlALPN:
+				endpoint.serveRemoteConnection(ctx, connection, remoteHandler)
+			default:
+				_ = connection.CloseWithError(closeProtocol, "unsupported application protocol")
 			}
-			handle(channel)
 		}()
 	}
 }
 
-// Dial connects only to the addresses supplied by the selected mDNS observation.
-func (endpoint *PairingEndpoint) Dial(ctx context.Context, target device.NearbyDevice) (session.PairingChannel, error) {
+// DialPairing connects only to addresses supplied by the selected mDNS observation.
+func (endpoint *Endpoint) DialPairing(ctx context.Context, target device.NearbyDevice) (session.PairingChannel, error) {
 	if endpoint == nil || endpoint.listener == nil || target.Observation.Validate() != nil ||
 		!target.Announcement.EndpointReady || target.Announcement.Role != device.RoleWorker {
 		return nil, session.ErrInvalidEndpoint
@@ -136,7 +150,7 @@ func (endpoint *PairingEndpoint) Dial(ctx context.Context, target device.NearbyD
 			continue
 		}
 		remote := netip.AddrPortFrom(address, target.Announcement.Port).String()
-		channel, err := endpoint.dialOne(ctx, remote, target.Announcement.PresenceID)
+		channel, err := endpoint.dialPairingOne(ctx, remote, target.Announcement.PresenceID)
 		if err == nil {
 			return channel, nil
 		}
@@ -148,12 +162,12 @@ func (endpoint *PairingEndpoint) Dial(ctx context.Context, target device.NearbyD
 	return nil, fmt.Errorf("connect to selected device: %w", errors.Join(failures...))
 }
 
-func (endpoint *PairingEndpoint) dialOne(
+func (endpoint *Endpoint) dialPairingOne(
 	ctx context.Context,
 	address string,
 	expectedPresence device.PresenceID,
 ) (session.PairingChannel, error) {
-	connection, err := quicgo.DialAddr(ctx, address, clientTLSConfig(endpoint.certificate), quicConfig())
+	connection, err := quicgo.DialAddr(ctx, address, pairingClientTLSConfig(endpoint.certificate), quicConfig())
 	if err != nil {
 		return nil, err
 	}
@@ -187,7 +201,7 @@ func (endpoint *PairingEndpoint) dialOne(
 	if err != nil {
 		return fail(err)
 	}
-	certificatePeer, err := peerFromTLS(connection.ConnectionState().TLS)
+	certificatePeer, err := peerFromTLS(connection.ConnectionState().TLS, pairingALPN)
 	if err != nil {
 		return fail(err)
 	}
@@ -202,7 +216,7 @@ func (endpoint *PairingEndpoint) dialOne(
 	return &pairingChannel{connection: connection, stream: stream, peer: peer, binding: binding}, nil
 }
 
-func (endpoint *PairingEndpoint) accept(ctx context.Context, connection *quicgo.Conn) (session.PairingChannel, error) {
+func (endpoint *Endpoint) acceptPairing(ctx context.Context, connection *quicgo.Conn) (session.PairingChannel, error) {
 	streamContext, cancel := context.WithTimeout(ctx, pairingHandshakeLimit)
 	defer cancel()
 	stream, err := connection.AcceptStream(streamContext)
@@ -222,7 +236,7 @@ func (endpoint *PairingEndpoint) accept(ctx context.Context, connection *quicgo.
 	if err != nil {
 		return nil, err
 	}
-	certificatePeer, err := peerFromTLS(connection.ConnectionState().TLS)
+	certificatePeer, err := peerFromTLS(connection.ConnectionState().TLS, pairingALPN)
 	if err != nil {
 		return nil, err
 	}
@@ -245,7 +259,7 @@ func (endpoint *PairingEndpoint) accept(ctx context.Context, connection *quicgo.
 }
 
 // Close stops new handshakes and interrupts accepted connections.
-func (endpoint *PairingEndpoint) Close() error {
+func (endpoint *Endpoint) Close() error {
 	if endpoint == nil || endpoint.listener == nil {
 		return nil
 	}
@@ -257,7 +271,7 @@ func (endpoint *PairingEndpoint) Close() error {
 	return err
 }
 
-func (endpoint *PairingEndpoint) isClosed() bool {
+func (endpoint *Endpoint) isClosed() bool {
 	select {
 	case <-endpoint.closed:
 		return true
@@ -407,12 +421,12 @@ func identityCertificate(identity device.Identity) (tls.Certificate, error) {
 func serverTLSConfig(certificate tls.Certificate) *tls.Config {
 	return &tls.Config{
 		MinVersion: tls.VersionTLS13, Certificates: []tls.Certificate{certificate},
-		ClientAuth: tls.RequireAnyClientCert, NextProtos: []string{pairingALPN},
+		ClientAuth: tls.RequireAnyClientCert, NextProtos: []string{controlALPN, pairingALPN},
 		VerifyPeerCertificate: verifySelfSignedIdentity,
 	}
 }
 
-func clientTLSConfig(certificate tls.Certificate) *tls.Config {
+func pairingClientTLSConfig(certificate tls.Certificate) *tls.Config {
 	return &tls.Config{
 		MinVersion: tls.VersionTLS13, Certificates: []tls.Certificate{certificate},
 		NextProtos: []string{pairingALPN}, InsecureSkipVerify: true, // Replaced by the strict callback below.
@@ -440,8 +454,8 @@ func verifySelfSignedIdentity(rawCertificates [][]byte, _ [][]*x509.Certificate)
 	return err
 }
 
-func peerFromTLS(state tls.ConnectionState) (session.Peer, error) {
-	if state.Version != tls.VersionTLS13 || state.NegotiatedProtocol != pairingALPN ||
+func peerFromTLS(state tls.ConnectionState, expectedProtocol string) (session.Peer, error) {
+	if state.Version != tls.VersionTLS13 || state.NegotiatedProtocol != expectedProtocol ||
 		len(state.PeerCertificates) != 1 {
 		return session.Peer{}, session.ErrInvalidPeer
 	}
@@ -461,7 +475,7 @@ func quicConfig() *quicgo.Config {
 		HandshakeIdleTimeout:  pairingHandshakeLimit,
 		MaxIdleTimeout:        pairingIdleLimit,
 		KeepAlivePeriod:       15 * time.Second,
-		MaxIncomingStreams:    1,
+		MaxIncomingStreams:    64,
 		MaxIncomingUniStreams: -1,
 		Allow0RTT:             false,
 	}

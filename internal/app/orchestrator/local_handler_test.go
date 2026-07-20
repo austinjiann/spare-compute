@@ -58,7 +58,7 @@ func TestLocalHandlerPing(t *testing.T) {
 }
 
 func TestLocalHandlerListsDiscoveryHealth(t *testing.T) {
-	handler, err := NewLocalHandler(stubJobController{}, stubDeviceController{
+	handler, err := NewLocalHandler(stubJobController{}, stubPairedJobController{}, stubDeviceController{
 		list: func(context.Context) (device.DiscoverySnapshot, error) {
 			return device.DiscoverySnapshot{Available: true}, nil
 		},
@@ -105,10 +105,41 @@ func TestLocalHandlerSubmit(t *testing.T) {
 	}
 }
 
+func TestLocalHandlerRoutesExplicitDeviceSubmissionRemotely(t *testing.T) {
+	wantJob := queuedJobForTest()
+	remote := stubPairedJobController{submit: func(
+		_ context.Context,
+		selector string,
+		spec job.Spec,
+	) (job.Job, error) {
+		if selector != "Gaming PC" || spec.Executable != "echo" {
+			t.Fatalf("selector = %q; spec = %#v", selector, spec)
+		}
+		return wantJob, nil
+	}}
+	handler, err := NewLocalHandler(
+		stubJobController{}, remote, stubDeviceController{}, stubPairingController{}, "test-version",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := handler.Handle(context.Background(), &localv1.Request{
+		Operation: &localv1.Request_SubmitJob{SubmitJob: &localv1.SubmitJobRequest{
+			Spec: &localv1.JobSpec{
+				Executable: "echo", Executor: localv1.Executor_EXECUTOR_NATIVE,
+			},
+			DeviceSelector: "Gaming PC",
+		}},
+	})
+	if response.GetError() != nil || response.GetSubmitJob().GetJob().GetId() != string(wantJob.ID) {
+		t.Fatalf("response = %#v", response)
+	}
+}
+
 func TestLocalHandlerBeginsPairingThroughDedicatedController(t *testing.T) {
 	value := pairingForHandlerTest(t)
 	handler, err := NewLocalHandler(
-		stubJobController{}, stubDeviceController{},
+		stubJobController{}, stubPairedJobController{}, stubDeviceController{},
 		stubPairingController{begin: func(_ context.Context, selector string) (trust.Pairing, error) {
 			if selector != "Gaming PC" {
 				t.Fatalf("selector = %q", selector)
@@ -180,11 +211,50 @@ func TestLocalHandlerRejectsOversizedList(t *testing.T) {
 
 func newHandlerForTest(t *testing.T, controller JobController) *LocalHandler {
 	t.Helper()
-	handler, err := NewLocalHandler(controller, stubDeviceController{}, stubPairingController{}, "test-version")
+	handler, err := NewLocalHandler(
+		controller, stubPairedJobController{}, stubDeviceController{}, stubPairingController{}, "test-version",
+	)
 	if err != nil {
 		t.Fatalf("NewLocalHandler() error = %v", err)
 	}
 	return handler
+}
+
+type stubPairedJobController struct {
+	submit func(context.Context, string, job.Spec) (job.Job, error)
+}
+
+func (stub stubPairedJobController) Submit(
+	ctx context.Context,
+	selector string,
+	spec job.Spec,
+) (job.Job, error) {
+	if stub.submit != nil {
+		return stub.submit(ctx, selector, spec)
+	}
+	return job.Job{}, errors.New("unexpected remote submit")
+}
+
+func (stubPairedJobController) Get(context.Context, string, job.ID) (job.Job, error) {
+	return job.Job{}, errors.New("unexpected remote get")
+}
+
+func (stubPairedJobController) List(context.Context, string, job.ListOptions) ([]job.Job, error) {
+	return nil, errors.New("unexpected remote list")
+}
+
+func (stubPairedJobController) Cancel(context.Context, string, job.ID) (job.Job, error) {
+	return job.Job{}, errors.New("unexpected remote cancel")
+}
+
+func (stubPairedJobController) ReadLogs(
+	context.Context,
+	string,
+	job.ID,
+	uint64,
+	int,
+) (worker.JobLogs, error) {
+	return worker.JobLogs{}, errors.New("unexpected remote logs")
 }
 
 type stubPairingController struct {
