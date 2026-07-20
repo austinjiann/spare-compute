@@ -290,13 +290,17 @@ func (handler *LocalHandler) readLogs(
 	if err != nil {
 		return errorResponse(err)
 	}
+	remoteOperation, err := handler.shouldRouteRemotely(ctx, request.GetDeviceSelector(), id)
+	if err != nil {
+		return errorResponse(err)
+	}
 	var result worker.JobLogs
-	if request.GetDeviceSelector() == "" {
-		result, err = handler.jobs.ReadLogs(ctx, id, request.GetAfterSequence(), int(request.GetLimit()))
-	} else {
+	if remoteOperation {
 		result, err = handler.remote.ReadLogs(
 			ctx, request.GetDeviceSelector(), id, request.GetAfterSequence(), int(request.GetLimit()),
 		)
+	} else {
+		result, err = handler.jobs.ReadLogs(ctx, id, request.GetAfterSequence(), int(request.GetLimit()))
 	}
 	if err != nil {
 		return errorResponse(err)
@@ -353,11 +357,15 @@ func (handler *LocalHandler) get(ctx context.Context, request *localv1.GetJobReq
 	if err != nil {
 		return errorResponse(err)
 	}
+	remoteOperation, err := handler.shouldRouteRemotely(ctx, request.GetDeviceSelector(), id)
+	if err != nil {
+		return errorResponse(err)
+	}
 	var value job.Job
-	if request.GetDeviceSelector() == "" {
-		value, err = handler.jobs.Get(ctx, id)
-	} else {
+	if remoteOperation {
 		value, err = handler.remote.Get(ctx, request.GetDeviceSelector(), id)
+	} else {
+		value, err = handler.jobs.Get(ctx, id)
 	}
 	if err != nil {
 		return errorResponse(err)
@@ -415,11 +423,15 @@ func (handler *LocalHandler) cancel(ctx context.Context, request *localv1.Cancel
 	if err != nil {
 		return errorResponse(err)
 	}
+	remoteOperation, err := handler.shouldRouteRemotely(ctx, request.GetDeviceSelector(), id)
+	if err != nil {
+		return errorResponse(err)
+	}
 	var value job.Job
-	if request.GetDeviceSelector() == "" {
-		value, err = handler.jobs.Cancel(ctx, id)
-	} else {
+	if remoteOperation {
 		value, err = handler.remote.Cancel(ctx, request.GetDeviceSelector(), id)
+	} else {
+		value, err = handler.jobs.Cancel(ctx, id)
 	}
 	if err != nil {
 		return errorResponse(err)
@@ -431,6 +443,24 @@ func (handler *LocalHandler) cancel(ctx context.Context, request *localv1.Cancel
 	return &localv1.Response{Result: &localv1.Response_CancelJob{CancelJob: &localv1.CancelJobResponse{
 		Job: message,
 	}}}
+}
+
+func (handler *LocalHandler) shouldRouteRemotely(
+	ctx context.Context,
+	selector string,
+	id job.ID,
+) (bool, error) {
+	if selector != "" {
+		return true, nil
+	}
+	_, err := handler.jobs.Get(ctx, id)
+	if err == nil {
+		return false, nil
+	}
+	if errors.Is(err, job.ErrNotFound) {
+		return true, nil
+	}
+	return false, err
 }
 
 func errorResponse(err error) *localv1.Response {
@@ -486,6 +516,8 @@ func errorResponse(err error) *localv1.Response {
 		message = err.Error()
 	case errors.Is(err, ErrRemoteWorkerUnavailable):
 		code = localv1.ErrorCode_ERROR_CODE_DEVICE_UNAVAILABLE
+		message = err.Error()
+	case errors.Is(err, ErrRemotePlacementPersistence):
 		message = err.Error()
 	}
 	return failureResponse(code, message)

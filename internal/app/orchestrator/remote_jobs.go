@@ -13,6 +13,7 @@ import (
 	"github.com/austinjiann/spare-compute/internal/device"
 	"github.com/austinjiann/spare-compute/internal/job"
 	joblogging "github.com/austinjiann/spare-compute/internal/logging"
+	"github.com/austinjiann/spare-compute/internal/placement"
 	"github.com/austinjiann/spare-compute/internal/protocol/mapper"
 	remoteprotocol "github.com/austinjiann/spare-compute/internal/protocol/remote"
 	"github.com/austinjiann/spare-compute/internal/trust"
@@ -21,8 +22,9 @@ import (
 const remoteDialTimeout = 12 * time.Second
 
 var (
-	ErrMissingRemoteDependency = errors.New("remote job service dependency is required")
-	ErrRemoteWorkerUnavailable = errors.New("paired worker is not available on this LAN")
+	ErrMissingRemoteDependency    = errors.New("remote job service dependency is required")
+	ErrRemoteWorkerUnavailable    = errors.New("paired worker is not available on this LAN")
+	ErrRemotePlacementPersistence = errors.New("remote job was accepted but its placement could not be saved")
 )
 
 // RemoteDialer opens a key-pinned job-control connection to one LAN observation.
@@ -32,26 +34,30 @@ type RemoteDialer interface {
 
 // RemoteDependencies configure explicit paired-worker job routing.
 type RemoteDependencies struct {
-	Nearby DeviceController
-	Trust  trust.Repository
-	Dialer RemoteDialer
+	Nearby     DeviceController
+	Trust      trust.Repository
+	Placements placement.Repository
+	Dialer     RemoteDialer
 }
 
-// RemoteJobService routes each explicit operation to a current LAN observation
-// whose live certificate matches the selected durable worker pin.
+// RemoteJobService routes operations to a current LAN observation whose live
+// certificate matches an explicit or durably remembered worker pin.
 type RemoteJobService struct {
-	nearby DeviceController
-	trust  trust.Repository
-	dialer RemoteDialer
+	nearby     DeviceController
+	trust      trust.Repository
+	placements placement.Repository
+	dialer     RemoteDialer
 }
 
 // NewRemoteJobService constructs the orchestrator-side remote job controller.
 func NewRemoteJobService(dependencies RemoteDependencies) (*RemoteJobService, error) {
-	if dependencies.Nearby == nil || dependencies.Trust == nil || dependencies.Dialer == nil {
+	if dependencies.Nearby == nil || dependencies.Trust == nil ||
+		dependencies.Placements == nil || dependencies.Dialer == nil {
 		return nil, ErrMissingRemoteDependency
 	}
 	return &RemoteJobService{
-		nearby: dependencies.Nearby, trust: dependencies.Trust, dialer: dependencies.Dialer,
+		nearby: dependencies.Nearby, trust: dependencies.Trust,
+		placements: dependencies.Placements, dialer: dependencies.Dialer,
 	}, nil
 }
 
@@ -64,7 +70,11 @@ func (service *RemoteJobService) Submit(
 	if err != nil {
 		return job.Job{}, err
 	}
-	response, err := service.call(ctx, selector, &computehopv1.RemoteRequest{
+	peer, err := service.resolveTrustedWorker(ctx, selector)
+	if err != nil {
+		return job.Job{}, err
+	}
+	response, err := service.call(ctx, peer, &computehopv1.RemoteRequest{
 		Operation: &computehopv1.RemoteRequest_SubmitJob{SubmitJob: &computehopv1.SubmitJobRequest{Spec: message}},
 	})
 	if err != nil {
@@ -74,7 +84,19 @@ func (service *RemoteJobService) Submit(
 	if result == nil {
 		return job.Job{}, remoteprotocol.ErrInvalidMessage
 	}
-	return mapper.JobFromRemoteProto(result.GetJob())
+	value, err := mapper.JobFromRemoteProto(result.GetJob())
+	if err != nil {
+		return job.Job{}, err
+	}
+	if err := service.placements.Create(ctx, placement.Placement{
+		JobID: value.ID, WorkerID: peer.DeviceID, PlacedAt: value.CreatedAt,
+	}); err != nil {
+		return job.Job{}, fmt.Errorf(
+			"%w: job %s is running on %s; use --device %s for job operations: %v",
+			ErrRemotePlacementPersistence, value.ID, peer.Name, peer.DeviceID.Short(), err,
+		)
+	}
+	return value, nil
 }
 
 func (service *RemoteJobService) Get(
@@ -82,7 +104,11 @@ func (service *RemoteJobService) Get(
 	selector string,
 	id job.ID,
 ) (job.Job, error) {
-	response, err := service.call(ctx, selector, &computehopv1.RemoteRequest{
+	peer, err := service.resolveJobWorker(ctx, selector, id)
+	if err != nil {
+		return job.Job{}, err
+	}
+	response, err := service.call(ctx, peer, &computehopv1.RemoteRequest{
 		Operation: &computehopv1.RemoteRequest_GetJob{GetJob: &computehopv1.GetJobRequest{JobId: string(id)}},
 	})
 	if err != nil {
@@ -104,7 +130,11 @@ func (service *RemoteJobService) List(
 	if err != nil {
 		return nil, err
 	}
-	response, err := service.call(ctx, selector, &computehopv1.RemoteRequest{
+	peer, err := service.resolveTrustedWorker(ctx, selector)
+	if err != nil {
+		return nil, err
+	}
+	response, err := service.call(ctx, peer, &computehopv1.RemoteRequest{
 		Operation: &computehopv1.RemoteRequest_ListJobs{ListJobs: &computehopv1.ListJobsRequest{
 			States: states, Limit: uint32(options.Limit),
 		}},
@@ -131,7 +161,11 @@ func (service *RemoteJobService) Cancel(
 	selector string,
 	id job.ID,
 ) (job.Job, error) {
-	response, err := service.call(ctx, selector, &computehopv1.RemoteRequest{
+	peer, err := service.resolveJobWorker(ctx, selector, id)
+	if err != nil {
+		return job.Job{}, err
+	}
+	response, err := service.call(ctx, peer, &computehopv1.RemoteRequest{
 		Operation: &computehopv1.RemoteRequest_CancelJob{CancelJob: &computehopv1.CancelJobRequest{JobId: string(id)}},
 	})
 	if err != nil {
@@ -154,7 +188,11 @@ func (service *RemoteJobService) ReadLogs(
 	if limit < 0 || limit > joblogging.MaximumPageLimit {
 		return worker.JobLogs{}, joblogging.ErrInvalidPage
 	}
-	response, err := service.call(ctx, selector, &computehopv1.RemoteRequest{
+	peer, err := service.resolveJobWorker(ctx, selector, id)
+	if err != nil {
+		return worker.JobLogs{}, err
+	}
+	response, err := service.call(ctx, peer, &computehopv1.RemoteRequest{
 		Operation: &computehopv1.RemoteRequest_ReadJobLogs{ReadJobLogs: &computehopv1.ReadJobLogsRequest{
 			JobId: string(id), AfterSequence: after, Limit: uint32(limit),
 		}},
@@ -184,13 +222,9 @@ func (service *RemoteJobService) ReadLogs(
 
 func (service *RemoteJobService) call(
 	ctx context.Context,
-	selector string,
+	peer trust.Peer,
 	request *computehopv1.RemoteRequest,
 ) (*computehopv1.RemoteResponse, error) {
-	peer, err := service.resolveTrustedWorker(ctx, selector)
-	if err != nil {
-		return nil, err
-	}
 	candidates, err := service.nearbyCandidates(ctx, peer)
 	if err != nil {
 		return nil, err
@@ -219,6 +253,40 @@ func (service *RemoteJobService) call(
 		return response, nil
 	}
 	return nil, fmt.Errorf("%w: %s: %v", ErrRemoteWorkerUnavailable, peer.Name, errors.Join(failures...))
+}
+
+func (service *RemoteJobService) resolveJobWorker(
+	ctx context.Context,
+	selector string,
+	id job.ID,
+) (trust.Peer, error) {
+	if strings.TrimSpace(selector) != "" {
+		return service.resolveTrustedWorker(ctx, selector)
+	}
+	remembered, err := service.placements.Get(ctx, id)
+	if errors.Is(err, placement.ErrNotFound) {
+		return trust.Peer{}, fmt.Errorf("%w: %s", job.ErrNotFound, id)
+	}
+	if err != nil {
+		return trust.Peer{}, err
+	}
+	peer, err := service.trust.Get(ctx, remembered.WorkerID)
+	if err != nil {
+		if !errors.Is(err, trust.ErrNotFound) {
+			return trust.Peer{}, err
+		}
+		return trust.Peer{}, fmt.Errorf(
+			"%w: remembered worker %s is not actively paired",
+			ErrRemoteWorkerUnavailable, remembered.WorkerID.Short(),
+		)
+	}
+	if peer.State != trust.StateActive || peer.Role != device.RoleWorker {
+		return trust.Peer{}, fmt.Errorf(
+			"%w: remembered worker %s is not actively paired",
+			ErrRemoteWorkerUnavailable, remembered.WorkerID.Short(),
+		)
+	}
+	return peer, nil
 }
 
 func (service *RemoteJobService) resolveTrustedWorker(ctx context.Context, selector string) (trust.Peer, error) {

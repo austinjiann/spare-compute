@@ -82,7 +82,8 @@ func TestExplicitRemoteJobRoundTripUsesWorkerDurableState(t *testing.T) {
 		Nearby: stubDeviceController{list: func(context.Context) (device.DiscoverySnapshot, error) {
 			return device.DiscoverySnapshot{Available: true, Devices: []device.NearbyDevice{nearby}}, nil
 		}},
-		Trust: orchestratorDatabase.Trust(), Dialer: orchestratorEndpoint,
+		Trust: orchestratorDatabase.Trust(), Placements: orchestratorDatabase.Placements(),
+		Dialer: orchestratorEndpoint,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -97,6 +98,10 @@ func TestExplicitRemoteJobRoundTripUsesWorkerDurableState(t *testing.T) {
 	if submitted.State != job.StateQueued {
 		t.Fatalf("submitted state = %s", submitted.State)
 	}
+	remembered, err := orchestratorDatabase.Placements().Get(ctx, submitted.ID)
+	if err != nil || remembered.WorkerID != workerLocal.Identity.ID() {
+		t.Fatalf("orchestrator placement = %#v, %v", remembered, err)
+	}
 	persisted, err := workerDatabase.Jobs().Get(ctx, submitted.ID)
 	if err != nil || persisted.State != job.StateQueued {
 		t.Fatalf("worker persisted job = %#v, %v", persisted, err)
@@ -105,7 +110,7 @@ func TestExplicitRemoteJobRoundTripUsesWorkerDurableState(t *testing.T) {
 	if err != nil || len(listed) != 1 || listed[0].ID != submitted.ID {
 		t.Fatalf("List() = %#v, %v", listed, err)
 	}
-	cancelled, err := remoteJobs.Cancel(ctx, "Gaming PC", submitted.ID)
+	cancelled, err := remoteJobs.Cancel(ctx, "", submitted.ID)
 	if err != nil || cancelled.State != job.StateCancelled {
 		t.Fatalf("Cancel() = %#v, %v", cancelled, err)
 	}

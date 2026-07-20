@@ -19,7 +19,8 @@ Last updated: 2026-07-20.
 | Durable native execution | Complete | Detached process-tree supervision, reconnectable logs, cancellation, terminal results, and daemon-restart reconciliation. |
 | Privacy-safe LAN discovery | Complete | Cross-platform mDNS presence with expiring in-memory observations and no durable identity in advertisements. |
 | Device pairing and trust | Complete | QUIC/TLS pairing, two-sided verification codes, persistent Ed25519 identity pins, revocation, and re-pairing. |
-| Explicit remote execution | In progress | Submit to a selected paired LAN worker, observe durable state and logs, and cancel remotely. |
+| Explicit remote execution | Complete | Submit to a selected paired LAN worker, observe durable state and logs, and cancel remotely. |
+| Durable remote job routing | In progress | Remember the pinned worker that accepted each remote job so job-specific operations reconnect by ID without another device selector. |
 | Cross-network connectivity and later launch slices | Not started | Rendezvous/ICE/TURN, project snapshots, artifacts, scheduling, adapters, menu-bar UI, packaging, and release operations. |
 
 “Complete” here means implemented with automated coverage and merged to `main`.
@@ -1183,12 +1184,14 @@ after a daemon restart.
 
 ### Step 2: LAN discovery, trust, and explicit remote execution
 
-**Implementation status:** discovery and pairing are merged. The current
-development slice adds explicit LAN-only `run`, `jobs`, `logs`, and `cancel`
-routing through identity-pinned QUIC. Project contents are not transferred, so
-an explicitly supplied remote working directory must already exist on the
-worker. The checkpoint remains open until this slice is merged and exercised on
-physical macOS, Windows, and Linux machines.
+**Implementation status:** discovery, pairing, and explicit LAN-only `run`,
+`jobs`, `logs`, and `cancel` routing through identity-pinned QUIC are merged.
+The current development slice adds a durable orchestrator-side mapping from a
+remote job ID to the pinned worker that accepted it. Project contents are not
+transferred, so an explicitly supplied remote working directory must already
+exist on the worker. The checkpoint remains open until the routing slice is
+merged and the complete flow is exercised on physical macOS, Windows, and Linux
+machines.
 
 - Advertise and browse daemon endpoints with mDNS without treating discovery as
   authentication.
@@ -1197,6 +1200,8 @@ physical macOS, Windows, and Linux machines.
 - Establish mutually authenticated QUIC sessions pinned to paired identities.
 - Run the existing durable job slice on an explicitly selected worker, first
   without automatic scheduling or project transfer.
+- Persist remote job placement on the orchestrator so later job-specific
+  operations reconnect to the correct worker by ID after daemon restarts.
 - Validate macOS-to-macOS, macOS-to-Windows, and macOS-to-Linux behavior on
   physical machines as soon as each worker build exists.
 
