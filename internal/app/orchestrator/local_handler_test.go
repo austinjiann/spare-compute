@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -27,6 +29,9 @@ func (stub stubJobController) Submit(ctx context.Context, spec job.Spec) (job.Jo
 }
 
 func (stub stubJobController) Get(ctx context.Context, id job.ID) (job.Job, error) {
+	if stub.get == nil {
+		return job.Job{}, job.ErrNotFound
+	}
 	return stub.get(ctx, id)
 }
 
@@ -136,6 +141,76 @@ func TestLocalHandlerRoutesExplicitDeviceSubmissionRemotely(t *testing.T) {
 	}
 }
 
+func TestLocalHandlerRoutesRememberedJobOperationsRemotely(t *testing.T) {
+	want := queuedJobForTest()
+	remoteCalls := 0
+	remote := stubPairedJobController{
+		get: func(_ context.Context, selector string, id job.ID) (job.Job, error) {
+			remoteCalls++
+			if selector != "" || id != want.ID {
+				t.Fatalf("Get(%q, %s)", selector, id)
+			}
+			return want, nil
+		},
+		cancel: func(_ context.Context, selector string, id job.ID) (job.Job, error) {
+			remoteCalls++
+			if selector != "" || id != want.ID {
+				t.Fatalf("Cancel(%q, %s)", selector, id)
+			}
+			return want, nil
+		},
+		logs: func(
+			_ context.Context,
+			selector string,
+			id job.ID,
+			_ uint64,
+			_ int,
+		) (worker.JobLogs, error) {
+			remoteCalls++
+			if selector != "" || id != want.ID {
+				t.Fatalf("ReadLogs(%q, %s)", selector, id)
+			}
+			return worker.JobLogs{Job: want}, nil
+		},
+	}
+	handler, err := NewLocalHandler(
+		stubJobController{}, remote, stubDeviceController{}, stubPairingController{}, "test-version",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	requests := []*localv1.Request{
+		{Operation: &localv1.Request_GetJob{GetJob: &localv1.GetJobRequest{JobId: string(want.ID)}}},
+		{Operation: &localv1.Request_CancelJob{CancelJob: &localv1.CancelJobRequest{JobId: string(want.ID)}}},
+		{Operation: &localv1.Request_ReadJobLogs{ReadJobLogs: &localv1.ReadJobLogsRequest{JobId: string(want.ID)}}},
+	}
+	for _, request := range requests {
+		if response := handler.Handle(context.Background(), request); response.GetError() != nil {
+			t.Fatalf("Handle(%T) error = %v", request.GetOperation(), response.GetError())
+		}
+	}
+	if remoteCalls != len(requests) {
+		t.Fatalf("remote calls = %d, want %d", remoteCalls, len(requests))
+	}
+}
+
+func TestLocalHandlerKeepsKnownJobOperationsLocal(t *testing.T) {
+	want := queuedJobForTest()
+	controller := stubJobController{
+		get: func(context.Context, job.ID) (job.Job, error) { return want, nil },
+		cancel: func(context.Context, job.ID) (job.Job, error) {
+			return want, nil
+		},
+	}
+	handler := newHandlerForTest(t, controller)
+	response := handler.Handle(context.Background(), &localv1.Request{
+		Operation: &localv1.Request_CancelJob{CancelJob: &localv1.CancelJobRequest{JobId: string(want.ID)}},
+	})
+	if response.GetError() != nil || response.GetCancelJob().GetJob().GetId() != string(want.ID) {
+		t.Fatalf("response = %#v", response)
+	}
+}
+
 func TestLocalHandlerBeginsPairingThroughDedicatedController(t *testing.T) {
 	value := pairingForHandlerTest(t)
 	handler, err := NewLocalHandler(
@@ -197,6 +272,15 @@ func TestLocalHandlerMapsErrors(t *testing.T) {
 	if internal.GetError().GetMessage() != "internal daemon error" {
 		t.Fatalf("internal message = %q", internal.GetError().GetMessage())
 	}
+
+	accepted := errorResponse(fmt.Errorf(
+		"%w: job %s is running on Gaming PC",
+		ErrRemotePlacementPersistence,
+		"7a338fa3-7ba4-4c54-bf59-da1161f6b76f",
+	))
+	if got := accepted.GetError().GetMessage(); !strings.Contains(got, "is running on Gaming PC") {
+		t.Fatalf("accepted remote job message = %q", got)
+	}
 }
 
 func TestLocalHandlerRejectsOversizedList(t *testing.T) {
@@ -222,6 +306,9 @@ func newHandlerForTest(t *testing.T, controller JobController) *LocalHandler {
 
 type stubPairedJobController struct {
 	submit func(context.Context, string, job.Spec) (job.Job, error)
+	get    func(context.Context, string, job.ID) (job.Job, error)
+	cancel func(context.Context, string, job.ID) (job.Job, error)
+	logs   func(context.Context, string, job.ID, uint64, int) (worker.JobLogs, error)
 }
 
 func (stub stubPairedJobController) Submit(
@@ -235,26 +322,43 @@ func (stub stubPairedJobController) Submit(
 	return job.Job{}, errors.New("unexpected remote submit")
 }
 
-func (stubPairedJobController) Get(context.Context, string, job.ID) (job.Job, error) {
-	return job.Job{}, errors.New("unexpected remote get")
+func (stub stubPairedJobController) Get(
+	ctx context.Context,
+	selector string,
+	id job.ID,
+) (job.Job, error) {
+	if stub.get != nil {
+		return stub.get(ctx, selector, id)
+	}
+	return job.Job{}, job.ErrNotFound
 }
 
 func (stubPairedJobController) List(context.Context, string, job.ListOptions) ([]job.Job, error) {
 	return nil, errors.New("unexpected remote list")
 }
 
-func (stubPairedJobController) Cancel(context.Context, string, job.ID) (job.Job, error) {
-	return job.Job{}, errors.New("unexpected remote cancel")
+func (stub stubPairedJobController) Cancel(
+	ctx context.Context,
+	selector string,
+	id job.ID,
+) (job.Job, error) {
+	if stub.cancel != nil {
+		return stub.cancel(ctx, selector, id)
+	}
+	return job.Job{}, job.ErrNotFound
 }
 
-func (stubPairedJobController) ReadLogs(
-	context.Context,
-	string,
-	job.ID,
-	uint64,
-	int,
+func (stub stubPairedJobController) ReadLogs(
+	ctx context.Context,
+	selector string,
+	id job.ID,
+	after uint64,
+	limit int,
 ) (worker.JobLogs, error) {
-	return worker.JobLogs{}, errors.New("unexpected remote logs")
+	if stub.logs != nil {
+		return stub.logs(ctx, selector, id, after, limit)
+	}
+	return worker.JobLogs{}, job.ErrNotFound
 }
 
 type stubPairingController struct {

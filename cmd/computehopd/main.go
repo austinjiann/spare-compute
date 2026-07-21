@@ -239,7 +239,8 @@ func runWithDependencies(
 		return fmt.Errorf("initialize remote worker handler: %w", err)
 	}
 	remoteJobs, err := orchestrator.NewRemoteJobService(orchestrator.RemoteDependencies{
-		Nearby: deviceService, Trust: database.Trust(), Dialer: pairingEndpoint,
+		Nearby: deviceService, Trust: database.Trust(),
+		Placements: database.Placements(), Dialer: pairingEndpoint,
 	})
 	if err != nil {
 		return fmt.Errorf("initialize remote job service: %w", err)

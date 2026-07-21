@@ -8,7 +8,8 @@ daemons with mDNS. Nearby workers can now be paired through a mutually
 authenticated QUIC handshake with matching confirmation codes and durable,
 revocable public-key pins. An orchestrator can explicitly submit, inspect,
 follow, and cancel a durable job on a paired worker that is currently reachable
-on the same LAN.
+on the same LAN. It also remembers which pinned worker accepted each remote job
+so later job-specific operations can route by job ID alone.
 
 See [`docs/PLAN.md`](docs/PLAN.md) for the product, architecture, security,
 execution, deployment, and launch plan.
@@ -70,13 +71,18 @@ same commands with a device selector:
 go run ./cmd/computehop --state-dir "$computehop_state_dir" run --device "Gaming PC" -- echo hello
 go run ./cmd/computehop --state-dir "$computehop_state_dir" run --device "Gaming PC" -C /existing/worker/path -- cargo build
 go run ./cmd/computehop --state-dir "$computehop_state_dir" jobs --device "Gaming PC"
-go run ./cmd/computehop --state-dir "$computehop_state_dir" logs --follow --device "Gaming PC" <job-id>
-go run ./cmd/computehop --state-dir "$computehop_state_dir" cancel --device "Gaming PC" <job-id>
+go run ./cmd/computehop --state-dir "$computehop_state_dir" logs --follow <job-id>
+go run ./cmd/computehop --state-dir "$computehop_state_dir" cancel <job-id>
 ```
 
-Remote job IDs and history remain authoritative on the selected worker, so
-`jobs`, `logs`, and `cancel` also require `--device` in this slice. A later
-global orchestrator history will remember placement automatically.
+Remote job state, logs, and execution history remain authoritative on the
+selected worker. The orchestrator stores only a durable mapping from each
+submitted remote job ID to the pinned worker identity. That mapping lets
+`logs` and `cancel` reconnect without `--device`, including after an
+orchestrator daemon restart. `--device` remains an explicit override and is
+still required to browse a worker's complete history with `jobs`; job lists are
+not aggregated yet. Jobs submitted by an older build have no placement record
+and still require the explicit device selector.
 
 The orchestrator launches a detached runner for each job. The runner owns the
 native process tree, durable log writer, cancellation acknowledgement, and final

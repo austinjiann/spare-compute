@@ -11,6 +11,7 @@ import (
 	computehopv1 "github.com/austinjiann/spare-compute/gen/go/computehop/v1"
 	"github.com/austinjiann/spare-compute/internal/device"
 	"github.com/austinjiann/spare-compute/internal/job"
+	"github.com/austinjiann/spare-compute/internal/placement"
 	"github.com/austinjiann/spare-compute/internal/protocol/mapper"
 	remoteprotocol "github.com/austinjiann/spare-compute/internal/protocol/remote"
 	"github.com/austinjiann/spare-compute/internal/trust"
@@ -25,11 +26,13 @@ func TestRemoteJobServiceRoutesOnlyThroughSelectedWorkerPin(t *testing.T) {
 		t.Fatal(err)
 	}
 	dialed := false
+	placements := newRemotePlacementStub()
 	service, err := NewRemoteJobService(RemoteDependencies{
 		Nearby: stubDeviceController{list: func(context.Context) (device.DiscoverySnapshot, error) {
 			return device.DiscoverySnapshot{Available: true, Devices: []device.NearbyDevice{nearby}}, nil
 		}},
-		Trust: remoteTrustStub{peers: []trust.Peer{peer}},
+		Trust:      remoteTrustStub{peers: []trust.Peer{peer}},
+		Placements: placements,
 		Dialer: remoteDialerFunc(func(
 			_ context.Context,
 			target device.NearbyDevice,
@@ -44,12 +47,22 @@ func TestRemoteJobServiceRoutesOnlyThroughSelectedWorkerPin(t *testing.T) {
 				_ context.Context,
 				request *computehopv1.RemoteRequest,
 			) (*computehopv1.RemoteResponse, error) {
-				if request.GetSubmitJob().GetSpec().GetExecutable() != "echo" {
-					t.Fatalf("request = %#v", request)
+				switch request.GetOperation().(type) {
+				case *computehopv1.RemoteRequest_SubmitJob:
+					if request.GetSubmitJob().GetSpec().GetExecutable() != "echo" {
+						t.Fatalf("request = %#v", request)
+					}
+					return &computehopv1.RemoteResponse{Result: &computehopv1.RemoteResponse_SubmitJob{
+						SubmitJob: &computehopv1.SubmitJobResponse{Job: message},
+					}}, nil
+				case *computehopv1.RemoteRequest_GetJob:
+					return &computehopv1.RemoteResponse{Result: &computehopv1.RemoteResponse_GetJob{
+						GetJob: &computehopv1.GetJobResponse{Job: message},
+					}}, nil
+				default:
+					t.Fatalf("unexpected request = %#v", request)
+					return nil, nil
 				}
-				return &computehopv1.RemoteResponse{Result: &computehopv1.RemoteResponse_SubmitJob{
-					SubmitJob: &computehopv1.SubmitJobResponse{Job: message},
-				}}, nil
 			}}, nil
 		}),
 	})
@@ -63,13 +76,22 @@ func TestRemoteJobServiceRoutesOnlyThroughSelectedWorkerPin(t *testing.T) {
 	if !dialed || got.ID != want.ID || got.State != want.State {
 		t.Fatalf("job = %#v; dialed = %t", got, dialed)
 	}
+	remembered, err := placements.Get(context.Background(), want.ID)
+	if err != nil || remembered.WorkerID != peer.DeviceID {
+		t.Fatalf("placement = %#v, %v", remembered, err)
+	}
+	got, err = service.Get(context.Background(), "", want.ID)
+	if err != nil || got.ID != want.ID {
+		t.Fatalf("Get(remembered) = %#v, %v", got, err)
+	}
 }
 
 func TestRemoteJobServiceRequiresAnActiveNearbyPin(t *testing.T) {
 	peer := activeWorkerPeer(t, 9, "Offline PC")
 	service, err := NewRemoteJobService(RemoteDependencies{
-		Nearby: stubDeviceController{},
-		Trust:  remoteTrustStub{peers: []trust.Peer{peer}},
+		Nearby:     stubDeviceController{},
+		Trust:      remoteTrustStub{peers: []trust.Peer{peer}},
+		Placements: newRemotePlacementStub(),
 		Dialer: remoteDialerFunc(func(
 			context.Context,
 			device.NearbyDevice,
@@ -85,6 +107,63 @@ func TestRemoteJobServiceRequiresAnActiveNearbyPin(t *testing.T) {
 	_, err = service.List(context.Background(), "Offline PC", job.ListOptions{Limit: 10})
 	if !errors.Is(err, ErrRemoteWorkerUnavailable) {
 		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestRemoteJobServiceRejectsRevokedRememberedWorker(t *testing.T) {
+	peer := activeWorkerPeer(t, 10, "Revoked PC")
+	revokedAt := peer.UpdatedAt.Add(time.Minute)
+	peer.State = trust.StateRevoked
+	peer.UpdatedAt = revokedAt
+	peer.RevokedAt = &revokedAt
+	want := queuedJobForTest()
+	placements := newRemotePlacementStub()
+	if err := placements.Create(context.Background(), placement.Placement{
+		JobID: want.ID, WorkerID: peer.DeviceID, PlacedAt: want.CreatedAt,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewRemoteJobService(RemoteDependencies{
+		Nearby:     stubDeviceController{},
+		Trust:      remoteTrustStub{peers: []trust.Peer{peer}},
+		Placements: placements,
+		Dialer: remoteDialerFunc(func(
+			context.Context,
+			device.NearbyDevice,
+			trust.Peer,
+		) (remoteprotocol.Caller, error) {
+			t.Fatal("revoked remembered worker was dialed")
+			return nil, nil
+		}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.Get(context.Background(), "", want.ID); !errors.Is(err, ErrRemoteWorkerUnavailable) {
+		t.Fatalf("Get() error = %v, want ErrRemoteWorkerUnavailable", err)
+	}
+}
+
+func TestRemoteJobServiceReportsUnknownRememberedJob(t *testing.T) {
+	service, err := NewRemoteJobService(RemoteDependencies{
+		Nearby:     stubDeviceController{},
+		Trust:      remoteTrustStub{},
+		Placements: newRemotePlacementStub(),
+		Dialer: remoteDialerFunc(func(
+			context.Context,
+			device.NearbyDevice,
+			trust.Peer,
+		) (remoteprotocol.Caller, error) {
+			t.Fatal("unknown job dialed a worker")
+			return nil, nil
+		}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := queuedJobForTest()
+	if _, err := service.Get(context.Background(), "", want.ID); !errors.Is(err, job.ErrNotFound) {
+		t.Fatalf("Get() error = %v, want job.ErrNotFound", err)
 	}
 }
 
@@ -118,7 +197,12 @@ type remoteTrustStub struct {
 func (stub remoteTrustStub) Activate(context.Context, trust.Peer) error {
 	return errors.New("not implemented")
 }
-func (stub remoteTrustStub) Get(context.Context, device.ID) (trust.Peer, error) {
+func (stub remoteTrustStub) Get(_ context.Context, id device.ID) (trust.Peer, error) {
+	for _, peer := range stub.peers {
+		if peer.DeviceID == id {
+			return peer.Clone(), nil
+		}
+	}
 	return trust.Peer{}, trust.ErrNotFound
 }
 func (stub remoteTrustStub) List(context.Context) ([]trust.Peer, error) {
@@ -130,6 +214,33 @@ func (stub remoteTrustStub) List(context.Context) ([]trust.Peer, error) {
 }
 func (stub remoteTrustStub) Revoke(context.Context, device.ID, time.Time) (trust.Peer, error) {
 	return trust.Peer{}, errors.New("not implemented")
+}
+
+type remotePlacementStub struct {
+	values map[job.ID]placement.Placement
+}
+
+func newRemotePlacementStub() *remotePlacementStub {
+	return &remotePlacementStub{values: make(map[job.ID]placement.Placement)}
+}
+
+func (stub *remotePlacementStub) Create(_ context.Context, value placement.Placement) error {
+	if err := value.Validate(); err != nil {
+		return err
+	}
+	if existing, ok := stub.values[value.JobID]; ok && existing.WorkerID != value.WorkerID {
+		return placement.ErrConflict
+	}
+	stub.values[value.JobID] = value
+	return nil
+}
+
+func (stub *remotePlacementStub) Get(_ context.Context, id job.ID) (placement.Placement, error) {
+	value, ok := stub.values[id]
+	if !ok {
+		return placement.Placement{}, placement.ErrNotFound
+	}
+	return value, nil
 }
 
 func activeWorkerPeer(t *testing.T, seed byte, name string) trust.Peer {

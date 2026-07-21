@@ -23,6 +23,7 @@ type Database struct {
 	jobs       *JobRepository
 	executions *ExecutionRepository
 	trust      *TrustRepository
+	placements *PlacementRepository
 }
 
 // Open creates or opens a local ComputeHop database and applies all migrations.
@@ -67,7 +68,13 @@ func Open(ctx context.Context, path string) (*Database, error) {
 	result.jobs = &JobRepository{database: database}
 	result.executions = &ExecutionRepository{database: database}
 	result.trust = &TrustRepository{database: database}
+	result.placements = &PlacementRepository{database: database}
 	return result, nil
+}
+
+// Placements returns the orchestrator's durable remote job routing repository.
+func (database *Database) Placements() *PlacementRepository {
+	return database.placements
 }
 
 // Trust returns the durable paired-device repository owned by this database.
