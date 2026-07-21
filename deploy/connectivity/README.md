@@ -23,3 +23,7 @@ The current store is process-local. A staging deployment should use one
 instance. Multiple replicas require consistent routing by the opaque route ID
 or a future shared ephemeral store; ordinary round-robin balancing would split
 paired endpoints. TURN is a separate service and is not included in this image.
+
+The binary listens on `:$PORT` when a platform supplies `PORT`, and otherwise
+uses `:8080`. An explicit `--listen` flag takes precedence. The Railway staging
+runbook is in [`../staging/README.md`](../staging/README.md).

@@ -21,7 +21,8 @@ Last updated: 2026-07-20.
 | Device pairing and trust | Complete | QUIC/TLS pairing, two-sided verification codes, persistent Ed25519 identity pins, revocation, and re-pairing. |
 | Explicit remote execution | Complete | Submit to a selected paired LAN worker, observe durable state and logs, and cancel remotely. |
 | Durable remote job routing | Complete | Remember the pinned worker that accepted each remote job so job-specific operations reconnect by ID without another device selector. |
-| Hosted rendezvous foundation | In progress | Derive rotating anonymous pair credentials and exchange bounded, encrypted, expiring presence and signaling payloads through a standalone service. |
+| Hosted rendezvous foundation | Complete | Derive rotating anonymous pair credentials and exchange bounded, encrypted, expiring presence and signaling payloads through a standalone service. |
+| Staging rendezvous deployment | In progress | Railway config, dynamic platform-port binding, health-gated rollout, and an operator runbook are ready; the live staging project is provisioned only after this slice lands. |
 | Cross-network paths and later launch slices | Not started | Daemon rendezvous clients, ICE/STUN/TURN, project snapshots, artifacts, scheduling, adapters, menu-bar UI, packaging, and release operations. |
 
 “Complete” here means implemented with automated coverage and merged to `main`.
@@ -1210,14 +1211,16 @@ and rejects unpaired or revoked devices.
 
 ### Step 3: Cross-network connectivity
 
-**Implementation status:** the current slice derives a separate 256-bit
+**Implementation status:** the merged foundation derives a separate 256-bit
 connectivity secret during confirmed pairing, persists it only on the two
 devices, rotates anonymous route credentials every five minutes, and adds a
 bounded in-memory rendezvous/signaling service. The service sees only opaque
 route IDs, credential digests, endpoint roles, timing, and encrypted payloads.
-It is not connected to either daemon yet and does not implement ICE, STUN, or
-TURN. Existing pairings without connectivity material must be explicitly
-re-paired before later cross-network testing.
+The current deployment slice adds a single-instance Railway staging
+configuration and health/rollback runbook. The service is not connected to
+either daemon yet and does not implement ICE, STUN, or TURN. Existing pairings
+without connectivity material must be explicitly re-paired before later
+cross-network testing.
 
 - Deploy a staging rendezvous service, STUN endpoints, and TURN relays before
   implementing remote path selection in the client.

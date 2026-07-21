@@ -1,0 +1,12 @@
+.git
+.github
+.idea
+.vscode
+DerivedData
+bin
+coverage.out
+dist
+*.db
+*.db-shm
+*.db-wal
+*.sock

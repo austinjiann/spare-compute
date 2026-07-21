@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"time"
 
 	"github.com/austinjiann/spare-compute/internal/connectivity/rendezvous"
@@ -97,7 +98,7 @@ func parseOptions(arguments []string, stderr io.Writer) (options, error) {
 	parsed := options{}
 	flags := flag.NewFlagSet("computehop-connectivity", flag.ContinueOnError)
 	flags.SetOutput(stderr)
-	flags.StringVar(&parsed.listenAddress, "listen", ":8080", "HTTP listen address behind the TLS edge")
+	flags.StringVar(&parsed.listenAddress, "listen", defaultListenAddress(), "HTTP listen address behind the TLS edge")
 	flags.BoolVar(&parsed.showVersion, "version", false, "print version and exit")
 	flags.IntVar(&parsed.maxRoutes, "max-routes", 10_000, "maximum concurrent anonymous pair routes")
 	flags.IntVar(&parsed.maxSignalsPerRoute, "max-signals-per-route", 64, "maximum queued signals per pair route")
@@ -110,4 +111,12 @@ func parseOptions(arguments []string, stderr io.Writer) (options, error) {
 		return options{}, fmt.Errorf("unexpected arguments: %v", flags.Args())
 	}
 	return parsed, nil
+}
+
+func defaultListenAddress() string {
+	port := strings.TrimSpace(os.Getenv("PORT"))
+	if port == "" {
+		port = "8080"
+	}
+	return net.JoinHostPort("", port)
 }

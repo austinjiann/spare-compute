@@ -41,3 +41,22 @@ func TestRunRejectsInvalidLimitsAndArguments(t *testing.T) {
 		}
 	}
 }
+
+func TestParseOptionsUsesPlatformPort(t *testing.T) {
+	t.Setenv("PORT", "4312")
+	parsed, err := parseOptions(nil, &bytes.Buffer{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parsed.listenAddress != ":4312" {
+		t.Fatalf("listen address = %q", parsed.listenAddress)
+	}
+
+	parsed, err = parseOptions([]string{"--listen", "127.0.0.1:0"}, &bytes.Buffer{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parsed.listenAddress != "127.0.0.1:0" {
+		t.Fatalf("overridden listen address = %q", parsed.listenAddress)
+	}
+}
