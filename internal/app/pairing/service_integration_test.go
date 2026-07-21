@@ -100,6 +100,10 @@ func TestTwoDaemonsRequireMatchingLocalConfirmationsBeforePersistingTrust(t *tes
 	if err != nil || len(orchestratorPeers) != 1 || orchestratorPeers[0].DeviceID != worker.Identity.ID() {
 		t.Fatalf("orchestrator trust = %#v, %v", orchestratorPeers, err)
 	}
+	if !workerPeers[0].ConnectivitySecret.Valid() ||
+		!bytes.Equal(workerPeers[0].ConnectivitySecret, orchestratorPeers[0].ConnectivitySecret) {
+		t.Fatal("paired devices did not persist the same connectivity secret")
+	}
 	if _, err := orchestratorService.Begin(context.Background(), "Gaming PC"); err == nil {
 		t.Fatal("Begin() allowed an already-active peer")
 	}

@@ -6,3 +6,7 @@ repository root after changing a schema.
 
 Protocol messages are boundary types. They are converted to internal domain
 types before application rules are evaluated.
+
+The connectivity schema carries only encrypted, bounded presence and signaling
+payloads. Durable device identifiers, pair IDs, jobs, logs, and artifacts do
+not belong in the hosted-service protocol.

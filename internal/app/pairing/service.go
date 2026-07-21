@@ -55,11 +55,12 @@ type Service struct {
 }
 
 type pending struct {
-	value           trust.Pairing
-	channel         session.PairingChannel
-	activating      bool
-	localCommitted  bool
-	remoteCommitted bool
+	value              trust.Pairing
+	connectivitySecret trust.ConnectivitySecret
+	channel            session.PairingChannel
+	activating         bool
+	localCommitted     bool
+	remoteCommitted    bool
 }
 
 // NewService validates and creates a pairing coordinator.
@@ -288,6 +289,10 @@ func (service *Service) register(
 	if err != nil {
 		return trust.Pairing{}, err
 	}
+	connectivitySecret, err := trust.DeriveConnectivitySecret(channel.Binding(), initiatorID, responderID)
+	if err != nil {
+		return trust.Pairing{}, err
+	}
 	startedAt := service.now().UTC()
 	value := trust.Pairing{
 		ID: id, PeerID: peer.ID, PeerPublicKey: append([]byte(nil), peer.PublicKey...),
@@ -313,7 +318,9 @@ func (service *Service) register(
 	if _, exists := service.pairings[id]; exists {
 		return trust.Pairing{}, fmt.Errorf("%w: duplicate session", trust.ErrConflict)
 	}
-	service.pairings[id] = &pending{value: value, channel: channel}
+	service.pairings[id] = &pending{
+		value: value, connectivitySecret: connectivitySecret, channel: channel,
+	}
 	return value.Clone(), nil
 }
 
@@ -422,13 +429,15 @@ func (service *Service) maybeActivate(id trust.PairID) {
 	}
 	entry.activating = true
 	value := entry.value.Clone()
+	connectivitySecret := append(trust.ConnectivitySecret(nil), entry.connectivitySecret...)
 	channel := entry.channel
 	service.mu.Unlock()
 
 	pairedAt := service.now().UTC()
 	peer := trust.Peer{
 		PairID: value.ID, DeviceID: value.PeerID, PublicKey: value.PeerPublicKey,
-		Name: value.PeerName, Role: value.PeerRole, State: trust.StateActive,
+		ConnectivitySecret: connectivitySecret,
+		Name:               value.PeerName, Role: value.PeerRole, State: trust.StateActive,
 		PairedAt: pairedAt, UpdatedAt: pairedAt,
 	}
 	err := service.repository.Activate(context.Background(), peer)

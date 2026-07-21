@@ -16,6 +16,10 @@ import (
 
 const encodedPairIDLength = 26
 
+// ConnectivitySecretBytes is the size of pair-scoped secret material derived
+// from the confirmed TLS pairing session.
+const ConnectivitySecretBytes = 32
+
 var (
 	ErrInvalidPairID = errors.New("invalid pair ID")
 	ErrInvalidPeer   = errors.New("invalid trusted peer")
@@ -25,6 +29,15 @@ var (
 
 // PairID is an opaque, pair-scoped identifier. It is not a secret or a device ID.
 type PairID string
+
+// ConnectivitySecret derives anonymous rendezvous credentials. It must never
+// be exposed through local UI protocols or sent to the connectivity service.
+type ConnectivitySecret []byte
+
+// Valid reports whether the secret has the required entropy-bearing length.
+func (secret ConnectivitySecret) Valid() bool {
+	return len(secret) == ConnectivitySecretBytes
+}
 
 // NewPairID creates an unguessable pair-scoped identifier.
 func NewPairID(random io.Reader) (PairID, error) {
@@ -72,15 +85,16 @@ const (
 
 // Peer is a durable public-key pin created only after two-sided confirmation.
 type Peer struct {
-	PairID    PairID
-	DeviceID  device.ID
-	PublicKey ed25519.PublicKey
-	Name      string
-	Role      device.Role
-	State     State
-	PairedAt  time.Time
-	UpdatedAt time.Time
-	RevokedAt *time.Time
+	PairID             PairID
+	DeviceID           device.ID
+	PublicKey          ed25519.PublicKey
+	ConnectivitySecret ConnectivitySecret
+	Name               string
+	Role               device.Role
+	State              State
+	PairedAt           time.Time
+	UpdatedAt          time.Time
+	RevokedAt          *time.Time
 }
 
 // Validate checks identity binding, lifecycle timestamps, and state invariants.
@@ -88,6 +102,7 @@ func (peer Peer) Validate() error {
 	derivedID, err := device.IDFromPublicKey(peer.PublicKey)
 	if err != nil || !peer.PairID.Valid() || peer.DeviceID != derivedID ||
 		device.ValidateName(peer.Name) != nil ||
+		(len(peer.ConnectivitySecret) != 0 && !peer.ConnectivitySecret.Valid()) ||
 		(peer.Role != device.RoleWorker && peer.Role != device.RoleOrchestrator) ||
 		peer.PairedAt.IsZero() || peer.UpdatedAt.Before(peer.PairedAt) {
 		return ErrInvalidPeer
@@ -111,6 +126,7 @@ func (peer Peer) Validate() error {
 // Clone returns a copy that does not share key or timestamp storage.
 func (peer Peer) Clone() Peer {
 	peer.PublicKey = append(ed25519.PublicKey(nil), peer.PublicKey...)
+	peer.ConnectivitySecret = append(ConnectivitySecret(nil), peer.ConnectivitySecret...)
 	if peer.RevokedAt != nil {
 		revokedAt := *peer.RevokedAt
 		peer.RevokedAt = &revokedAt

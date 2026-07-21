@@ -32,7 +32,8 @@ func TestTrustRepositoryPersistsRevokesAndReplacesOneOrchestrator(t *testing.T) 
 	}
 	revokedAt := first.UpdatedAt.Add(time.Minute)
 	revoked, err := database.Trust().Revoke(context.Background(), first.DeviceID, revokedAt)
-	if err != nil || revoked.State != trust.StateRevoked || revoked.RevokedAt == nil {
+	if err != nil || revoked.State != trust.StateRevoked || revoked.RevokedAt == nil ||
+		len(revoked.ConnectivitySecret) != 0 {
 		t.Fatalf("Revoke() = %#v, %v", revoked, err)
 	}
 	if err := database.Trust().Activate(context.Background(), second); err != nil {
@@ -66,7 +67,9 @@ func TestTrustRepositorySurvivesDatabaseRestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.PairID != want.PairID || got.DeviceID != want.DeviceID || !bytes.Equal(got.PublicKey, want.PublicKey) {
+	if got.PairID != want.PairID || got.DeviceID != want.DeviceID ||
+		!bytes.Equal(got.PublicKey, want.PublicKey) ||
+		!bytes.Equal(got.ConnectivitySecret, want.ConnectivitySecret) {
 		t.Fatalf("trust after restart = %#v, want %#v", got, want)
 	}
 }
@@ -84,7 +87,8 @@ func trustedPeerForTest(t *testing.T, seed byte, role device.Role) trust.Peer {
 	pairedAt := time.Unix(1_700_000_000+int64(seed), 0).UTC()
 	return trust.Peer{
 		PairID: pairID, DeviceID: identity.ID(), PublicKey: identity.PublicKey(),
-		Name: "Peer " + string(rune('A'+seed)), Role: role, State: trust.StateActive,
+		ConnectivitySecret: bytes.Repeat([]byte{seed}, trust.ConnectivitySecretBytes),
+		Name:               "Peer " + string(rune('A'+seed)), Role: role, State: trust.StateActive,
 		PairedAt: pairedAt, UpdatedAt: pairedAt,
 	}
 }

@@ -8,7 +8,7 @@ cmd -> app -> job/device/trust/scheduler/etc.
 ```
 
 - `app/` coordinates complete orchestrator, worker, and connectivity workflows.
-- Core packages such as `job/`, `device/`, and `scheduler/` own rules and the
+- Core packages such as `job/`, `device/`, `connectivity/`, and `scheduler/` own rules and the
   interfaces required to persist or execute them.
 - `infra/` implements those interfaces with SQLite, QUIC, mDNS, operating-system
   processes, content storage, and other external technologies.

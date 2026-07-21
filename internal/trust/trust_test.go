@@ -50,12 +50,20 @@ func TestDerivePairingIsConnectionAndRoleOrderBound(t *testing.T) {
 	if !id.Valid() || !validVerificationCode(code) {
 		t.Fatalf("invalid derivation: id=%q code=%q", id, code)
 	}
+	secret, err := DeriveConnectivitySecret(binding, first.ID(), second.ID())
+	if err != nil || !secret.Valid() {
+		t.Fatalf("invalid connectivity secret: length=%d error=%v", len(secret), err)
+	}
 	reversedID, reversedCode, err := DerivePairing(binding, second.ID(), first.ID())
 	if err != nil {
 		t.Fatal(err)
 	}
 	if reversedID == id || reversedCode == code {
 		t.Fatal("pairing derivation did not bind initiator/responder ordering")
+	}
+	reversedSecret, err := DeriveConnectivitySecret(binding, second.ID(), first.ID())
+	if err != nil || bytes.Equal(reversedSecret, secret) {
+		t.Fatal("connectivity secret did not bind initiator/responder ordering")
 	}
 	changed := append([]byte(nil), binding...)
 	changed[0] ^= 1
@@ -65,5 +73,9 @@ func TestDerivePairingIsConnectionAndRoleOrderBound(t *testing.T) {
 	}
 	if changedID == id || changedCode == code {
 		t.Fatal("pairing derivation did not bind the connection")
+	}
+	changedSecret, err := DeriveConnectivitySecret(changed, first.ID(), second.ID())
+	if err != nil || bytes.Equal(changedSecret, secret) {
+		t.Fatal("connectivity secret did not bind the connection")
 	}
 }
