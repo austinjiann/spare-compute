@@ -9,7 +9,11 @@ authenticated QUIC handshake with matching confirmation codes and durable,
 revocable public-key pins. An orchestrator can explicitly submit, inspect,
 follow, and cancel a durable job on a paired worker that is currently reachable
 on the same LAN. It also remembers which pinned worker accepted each remote job
-so later job-specific operations can route by job ID alone.
+so later job-specific operations can route by job ID alone. Newly paired
+devices also derive private connectivity material, and the standalone hosted
+service can exchange short-lived encrypted presence and signaling payloads.
+Daemon clients, ICE/STUN path selection, and TURN relay traffic are not wired up
+yet, so actual jobs remain LAN-only.
 
 See [`docs/PLAN.md`](docs/PLAN.md) for the product, architecture, security,
 execution, deployment, and launch plan.
@@ -41,6 +45,10 @@ worker; when omitted, the command inherits the worker daemon's working
 directory. Discovery records never authorize commands: the live QUIC
 certificate must match the selected active public-key pin. Do not modify or
 remove a submitted working directory while its job is running.
+
+Pairings created before connectivity-secret support remain valid for LAN use
+but cannot derive hosted rendezvous credentials. Unpair and explicitly pair
+those devices again before testing a later cross-network client.
 
 To exercise the local control plane during development, start the daemon:
 

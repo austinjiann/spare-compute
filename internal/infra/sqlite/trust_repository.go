@@ -22,7 +22,8 @@ const trustColumns = `
 	state,
 	paired_at_ns,
 	updated_at_ns,
-	revoked_at_ns
+	revoked_at_ns,
+	connectivity_secret
 `
 
 // TrustRepository persists public-key pins and their revocation audit events.
@@ -76,8 +77,8 @@ func (repository *TrustRepository) Activate(ctx context.Context, peer trust.Peer
 	_, err = transaction.ExecContext(ctx, `
 		INSERT INTO trusted_devices (
 			device_id, pair_id, public_key, name, role, state,
-			paired_at_ns, updated_at_ns, revoked_at_ns
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)
+			paired_at_ns, updated_at_ns, revoked_at_ns, connectivity_secret
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)
 		ON CONFLICT(device_id) DO UPDATE SET
 			pair_id = excluded.pair_id,
 			public_key = excluded.public_key,
@@ -86,10 +87,11 @@ func (repository *TrustRepository) Activate(ctx context.Context, peer trust.Peer
 			state = excluded.state,
 			paired_at_ns = excluded.paired_at_ns,
 			updated_at_ns = excluded.updated_at_ns,
-			revoked_at_ns = NULL
+			revoked_at_ns = NULL,
+			connectivity_secret = excluded.connectivity_secret
 		WHERE trusted_devices.state = 'revoked'
 	`, peer.DeviceID, peer.PairID, []byte(peer.PublicKey), peer.Name, peer.Role, peer.State,
-		peer.PairedAt.UTC().UnixNano(), peer.UpdatedAt.UTC().UnixNano())
+		peer.PairedAt.UTC().UnixNano(), peer.UpdatedAt.UTC().UnixNano(), nullableSecret(peer.ConnectivitySecret))
 	if err != nil {
 		if isConstraintError(err) {
 			return fmt.Errorf("%w: activate trust for %s", trust.ErrConflict, peer.DeviceID)
@@ -174,7 +176,7 @@ func (repository *TrustRepository) Revoke(ctx context.Context, id device.ID, at 
 	}
 	result, err := transaction.ExecContext(ctx, `
 		UPDATE trusted_devices
-		SET state = 'revoked', updated_at_ns = ?, revoked_at_ns = ?
+		SET state = 'revoked', updated_at_ns = ?, revoked_at_ns = ?, connectivity_secret = NULL
 		WHERE device_id = ? AND state = 'active' AND updated_at_ns = ?
 	`, at.UnixNano(), at.UnixNano(), id, peer.UpdatedAt.UTC().UnixNano())
 	if err != nil {
@@ -199,6 +201,7 @@ func (repository *TrustRepository) Revoke(ctx context.Context, id device.ID, at 
 	peer.State = trust.StateRevoked
 	peer.UpdatedAt = at
 	peer.RevokedAt = &at
+	peer.ConnectivitySecret = nil
 	return peer, nil
 }
 
@@ -219,13 +222,13 @@ func queryTrustedPeer(ctx context.Context, queryer trustRowQueryer, id device.ID
 func scanTrustedPeer(scanner trustRowScanner) (trust.Peer, error) {
 	var (
 		deviceID, pairID, name, role, state string
-		publicKey                           []byte
+		publicKey, connectivitySecret       []byte
 		pairedAtNS, updatedAtNS             int64
 		revokedAtNS                         sql.NullInt64
 	)
 	if err := scanner.Scan(
 		&deviceID, &pairID, &publicKey, &name, &role, &state,
-		&pairedAtNS, &updatedAtNS, &revokedAtNS,
+		&pairedAtNS, &updatedAtNS, &revokedAtNS, &connectivitySecret,
 	); err != nil {
 		return trust.Peer{}, err
 	}
@@ -239,8 +242,9 @@ func scanTrustedPeer(scanner trustRowScanner) (trust.Peer, error) {
 	}
 	peer := trust.Peer{
 		PairID: parsedPairID, DeviceID: parsedDeviceID,
-		PublicKey: ed25519.PublicKey(append([]byte(nil), publicKey...)),
-		Name:      name, Role: device.Role(role), State: trust.State(state),
+		PublicKey:          ed25519.PublicKey(append([]byte(nil), publicKey...)),
+		ConnectivitySecret: append(trust.ConnectivitySecret(nil), connectivitySecret...),
+		Name:               name, Role: device.Role(role), State: trust.State(state),
 		PairedAt: time.Unix(0, pairedAtNS).UTC(), UpdatedAt: time.Unix(0, updatedAtNS).UTC(),
 	}
 	if revokedAtNS.Valid {
@@ -251,4 +255,11 @@ func scanTrustedPeer(scanner trustRowScanner) (trust.Peer, error) {
 		return trust.Peer{}, err
 	}
 	return peer, nil
+}
+
+func nullableSecret(secret trust.ConnectivitySecret) any {
+	if len(secret) == 0 {
+		return nil
+	}
+	return []byte(secret)
 }

@@ -103,9 +103,39 @@ func (pairing Pairing) Clone() Pairing {
 // DerivePairing material deterministically binds the display code and pair ID
 // to this TLS connection and the ordered initiator/responder identities.
 func DerivePairing(binding []byte, initiatorID, responderID device.ID) (PairID, VerificationCode, error) {
+	context, err := pairingContext(binding, initiatorID, responderID)
+	if err != nil {
+		return "", "", err
+	}
+
+	idDigest := sha256.Sum256(append(append([]byte(nil), "pair-id\x00"...), context...))
+	id := PairID(strings.ToLower(base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(idDigest[:16])))
+	codeDigest := sha256.Sum256(append(append([]byte(nil), "verify\x00"...), context...))
+	encoded := crockford(codeDigest[:verificationBytes])
+	code := VerificationCode(fmt.Sprintf("%s-%s-%s-%s", encoded[:4], encoded[4:8], encoded[8:12], encoded[12:16]))
+	return id, code, nil
+}
+
+// DeriveConnectivitySecret creates pair-scoped secret material from the same
+// confirmed TLS exporter used by the display code. Both endpoints derive the
+// same bytes without transmitting them.
+func DeriveConnectivitySecret(
+	binding []byte,
+	initiatorID device.ID,
+	responderID device.ID,
+) (ConnectivitySecret, error) {
+	context, err := pairingContext(binding, initiatorID, responderID)
+	if err != nil {
+		return nil, err
+	}
+	digest := sha256.Sum256(append(append([]byte(nil), "connectivity-secret\x00"...), context...))
+	return append(ConnectivitySecret(nil), digest[:]...), nil
+}
+
+func pairingContext(binding []byte, initiatorID, responderID device.ID) ([]byte, error) {
 	if len(binding) != PairingBindingBytes || !initiatorID.Valid() || !responderID.Valid() ||
 		subtle.ConstantTimeCompare([]byte(initiatorID), []byte(responderID)) == 1 {
-		return "", "", ErrInvalidPairing
+		return nil, ErrInvalidPairing
 	}
 	context := make([]byte, 0, len(binding)+len(initiatorID)+len(responderID)+32)
 	context = append(context, "ComputeHop pairing v1\x00"...)
@@ -114,12 +144,7 @@ func DerivePairing(binding []byte, initiatorID, responderID device.ID) (PairID, 
 	context = append(context, 0)
 	context = append(context, responderID...)
 
-	idDigest := sha256.Sum256(append(append([]byte(nil), "pair-id\x00"...), context...))
-	id := PairID(strings.ToLower(base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(idDigest[:16])))
-	codeDigest := sha256.Sum256(append(append([]byte(nil), "verify\x00"...), context...))
-	encoded := crockford(codeDigest[:verificationBytes])
-	code := VerificationCode(fmt.Sprintf("%s-%s-%s-%s", encoded[:4], encoded[4:8], encoded[8:12], encoded[12:16]))
-	return id, code, nil
+	return context, nil
 }
 
 func validVerificationCode(code VerificationCode) bool {

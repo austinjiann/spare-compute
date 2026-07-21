@@ -1,0 +1,84 @@
+syntax = "proto3";
+
+package computehop.connectivity.v1;
+
+option go_package = "github.com/austinjiann/spare-compute/gen/go/computehop/connectivity/v1;connectivityv1";
+
+// PublishPresenceRequest refreshes one anonymous endpoint in a short-lived
+// pair route. The payload is encrypted by the paired endpoints and opaque to
+// the hosted service.
+message PublishPresenceRequest {
+  uint32 protocol_version = 1;
+  EndpointRole role = 2;
+  uint64 generation = 3;
+  bytes encrypted_payload = 4;
+}
+
+message PublishPresenceResponse {
+  int64 expires_at_unix_nano = 1;
+  Presence peer = 2;
+}
+
+message Presence {
+  EndpointRole role = 1;
+  uint64 generation = 2;
+  bytes encrypted_payload = 3;
+  int64 expires_at_unix_nano = 4;
+}
+
+// SendSignalRequest queues one bounded, end-to-end encrypted signaling frame
+// for the other endpoint in this pair route.
+message SendSignalRequest {
+  uint32 protocol_version = 1;
+  EndpointRole sender = 2;
+  EndpointRole recipient = 3;
+  bytes encrypted_payload = 4;
+}
+
+message SendSignalResponse {
+  uint64 sequence = 1;
+  int64 expires_at_unix_nano = 2;
+}
+
+message PollSignalsRequest {
+  uint32 protocol_version = 1;
+  EndpointRole recipient = 2;
+  uint64 after_sequence = 3;
+  uint32 limit = 4;
+}
+
+message PollSignalsResponse {
+  repeated Signal signals = 1;
+  uint64 next_sequence = 2;
+  bool has_more = 3;
+}
+
+message Signal {
+  uint64 sequence = 1;
+  EndpointRole sender = 2;
+  bytes encrypted_payload = 3;
+  int64 created_at_unix_nano = 4;
+  int64 expires_at_unix_nano = 5;
+}
+
+message ErrorResponse {
+  RendezvousErrorCode code = 1;
+  string message = 2;
+}
+
+enum EndpointRole {
+  ENDPOINT_ROLE_UNSPECIFIED = 0;
+  ENDPOINT_ROLE_ORCHESTRATOR = 1;
+  ENDPOINT_ROLE_WORKER = 2;
+}
+
+enum RendezvousErrorCode {
+  RENDEZVOUS_ERROR_CODE_UNSPECIFIED = 0;
+  RENDEZVOUS_ERROR_CODE_INVALID_ARGUMENT = 1;
+  RENDEZVOUS_ERROR_CODE_UNAUTHENTICATED = 2;
+  RENDEZVOUS_ERROR_CODE_NOT_FOUND = 3;
+  RENDEZVOUS_ERROR_CODE_CONFLICT = 4;
+  RENDEZVOUS_ERROR_CODE_RESOURCE_EXHAUSTED = 5;
+  RENDEZVOUS_ERROR_CODE_UNSUPPORTED_VERSION = 6;
+  RENDEZVOUS_ERROR_CODE_INTERNAL = 7;
+}
