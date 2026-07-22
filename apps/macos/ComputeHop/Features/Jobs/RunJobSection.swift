@@ -37,6 +37,12 @@ struct RunJobSection: View {
                 text: $model.outputsInput
             )
             .textFieldStyle(.roundedBorder)
+            if let smokeTestDisabledReason = model.smokeTestDisabledReason {
+                Text(smokeTestDisabledReason)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             HStack {
                 Text("Quotes group arguments; no shell expansion is performed.")
                     .font(.caption2)
@@ -50,7 +56,7 @@ struct RunJobSection: View {
                     !model.canSubmitSmokeTest ||
                     model.actionInProgress != nil
                 )
-                .help("Run hostname on a worker without uploading a project")
+                .help(model.smokeTestHelpText)
                 Button("Run") {
                     Task { await model.submitCommand() }
                 }

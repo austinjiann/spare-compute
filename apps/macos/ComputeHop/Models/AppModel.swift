@@ -76,6 +76,22 @@ final class AppModel {
 
     var canSubmitSmokeTest: Bool { (try? smokeTestTarget()) != nil }
 
+    var smokeTestDisabledReason: String? {
+        guard isConnected else {
+            return "Start ComputeHop before running a worker smoke test."
+        }
+        do {
+            _ = try smokeTestTarget()
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
+    var smokeTestHelpText: String {
+        smokeTestDisabledReason ?? "Run hostname on a worker without uploading a project."
+    }
+
     var isRemoteRunTargetSelected: Bool { !runTargetID.isEmpty }
 
     var isAutomaticRunTargetSelected: Bool { runTargetID == Self.automaticWorkerTargetID }

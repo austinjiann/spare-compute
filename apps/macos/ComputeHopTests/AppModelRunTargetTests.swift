@@ -48,6 +48,8 @@ func submitSmokeTestUsesAutoWorkerWithoutProjectSnapshot() async {
     model.devices = [worker]
 
     #expect(model.canSubmitSmokeTest)
+    #expect(model.smokeTestDisabledReason == nil)
+    #expect(model.smokeTestHelpText == "Run hostname on a worker without uploading a project.")
 
     await model.submitSmokeTest()
 
@@ -94,6 +96,7 @@ func submitSmokeTestRefusesAmbiguousWorkersWithoutSelection() async {
     model.devices = [first, second]
 
     #expect(!model.canSubmitSmokeTest)
+    #expect(model.smokeTestDisabledReason == "Auto worker works only when exactly one connected worker is available. Choose a worker from Run on.")
 
     await model.submitSmokeTest()
 
@@ -110,6 +113,7 @@ func submitSmokeTestExplainsWhenNoWorkerIsConnected() async {
     model.devices = []
 
     #expect(!model.canSubmitSmokeTest)
+    #expect(model.smokeTestDisabledReason == "No connected worker is available. Connect a nearby worker first, or run on This Mac.")
 
     await model.submitSmokeTest()
 
@@ -126,6 +130,8 @@ func submitCommandExplainsWhenSelectedWorkerDisappears() async {
     model.devices = []
     model.runTargetID = "missing-worker-id"
     model.commandInput = "hostname"
+
+    #expect(model.smokeTestDisabledReason == "The selected worker is no longer reachable. Refresh and choose another run target.")
 
     await model.submitCommand()
 
