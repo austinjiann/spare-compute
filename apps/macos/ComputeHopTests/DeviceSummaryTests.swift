@@ -26,6 +26,27 @@ func deviceSummaryCombinesOneTrustedPeerWithItsNearbyPresence() {
     #expect(summaries.count == 1)
     #expect(summaries[0].id == "durable-device-id")
     #expect(summaries[0].availability == .nearby)
+    #expect(summaries[0].path == "LAN")
     #expect(summaries[0].address == "192.0.2.20:47823")
     #expect(!summaries[0].canPair)
+}
+
+@Test
+func deviceSummaryMakesConnectedRemoteWorkerRunnable() {
+    var trusted = Computehop_Local_V1_TrustedDevice()
+    trusted.deviceID = "remote-device-id"
+    trusted.name = "Remote PC"
+    trusted.role = .worker
+    trusted.trustState = .paired
+    trusted.connectivityState = .connected
+    trusted.connectivityPath = "server-reflexive"
+
+    var response = Computehop_Local_V1_ListDevicesResponse()
+    response.trustedDevices = [trusted]
+
+    let summaries = DeviceSummary.make(from: response)
+    #expect(summaries.count == 1)
+    #expect(summaries[0].availability == .remote)
+    #expect(summaries[0].path == "Direct via STUN")
+    #expect(summaries[0].address == nil)
 }

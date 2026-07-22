@@ -209,6 +209,10 @@ func (client *Client) post(
 
 	response, err := client.httpClient.Do(request)
 	if err != nil {
+		var requestError *url.Error
+		if errors.As(err, &requestError) {
+			return fmt.Errorf("rendezvous request: %w", requestError.Err)
+		}
 		return fmt.Errorf("rendezvous request: %w", err)
 	}
 	defer response.Body.Close()

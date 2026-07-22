@@ -14,9 +14,9 @@ struct DevicesSection: View {
             } else {
                 ForEach(model.devices) { device in
                     HStack(spacing: 8) {
-                        Image(systemName: device.availability == .nearby ? "circle.fill" : "circle")
+                        Image(systemName: device.availability == .offline ? "circle" : "circle.fill")
                             .font(.system(size: 8))
-                            .foregroundStyle(device.availability == .nearby ? .green : .secondary)
+                            .foregroundStyle(availabilityColor(device.availability))
                         VStack(alignment: .leading, spacing: 1) {
                             Text(device.name)
                             Text("\(device.role) · \(device.trust) · \(device.shortID)")
@@ -30,13 +30,22 @@ struct DevicesSection: View {
                             }
                             .disabled(model.actionInProgress != nil)
                         } else {
-                            Text(device.availability.rawValue)
+                            Text([device.availability.rawValue, device.path].compactMap { $0 }.joined(separator: " · "))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
                     }
                 }
             }
+        }
+    }
+
+    private func availabilityColor(_ availability: DeviceSummary.Availability) -> Color {
+        switch availability {
+        case .nearby: return .green
+        case .remote: return .blue
+        case .connecting: return .orange
+        case .offline: return .secondary
         }
     }
 }

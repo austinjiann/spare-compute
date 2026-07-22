@@ -23,7 +23,7 @@ const remoteDialTimeout = 12 * time.Second
 
 var (
 	ErrMissingRemoteDependency    = errors.New("remote job service dependency is required")
-	ErrRemoteWorkerUnavailable    = errors.New("paired worker is not available on this LAN")
+	ErrRemoteWorkerUnavailable    = errors.New("paired worker is unavailable")
 	ErrRemotePlacementPersistence = errors.New("remote job was accepted but its placement could not be saved")
 )
 
@@ -32,21 +32,29 @@ type RemoteDialer interface {
 	DialRemote(context.Context, device.NearbyDevice, trust.Peer) (remoteprotocol.Caller, error)
 }
 
+// PairedRemoteDialer opens a key-pinned connection over a supervised non-LAN
+// path for the selected durable peer.
+type PairedRemoteDialer interface {
+	DialRemotePeer(context.Context, trust.Peer) (remoteprotocol.Caller, error)
+}
+
 // RemoteDependencies configure explicit paired-worker job routing.
 type RemoteDependencies struct {
 	Nearby     DeviceController
 	Trust      trust.Repository
 	Placements placement.Repository
 	Dialer     RemoteDialer
+	Remote     PairedRemoteDialer
 }
 
-// RemoteJobService routes operations to a current LAN observation whose live
-// certificate matches an explicit or durably remembered worker pin.
+// RemoteJobService prefers current LAN observations, then falls back to a
+// supervised path. Every route must match the durable worker identity pin.
 type RemoteJobService struct {
 	nearby     DeviceController
 	trust      trust.Repository
 	placements placement.Repository
 	dialer     RemoteDialer
+	remote     PairedRemoteDialer
 }
 
 // NewRemoteJobService constructs the orchestrator-side remote job controller.
@@ -58,6 +66,7 @@ func NewRemoteJobService(dependencies RemoteDependencies) (*RemoteJobService, er
 	return &RemoteJobService{
 		nearby: dependencies.Nearby, trust: dependencies.Trust,
 		placements: dependencies.Placements, dialer: dependencies.Dialer,
+		remote: dependencies.Remote,
 	}, nil
 }
 
@@ -226,8 +235,9 @@ func (service *RemoteJobService) call(
 	request *computehopv1.RemoteRequest,
 ) (*computehopv1.RemoteResponse, error) {
 	candidates, err := service.nearbyCandidates(ctx, peer)
+	var failures []error
 	if err != nil {
-		return nil, err
+		failures = append(failures, fmt.Errorf("inspect LAN paths: %w", err))
 	}
 	dialContext := ctx
 	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
@@ -235,7 +245,6 @@ func (service *RemoteJobService) call(
 		dialContext, cancel = context.WithTimeout(ctx, remoteDialTimeout)
 		defer cancel()
 	}
-	var failures []error
 	for _, candidate := range candidates {
 		caller, dialErr := service.dialer.DialRemote(dialContext, candidate, peer)
 		if dialErr != nil {
@@ -251,6 +260,22 @@ func (service *RemoteJobService) call(
 			return nil, closeErr
 		}
 		return response, nil
+	}
+	if service.remote != nil {
+		caller, dialErr := service.remote.DialRemotePeer(dialContext, peer)
+		if dialErr != nil {
+			failures = append(failures, dialErr)
+		} else {
+			response, callErr := caller.Call(ctx, request)
+			closeErr := caller.Close()
+			if callErr != nil {
+				return nil, errors.Join(callErr, closeErr)
+			}
+			if closeErr != nil {
+				return nil, closeErr
+			}
+			return response, nil
+		}
 	}
 	return nil, fmt.Errorf("%w: %s: %v", ErrRemoteWorkerUnavailable, peer.Name, errors.Join(failures...))
 }
@@ -327,9 +352,6 @@ func (service *RemoteJobService) nearbyCandidates(ctx context.Context, peer trus
 			nearby.Announcement.EndpointReady {
 			candidates = append(candidates, nearby)
 		}
-	}
-	if len(candidates) == 0 {
-		return nil, fmt.Errorf("%w: %s", ErrRemoteWorkerUnavailable, peer.Name)
 	}
 	sort.Slice(candidates, func(left, right int) bool {
 		return candidates[left].SeenAt.After(candidates[right].SeenAt)

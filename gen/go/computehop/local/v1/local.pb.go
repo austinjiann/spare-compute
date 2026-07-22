@@ -534,6 +534,61 @@ func (DiscoveryState) EnumDescriptor() ([]byte, []int) {
 	return file_computehop_local_v1_local_proto_rawDescGZIP(), []int{8}
 }
 
+type ConnectivityState int32
+
+const (
+	ConnectivityState_CONNECTIVITY_STATE_UNSPECIFIED ConnectivityState = 0
+	ConnectivityState_CONNECTIVITY_STATE_DISABLED    ConnectivityState = 1
+	ConnectivityState_CONNECTIVITY_STATE_CONNECTING  ConnectivityState = 2
+	ConnectivityState_CONNECTIVITY_STATE_CONNECTED   ConnectivityState = 3
+	ConnectivityState_CONNECTIVITY_STATE_UNAVAILABLE ConnectivityState = 4
+)
+
+// Enum value maps for ConnectivityState.
+var (
+	ConnectivityState_name = map[int32]string{
+		0: "CONNECTIVITY_STATE_UNSPECIFIED",
+		1: "CONNECTIVITY_STATE_DISABLED",
+		2: "CONNECTIVITY_STATE_CONNECTING",
+		3: "CONNECTIVITY_STATE_CONNECTED",
+		4: "CONNECTIVITY_STATE_UNAVAILABLE",
+	}
+	ConnectivityState_value = map[string]int32{
+		"CONNECTIVITY_STATE_UNSPECIFIED": 0,
+		"CONNECTIVITY_STATE_DISABLED":    1,
+		"CONNECTIVITY_STATE_CONNECTING":  2,
+		"CONNECTIVITY_STATE_CONNECTED":   3,
+		"CONNECTIVITY_STATE_UNAVAILABLE": 4,
+	}
+)
+
+func (x ConnectivityState) Enum() *ConnectivityState {
+	p := new(ConnectivityState)
+	*p = x
+	return p
+}
+
+func (x ConnectivityState) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ConnectivityState) Descriptor() protoreflect.EnumDescriptor {
+	return file_computehop_local_v1_local_proto_enumTypes[9].Descriptor()
+}
+
+func (ConnectivityState) Type() protoreflect.EnumType {
+	return &file_computehop_local_v1_local_proto_enumTypes[9]
+}
+
+func (x ConnectivityState) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ConnectivityState.Descriptor instead.
+func (ConnectivityState) EnumDescriptor() ([]byte, []int) {
+	return file_computehop_local_v1_local_proto_rawDescGZIP(), []int{9}
+}
+
 // Request is one authenticated operation sent by a local ComputeHop client.
 type Request struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
@@ -2533,18 +2588,22 @@ func (x *Pairing) GetFailure() string {
 }
 
 type TrustedDevice struct {
-	state             protoimpl.MessageState `protogen:"open.v1"`
-	PairId            string                 `protobuf:"bytes,1,opt,name=pair_id,json=pairId,proto3" json:"pair_id,omitempty"`
-	DeviceId          string                 `protobuf:"bytes,2,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
-	PublicKey         []byte                 `protobuf:"bytes,3,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
-	Name              string                 `protobuf:"bytes,4,opt,name=name,proto3" json:"name,omitempty"`
-	Role              DeviceRole             `protobuf:"varint,5,opt,name=role,proto3,enum=computehop.local.v1.DeviceRole" json:"role,omitempty"`
-	TrustState        DeviceTrustState       `protobuf:"varint,6,opt,name=trust_state,json=trustState,proto3,enum=computehop.local.v1.DeviceTrustState" json:"trust_state,omitempty"`
-	PairedAtUnixNano  int64                  `protobuf:"varint,7,opt,name=paired_at_unix_nano,json=pairedAtUnixNano,proto3" json:"paired_at_unix_nano,omitempty"`
-	UpdatedAtUnixNano int64                  `protobuf:"varint,8,opt,name=updated_at_unix_nano,json=updatedAtUnixNano,proto3" json:"updated_at_unix_nano,omitempty"`
-	RevokedAtUnixNano int64                  `protobuf:"varint,9,opt,name=revoked_at_unix_nano,json=revokedAtUnixNano,proto3" json:"revoked_at_unix_nano,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	state                         protoimpl.MessageState `protogen:"open.v1"`
+	PairId                        string                 `protobuf:"bytes,1,opt,name=pair_id,json=pairId,proto3" json:"pair_id,omitempty"`
+	DeviceId                      string                 `protobuf:"bytes,2,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
+	PublicKey                     []byte                 `protobuf:"bytes,3,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
+	Name                          string                 `protobuf:"bytes,4,opt,name=name,proto3" json:"name,omitempty"`
+	Role                          DeviceRole             `protobuf:"varint,5,opt,name=role,proto3,enum=computehop.local.v1.DeviceRole" json:"role,omitempty"`
+	TrustState                    DeviceTrustState       `protobuf:"varint,6,opt,name=trust_state,json=trustState,proto3,enum=computehop.local.v1.DeviceTrustState" json:"trust_state,omitempty"`
+	PairedAtUnixNano              int64                  `protobuf:"varint,7,opt,name=paired_at_unix_nano,json=pairedAtUnixNano,proto3" json:"paired_at_unix_nano,omitempty"`
+	UpdatedAtUnixNano             int64                  `protobuf:"varint,8,opt,name=updated_at_unix_nano,json=updatedAtUnixNano,proto3" json:"updated_at_unix_nano,omitempty"`
+	RevokedAtUnixNano             int64                  `protobuf:"varint,9,opt,name=revoked_at_unix_nano,json=revokedAtUnixNano,proto3" json:"revoked_at_unix_nano,omitempty"`
+	ConnectivityState             ConnectivityState      `protobuf:"varint,10,opt,name=connectivity_state,json=connectivityState,proto3,enum=computehop.local.v1.ConnectivityState" json:"connectivity_state,omitempty"`
+	ConnectivityPath              string                 `protobuf:"bytes,11,opt,name=connectivity_path,json=connectivityPath,proto3" json:"connectivity_path,omitempty"`
+	ConnectivityError             string                 `protobuf:"bytes,12,opt,name=connectivity_error,json=connectivityError,proto3" json:"connectivity_error,omitempty"`
+	ConnectivityUpdatedAtUnixNano int64                  `protobuf:"varint,13,opt,name=connectivity_updated_at_unix_nano,json=connectivityUpdatedAtUnixNano,proto3" json:"connectivity_updated_at_unix_nano,omitempty"`
+	unknownFields                 protoimpl.UnknownFields
+	sizeCache                     protoimpl.SizeCache
 }
 
 func (x *TrustedDevice) Reset() {
@@ -2636,6 +2695,34 @@ func (x *TrustedDevice) GetUpdatedAtUnixNano() int64 {
 func (x *TrustedDevice) GetRevokedAtUnixNano() int64 {
 	if x != nil {
 		return x.RevokedAtUnixNano
+	}
+	return 0
+}
+
+func (x *TrustedDevice) GetConnectivityState() ConnectivityState {
+	if x != nil {
+		return x.ConnectivityState
+	}
+	return ConnectivityState_CONNECTIVITY_STATE_UNSPECIFIED
+}
+
+func (x *TrustedDevice) GetConnectivityPath() string {
+	if x != nil {
+		return x.ConnectivityPath
+	}
+	return ""
+}
+
+func (x *TrustedDevice) GetConnectivityError() string {
+	if x != nil {
+		return x.ConnectivityError
+	}
+	return ""
+}
+
+func (x *TrustedDevice) GetConnectivityUpdatedAtUnixNano() int64 {
+	if x != nil {
+		return x.ConnectivityUpdatedAtUnixNano
 	}
 	return 0
 }
@@ -3191,7 +3278,7 @@ const file_computehop_local_v1_local_proto_rawDesc = "" +
 	" \x01(\bR\x0fremoteConfirmed\x12/\n" +
 	"\x14started_at_unix_nano\x18\v \x01(\x03R\x11startedAtUnixNano\x12/\n" +
 	"\x14expires_at_unix_nano\x18\f \x01(\x03R\x11expiresAtUnixNano\x12\x18\n" +
-	"\afailure\x18\r \x01(\tR\afailure\"\x86\x03\n" +
+	"\afailure\x18\r \x01(\tR\afailure\"\x83\x05\n" +
 	"\rTrustedDevice\x12\x17\n" +
 	"\apair_id\x18\x01 \x01(\tR\x06pairId\x12\x1b\n" +
 	"\tdevice_id\x18\x02 \x01(\tR\bdeviceId\x12\x1d\n" +
@@ -3203,7 +3290,12 @@ const file_computehop_local_v1_local_proto_rawDesc = "" +
 	"trustState\x12-\n" +
 	"\x13paired_at_unix_nano\x18\a \x01(\x03R\x10pairedAtUnixNano\x12/\n" +
 	"\x14updated_at_unix_nano\x18\b \x01(\x03R\x11updatedAtUnixNano\x12/\n" +
-	"\x14revoked_at_unix_nano\x18\t \x01(\x03R\x11revokedAtUnixNano\"\x98\x04\n" +
+	"\x14revoked_at_unix_nano\x18\t \x01(\x03R\x11revokedAtUnixNano\x12U\n" +
+	"\x12connectivity_state\x18\n" +
+	" \x01(\x0e2&.computehop.local.v1.ConnectivityStateR\x11connectivityState\x12+\n" +
+	"\x11connectivity_path\x18\v \x01(\tR\x10connectivityPath\x12-\n" +
+	"\x12connectivity_error\x18\f \x01(\tR\x11connectivityError\x12H\n" +
+	"!connectivity_updated_at_unix_nano\x18\r \x01(\x03R\x1dconnectivityUpdatedAtUnixNano\"\x98\x04\n" +
 	"\fNearbyDevice\x12\x1f\n" +
 	"\vpresence_id\x18\x01 \x01(\tR\n" +
 	"presenceId\x12\x12\n" +
@@ -3308,7 +3400,13 @@ const file_computehop_local_v1_local_proto_rawDesc = "" +
 	"\x1bDISCOVERY_STATE_UNSPECIFIED\x10\x00\x12\x1c\n" +
 	"\x18DISCOVERY_STATE_STARTING\x10\x01\x12\x1d\n" +
 	"\x19DISCOVERY_STATE_AVAILABLE\x10\x02\x12\x1f\n" +
-	"\x1bDISCOVERY_STATE_UNAVAILABLE\x10\x03BIZGgithub.com/austinjiann/spare-compute/gen/go/computehop/local/v1;localv1b\x06proto3"
+	"\x1bDISCOVERY_STATE_UNAVAILABLE\x10\x03*\xc1\x01\n" +
+	"\x11ConnectivityState\x12\"\n" +
+	"\x1eCONNECTIVITY_STATE_UNSPECIFIED\x10\x00\x12\x1f\n" +
+	"\x1bCONNECTIVITY_STATE_DISABLED\x10\x01\x12!\n" +
+	"\x1dCONNECTIVITY_STATE_CONNECTING\x10\x02\x12 \n" +
+	"\x1cCONNECTIVITY_STATE_CONNECTED\x10\x03\x12\"\n" +
+	"\x1eCONNECTIVITY_STATE_UNAVAILABLE\x10\x04BIZGgithub.com/austinjiann/spare-compute/gen/go/computehop/local/v1;localv1b\x06proto3"
 
 var (
 	file_computehop_local_v1_local_proto_rawDescOnce sync.Once
@@ -3322,7 +3420,7 @@ func file_computehop_local_v1_local_proto_rawDescGZIP() []byte {
 	return file_computehop_local_v1_local_proto_rawDescData
 }
 
-var file_computehop_local_v1_local_proto_enumTypes = make([]protoimpl.EnumInfo, 9)
+var file_computehop_local_v1_local_proto_enumTypes = make([]protoimpl.EnumInfo, 10)
 var file_computehop_local_v1_local_proto_msgTypes = make([]protoimpl.MessageInfo, 37)
 var file_computehop_local_v1_local_proto_goTypes = []any{
 	(Executor)(0),                      // 0: computehop.local.v1.Executor
@@ -3334,108 +3432,110 @@ var file_computehop_local_v1_local_proto_goTypes = []any{
 	(PairingDirection)(0),              // 6: computehop.local.v1.PairingDirection
 	(PairingState)(0),                  // 7: computehop.local.v1.PairingState
 	(DiscoveryState)(0),                // 8: computehop.local.v1.DiscoveryState
-	(*Request)(nil),                    // 9: computehop.local.v1.Request
-	(*Response)(nil),                   // 10: computehop.local.v1.Response
-	(*PingRequest)(nil),                // 11: computehop.local.v1.PingRequest
-	(*PingResponse)(nil),               // 12: computehop.local.v1.PingResponse
-	(*SubmitJobRequest)(nil),           // 13: computehop.local.v1.SubmitJobRequest
-	(*SubmitJobResponse)(nil),          // 14: computehop.local.v1.SubmitJobResponse
-	(*GetJobRequest)(nil),              // 15: computehop.local.v1.GetJobRequest
-	(*GetJobResponse)(nil),             // 16: computehop.local.v1.GetJobResponse
-	(*ListJobsRequest)(nil),            // 17: computehop.local.v1.ListJobsRequest
-	(*ListJobsResponse)(nil),           // 18: computehop.local.v1.ListJobsResponse
-	(*CancelJobRequest)(nil),           // 19: computehop.local.v1.CancelJobRequest
-	(*CancelJobResponse)(nil),          // 20: computehop.local.v1.CancelJobResponse
-	(*ReadJobLogsRequest)(nil),         // 21: computehop.local.v1.ReadJobLogsRequest
-	(*ReadJobLogsResponse)(nil),        // 22: computehop.local.v1.ReadJobLogsResponse
-	(*JobLogRecord)(nil),               // 23: computehop.local.v1.JobLogRecord
-	(*ListDevicesRequest)(nil),         // 24: computehop.local.v1.ListDevicesRequest
-	(*ListDevicesResponse)(nil),        // 25: computehop.local.v1.ListDevicesResponse
-	(*BeginPairingRequest)(nil),        // 26: computehop.local.v1.BeginPairingRequest
-	(*BeginPairingResponse)(nil),       // 27: computehop.local.v1.BeginPairingResponse
-	(*ListPairingsRequest)(nil),        // 28: computehop.local.v1.ListPairingsRequest
-	(*ListPairingsResponse)(nil),       // 29: computehop.local.v1.ListPairingsResponse
-	(*ConfirmPairingRequest)(nil),      // 30: computehop.local.v1.ConfirmPairingRequest
-	(*ConfirmPairingResponse)(nil),     // 31: computehop.local.v1.ConfirmPairingResponse
-	(*RejectPairingRequest)(nil),       // 32: computehop.local.v1.RejectPairingRequest
-	(*RejectPairingResponse)(nil),      // 33: computehop.local.v1.RejectPairingResponse
-	(*ListTrustedDevicesRequest)(nil),  // 34: computehop.local.v1.ListTrustedDevicesRequest
-	(*ListTrustedDevicesResponse)(nil), // 35: computehop.local.v1.ListTrustedDevicesResponse
-	(*UnpairDeviceRequest)(nil),        // 36: computehop.local.v1.UnpairDeviceRequest
-	(*UnpairDeviceResponse)(nil),       // 37: computehop.local.v1.UnpairDeviceResponse
-	(*Pairing)(nil),                    // 38: computehop.local.v1.Pairing
-	(*TrustedDevice)(nil),              // 39: computehop.local.v1.TrustedDevice
-	(*NearbyDevice)(nil),               // 40: computehop.local.v1.NearbyDevice
-	(*JobSpec)(nil),                    // 41: computehop.local.v1.JobSpec
-	(*Job)(nil),                        // 42: computehop.local.v1.Job
-	(*Failure)(nil),                    // 43: computehop.local.v1.Failure
-	(*Error)(nil),                      // 44: computehop.local.v1.Error
-	nil,                                // 45: computehop.local.v1.JobSpec.EnvironmentEntry
+	(ConnectivityState)(0),             // 9: computehop.local.v1.ConnectivityState
+	(*Request)(nil),                    // 10: computehop.local.v1.Request
+	(*Response)(nil),                   // 11: computehop.local.v1.Response
+	(*PingRequest)(nil),                // 12: computehop.local.v1.PingRequest
+	(*PingResponse)(nil),               // 13: computehop.local.v1.PingResponse
+	(*SubmitJobRequest)(nil),           // 14: computehop.local.v1.SubmitJobRequest
+	(*SubmitJobResponse)(nil),          // 15: computehop.local.v1.SubmitJobResponse
+	(*GetJobRequest)(nil),              // 16: computehop.local.v1.GetJobRequest
+	(*GetJobResponse)(nil),             // 17: computehop.local.v1.GetJobResponse
+	(*ListJobsRequest)(nil),            // 18: computehop.local.v1.ListJobsRequest
+	(*ListJobsResponse)(nil),           // 19: computehop.local.v1.ListJobsResponse
+	(*CancelJobRequest)(nil),           // 20: computehop.local.v1.CancelJobRequest
+	(*CancelJobResponse)(nil),          // 21: computehop.local.v1.CancelJobResponse
+	(*ReadJobLogsRequest)(nil),         // 22: computehop.local.v1.ReadJobLogsRequest
+	(*ReadJobLogsResponse)(nil),        // 23: computehop.local.v1.ReadJobLogsResponse
+	(*JobLogRecord)(nil),               // 24: computehop.local.v1.JobLogRecord
+	(*ListDevicesRequest)(nil),         // 25: computehop.local.v1.ListDevicesRequest
+	(*ListDevicesResponse)(nil),        // 26: computehop.local.v1.ListDevicesResponse
+	(*BeginPairingRequest)(nil),        // 27: computehop.local.v1.BeginPairingRequest
+	(*BeginPairingResponse)(nil),       // 28: computehop.local.v1.BeginPairingResponse
+	(*ListPairingsRequest)(nil),        // 29: computehop.local.v1.ListPairingsRequest
+	(*ListPairingsResponse)(nil),       // 30: computehop.local.v1.ListPairingsResponse
+	(*ConfirmPairingRequest)(nil),      // 31: computehop.local.v1.ConfirmPairingRequest
+	(*ConfirmPairingResponse)(nil),     // 32: computehop.local.v1.ConfirmPairingResponse
+	(*RejectPairingRequest)(nil),       // 33: computehop.local.v1.RejectPairingRequest
+	(*RejectPairingResponse)(nil),      // 34: computehop.local.v1.RejectPairingResponse
+	(*ListTrustedDevicesRequest)(nil),  // 35: computehop.local.v1.ListTrustedDevicesRequest
+	(*ListTrustedDevicesResponse)(nil), // 36: computehop.local.v1.ListTrustedDevicesResponse
+	(*UnpairDeviceRequest)(nil),        // 37: computehop.local.v1.UnpairDeviceRequest
+	(*UnpairDeviceResponse)(nil),       // 38: computehop.local.v1.UnpairDeviceResponse
+	(*Pairing)(nil),                    // 39: computehop.local.v1.Pairing
+	(*TrustedDevice)(nil),              // 40: computehop.local.v1.TrustedDevice
+	(*NearbyDevice)(nil),               // 41: computehop.local.v1.NearbyDevice
+	(*JobSpec)(nil),                    // 42: computehop.local.v1.JobSpec
+	(*Job)(nil),                        // 43: computehop.local.v1.Job
+	(*Failure)(nil),                    // 44: computehop.local.v1.Failure
+	(*Error)(nil),                      // 45: computehop.local.v1.Error
+	nil,                                // 46: computehop.local.v1.JobSpec.EnvironmentEntry
 }
 var file_computehop_local_v1_local_proto_depIdxs = []int32{
-	11, // 0: computehop.local.v1.Request.ping:type_name -> computehop.local.v1.PingRequest
-	13, // 1: computehop.local.v1.Request.submit_job:type_name -> computehop.local.v1.SubmitJobRequest
-	15, // 2: computehop.local.v1.Request.get_job:type_name -> computehop.local.v1.GetJobRequest
-	17, // 3: computehop.local.v1.Request.list_jobs:type_name -> computehop.local.v1.ListJobsRequest
-	19, // 4: computehop.local.v1.Request.cancel_job:type_name -> computehop.local.v1.CancelJobRequest
-	21, // 5: computehop.local.v1.Request.read_job_logs:type_name -> computehop.local.v1.ReadJobLogsRequest
-	24, // 6: computehop.local.v1.Request.list_devices:type_name -> computehop.local.v1.ListDevicesRequest
-	26, // 7: computehop.local.v1.Request.begin_pairing:type_name -> computehop.local.v1.BeginPairingRequest
-	28, // 8: computehop.local.v1.Request.list_pairings:type_name -> computehop.local.v1.ListPairingsRequest
-	30, // 9: computehop.local.v1.Request.confirm_pairing:type_name -> computehop.local.v1.ConfirmPairingRequest
-	32, // 10: computehop.local.v1.Request.reject_pairing:type_name -> computehop.local.v1.RejectPairingRequest
-	34, // 11: computehop.local.v1.Request.list_trusted_devices:type_name -> computehop.local.v1.ListTrustedDevicesRequest
-	36, // 12: computehop.local.v1.Request.unpair_device:type_name -> computehop.local.v1.UnpairDeviceRequest
-	44, // 13: computehop.local.v1.Response.error:type_name -> computehop.local.v1.Error
-	12, // 14: computehop.local.v1.Response.ping:type_name -> computehop.local.v1.PingResponse
-	14, // 15: computehop.local.v1.Response.submit_job:type_name -> computehop.local.v1.SubmitJobResponse
-	16, // 16: computehop.local.v1.Response.get_job:type_name -> computehop.local.v1.GetJobResponse
-	18, // 17: computehop.local.v1.Response.list_jobs:type_name -> computehop.local.v1.ListJobsResponse
-	20, // 18: computehop.local.v1.Response.cancel_job:type_name -> computehop.local.v1.CancelJobResponse
-	22, // 19: computehop.local.v1.Response.read_job_logs:type_name -> computehop.local.v1.ReadJobLogsResponse
-	25, // 20: computehop.local.v1.Response.list_devices:type_name -> computehop.local.v1.ListDevicesResponse
-	27, // 21: computehop.local.v1.Response.begin_pairing:type_name -> computehop.local.v1.BeginPairingResponse
-	29, // 22: computehop.local.v1.Response.list_pairings:type_name -> computehop.local.v1.ListPairingsResponse
-	31, // 23: computehop.local.v1.Response.confirm_pairing:type_name -> computehop.local.v1.ConfirmPairingResponse
-	33, // 24: computehop.local.v1.Response.reject_pairing:type_name -> computehop.local.v1.RejectPairingResponse
-	35, // 25: computehop.local.v1.Response.list_trusted_devices:type_name -> computehop.local.v1.ListTrustedDevicesResponse
-	37, // 26: computehop.local.v1.Response.unpair_device:type_name -> computehop.local.v1.UnpairDeviceResponse
-	41, // 27: computehop.local.v1.SubmitJobRequest.spec:type_name -> computehop.local.v1.JobSpec
-	42, // 28: computehop.local.v1.SubmitJobResponse.job:type_name -> computehop.local.v1.Job
-	42, // 29: computehop.local.v1.GetJobResponse.job:type_name -> computehop.local.v1.Job
+	12, // 0: computehop.local.v1.Request.ping:type_name -> computehop.local.v1.PingRequest
+	14, // 1: computehop.local.v1.Request.submit_job:type_name -> computehop.local.v1.SubmitJobRequest
+	16, // 2: computehop.local.v1.Request.get_job:type_name -> computehop.local.v1.GetJobRequest
+	18, // 3: computehop.local.v1.Request.list_jobs:type_name -> computehop.local.v1.ListJobsRequest
+	20, // 4: computehop.local.v1.Request.cancel_job:type_name -> computehop.local.v1.CancelJobRequest
+	22, // 5: computehop.local.v1.Request.read_job_logs:type_name -> computehop.local.v1.ReadJobLogsRequest
+	25, // 6: computehop.local.v1.Request.list_devices:type_name -> computehop.local.v1.ListDevicesRequest
+	27, // 7: computehop.local.v1.Request.begin_pairing:type_name -> computehop.local.v1.BeginPairingRequest
+	29, // 8: computehop.local.v1.Request.list_pairings:type_name -> computehop.local.v1.ListPairingsRequest
+	31, // 9: computehop.local.v1.Request.confirm_pairing:type_name -> computehop.local.v1.ConfirmPairingRequest
+	33, // 10: computehop.local.v1.Request.reject_pairing:type_name -> computehop.local.v1.RejectPairingRequest
+	35, // 11: computehop.local.v1.Request.list_trusted_devices:type_name -> computehop.local.v1.ListTrustedDevicesRequest
+	37, // 12: computehop.local.v1.Request.unpair_device:type_name -> computehop.local.v1.UnpairDeviceRequest
+	45, // 13: computehop.local.v1.Response.error:type_name -> computehop.local.v1.Error
+	13, // 14: computehop.local.v1.Response.ping:type_name -> computehop.local.v1.PingResponse
+	15, // 15: computehop.local.v1.Response.submit_job:type_name -> computehop.local.v1.SubmitJobResponse
+	17, // 16: computehop.local.v1.Response.get_job:type_name -> computehop.local.v1.GetJobResponse
+	19, // 17: computehop.local.v1.Response.list_jobs:type_name -> computehop.local.v1.ListJobsResponse
+	21, // 18: computehop.local.v1.Response.cancel_job:type_name -> computehop.local.v1.CancelJobResponse
+	23, // 19: computehop.local.v1.Response.read_job_logs:type_name -> computehop.local.v1.ReadJobLogsResponse
+	26, // 20: computehop.local.v1.Response.list_devices:type_name -> computehop.local.v1.ListDevicesResponse
+	28, // 21: computehop.local.v1.Response.begin_pairing:type_name -> computehop.local.v1.BeginPairingResponse
+	30, // 22: computehop.local.v1.Response.list_pairings:type_name -> computehop.local.v1.ListPairingsResponse
+	32, // 23: computehop.local.v1.Response.confirm_pairing:type_name -> computehop.local.v1.ConfirmPairingResponse
+	34, // 24: computehop.local.v1.Response.reject_pairing:type_name -> computehop.local.v1.RejectPairingResponse
+	36, // 25: computehop.local.v1.Response.list_trusted_devices:type_name -> computehop.local.v1.ListTrustedDevicesResponse
+	38, // 26: computehop.local.v1.Response.unpair_device:type_name -> computehop.local.v1.UnpairDeviceResponse
+	42, // 27: computehop.local.v1.SubmitJobRequest.spec:type_name -> computehop.local.v1.JobSpec
+	43, // 28: computehop.local.v1.SubmitJobResponse.job:type_name -> computehop.local.v1.Job
+	43, // 29: computehop.local.v1.GetJobResponse.job:type_name -> computehop.local.v1.Job
 	1,  // 30: computehop.local.v1.ListJobsRequest.states:type_name -> computehop.local.v1.JobState
-	42, // 31: computehop.local.v1.ListJobsResponse.jobs:type_name -> computehop.local.v1.Job
-	42, // 32: computehop.local.v1.CancelJobResponse.job:type_name -> computehop.local.v1.Job
-	42, // 33: computehop.local.v1.ReadJobLogsResponse.job:type_name -> computehop.local.v1.Job
-	23, // 34: computehop.local.v1.ReadJobLogsResponse.records:type_name -> computehop.local.v1.JobLogRecord
+	43, // 31: computehop.local.v1.ListJobsResponse.jobs:type_name -> computehop.local.v1.Job
+	43, // 32: computehop.local.v1.CancelJobResponse.job:type_name -> computehop.local.v1.Job
+	43, // 33: computehop.local.v1.ReadJobLogsResponse.job:type_name -> computehop.local.v1.Job
+	24, // 34: computehop.local.v1.ReadJobLogsResponse.records:type_name -> computehop.local.v1.JobLogRecord
 	3,  // 35: computehop.local.v1.JobLogRecord.stream:type_name -> computehop.local.v1.JobLogStream
-	40, // 36: computehop.local.v1.ListDevicesResponse.devices:type_name -> computehop.local.v1.NearbyDevice
+	41, // 36: computehop.local.v1.ListDevicesResponse.devices:type_name -> computehop.local.v1.NearbyDevice
 	8,  // 37: computehop.local.v1.ListDevicesResponse.discovery_state:type_name -> computehop.local.v1.DiscoveryState
-	39, // 38: computehop.local.v1.ListDevicesResponse.trusted_devices:type_name -> computehop.local.v1.TrustedDevice
-	38, // 39: computehop.local.v1.BeginPairingResponse.pairing:type_name -> computehop.local.v1.Pairing
-	38, // 40: computehop.local.v1.ListPairingsResponse.pairings:type_name -> computehop.local.v1.Pairing
-	38, // 41: computehop.local.v1.ConfirmPairingResponse.pairing:type_name -> computehop.local.v1.Pairing
-	38, // 42: computehop.local.v1.RejectPairingResponse.pairing:type_name -> computehop.local.v1.Pairing
-	39, // 43: computehop.local.v1.ListTrustedDevicesResponse.devices:type_name -> computehop.local.v1.TrustedDevice
-	39, // 44: computehop.local.v1.UnpairDeviceResponse.device:type_name -> computehop.local.v1.TrustedDevice
+	40, // 38: computehop.local.v1.ListDevicesResponse.trusted_devices:type_name -> computehop.local.v1.TrustedDevice
+	39, // 39: computehop.local.v1.BeginPairingResponse.pairing:type_name -> computehop.local.v1.Pairing
+	39, // 40: computehop.local.v1.ListPairingsResponse.pairings:type_name -> computehop.local.v1.Pairing
+	39, // 41: computehop.local.v1.ConfirmPairingResponse.pairing:type_name -> computehop.local.v1.Pairing
+	39, // 42: computehop.local.v1.RejectPairingResponse.pairing:type_name -> computehop.local.v1.Pairing
+	40, // 43: computehop.local.v1.ListTrustedDevicesResponse.devices:type_name -> computehop.local.v1.TrustedDevice
+	40, // 44: computehop.local.v1.UnpairDeviceResponse.device:type_name -> computehop.local.v1.TrustedDevice
 	4,  // 45: computehop.local.v1.Pairing.peer_role:type_name -> computehop.local.v1.DeviceRole
 	6,  // 46: computehop.local.v1.Pairing.direction:type_name -> computehop.local.v1.PairingDirection
 	7,  // 47: computehop.local.v1.Pairing.state:type_name -> computehop.local.v1.PairingState
 	4,  // 48: computehop.local.v1.TrustedDevice.role:type_name -> computehop.local.v1.DeviceRole
 	5,  // 49: computehop.local.v1.TrustedDevice.trust_state:type_name -> computehop.local.v1.DeviceTrustState
-	4,  // 50: computehop.local.v1.NearbyDevice.role:type_name -> computehop.local.v1.DeviceRole
-	5,  // 51: computehop.local.v1.NearbyDevice.trust_state:type_name -> computehop.local.v1.DeviceTrustState
-	45, // 52: computehop.local.v1.JobSpec.environment:type_name -> computehop.local.v1.JobSpec.EnvironmentEntry
-	0,  // 53: computehop.local.v1.JobSpec.executor:type_name -> computehop.local.v1.Executor
-	41, // 54: computehop.local.v1.Job.spec:type_name -> computehop.local.v1.JobSpec
-	1,  // 55: computehop.local.v1.Job.state:type_name -> computehop.local.v1.JobState
-	43, // 56: computehop.local.v1.Job.failure:type_name -> computehop.local.v1.Failure
-	2,  // 57: computehop.local.v1.Error.code:type_name -> computehop.local.v1.ErrorCode
-	58, // [58:58] is the sub-list for method output_type
-	58, // [58:58] is the sub-list for method input_type
-	58, // [58:58] is the sub-list for extension type_name
-	58, // [58:58] is the sub-list for extension extendee
-	0,  // [0:58] is the sub-list for field type_name
+	9,  // 50: computehop.local.v1.TrustedDevice.connectivity_state:type_name -> computehop.local.v1.ConnectivityState
+	4,  // 51: computehop.local.v1.NearbyDevice.role:type_name -> computehop.local.v1.DeviceRole
+	5,  // 52: computehop.local.v1.NearbyDevice.trust_state:type_name -> computehop.local.v1.DeviceTrustState
+	46, // 53: computehop.local.v1.JobSpec.environment:type_name -> computehop.local.v1.JobSpec.EnvironmentEntry
+	0,  // 54: computehop.local.v1.JobSpec.executor:type_name -> computehop.local.v1.Executor
+	42, // 55: computehop.local.v1.Job.spec:type_name -> computehop.local.v1.JobSpec
+	1,  // 56: computehop.local.v1.Job.state:type_name -> computehop.local.v1.JobState
+	44, // 57: computehop.local.v1.Job.failure:type_name -> computehop.local.v1.Failure
+	2,  // 58: computehop.local.v1.Error.code:type_name -> computehop.local.v1.ErrorCode
+	59, // [59:59] is the sub-list for method output_type
+	59, // [59:59] is the sub-list for method input_type
+	59, // [59:59] is the sub-list for extension type_name
+	59, // [59:59] is the sub-list for extension extendee
+	0,  // [0:59] is the sub-list for field type_name
 }
 
 func init() { file_computehop_local_v1_local_proto_init() }
@@ -3478,7 +3578,7 @@ func file_computehop_local_v1_local_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_computehop_local_v1_local_proto_rawDesc), len(file_computehop_local_v1_local_proto_rawDesc)),
-			NumEnums:      9,
+			NumEnums:      10,
 			NumMessages:   37,
 			NumExtensions: 0,
 			NumServices:   0,

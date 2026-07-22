@@ -11,6 +11,7 @@ import (
 
 	localv1 "github.com/austinjiann/spare-compute/gen/go/computehop/local/v1"
 	"github.com/austinjiann/spare-compute/internal/app/worker"
+	"github.com/austinjiann/spare-compute/internal/connectivity/remoteconn"
 	"github.com/austinjiann/spare-compute/internal/device"
 	"github.com/austinjiann/spare-compute/internal/job"
 	"github.com/austinjiann/spare-compute/internal/trust"
@@ -79,6 +80,36 @@ func TestLocalHandlerListsDiscoveryHealth(t *testing.T) {
 	}
 	if got := response.GetListDevices().GetDiscoveryState(); got != localv1.DiscoveryState_DISCOVERY_STATE_AVAILABLE {
 		t.Fatalf("discovery state = %v", got)
+	}
+}
+
+func TestLocalHandlerAddsSecretFreeRemoteConnectivityState(t *testing.T) {
+	peer := activeWorkerPeer(t, 42, "Remote Worker")
+	peer.ConnectivitySecret = bytes.Repeat([]byte{5}, trust.ConnectivitySecretBytes)
+	updatedAt := time.Unix(1_800_000_000, 0).UTC()
+	handler, err := NewLocalHandler(
+		stubJobController{}, stubPairedJobController{}, stubDeviceController{},
+		stubPairingController{trusted: func(context.Context) ([]trust.Peer, error) {
+			return []trust.Peer{peer}, nil
+		}},
+		"test-version",
+		stubConnectivityController{states: []remoteconn.State{{
+			DeviceID: peer.DeviceID, Name: peer.Name, Status: remoteconn.StatusConnected,
+			PathKind: "server-reflexive", UpdatedAt: updatedAt,
+		}}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := handler.Handle(context.Background(), &localv1.Request{
+		Operation: &localv1.Request_ListDevices{ListDevices: &localv1.ListDevicesRequest{}},
+	})
+	message := response.GetListDevices().GetTrustedDevices()[0]
+	if message.GetConnectivityState() != localv1.ConnectivityState_CONNECTIVITY_STATE_CONNECTED ||
+		message.GetConnectivityPath() != "server-reflexive" ||
+		message.GetConnectivityUpdatedAtUnixNano() != updatedAt.UnixNano() ||
+		message.GetConnectivityError() != "" {
+		t.Fatalf("trusted device = %#v", message)
 	}
 }
 
@@ -364,6 +395,14 @@ func (stub stubPairedJobController) ReadLogs(
 type stubPairingController struct {
 	begin   func(context.Context, string) (trust.Pairing, error)
 	trusted func(context.Context) ([]trust.Peer, error)
+}
+
+type stubConnectivityController struct {
+	states []remoteconn.State
+}
+
+func (stub stubConnectivityController) States() []remoteconn.State {
+	return append([]remoteconn.State(nil), stub.states...)
 }
 
 func (stub stubPairingController) Begin(ctx context.Context, selector string) (trust.Pairing, error) {

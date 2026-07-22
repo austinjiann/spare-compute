@@ -39,7 +39,7 @@ final class AppModel {
 
     var runnableDevices: [DeviceSummary] {
         devices.filter {
-            $0.trust == "Paired" && $0.availability == .nearby && $0.role == "Worker"
+            $0.trust == "Paired" && [.nearby, .remote].contains($0.availability) && $0.role == "Worker"
         }
     }
 

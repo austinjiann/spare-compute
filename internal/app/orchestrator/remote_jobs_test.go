@@ -110,6 +110,56 @@ func TestRemoteJobServiceRequiresAnActiveNearbyPin(t *testing.T) {
 	}
 }
 
+func TestRemoteJobServiceFallsBackToSupervisedPathWithoutLAN(t *testing.T) {
+	peer := activeWorkerPeer(t, 11, "Remote PC")
+	want := queuedJobForTest()
+	message, err := mapper.JobToRemoteProto(want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	remoteDialed := false
+	service, err := NewRemoteJobService(RemoteDependencies{
+		Nearby:     stubDeviceController{},
+		Trust:      remoteTrustStub{peers: []trust.Peer{peer}},
+		Placements: newRemotePlacementStub(),
+		Dialer: remoteDialerFunc(func(
+			context.Context,
+			device.NearbyDevice,
+			trust.Peer,
+		) (remoteprotocol.Caller, error) {
+			t.Fatal("LAN dialer received an absent observation")
+			return nil, nil
+		}),
+		Remote: pairedRemoteDialerFunc(func(
+			_ context.Context,
+			pinned trust.Peer,
+		) (remoteprotocol.Caller, error) {
+			remoteDialed = true
+			if pinned.DeviceID != peer.DeviceID {
+				t.Fatalf("peer = %#v", pinned)
+			}
+			return &remoteCallerStub{call: func(
+				_ context.Context,
+				request *computehopv1.RemoteRequest,
+			) (*computehopv1.RemoteResponse, error) {
+				if request.GetListJobs() == nil {
+					t.Fatalf("request = %#v", request)
+				}
+				return &computehopv1.RemoteResponse{Result: &computehopv1.RemoteResponse_ListJobs{
+					ListJobs: &computehopv1.ListJobsResponse{Jobs: []*computehopv1.Job{message}},
+				}}, nil
+			}}, nil
+		}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	jobs, err := service.List(context.Background(), "Remote PC", job.ListOptions{Limit: 10})
+	if err != nil || !remoteDialed || len(jobs) != 1 || jobs[0].ID != want.ID {
+		t.Fatalf("List() = %#v, %v; remote dialed = %t", jobs, err, remoteDialed)
+	}
+}
+
 func TestRemoteJobServiceRejectsRevokedRememberedWorker(t *testing.T) {
 	peer := activeWorkerPeer(t, 10, "Revoked PC")
 	revokedAt := peer.UpdatedAt.Add(time.Minute)
@@ -175,6 +225,15 @@ func (function remoteDialerFunc) DialRemote(
 	peer trust.Peer,
 ) (remoteprotocol.Caller, error) {
 	return function(ctx, target, peer)
+}
+
+type pairedRemoteDialerFunc func(context.Context, trust.Peer) (remoteprotocol.Caller, error)
+
+func (function pairedRemoteDialerFunc) DialRemotePeer(
+	ctx context.Context,
+	peer trust.Peer,
+) (remoteprotocol.Caller, error) {
+	return function(ctx, peer)
 }
 
 type remoteCallerStub struct {

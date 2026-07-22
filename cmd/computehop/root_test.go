@@ -238,6 +238,53 @@ func TestDevicesCommandCombinesOneTrustedPeerWithItsNearbyPresence(t *testing.T)
 	}
 }
 
+func TestDevicesCommandShowsRemotePathForOfflineLANPeer(t *testing.T) {
+	identity, err := device.GenerateIdentity(bytes.NewReader(bytes.Repeat([]byte{12}, 64)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pairID, err := trust.NewPairID(bytes.NewReader(bytes.Repeat([]byte{13}, 16)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	updatedAt := time.Date(2026, time.July, 22, 7, 0, 0, 0, time.UTC)
+	trusted, err := mapper.TrustedPeerToProto(trust.Peer{
+		PairID: pairID, DeviceID: identity.ID(), PublicKey: identity.PublicKey(),
+		Name: "Remote PC", Role: device.RoleWorker, State: trust.StateActive,
+		PairedAt: updatedAt.Add(-time.Hour), UpdatedAt: updatedAt.Add(-time.Hour),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	trusted.ConnectivityState = localv1.ConnectivityState_CONNECTIVITY_STATE_CONNECTED
+	trusted.ConnectivityPath = "server-reflexive"
+	trusted.ConnectivityUpdatedAtUnixNano = updatedAt.UnixNano()
+
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(context.Context, *localv1.Request) (*localv1.Response, error) {
+				return &localv1.Response{Result: &localv1.Response_ListDevices{
+					ListDevices: &localv1.ListDevicesResponse{
+						DiscoveryState: localv1.DiscoveryState_DISCOVERY_STATE_AVAILABLE,
+						TrustedDevices: []*localv1.TrustedDevice{trusted},
+					},
+				}}, nil
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"devices"})
+	if err := command.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"Remote PC", "remote", "direct (STUN)", "2026-07-22T07:00:00Z"} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
+		}
+	}
+}
+
 func TestPairCommandPrintsConnectionBoundVerificationInstructions(t *testing.T) {
 	value := cliPairingForTest(t)
 	message, err := mapper.PairingToProto(value)

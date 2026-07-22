@@ -2,11 +2,65 @@
 set -eu
 
 open_app=true
-case "${1:-}" in
-    '') ;;
-    --no-open) open_app=false ;;
-    *) echo "Usage: packaging/macos/install.sh [--no-open]" >&2; exit 1 ;;
+device_role=orchestrator
+device_name=""
+connectivity_url=""
+stun_server=""
+usage() {
+    echo "Usage: packaging/macos/install.sh [--no-open] [--role orchestrator|worker]" >&2
+    echo "       [--device-name NAME] [--connectivity-url HTTPS_URL --stun-server STUN_URI]" >&2
+}
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --no-open)
+            open_app=false
+            shift
+            ;;
+        --role)
+            [ "$#" -ge 2 ] || { usage; exit 1; }
+            device_role=$2
+            shift 2
+            ;;
+        --device-name)
+            [ "$#" -ge 2 ] || { usage; exit 1; }
+            device_name=$2
+            shift 2
+            ;;
+        --connectivity-url)
+            [ "$#" -ge 2 ] || { usage; exit 1; }
+            connectivity_url=$2
+            shift 2
+            ;;
+        --stun-server)
+            [ "$#" -ge 2 ] || { usage; exit 1; }
+            stun_server=$2
+            shift 2
+            ;;
+        *)
+            usage
+            exit 1
+            ;;
+    esac
+done
+case "$device_role" in
+    orchestrator|worker) ;;
+    *) echo "--role must be orchestrator or worker." >&2; exit 1 ;;
 esac
+if { [ -n "$connectivity_url" ] && [ -z "$stun_server" ]; } || \
+    { [ -z "$connectivity_url" ] && [ -n "$stun_server" ]; }; then
+    echo "--connectivity-url and --stun-server must be supplied together." >&2
+    exit 1
+fi
+if [ -n "$connectivity_url" ]; then
+    case "$connectivity_url" in
+        https://?*) ;;
+        *) echo "--connectivity-url must be an HTTPS URL." >&2; exit 1 ;;
+    esac
+    case "$stun_server" in
+        stun:*|stuns:*) ;;
+        *) echo "--stun-server must begin with stun: or stuns:." >&2; exit 1 ;;
+    esac
+fi
 
 if [ "$(uname -s)" != "Darwin" ]; then
     echo "The macOS installer must run on macOS." >&2
@@ -86,8 +140,21 @@ cp -R "$built_app" "$app_target"
 ln -sfn "$expected_cli_target" "$cli_target"
 
 cp "$script_dir/com.computehop.daemon.plist" "$launch_agent_target"
-/usr/libexec/PlistBuddy -c "Set :ProgramArguments:0 $app_target/Contents/Resources/bin/computehopd" \
-    "$launch_agent_target"
+/usr/bin/plutil -remove ProgramArguments.0 "$launch_agent_target"
+/usr/bin/plutil -insert ProgramArguments.0 -string \
+    "$app_target/Contents/Resources/bin/computehopd" "$launch_agent_target"
+/usr/bin/plutil -remove ProgramArguments.2 "$launch_agent_target"
+/usr/bin/plutil -insert ProgramArguments.2 -string "$device_role" "$launch_agent_target"
+if [ -n "$device_name" ]; then
+    /usr/bin/plutil -insert ProgramArguments -string "--device-name" -append "$launch_agent_target"
+    /usr/bin/plutil -insert ProgramArguments -string "$device_name" -append "$launch_agent_target"
+fi
+if [ -n "$connectivity_url" ]; then
+    /usr/bin/plutil -insert ProgramArguments -string "--connectivity-url" -append "$launch_agent_target"
+    /usr/bin/plutil -insert ProgramArguments -string "$connectivity_url" -append "$launch_agent_target"
+    /usr/bin/plutil -insert ProgramArguments -string "--stun-server" -append "$launch_agent_target"
+    /usr/bin/plutil -insert ProgramArguments -string "$stun_server" -append "$launch_agent_target"
+fi
 /usr/libexec/PlistBuddy -c "Set :StandardErrorPath $log_dir/daemon.log" "$launch_agent_target"
 /usr/libexec/PlistBuddy -c "Set :StandardOutPath $log_dir/daemon.log" "$launch_agent_target"
 /usr/libexec/PlistBuddy -c "Set :WorkingDirectory $HOME" "$launch_agent_target"
@@ -114,7 +181,10 @@ if [ "$open_app" = true ]; then
 fi
 
 echo "Installed ComputeHop in $app_target"
-echo "The daemon now starts automatically when you log in."
+echo "The $device_role daemon now starts automatically when you log in."
+if [ -n "$connectivity_url" ]; then
+    echo "Direct remote connectivity is enabled through $connectivity_url"
+fi
 echo "CLI: $cli_target"
 case ":$PATH:" in
     *:"$cli_dir":*) ;;

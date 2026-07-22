@@ -463,6 +463,52 @@ public nonisolated enum Computehop_Local_V1_DiscoveryState: SwiftProtobuf.Enum, 
 
 }
 
+public nonisolated enum Computehop_Local_V1_ConnectivityState: SwiftProtobuf.Enum, Swift.CaseIterable {
+  public typealias RawValue = Int
+  case unspecified // = 0
+  case disabled // = 1
+  case connecting // = 2
+  case connected // = 3
+  case unavailable // = 4
+  case UNRECOGNIZED(Int)
+
+  public init() {
+    self = .unspecified
+  }
+
+  public init?(rawValue: Int) {
+    switch rawValue {
+    case 0: self = .unspecified
+    case 1: self = .disabled
+    case 2: self = .connecting
+    case 3: self = .connected
+    case 4: self = .unavailable
+    default: self = .UNRECOGNIZED(rawValue)
+    }
+  }
+
+  public var rawValue: Int {
+    switch self {
+    case .unspecified: return 0
+    case .disabled: return 1
+    case .connecting: return 2
+    case .connected: return 3
+    case .unavailable: return 4
+    case .UNRECOGNIZED(let i): return i
+    }
+  }
+
+  // The compiler won't synthesize support with the UNRECOGNIZED case.
+  public static let allCases: [Computehop_Local_V1_ConnectivityState] = [
+    .unspecified,
+    .disabled,
+    .connecting,
+    .connected,
+    .unavailable,
+  ]
+
+}
+
 /// Request is one authenticated operation sent by a local ComputeHop client.
 public nonisolated struct Computehop_Local_V1_Request: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
@@ -1251,6 +1297,14 @@ public nonisolated struct Computehop_Local_V1_TrustedDevice: Sendable {
 
   public var revokedAtUnixNano: Int64 = 0
 
+  public var connectivityState: Computehop_Local_V1_ConnectivityState = .unspecified
+
+  public var connectivityPath: String = String()
+
+  public var connectivityError: String = String()
+
+  public var connectivityUpdatedAtUnixNano: Int64 = 0
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
@@ -1421,6 +1475,10 @@ nonisolated extension Computehop_Local_V1_PairingState: SwiftProtobuf._ProtoName
 
 nonisolated extension Computehop_Local_V1_DiscoveryState: SwiftProtobuf._ProtoNameProviding {
   public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0DISCOVERY_STATE_UNSPECIFIED\0\u{1}DISCOVERY_STATE_STARTING\0\u{1}DISCOVERY_STATE_AVAILABLE\0\u{1}DISCOVERY_STATE_UNAVAILABLE\0")
+}
+
+nonisolated extension Computehop_Local_V1_ConnectivityState: SwiftProtobuf._ProtoNameProviding {
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0CONNECTIVITY_STATE_UNSPECIFIED\0\u{1}CONNECTIVITY_STATE_DISABLED\0\u{1}CONNECTIVITY_STATE_CONNECTING\0\u{1}CONNECTIVITY_STATE_CONNECTED\0\u{1}CONNECTIVITY_STATE_UNAVAILABLE\0")
 }
 
 nonisolated extension Computehop_Local_V1_Request: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
@@ -2982,7 +3040,7 @@ nonisolated extension Computehop_Local_V1_Pairing: SwiftProtobuf.Message, SwiftP
 
 nonisolated extension Computehop_Local_V1_TrustedDevice: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".TrustedDevice"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}pair_id\0\u{3}device_id\0\u{3}public_key\0\u{1}name\0\u{1}role\0\u{3}trust_state\0\u{3}paired_at_unix_nano\0\u{3}updated_at_unix_nano\0\u{3}revoked_at_unix_nano\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}pair_id\0\u{3}device_id\0\u{3}public_key\0\u{1}name\0\u{1}role\0\u{3}trust_state\0\u{3}paired_at_unix_nano\0\u{3}updated_at_unix_nano\0\u{3}revoked_at_unix_nano\0\u{3}connectivity_state\0\u{3}connectivity_path\0\u{3}connectivity_error\0\u{3}connectivity_updated_at_unix_nano\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -2999,6 +3057,10 @@ nonisolated extension Computehop_Local_V1_TrustedDevice: SwiftProtobuf.Message, 
       case 7: try { try decoder.decodeSingularInt64Field(value: &self.pairedAtUnixNano) }()
       case 8: try { try decoder.decodeSingularInt64Field(value: &self.updatedAtUnixNano) }()
       case 9: try { try decoder.decodeSingularInt64Field(value: &self.revokedAtUnixNano) }()
+      case 10: try { try decoder.decodeSingularEnumField(value: &self.connectivityState) }()
+      case 11: try { try decoder.decodeSingularStringField(value: &self.connectivityPath) }()
+      case 12: try { try decoder.decodeSingularStringField(value: &self.connectivityError) }()
+      case 13: try { try decoder.decodeSingularInt64Field(value: &self.connectivityUpdatedAtUnixNano) }()
       default: break
       }
     }
@@ -3032,6 +3094,18 @@ nonisolated extension Computehop_Local_V1_TrustedDevice: SwiftProtobuf.Message, 
     if self.revokedAtUnixNano != 0 {
       try visitor.visitSingularInt64Field(value: self.revokedAtUnixNano, fieldNumber: 9)
     }
+    if self.connectivityState != .unspecified {
+      try visitor.visitSingularEnumField(value: self.connectivityState, fieldNumber: 10)
+    }
+    if !self.connectivityPath.isEmpty {
+      try visitor.visitSingularStringField(value: self.connectivityPath, fieldNumber: 11)
+    }
+    if !self.connectivityError.isEmpty {
+      try visitor.visitSingularStringField(value: self.connectivityError, fieldNumber: 12)
+    }
+    if self.connectivityUpdatedAtUnixNano != 0 {
+      try visitor.visitSingularInt64Field(value: self.connectivityUpdatedAtUnixNano, fieldNumber: 13)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -3045,6 +3119,10 @@ nonisolated extension Computehop_Local_V1_TrustedDevice: SwiftProtobuf.Message, 
     if lhs.pairedAtUnixNano != rhs.pairedAtUnixNano {return false}
     if lhs.updatedAtUnixNano != rhs.updatedAtUnixNano {return false}
     if lhs.revokedAtUnixNano != rhs.revokedAtUnixNano {return false}
+    if lhs.connectivityState != rhs.connectivityState {return false}
+    if lhs.connectivityPath != rhs.connectivityPath {return false}
+    if lhs.connectivityError != rhs.connectivityError {return false}
+    if lhs.connectivityUpdatedAtUnixNano != rhs.connectivityUpdatedAtUnixNano {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

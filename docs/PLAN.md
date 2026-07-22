@@ -22,11 +22,12 @@ Last updated: 2026-07-22.
 | Explicit remote execution | Complete | Submit to a selected paired LAN worker, observe durable state and logs, and cancel remotely. |
 | Durable remote job routing | Complete | Remember the pinned worker that accepted each remote job so job-specific operations reconnect by ID without another device selector. |
 | Hosted rendezvous foundation | Complete | Derive rotating anonymous pair credentials and exchange bounded, route-bound, end-to-end encrypted, expiring presence and signaling payloads through a standalone service and HTTPS client. |
-| Direct ICE path and signaling foundation | Complete | Gather bounded UDP candidates with Pion ICE, exchange versioned descriptions through pair-encrypted rendezvous presence, select orchestrator/worker paths, report routing without secrets, and carry QUIC over the selected packet connection. Daemon supervision remains. |
+| Direct ICE path and signaling foundation | Complete | Gather bounded UDP candidates with Pion ICE, exchange versioned descriptions through pair-encrypted rendezvous presence, select orchestrator/worker paths, report routing without secrets, and carry QUIC over the selected packet connection. |
+| Supervised direct internet control | In progress | Daemons reconcile active pair records, retry encrypted rendezvous/ICE negotiation, run the identity-pinned control protocol over selected paths, prefer LAN for jobs, and expose path state to CLI/Swift. Automated end-to-end and race coverage pass; physical unrelated-network and network-change validation remain. |
 | One-VPS staging deployment | In progress | Provider-neutral Compose stack, Caddy HTTPS edge, authenticated coturn relay, bounded ports/quotas, secrets, firewall bootstrap, health checks, and rollback runbook are ready; buying the VPS and forced-relay validation remain. |
 | CLI and physical Mac validation | In progress | Friendlier `--on` and no-`--` command syntax, inferred pairing confirmation, and merged trusted/nearby presentation are implemented; physical macOS-to-macOS discovery, pairing, execution, restart recovery, logs, and cancellation passed. Windows/Linux remain. |
 | macOS menu-bar foundation | In progress | SwiftUI `MenuBarExtra`, generated SwiftProtobuf v3 models, authenticated Unix-socket IPC, device/pairing controls, native job submission, reconnectable output, and cancellation build and pass real Swift-to-Go ping and job tests; an ad-hoc app bundle and per-user launchd installer are ready for development. |
-| Cross-network paths and later launch slices | In progress | Daemon rendezvous/ICE supervision remains before direct cross-network execution works. TURN credential issuance also requires a hosted entitlement boundary. Project snapshots, artifacts, scheduling, adapters, production packaging, and release operations follow. |
+| Cross-network paths and later launch slices | In progress | Direct internet control is implemented but still needs physical unrelated-network and reconnect validation. TURN credential issuance requires a hosted entitlement boundary. Project snapshots, artifacts, scheduling, adapters, production packaging, and release operations follow. |
 
 “Complete” here means implemented with automated coverage and merged to `main`.
 Physical multi-machine validation remains required by the launch acceptance
@@ -1233,9 +1234,14 @@ exposing credentials.
 The current deployment slice adds a one-VPS staging stack with Caddy automatic
 HTTPS and an authenticated coturn STUN/TURN service using a bounded relay port
 range and Docker secret. The containers have been built and locally smoke
-tested, but the live VPS has not been purchased and the client/path lifecycle is
-not supervised by either daemon yet. Existing pairings without connectivity
-material must be explicitly re-paired before later cross-network testing.
+tested, but the live VPS has not been purchased. Daemons now reconcile active
+pair records, retry encrypted presence exchange and ICE selection, run the
+existing identity-pinned QUIC control protocol over ready paths, and make those
+paths available after LAN attempts fail. CLI and Swift surfaces report
+connecting, remote, and selected-path state. Automated end-to-end tests cover
+the full rendezvous-to-authenticated-control lifecycle, but physical
+unrelated-network and network-change testing remain. Existing pairings without
+connectivity material must be explicitly re-paired before remote testing.
 
 An anonymous pair route proves possession of a peer-created secret, not a
 customer entitlement to consume paid relay bandwidth: anyone can create a new

@@ -8,14 +8,19 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"os"
 	"os/signal"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/austinjiann/spare-compute/internal/app/orchestrator"
 	pairingapp "github.com/austinjiann/spare-compute/internal/app/pairing"
 	"github.com/austinjiann/spare-compute/internal/app/worker"
+	"github.com/austinjiann/spare-compute/internal/connectivity/icepath"
+	"github.com/austinjiann/spare-compute/internal/connectivity/remoteconn"
+	"github.com/austinjiann/spare-compute/internal/connectivity/rendezvous"
 	"github.com/austinjiann/spare-compute/internal/device"
 	"github.com/austinjiann/spare-compute/internal/infra/discovery/mdns"
 	identityinfra "github.com/austinjiann/spare-compute/internal/infra/identity"
@@ -34,12 +39,14 @@ import (
 var version = "dev"
 
 type options struct {
-	stateDir    string
-	checkOnly   bool
-	showVersion bool
-	runnerJob   string
-	deviceName  string
-	role        string
+	stateDir        string
+	checkOnly       bool
+	showVersion     bool
+	runnerJob       string
+	deviceName      string
+	role            string
+	connectivityURL string
+	stunServers     stringValues
 }
 
 type runtimeDependencies struct {
@@ -238,9 +245,41 @@ func runWithDependencies(
 	if err != nil {
 		return fmt.Errorf("initialize remote worker handler: %w", err)
 	}
+	var remoteManager *remoteconn.Manager
+	if parsed.connectivityURL != "" {
+		if len(parsed.stunServers) == 0 {
+			return errors.New("--connectivity-url requires at least one --stun-server")
+		}
+		concreteEndpoint, ok := pairingEndpoint.(*quictransport.Endpoint)
+		if !ok {
+			return errors.New("initialize remote connectivity: endpoint does not support selected packet paths")
+		}
+		client, err := rendezvous.NewClient(rendezvous.ClientConfig{BaseURL: parsed.connectivityURL})
+		if err != nil {
+			return fmt.Errorf("initialize rendezvous client: %w", err)
+		}
+		iceServers := make([]icepath.Server, 0, len(parsed.stunServers))
+		for _, uri := range parsed.stunServers {
+			iceServers = append(iceServers, icepath.Server{URI: uri})
+		}
+		remoteManager, err = remoteconn.NewManager(remoteconn.Config{
+			LocalRole: localRole, Trust: database.Trust(), Client: client,
+			ICE: icepath.Config{Servers: iceServers},
+			NewPath: func(connection net.PacketConn, remote net.Addr) (remoteconn.Path, error) {
+				return concreteEndpoint.NewRemotePath(connection, remote)
+			},
+			Now: time.Now,
+			ReportError: func(id device.ID, err error) {
+				logger.Warn("remote connectivity unavailable", "device_id", id.Short(), "error", err)
+			},
+		})
+		if err != nil {
+			return fmt.Errorf("initialize remote connectivity: %w", err)
+		}
+	}
 	remoteJobs, err := orchestrator.NewRemoteJobService(orchestrator.RemoteDependencies{
 		Nearby: deviceService, Trust: database.Trust(),
-		Placements: database.Placements(), Dialer: pairingEndpoint,
+		Placements: database.Placements(), Dialer: pairingEndpoint, Remote: remoteManager,
 	})
 	if err != nil {
 		return fmt.Errorf("initialize remote job service: %w", err)
@@ -258,7 +297,16 @@ func runWithDependencies(
 	if err != nil {
 		return err
 	}
-	handler, err := orchestrator.NewLocalHandler(jobService, remoteJobs, deviceService, pairingService, version)
+	var handler *orchestrator.LocalHandler
+	if remoteManager == nil {
+		handler, err = orchestrator.NewLocalHandler(
+			jobService, remoteJobs, deviceService, pairingService, version,
+		)
+	} else {
+		handler, err = orchestrator.NewLocalHandler(
+			jobService, remoteJobs, deviceService, pairingService, version, remoteManager,
+		)
+	}
 	if err != nil {
 		return fmt.Errorf("initialize local IPC handler: %w", err)
 	}
@@ -304,11 +352,12 @@ func runWithDependencies(
 		"device", deviceName,
 		"device_id", localIdentity.ID().Short(),
 		"role", localRole,
+		"remote_connectivity", remoteManager != nil,
 		"version", version,
 	)
 	serveContext, stopServing := context.WithCancel(ctx)
 	defer stopServing()
-	backgroundResult := make(chan error, 3)
+	backgroundResult := make(chan error, 4)
 	backgroundCount := 2
 	go func() {
 		backgroundResult <- deviceService.Run(serveContext)
@@ -326,6 +375,13 @@ func runWithDependencies(
 		backgroundCount++
 		go func() {
 			backgroundResult <- dispatcher.Run(serveContext)
+			stopServing()
+		}()
+	}
+	if remoteManager != nil {
+		backgroundCount++
+		go func() {
+			backgroundResult <- remoteManager.Run(serveContext, remoteHandler)
 			stopServing()
 		}()
 	}
@@ -355,6 +411,17 @@ func parseOptions(arguments []string, stderr io.Writer) (options, error) {
 	flags.StringVar(&parsed.runnerJob, "runner-job", "", "run one internally dispatched job")
 	flags.StringVar(&parsed.deviceName, "device-name", "", "human-readable LAN device name")
 	flags.StringVar(&parsed.role, "role", "", "device role: orchestrator or worker")
+	flags.StringVar(
+		&parsed.connectivityURL,
+		"connectivity-url",
+		"",
+		"HTTPS URL of the optional ComputeHop rendezvous service",
+	)
+	flags.Var(
+		&parsed.stunServers,
+		"stun-server",
+		"STUN URI used for direct internet paths; may be repeated",
+	)
 	if err := flags.Parse(arguments); err != nil {
 		return options{}, err
 	}
@@ -364,7 +431,25 @@ func parseOptions(arguments []string, stderr io.Writer) (options, error) {
 	if parsed.runnerJob != "" && (parsed.checkOnly || parsed.showVersion) {
 		return options{}, errors.New("--runner-job cannot be combined with --check or --version")
 	}
+	if (parsed.connectivityURL == "") != (len(parsed.stunServers) == 0) {
+		return options{}, errors.New("--connectivity-url and --stun-server must be supplied together")
+	}
 	return parsed, nil
+}
+
+type stringValues []string
+
+func (values *stringValues) String() string {
+	return strings.Join(*values, ",")
+}
+
+func (values *stringValues) Set(value string) error {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return errors.New("server URI must not be empty")
+	}
+	*values = append(*values, value)
+	return nil
 }
 
 func configuredRole(value string) (device.Role, error) {

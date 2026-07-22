@@ -193,6 +193,10 @@ message TrustedDevice {
   int64 paired_at_unix_nano = 7;
   int64 updated_at_unix_nano = 8;
   int64 revoked_at_unix_nano = 9;
+  ConnectivityState connectivity_state = 10;
+  string connectivity_path = 11;
+  string connectivity_error = 12;
+  int64 connectivity_updated_at_unix_nano = 13;
 }
 
 message NearbyDevice {
@@ -316,4 +320,12 @@ enum DiscoveryState {
   DISCOVERY_STATE_STARTING = 1;
   DISCOVERY_STATE_AVAILABLE = 2;
   DISCOVERY_STATE_UNAVAILABLE = 3;
+}
+
+enum ConnectivityState {
+  CONNECTIVITY_STATE_UNSPECIFIED = 0;
+  CONNECTIVITY_STATE_DISABLED = 1;
+  CONNECTIVITY_STATE_CONNECTING = 2;
+  CONNECTIVITY_STATE_CONNECTED = 3;
+  CONNECTIVITY_STATE_UNAVAILABLE = 4;
 }

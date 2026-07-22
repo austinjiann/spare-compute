@@ -336,6 +336,36 @@ func TestRunRejectsUnexpectedArguments(t *testing.T) {
 	}
 }
 
+func TestParseOptionsAcceptsFriendlyRemoteConnectivityFlags(t *testing.T) {
+	parsed, err := parseOptions([]string{
+		"--connectivity-url", "https://connect.example.com",
+		"--stun-server", "stun:turn-a.example.com:3478",
+		"--stun-server", "stun:turn-b.example.com:3478",
+	}, &bytes.Buffer{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parsed.connectivityURL != "https://connect.example.com" || len(parsed.stunServers) != 2 {
+		t.Fatalf("parsed = %#v", parsed)
+	}
+}
+
+func TestParseOptionsRejectsPartialRemoteConnectivityFlags(t *testing.T) {
+	if _, err := parseOptions(
+		[]string{"--stun-server", "stun:turn.example.com:3478"}, &bytes.Buffer{},
+	); err == nil {
+		t.Fatal("standalone --stun-server was accepted")
+	}
+	if _, err := parseOptions(
+		[]string{"--connectivity-url", "https://connect.example.com"}, &bytes.Buffer{},
+	); err == nil {
+		t.Fatal("standalone --connectivity-url was accepted")
+	}
+	if _, err := parseOptions([]string{"--stun-server", ""}, &bytes.Buffer{}); err == nil {
+		t.Fatal("empty --stun-server was accepted")
+	}
+}
+
 func TestRunRejectsBlankStateDirectory(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	if err := run(

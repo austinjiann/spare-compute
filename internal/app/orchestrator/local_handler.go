@@ -9,6 +9,7 @@ import (
 	localv1 "github.com/austinjiann/spare-compute/gen/go/computehop/local/v1"
 	computehopv1 "github.com/austinjiann/spare-compute/gen/go/computehop/v1"
 	"github.com/austinjiann/spare-compute/internal/app/worker"
+	"github.com/austinjiann/spare-compute/internal/connectivity/remoteconn"
 	"github.com/austinjiann/spare-compute/internal/device"
 	"github.com/austinjiann/spare-compute/internal/job"
 	joblogging "github.com/austinjiann/spare-compute/internal/logging"
@@ -24,6 +25,7 @@ var (
 	ErrMissingRemoteController  = errors.New("local handler remote job controller is required")
 	ErrMissingDeviceController  = errors.New("local handler device controller is required")
 	ErrMissingPairingController = errors.New("local handler pairing controller is required")
+	ErrInvalidConnectivity      = errors.New("local handler accepts at most one connectivity controller")
 )
 
 // JobController is the narrow application boundary exposed over local IPC.
@@ -59,13 +61,19 @@ type PairingController interface {
 	Unpair(context.Context, string) (trust.Peer, error)
 }
 
+// ConnectivityController exposes secret-free reachability state for local UI.
+type ConnectivityController interface {
+	States() []remoteconn.State
+}
+
 // LocalHandler maps authenticated protocol requests to application use cases.
 type LocalHandler struct {
-	jobs     JobController
-	remote   PairedJobController
-	devices  DeviceController
-	pairings PairingController
-	version  string
+	jobs         JobController
+	remote       PairedJobController
+	devices      DeviceController
+	pairings     PairingController
+	connectivity ConnectivityController
+	version      string
 }
 
 // NewLocalHandler constructs the local orchestrator control handler.
@@ -75,6 +83,7 @@ func NewLocalHandler(
 	devices DeviceController,
 	pairings PairingController,
 	version string,
+	connectivity ...ConnectivityController,
 ) (*LocalHandler, error) {
 	if jobs == nil {
 		return nil, ErrMissingJobController
@@ -88,7 +97,17 @@ func NewLocalHandler(
 	if pairings == nil {
 		return nil, ErrMissingPairingController
 	}
-	return &LocalHandler{jobs: jobs, remote: remote, devices: devices, pairings: pairings, version: version}, nil
+	if len(connectivity) > 1 {
+		return nil, ErrInvalidConnectivity
+	}
+	var connectivityController ConnectivityController
+	if len(connectivity) == 1 {
+		connectivityController = connectivity[0]
+	}
+	return &LocalHandler{
+		jobs: jobs, remote: remote, devices: devices, pairings: pairings,
+		connectivity: connectivityController, version: version,
+	}, nil
 }
 
 // Handle executes one already-authenticated local request.
@@ -146,7 +165,7 @@ func (handler *LocalHandler) listDevices(
 	if err != nil {
 		return errorResponse(err)
 	}
-	message.TrustedDevices, err = trustedPeersToProto(trusted)
+	message.TrustedDevices, err = handler.trustedPeersToProto(trusted)
 	if err != nil {
 		return errorResponse(err)
 	}
@@ -235,7 +254,7 @@ func (handler *LocalHandler) listTrustedDevices(
 	if err != nil {
 		return errorResponse(err)
 	}
-	messages, err := trustedPeersToProto(values)
+	messages, err := handler.trustedPeersToProto(values)
 	if err != nil {
 		return errorResponse(err)
 	}
@@ -261,16 +280,56 @@ func (handler *LocalHandler) unpairDevice(ctx context.Context, request *localv1.
 	}}
 }
 
-func trustedPeersToProto(values []trust.Peer) ([]*localv1.TrustedDevice, error) {
+func (handler *LocalHandler) trustedPeersToProto(values []trust.Peer) ([]*localv1.TrustedDevice, error) {
 	messages := make([]*localv1.TrustedDevice, len(values))
+	states := make(map[device.ID]remoteconn.State)
+	if handler.connectivity != nil {
+		for _, state := range handler.connectivity.States() {
+			states[state.DeviceID] = state
+		}
+	}
 	var err error
 	for index, value := range values {
 		messages[index], err = mapper.TrustedPeerToProto(value)
 		if err != nil {
 			return nil, err
 		}
+		applyConnectivityState(messages[index], value, states[value.DeviceID], handler.connectivity != nil)
 	}
 	return messages, nil
+}
+
+func applyConnectivityState(
+	message *localv1.TrustedDevice,
+	peer trust.Peer,
+	state remoteconn.State,
+	enabled bool,
+) {
+	if message == nil {
+		return
+	}
+	if !enabled || peer.State != trust.StateActive {
+		message.ConnectivityState = localv1.ConnectivityState_CONNECTIVITY_STATE_DISABLED
+		return
+	}
+	if !peer.ConnectivitySecret.Valid() {
+		message.ConnectivityState = localv1.ConnectivityState_CONNECTIVITY_STATE_UNAVAILABLE
+		message.ConnectivityError = "re-pair this device to enable remote connectivity"
+		return
+	}
+	switch state.Status {
+	case remoteconn.StatusConnected:
+		message.ConnectivityState = localv1.ConnectivityState_CONNECTIVITY_STATE_CONNECTED
+	case remoteconn.StatusUnavailable:
+		message.ConnectivityState = localv1.ConnectivityState_CONNECTIVITY_STATE_UNAVAILABLE
+	default:
+		message.ConnectivityState = localv1.ConnectivityState_CONNECTIVITY_STATE_CONNECTING
+	}
+	message.ConnectivityPath = state.PathKind
+	message.ConnectivityError = state.LastError
+	if !state.UpdatedAt.IsZero() {
+		message.ConnectivityUpdatedAtUnixNano = state.UpdatedAt.UTC().UnixNano()
+	}
 }
 
 func (handler *LocalHandler) readLogs(

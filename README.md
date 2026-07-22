@@ -18,10 +18,13 @@ local IPC and presents device, pairing, native job submission, reconnectable
 output, and cancellation controls. A provider-neutral
 one-VPS stack packages rendezvous, automatic HTTPS, STUN, and authenticated
 TURN. A bounded Pion ICE path layer now gathers and selects direct or relayed
-UDP candidates, exchanges versioned descriptions through encrypted rendezvous
-presence, and has been proven to carry QUIC. It is not yet supervised by either
-daemon. Automatic cross-network connection and relay traffic are not wired up,
-so actual jobs remain LAN-only.
+UDP candidates and exchanges versioned descriptions through encrypted
+rendezvous presence. Daemons can now supervise active pair records and run the
+existing identity-pinned QUIC control protocol over a selected path; job
+routing prefers LAN and falls back to a ready direct ICE path. Automated local
+end-to-end coverage passes, while physical unrelated-network validation is
+still open. Public TURN relay traffic remains gated on entitlement-backed,
+quota-limited credential issuance.
 
 See [`docs/PLAN.md`](docs/PLAN.md) for the product, architecture, security,
 execution, deployment, and launch plan.
@@ -45,18 +48,18 @@ contract and an owner-only random capability token. The daemon validates each
 request and owns all SQLite access. ComputeHop creates its state directory with
 owner-only permissions and rejects unsafe custom directories.
 
-Jobs run on the orchestrator unless `--on` explicitly selects a paired LAN
-worker. Project snapshots, isolated per-job workspaces, artifact return,
-automatic placement, and cross-network reconnection are later slices. A remote
-working directory supplied with `--working-directory` must already exist on the
-worker; when omitted, the command inherits the worker daemon's working
+Jobs run on the orchestrator unless `--on` explicitly selects a paired worker.
+Project snapshots, isolated per-job workspaces, artifact return, automatic
+placement, and fully validated network-change reconnection are later slices. A
+remote working directory supplied with `--working-directory` must already exist
+on the worker; when omitted, the command inherits the worker daemon's working
 directory. Discovery records never authorize commands: the live QUIC
 certificate must match the selected active public-key pin. Do not modify or
 remove a submitted working directory while its job is running.
 
 Pairings created before connectivity-secret support remain valid for LAN use
 but cannot derive hosted rendezvous credentials. Unpair and explicitly pair
-those devices again before testing a later cross-network client.
+those devices again before remote-connectivity testing.
 
 To exercise the local control plane during development, start the daemon:
 
@@ -153,7 +156,10 @@ open dist/macos/ComputeHop.app
 ```
 
 After stopping any daemon started manually with `go run`, `make install-macos`
-installs the bundle for the current user and configures the daemon to start at
-login. This developer package is ad-hoc signed, not notarized, and is not yet a
+installs the orchestrator bundle for the current user and configures the daemon
+to start at login. The installer also accepts `--role worker`, `--device-name`,
+`--connectivity-url`, and `--stun-server` for a named worker or the one-VPS
+direct-connectivity setup. This developer package is ad-hoc signed, not
+notarized, and is not yet a
 public release artifact. See [`packaging/macos/README.md`](packaging/macos/README.md)
 for install and uninstall behavior.

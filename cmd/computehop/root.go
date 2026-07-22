@@ -115,12 +115,14 @@ func newDevicesCommand(
 			}
 
 			trustedPeers := make([]trust.Peer, 0, len(result.GetTrustedDevices()))
+			trustedMessages := make(map[device.ID]*localv1.TrustedDevice, len(result.GetTrustedDevices()))
 			for _, message := range result.GetTrustedDevices() {
 				peer, err := mapper.TrustedPeerFromProto(message)
 				if err != nil {
 					return fmt.Errorf("%w: %v", ErrInvalidDaemonResponse, err)
 				}
 				trustedPeers = append(trustedPeers, peer)
+				trustedMessages[peer.DeviceID] = message
 			}
 			nearbyDevices := make([]nearbyDeviceView, 0, len(result.GetDevices()))
 			for _, message := range result.GetDevices() {
@@ -144,12 +146,13 @@ func newDevicesCommand(
 			}
 
 			writer := tabwriter.NewWriter(stdout, 0, 4, 2, ' ', 0)
-			if _, err := fmt.Fprintln(writer, "NAME\tIDENTIFIER\tTRUST\tROLE\tAVAILABILITY\tADDRESS\tUPDATED"); err != nil {
+			if _, err := fmt.Fprintln(writer, "NAME\tIDENTIFIER\tTRUST\tROLE\tAVAILABILITY\tPATH\tADDRESS\tUPDATED"); err != nil {
 				return err
 			}
 			matchedNearby := make(map[int]bool)
 			for _, peer := range trustedPeers {
 				availability := "offline"
+				path := "—"
 				address := "—"
 				updatedAt := peer.UpdatedAt
 				key := deviceDisplayKey(peer.Name, string(peer.Role))
@@ -158,12 +161,25 @@ func newDevicesCommand(
 					matchIndex := matches[0]
 					matchedNearby[matchIndex] = true
 					availability = nearbyDevices[matchIndex].availability
+					path = "LAN"
 					address = nearbyDevices[matchIndex].address
 					updatedAt = nearbyDevices[matchIndex].lastSeen
+				} else if message := trustedMessages[peer.DeviceID]; message != nil {
+					switch message.GetConnectivityState() {
+					case localv1.ConnectivityState_CONNECTIVITY_STATE_CONNECTED:
+						availability = "remote"
+						path = remotePathLabel(message.GetConnectivityPath())
+					case localv1.ConnectivityState_CONNECTIVITY_STATE_CONNECTING:
+						availability = "connecting"
+						path = "internet"
+					}
+					if message.GetConnectivityUpdatedAtUnixNano() > 0 {
+						updatedAt = time.Unix(0, message.GetConnectivityUpdatedAtUnixNano()).UTC()
+					}
 				}
 				if _, err := fmt.Fprintf(
-					writer, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-					peer.Name, peer.DeviceID.Short(), peer.State, peer.Role, availability, address,
+					writer, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+					peer.Name, peer.DeviceID.Short(), peer.State, peer.Role, availability, path, address,
 					updatedAt.Format(time.RFC3339),
 				); err != nil {
 					return err
@@ -175,7 +191,7 @@ func newDevicesCommand(
 				}
 				if _, err := fmt.Fprintf(
 					writer,
-					"%s\t%s\tunpaired\t%s\t%s\t%s\t%s\n",
+					"%s\t%s\tunpaired\t%s\t%s\tLAN\t%s\t%s\n",
 					nearby.name, nearby.presenceID.Short(), nearby.role, nearby.availability,
 					nearby.address, nearby.lastSeen.Format(time.RFC3339),
 				); err != nil {
@@ -184,6 +200,19 @@ func newDevicesCommand(
 			}
 			return writer.Flush()
 		},
+	}
+}
+
+func remotePathLabel(kind string) string {
+	switch kind {
+	case "host":
+		return "direct"
+	case "server-reflexive":
+		return "direct (STUN)"
+	case "relay":
+		return "relay (TURN)"
+	default:
+		return "internet"
 	}
 }
 

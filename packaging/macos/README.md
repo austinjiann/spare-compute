@@ -18,12 +18,40 @@ Install it for the current user:
 make install-macos
 ```
 
+For a named worker Mac:
+
+```bash
+./packaging/macos/install.sh --role worker --device-name "Gaming Mac"
+```
+
+After the VPS and DNS are ready, enable direct cross-network paths on both the
+orchestrator and every worker by reinstalling with the same endpoint values:
+
+```bash
+./packaging/macos/install.sh \
+  --role orchestrator \
+  --device-name "My MacBook" \
+  --connectivity-url https://connect.example.com \
+  --stun-server stun:turn.example.com:3478
+```
+
+Use `--role worker` on worker Macs. Reinstalling preserves the state directory,
+pairings, and job history. Pair devices once on the same LAN before separating
+their networks; old pairings created before connectivity-secret support must be
+revoked and paired again.
+
 The installer places the app in `~/Applications`, adds a safe CLI symlink at
 `~/.local/bin/computehop`, and loads an unprivileged launch agent. The daemon
-then starts at login in orchestrator mode and writes diagnostics to
+then starts at login in the selected role and writes diagnostics to
 `~/Library/Logs/ComputeHop/daemon.log`. If a manually started daemon is already
 using the ComputeHop socket or UDP port, the installer asks you to stop it
 instead of killing it.
+
+The current daemon integration attempts LAN first, then a direct ICE path using
+the configured rendezvous and STUN services. The menu bar and `computehop
+devices` show `Remote` and the selected path when it succeeds. Public TURN
+fallback remains disabled until the hosted service has entitlement-backed,
+quota-limited credential issuance.
 
 To uninstall the binaries and launch agent while preserving pairings and job
 history:

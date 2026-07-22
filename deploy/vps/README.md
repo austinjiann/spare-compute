@@ -76,6 +76,39 @@ curl --fail https://connect.example.com/healthz
 turnutils_stunclient -p 3478 turn.example.com
 ```
 
+## Connect paired devices
+
+Pair the orchestrator and worker on one LAN first. Then install or reinstall
+each macOS daemon with the public endpoints (use `--role worker` on workers):
+
+```bash
+./packaging/macos/install.sh \
+  --role orchestrator \
+  --connectivity-url https://connect.example.com \
+  --stun-server stun:turn.example.com:3478
+```
+
+For a manually managed macOS, Windows, or Linux daemon, pass the equivalent
+flags directly:
+
+```bash
+computehopd \
+  --role worker \
+  --connectivity-url https://connect.example.com \
+  --stun-server stun:turn.example.com:3478
+```
+
+Move one device to another network and run `computehop devices` on the
+orchestrator. A working NAT traversal path appears as `remote` with `direct` or
+`direct (STUN)`. Verify the full path with:
+
+```bash
+computehop run --on "Gaming PC" /bin/hostname
+```
+
+This exercises direct ICE only. Do not copy the coturn shared secret to a
+client to force relay mode.
+
 `verify.sh` performs an authenticated TURN allocation locally without copying
 the shared secret off the VPS. A production client must receive short-lived
 TURN credentials rather than that shared secret. Issuance is intentionally not
@@ -117,10 +150,10 @@ docker compose up -d --force-recreate coturn
 
 ## Current boundary
 
-This stack makes the public services deployable. The runtime has a tested ICE
-path primitive that can gather candidates, select a direct or relay path, and
-carry QUIC. It also has a versioned, pair-encrypted presence document and a
-tested rendezvous exchange for real ICE descriptions. The daemon does not yet
-supervise that lifecycle, and the hosted service does not issue TURN
-credentials. LAN execution remains the working path until those daemon and
-service slices are implemented and physically tested.
+This stack makes the public services deployable. The daemon now supervises
+active pair records, exchanges versioned pair-encrypted ICE descriptions,
+selects a path, and runs the existing identity-pinned QUIC control protocol over
+it. Job routing prefers LAN and falls back to a ready direct internet path.
+Automated and local end-to-end tests pass, but physical unrelated-network
+validation still remains. The hosted service does not issue TURN credentials,
+so relay fallback is not yet enabled for shared staging or production.

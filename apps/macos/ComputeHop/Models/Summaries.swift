@@ -4,6 +4,8 @@ import ComputeHopProtocol
 struct DeviceSummary: Identifiable, Sendable {
     enum Availability: String, Sendable {
         case nearby = "Nearby"
+        case remote = "Remote"
+        case connecting = "Connecting"
         case offline = "Offline"
     }
 
@@ -12,6 +14,7 @@ struct DeviceSummary: Identifiable, Sendable {
     let role: String
     let trust: String
     let availability: Availability
+    let path: String?
     let address: String?
     let canPair: Bool
 
@@ -32,12 +35,14 @@ struct DeviceSummary: Identifiable, Sendable {
             if let nearby {
                 consumedPresenceIDs.insert(nearby.presenceID)
             }
+            let remote = remoteAvailability(trusted)
             return DeviceSummary(
                 id: trusted.deviceID,
                 name: trusted.name,
                 role: roleLabel(trusted.role),
                 trust: trusted.trustState == .paired ? "Paired" : "Revoked",
-                availability: nearby == nil ? .offline : .nearby,
+                availability: nearby == nil ? remote.availability : .nearby,
+                path: nearby == nil ? remote.path : "LAN",
                 address: nearby.flatMap(address),
                 canPair: false
             )
@@ -50,6 +55,7 @@ struct DeviceSummary: Identifiable, Sendable {
                 role: roleLabel(nearby.role),
                 trust: "Unpaired",
                 availability: .nearby,
+                path: "LAN",
                 address: address(nearby),
                 canPair: true
             )
@@ -76,6 +82,28 @@ struct DeviceSummary: Identifiable, Sendable {
             return "[\(host)]:\(value.port)"
         }
         return "\(host):\(value.port)"
+    }
+
+    private static func remoteAvailability(
+        _ value: Computehop_Local_V1_TrustedDevice
+    ) -> (availability: Availability, path: String?) {
+        switch value.connectivityState {
+        case .connected:
+            return (.remote, remotePathLabel(value.connectivityPath))
+        case .connecting:
+            return (.connecting, "Internet")
+        default:
+            return (.offline, nil)
+        }
+    }
+
+    private static func remotePathLabel(_ kind: String) -> String {
+        switch kind {
+        case "host": return "Direct"
+        case "server-reflexive": return "Direct via STUN"
+        case "relay": return "Relay via TURN"
+        default: return "Internet"
+        }
     }
 }
 

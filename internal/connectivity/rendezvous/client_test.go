@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -185,4 +186,37 @@ func TestClientRequiresHTTPSAndRefusesRedirects(t *testing.T) {
 	if !errors.Is(err, rendezvous.ErrInvalidServiceResponse) || redirected {
 		t.Fatalf("redirect error = %v, redirected = %v", err, redirected)
 	}
+}
+
+func TestClientNetworkErrorDoesNotExposeAnonymousRoute(t *testing.T) {
+	now := time.Date(2026, time.July, 22, 6, 0, 0, 0, time.UTC)
+	client, err := rendezvous.NewClient(rendezvous.ClientConfig{
+		BaseURL: "https://connect.example.com",
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			return nil, errors.New("network offline")
+		})},
+		Now: func() time.Time { return now },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	secret := trust.ConnectivitySecret(bytes.Repeat([]byte{9}, trust.ConnectivitySecretBytes))
+	access, err := connectivity.DeriveAccess(secret, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = client.PublishPresence(
+		context.Background(), access,
+		connectivityv1.EndpointRole_ENDPOINT_ROLE_WORKER, 1, []byte("opaque"),
+	)
+	if err == nil || !strings.Contains(err.Error(), "network offline") ||
+		strings.Contains(err.Error(), access.RouteID) {
+		t.Fatalf("network error = %q", err)
+	}
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (function roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return function(request)
 }
