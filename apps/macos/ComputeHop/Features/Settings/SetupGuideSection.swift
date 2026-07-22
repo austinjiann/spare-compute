@@ -30,7 +30,10 @@ struct SetupGuideSection: View {
                         HStack(alignment: .top, spacing: 6) {
                             Text(command.value)
                                 .font(.system(.caption, design: .monospaced))
+                                .lineLimit(3)
+                                .truncationMode(.middle)
                                 .textSelection(.enabled)
+                                .frame(maxWidth: 360, alignment: .leading)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 4)
                                 .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
