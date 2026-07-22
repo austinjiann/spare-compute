@@ -78,8 +78,8 @@ slices. Discovery records never authorize commands: the
 live QUIC certificate must match the selected active public-key pin.
 
 Pairings created before connectivity-secret support remain valid for LAN use
-but cannot derive hosted rendezvous credentials. Unpair and explicitly pair
-those devices again before remote-connectivity testing.
+but cannot derive hosted rendezvous credentials. Disconnect and explicitly
+connect those devices again before remote-connectivity testing.
 
 To exercise the local control plane during development, start the daemon:
 

@@ -58,7 +58,7 @@ cd deploy/vps
 Use `--role worker` on worker Macs. Reinstalling preserves the state directory,
 pairings, and job history. Pair devices once on the same LAN before separating
 their networks; old pairings created before connectivity-secret support must be
-revoked and paired again.
+disconnected and connected again.
 
 The installer places the app in `~/Applications`, adds a safe CLI symlink at
 `~/.local/bin/computehop`, and loads an unprivileged launch agent. The daemon

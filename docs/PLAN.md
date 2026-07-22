@@ -578,7 +578,7 @@ computehop outputs <job-id>
 computehop worker status
 computehop worker pause
 computehop worker resume
-computehop worker unpair
+computehop disconnect <orchestrator>
 ```
 
 `computehop run` is the single remote-job command. A separate `computehop exec` command is
