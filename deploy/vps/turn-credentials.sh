@@ -150,7 +150,11 @@ Expires:  $expires_at
 Username: $username
 Password: $password
 
-Use on each Mac after pairing once on the LAN:
+Friendly setup helper commands for each Mac after pairing once on the LAN:
+   computehop setup orchestrator --connectivity-domain $(shell_arg "$connectivity_domain") --turn-domain $(shell_arg "$turn_domain") --turn-server $(shell_arg "$turn_server") --turn-username $(shell_arg "$username") --turn-password $(shell_arg "$password")
+   computehop setup worker --device-name "Gaming PC" --connectivity-domain $(shell_arg "$connectivity_domain") --turn-domain $(shell_arg "$turn_domain") --turn-server $(shell_arg "$turn_server") --turn-username $(shell_arg "$username") --turn-password $(shell_arg "$password")
+
+Direct installer commands:
    ./packaging/macos/install.sh --role orchestrator --connectivity-url $(shell_arg "$connectivity_url") --stun-server $(shell_arg "$stun_server") --turn-server $(shell_arg "$turn_server") --turn-username $(shell_arg "$username") --turn-password $(shell_arg "$password")
    ./packaging/macos/install.sh --role worker --device-name "Gaming PC" --connectivity-url $(shell_arg "$connectivity_url") --stun-server $(shell_arg "$stun_server") --turn-server $(shell_arg "$turn_server") --turn-username $(shell_arg "$username") --turn-password $(shell_arg "$password")
 

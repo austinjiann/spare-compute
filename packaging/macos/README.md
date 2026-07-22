@@ -32,18 +32,23 @@ artifacts. It defaults to 20GiB and can be tuned during install:
 ```
 
 After the VPS and DNS are ready, enable direct cross-network paths on both the
-orchestrator and every worker by reinstalling with the same endpoint values:
+orchestrator and every worker by printing the exact installer command for each
+Mac and running the command it prints:
 
 ```bash
-./packaging/macos/install.sh \
-  --role orchestrator \
-  --device-name "My MacBook" \
-  --connectivity-url https://connect.example.com \
-  --stun-server stun:turn.example.com:3478
+computehop setup orchestrator \
+  --connectivity-domain connect.example.com \
+  --turn-domain turn.example.com
+
+computehop setup worker \
+  --device-name "Gaming Mac" \
+  --connectivity-domain connect.example.com \
+  --turn-domain turn.example.com
 ```
 
 For forced-relay testing with the one-VPS stack, generate short-lived TURN
-credentials on the VPS and use the printed installer commands:
+credentials on the VPS and use the printed `computehop setup ...` or direct
+installer commands:
 
 ```bash
 cd deploy/vps

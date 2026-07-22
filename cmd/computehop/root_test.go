@@ -1470,6 +1470,7 @@ func TestSetupSubcommandHelpShowsExamplesWithoutDaemon(t *testing.T) {
 			want: []string{
 				"Print the exact macOS installer command for a worker Mac",
 				"computehop setup worker --device-name \"Gaming PC\" --cache-size 40GiB",
+				"--turn-server \"turn:turn.example.com:3478?transport=udp\"",
 			},
 		},
 		{
@@ -1478,6 +1479,7 @@ func TestSetupSubcommandHelpShowsExamplesWithoutDaemon(t *testing.T) {
 			want: []string{
 				"flag-based form of setup orchestrator and setup worker",
 				"computehop setup mac --role worker --device-name \"Gaming PC\" --cache-size 40GiB",
+				"--turn-username \"1800000000:computehop\"",
 			},
 		},
 		{
@@ -1650,6 +1652,38 @@ func TestSetupMacCommandInterpolatesVPSConnectivityWithoutDaemon(t *testing.T) {
 	}
 }
 
+func TestSetupMacCommandInterpolatesTURNRelayWithoutDaemon(t *testing.T) {
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			t.Fatal("setup mac should not require a daemon client")
+			return nil, nil
+		},
+	})
+	command.SetArgs([]string{
+		"setup", "mac",
+		"--role", "worker",
+		"--device-name", "Gaming PC",
+		"--connectivity-domain", "connect.computehop.dev",
+		"--turn-domain", "turn.computehop.dev",
+		"--turn-server", "turn:turn.computehop.dev:3478?transport=udp",
+		"--turn-username", "1800000000:computehop",
+		"--turn-password", "relay secret",
+	})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	for _, want := range []string{
+		"computehop setup mac --role worker --device-name 'Gaming PC' --connectivity-domain connect.computehop.dev --turn-domain turn.computehop.dev --turn-server 'turn:turn.computehop.dev:3478?transport=udp' --turn-username 1800000000:computehop --turn-password 'relay secret'",
+		"./packaging/macos/install.sh --role worker --device-name 'Gaming PC' --connectivity-url https://connect.computehop.dev --stun-server stun:turn.computehop.dev:3478 --turn-server 'turn:turn.computehop.dev:3478?transport=udp' --turn-username 1800000000:computehop --turn-password 'relay secret'",
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
+		}
+	}
+}
+
 func TestSetupMacCommandRejectsInvalidOptionsBeforeDaemon(t *testing.T) {
 	tests := []struct {
 		name string
@@ -1657,7 +1691,11 @@ func TestSetupMacCommandRejectsInvalidOptionsBeforeDaemon(t *testing.T) {
 		want string
 	}{
 		{name: "role", args: []string{"setup", "mac", "--role", "desktop"}, want: "--role must be orchestrator or worker"},
-		{name: "connectivity", args: []string{"setup", "mac", "--connectivity-domain", "connect.example.com"}, want: "--connectivity-domain and --turn-domain"},
+		{name: "connectivity", args: []string{"setup", "mac", "--connectivity-domain", "connect.example.com"}, want: "--connectivity-domain requires --turn-domain or --turn-server"},
+		{name: "stun without connectivity", args: []string{"setup", "mac", "--turn-domain", "turn.example.com"}, want: "--connectivity-domain is required"},
+		{name: "turn uri", args: []string{"setup", "mac", "--connectivity-domain", "connect.example.com", "--turn-server", "https://turn.example.com", "--turn-username", "u", "--turn-password", "p"}, want: "--turn-server must begin with turn: or turns:"},
+		{name: "turn credentials", args: []string{"setup", "mac", "--connectivity-domain", "connect.example.com", "--turn-server", "turn:turn.example.com:3478"}, want: "--turn-server requires --turn-username and --turn-password"},
+		{name: "turn username", args: []string{"setup", "mac", "--connectivity-domain", "connect.example.com", "--turn-domain", "turn.example.com", "--turn-username", "u"}, want: "--turn-username and --turn-password require --turn-server"},
 		{name: "cache", args: []string{"setup", "mac", "--cache-size", "bad"}, want: "--cache-size"},
 	}
 	for _, test := range tests {
@@ -1704,6 +1742,8 @@ func TestSetupVPSCommandPrintsDeploymentChecklistWithoutDaemon(t *testing.T) {
 		"./init.sh --connectivity-domain connect.example.com",
 		"docker compose up -d --build",
 		"./turn-credentials.sh",
+		"computehop setup orchestrator --connectivity-domain connect.example.com --turn-domain turn.example.com",
+		"computehop setup worker --device-name 'Gaming PC' --connectivity-domain connect.example.com --turn-domain turn.example.com",
 		"./packaging/macos/install.sh --role worker",
 		"--turn-server",
 		"computehop smoke",
@@ -1739,6 +1779,8 @@ func TestSetupVPSCommandInterpolatesProvidedValuesWithoutDaemon(t *testing.T) {
 		"connect.computehop.dev -> 198.51.100.25",
 		"turn.computehop.dev -> 198.51.100.25",
 		"./init.sh --connectivity-domain connect.computehop.dev --turn-domain turn.computehop.dev --email ops@computehop.dev --public-ip 198.51.100.25",
+		"computehop setup orchestrator --connectivity-domain connect.computehop.dev --turn-domain turn.computehop.dev",
+		"computehop setup worker --device-name 'Gaming PC' --connectivity-domain connect.computehop.dev --turn-domain turn.computehop.dev",
 		"--connectivity-url https://connect.computehop.dev",
 		"--stun-server stun:turn.computehop.dev:3478",
 		"./turn-credentials.sh",

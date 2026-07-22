@@ -294,7 +294,8 @@ want the exact commands for another Mac or the one-VPS staging stack.`),
 		Example: strings.TrimSpace(`computehop setup
 computehop setup orchestrator
 computehop setup worker --device-name "Gaming PC"
-computehop setup vps --connectivity-domain connect.example.com --turn-domain turn.example.com --email admin@example.com --public-ip 203.0.113.10`),
+computehop setup vps --connectivity-domain connect.example.com --turn-domain turn.example.com --email admin@example.com --public-ip 203.0.113.10
+computehop setup worker --device-name "Gaming PC" --connectivity-domain connect.example.com --turn-domain turn.example.com --turn-server "turn:turn.example.com:3478?transport=udp" --turn-username "1800000000:computehop" --turn-password "secret"`),
 		Args: cobra.NoArgs,
 		RunE: func(*cobra.Command, []string) error {
 			return printSetupGuide(stdout)
@@ -319,7 +320,8 @@ This is the flag-based form of setup orchestrator and setup worker. It is useful
 for scripts or generated setup instructions.`),
 		Example: strings.TrimSpace(`computehop setup mac
 computehop setup mac --role worker --device-name "Gaming PC" --cache-size 40GiB
-computehop setup mac --role orchestrator --connectivity-domain connect.example.com --turn-domain turn.example.com`),
+computehop setup mac --role orchestrator --connectivity-domain connect.example.com --turn-domain turn.example.com
+computehop setup mac --role worker --device-name "Gaming PC" --connectivity-domain connect.example.com --turn-domain turn.example.com --turn-server "turn:turn.example.com:3478?transport=udp" --turn-username "1800000000:computehop" --turn-password "secret"`),
 		Args: cobra.NoArgs,
 		RunE: func(*cobra.Command, []string) error {
 			if err := options.validate(); err != nil {
@@ -361,7 +363,8 @@ func setupRoleExample(role device.Role) string {
 	case device.RoleWorker:
 		return strings.TrimSpace(`computehop setup worker --device-name "Gaming PC"
 computehop setup worker --device-name "Gaming PC" --cache-size 40GiB
-computehop setup worker --device-name "Gaming PC" --connectivity-domain connect.example.com --turn-domain turn.example.com`)
+computehop setup worker --device-name "Gaming PC" --connectivity-domain connect.example.com --turn-domain turn.example.com
+computehop setup worker --device-name "Gaming PC" --connectivity-domain connect.example.com --turn-domain turn.example.com --turn-server "turn:turn.example.com:3478?transport=udp" --turn-username "1800000000:computehop" --turn-password "secret"`)
 	default:
 		return strings.TrimSpace(`computehop setup orchestrator
 computehop setup orchestrator --cache-size 40GiB
@@ -398,6 +401,9 @@ func addMacSetupFlags(command *cobra.Command, options *macSetupOptions) {
 	command.Flags().StringVar(&options.cacheSize, "cache-size", "", "verified content cache limit, for example 40GiB")
 	command.Flags().StringVar(&options.connectivityDomain, "connectivity-domain", "", "public HTTPS domain from the one-VPS setup")
 	command.Flags().StringVar(&options.turnDomain, "turn-domain", "", "public STUN/TURN domain from the one-VPS setup")
+	command.Flags().StringVar(&options.turnServer, "turn-server", "", "TURN relay URI printed by deploy/vps/turn-credentials.sh")
+	command.Flags().StringVar(&options.turnUsername, "turn-username", "", "short-lived TURN username printed by deploy/vps/turn-credentials.sh")
+	command.Flags().StringVar(&options.turnPassword, "turn-password", "", "short-lived TURN password printed by deploy/vps/turn-credentials.sh")
 }
 
 type vpsSetupOptions struct {
@@ -413,6 +419,9 @@ type macSetupOptions struct {
 	cacheSize              string
 	connectivityDomain     string
 	turnDomain             string
+	turnServer             string
+	turnUsername           string
+	turnPassword           string
 	customizeBase          []string
 	includeRoleInCustomize bool
 }
@@ -430,8 +439,25 @@ func (options macSetupOptions) validate() error {
 	default:
 		return errors.New("--role must be orchestrator or worker")
 	}
-	if (strings.TrimSpace(options.connectivityDomain) == "") != (strings.TrimSpace(options.turnDomain) == "") {
-		return errors.New("--connectivity-domain and --turn-domain must be supplied together")
+	connectivityDomain := strings.TrimSpace(options.connectivityDomain)
+	turnDomain := strings.TrimSpace(options.turnDomain)
+	turnServer := strings.TrimSpace(options.turnServer)
+	turnUsername := strings.TrimSpace(options.turnUsername)
+	turnPassword := strings.TrimSpace(options.turnPassword)
+	if connectivityDomain == "" && (turnDomain != "" || turnServer != "" || turnUsername != "" || turnPassword != "") {
+		return errors.New("--connectivity-domain is required when configuring STUN or TURN")
+	}
+	if connectivityDomain != "" && turnDomain == "" && turnServer == "" {
+		return errors.New("--connectivity-domain requires --turn-domain or --turn-server")
+	}
+	if turnServer != "" && !strings.HasPrefix(turnServer, "turn:") && !strings.HasPrefix(turnServer, "turns:") {
+		return errors.New("--turn-server must begin with turn: or turns:")
+	}
+	if turnServer != "" && (turnUsername == "" || turnPassword == "") {
+		return errors.New("--turn-server requires --turn-username and --turn-password")
+	}
+	if turnServer == "" && (turnUsername != "" || turnPassword != "") {
+		return errors.New("--turn-username and --turn-password require --turn-server")
 	}
 	if strings.TrimSpace(options.cacheSize) == "" {
 		return nil
@@ -509,8 +535,18 @@ func (options macSetupOptions) installCommand() string {
 		parts = append(
 			parts,
 			"--connectivity-url", "https://"+strings.TrimSpace(options.connectivityDomain),
-			"--stun-server", "stun:"+strings.TrimSpace(options.turnDomain)+":3478",
 		)
+		if strings.TrimSpace(options.turnDomain) != "" {
+			parts = append(parts, "--stun-server", "stun:"+strings.TrimSpace(options.turnDomain)+":3478")
+		}
+		if strings.TrimSpace(options.turnServer) != "" {
+			parts = append(
+				parts,
+				"--turn-server", strings.TrimSpace(options.turnServer),
+				"--turn-username", strings.TrimSpace(options.turnUsername),
+				"--turn-password", strings.TrimSpace(options.turnPassword),
+			)
+		}
 	}
 	escaped := make([]string, len(parts))
 	for index, part := range parts {
@@ -545,8 +581,18 @@ func (options macSetupOptions) customizeCommand() string {
 		parts = append(
 			parts,
 			"--connectivity-domain", strings.TrimSpace(options.connectivityDomain),
-			"--turn-domain", strings.TrimSpace(options.turnDomain),
 		)
+		if strings.TrimSpace(options.turnDomain) != "" {
+			parts = append(parts, "--turn-domain", strings.TrimSpace(options.turnDomain))
+		}
+		if strings.TrimSpace(options.turnServer) != "" {
+			parts = append(
+				parts,
+				"--turn-server", strings.TrimSpace(options.turnServer),
+				"--turn-username", strings.TrimSpace(options.turnUsername),
+				"--turn-password", strings.TrimSpace(options.turnPassword),
+			)
+		}
 	}
 	escaped := make([]string, len(parts))
 	for index, part := range parts {
@@ -595,6 +641,25 @@ func (options vpsSetupOptions) workerInstallCommand() string {
 		shellArg("https://"+options.connectivityDomain),
 		shellArg("stun:"+options.turnDomain+":3478"),
 	)
+}
+
+func (options vpsSetupOptions) orchestratorSetupCommand() string {
+	return macSetupOptions{
+		role:               string(device.RoleOrchestrator),
+		connectivityDomain: options.connectivityDomain,
+		turnDomain:         options.turnDomain,
+		customizeBase:      []string{"computehop", "setup", "orchestrator"},
+	}.customizeCommand()
+}
+
+func (options vpsSetupOptions) workerSetupCommand() string {
+	return macSetupOptions{
+		role:               string(device.RoleWorker),
+		deviceName:         "Gaming PC",
+		connectivityDomain: options.connectivityDomain,
+		turnDomain:         options.turnDomain,
+		customizeBase:      []string{"computehop", "setup", "worker"},
+	}.customizeCommand()
 }
 
 func shellArg(value string) string {
@@ -731,10 +796,14 @@ func printVPSSetupGuide(stdout io.Writer, options vpsSetupOptions) error {
 		"   ./verify.sh",
 		"   ./turn-credentials.sh",
 		"",
-		"On each Mac after pairing once on the LAN:",
+		"On each Mac after pairing once on the LAN, print the exact installer command:",
+		"   " + options.orchestratorSetupCommand(),
+		"   " + options.workerSetupCommand(),
+		"",
+		"Direct installer equivalents:",
 		"   " + options.orchestratorInstallCommand(),
 		"   " + options.workerInstallCommand(),
-		"   # For forced relay testing, use the installer commands printed by ./turn-credentials.sh with --turn-server, --turn-username, and --turn-password.",
+		"   # For forced relay testing, use the setup or installer commands printed by ./turn-credentials.sh with --turn-server, --turn-username, and --turn-password.",
 		"",
 		"Smoke test:",
 		"   computehop devices",

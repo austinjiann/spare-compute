@@ -98,6 +98,7 @@ go run ./cmd/computehop --state-dir "$computehop_state_dir" setup worker --devic
 go run ./cmd/computehop --state-dir "$computehop_state_dir" setup mac
 go run ./cmd/computehop --state-dir "$computehop_state_dir" setup mac --role worker --device-name "Gaming PC"
 go run ./cmd/computehop --state-dir "$computehop_state_dir" setup mac --role orchestrator --connectivity-domain connect.example.com --turn-domain turn.example.com
+go run ./cmd/computehop --state-dir "$computehop_state_dir" setup worker --device-name "Gaming PC" --connectivity-domain connect.example.com --turn-domain turn.example.com --turn-server 'turn:turn.example.com:3478?transport=udp' --turn-username 1800000000:computehop --turn-password secret
 go run ./cmd/computehop --state-dir "$computehop_state_dir" setup vps
 go run ./cmd/computehop --state-dir "$computehop_state_dir" setup vps --connectivity-domain connect.example.com --turn-domain turn.example.com --email admin@example.com --public-ip 203.0.113.10
 go run ./cmd/computehop --state-dir "$computehop_state_dir" doctor
@@ -122,9 +123,10 @@ first-run local, connection, smoke-test, and one-VPS commands without requiring
 the daemon to be running; `setup orchestrator` and `setup worker` are friendly
 role shortcuts for exact macOS install commands, while `setup mac` exposes the
 same role selection as a flag for scripting; these guides include optional cache
-sizing and optional VPS endpoint flags. `setup vps` expands the hosted side into
-a concrete buy, DNS, firewall, bootstrap, install, TURN credential, and
-smoke-test checklist for the one-VPS stack.
+sizing, optional VPS endpoint flags, and short-lived TURN relay credentials
+printed by the VPS. `setup vps` expands the hosted side into a concrete buy,
+DNS, firewall, bootstrap, install, TURN credential, and smoke-test checklist for
+the one-VPS stack.
 Pass `--connectivity-domain`, `--turn-domain`, `--email`, and `--public-ip` to
 print the checklist with your actual VPS values instead of the example values.
 The first-run and doctor guidance prefers the packaged macOS worker installer
@@ -250,8 +252,8 @@ staging setup to use after purchasing a host. After DNS is pointed at the VPS,
 `deploy/vps/init.sh` writes the local `.env` file and generates the server-only
 TURN shared secret from the chosen domains, operations email, and public IPv4.
 `deploy/vps/turn-credentials.sh` keeps that shared secret on the VPS and prints
-short-lived TURN username/password installer commands for single-owner
-forced-relay testing.
+short-lived TURN username/password setup-helper and direct installer commands
+for single-owner forced-relay testing.
 
 To build a real local macOS app bundle containing the menu app, CLI, and daemon:
 

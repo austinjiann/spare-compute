@@ -95,14 +95,18 @@ turnutils_stunclient -p 3478 turn.example.com
 
 ## Connect paired devices
 
-Pair the orchestrator and worker on one LAN first. Then install or reinstall
-each macOS daemon with the public endpoints (use `--role worker` on workers):
+Pair the orchestrator and worker on one LAN first. Then ask ComputeHop to print
+the exact macOS installer command for each role and run the command it prints:
 
 ```bash
-./packaging/macos/install.sh \
-  --role orchestrator \
-  --connectivity-url https://connect.example.com \
-  --stun-server stun:turn.example.com:3478
+computehop setup orchestrator \
+  --connectivity-domain connect.example.com \
+  --turn-domain turn.example.com
+
+computehop setup worker \
+  --device-name "Gaming PC" \
+  --connectivity-domain connect.example.com \
+  --turn-domain turn.example.com
 ```
 
 For a manually managed macOS, Windows, or Linux daemon, pass the equivalent
@@ -124,7 +128,8 @@ testing, generate short-lived TURN credentials on the VPS:
 
 The script reads `.env` plus `secrets/turn_shared_secret`, derives coturn REST
 username/password credentials without printing or copying the shared secret, and
-prints exact macOS installer commands with:
+prints friendly `computehop setup ...` helper commands plus direct macOS
+installer commands with:
 
 ```text
 --turn-server turn:turn.example.com:3478?transport=udp

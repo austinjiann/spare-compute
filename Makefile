@@ -49,6 +49,7 @@ deploy-check:
 		--ttl-hours 1 \
 		--label deploycheck)"; \
 	printf '%s\n' "$$turn_output" | grep -Eq '^Username: [0-9]+:deploycheck$$'; \
+	printf '%s\n' "$$turn_output" | grep -q -- 'computehop setup worker --device-name "Gaming PC"'; \
 	printf '%s\n' "$$turn_output" | grep -q -- 'turn:turn.example.com:3478?transport=udp'
 	cd deploy/vps && TURN_SECRET_FILE=/dev/null docker compose --env-file .env.example config --quiet
 
