@@ -93,6 +93,19 @@ final class AppModel {
         smokeTestDisabledReason ?? "Run hostname on a worker without uploading a project."
     }
 
+    var emptyJobsHelpText: String {
+        guard isConnected else {
+            return "Start ComputeHop to run jobs."
+        }
+        if runnableDevices.count == 1 {
+            return "Use Smoke Test to verify the worker, or run a command above."
+        }
+        if runnableDevices.count > 1 {
+            return "Choose a worker from Run on for Smoke Test, or run a command above."
+        }
+        return "Run a command on This Mac, or connect a nearby worker to enable Smoke Test."
+    }
+
     var isRemoteRunTargetSelected: Bool { !runTargetID.isEmpty }
 
     var isNoProjectRemoteRunSelected: Bool { isRemoteRunTargetSelected && remoteRunWithoutProject }

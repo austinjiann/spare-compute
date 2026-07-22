@@ -108,6 +108,26 @@ func submitSmokeTestUsesAutoWorkerWithoutProjectSnapshot() async {
 
 @Test
 @MainActor
+func emptyJobsHelpPointsAtSmokeTestWhenOneWorkerIsRunnable() {
+    let worker = runTargetDevice(id: "worker-id", name: "Gaming PC")
+    let model = AppModel(client: RecordingDaemonClient(devices: [worker]))
+    model.daemon = daemonSummary()
+    model.devices = [worker]
+
+    #expect(model.emptyJobsHelpText == "Use Smoke Test to verify the worker, or run a command above.")
+}
+
+@Test
+@MainActor
+func emptyJobsHelpPointsAtConnectWhenNoWorkerIsRunnable() {
+    let model = AppModel(client: RecordingDaemonClient(devices: []))
+    model.daemon = daemonSummary()
+
+    #expect(model.emptyJobsHelpText == "Run a command on This Mac, or connect a nearby worker to enable Smoke Test.")
+}
+
+@Test
+@MainActor
 func submitSmokeTestUsesSelectedWorkerWhenMultipleWorkersExist() async {
     let first = runTargetDevice(id: "first-worker-id", name: "Gaming PC")
     let second = runTargetDevice(id: "second-worker-id", name: "Mini PC")

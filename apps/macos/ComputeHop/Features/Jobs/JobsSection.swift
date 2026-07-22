@@ -9,9 +9,13 @@ struct JobsSection: View {
             Text("Recent Jobs")
                 .font(.headline)
             if model.jobs.isEmpty {
-                Text("No jobs yet")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("No jobs yet")
+                        .font(.caption)
+                    Text(model.emptyJobsHelpText)
+                        .font(.caption2)
+                }
+                .foregroundStyle(.secondary)
             } else {
                 ForEach(Array(model.jobs.prefix(5))) { job in
                     HStack(spacing: 8) {

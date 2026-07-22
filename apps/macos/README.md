@@ -15,7 +15,7 @@ suppression for trusted nearby devices,
 native job submission to this Mac, Auto worker when exactly one
 worker is runnable, or a paired available worker, a Smoke Test button that runs
 `hostname` remotely without uploading a project, recent jobs, reconnectable
-output, cancellation, declared output paths, and
+output, cancellation, declared output paths, empty-jobs hints, and
 conflict-safe artifact restoration through a native destination picker. The
 command field splits quotes and escapes into literal arguments but never invokes
 a shell or performs shell expansion. Local jobs default to the user's home
