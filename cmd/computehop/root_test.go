@@ -13,6 +13,7 @@ import (
 	localv1 "github.com/austinjiann/spare-compute/gen/go/computehop/local/v1"
 	"github.com/austinjiann/spare-compute/internal/device"
 	"github.com/austinjiann/spare-compute/internal/job"
+	"github.com/austinjiann/spare-compute/internal/protocol/localipc"
 	"github.com/austinjiann/spare-compute/internal/protocol/mapper"
 	"github.com/austinjiann/spare-compute/internal/trust"
 )
@@ -125,6 +126,87 @@ func TestRunCommandShowsFriendlyAutoSelector(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got := stdout.String(); got != "Submitted "+string(value.ID)+" to an automatically selected worker (queued)\nFollow it: computehop logs --follow "+string(value.ID)+"\n" {
+		t.Fatalf("stdout = %q", got)
+	}
+}
+
+func TestRunCommandAutoSelectorErrorExplainsConnectAuto(t *testing.T) {
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout,
+		stderr: &bytes.Buffer{},
+		getwd:  func() (string, error) { return "/project", nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+				if got := request.GetSubmitJob().GetDeviceSelector(); got != "auto" {
+					t.Fatalf("device selector = %q", got)
+				}
+				return nil, &localipc.RemoteError{
+					Code: localv1.ErrorCode_ERROR_CODE_DEVICE_UNAVAILABLE,
+					Message: "paired worker is unavailable: automatic worker selection found no active paired workers; " +
+						"run 'computehop connect'",
+				}
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"run", "--on", "auto", "hostname"})
+	err := command.Execute()
+	if err == nil {
+		t.Fatal("Execute() error = nil")
+	}
+	for _, want := range []string{
+		"no active paired worker is available for --on auto",
+		"computehop connect auto",
+		"computehop devices",
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("error = %q; missing %q", err, want)
+		}
+	}
+	if strings.Contains(err.Error(), "automatic worker selection") {
+		t.Fatalf("error leaked backend wording: %q", err)
+	}
+	if got := stdout.String(); got != "" {
+		t.Fatalf("stdout = %q", got)
+	}
+}
+
+func TestRunCommandAutoSelectorErrorExplainsExplicitChoice(t *testing.T) {
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout,
+		stderr: &bytes.Buffer{},
+		getwd:  func() (string, error) { return "/project", nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+				if got := request.GetSubmitJob().GetDeviceSelector(); got != "best" {
+					t.Fatalf("device selector = %q", got)
+				}
+				return nil, &localipc.RemoteError{
+					Code:    localv1.ErrorCode_ERROR_CODE_CONFLICT,
+					Message: "remote worker conflict: automatic worker selection found 2 active workers; choose one with --on <device>",
+				}
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"run", "--on", "best", "hostname"})
+	err := command.Execute()
+	if err == nil {
+		t.Fatal("Execute() error = nil")
+	}
+	for _, want := range []string{
+		"more than one active paired worker is available for --on auto",
+		"computehop devices",
+		"computehop run --on <device> ...",
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("error = %q; missing %q", err, want)
+		}
+	}
+	if strings.Contains(err.Error(), "automatic worker selection") {
+		t.Fatalf("error leaked backend wording: %q", err)
+	}
+	if got := stdout.String(); got != "" {
 		t.Fatalf("stdout = %q", got)
 	}
 }

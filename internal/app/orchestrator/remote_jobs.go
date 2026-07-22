@@ -777,15 +777,15 @@ func resolveAutomaticWorker(peers []trust.Peer) (trust.Peer, error) {
 	switch len(candidates) {
 	case 0:
 		return trust.Peer{}, fmt.Errorf(
-			"%w: automatic worker selection found no active paired workers; run 'computehop connect'",
+			"%w: no active paired worker is available for --on auto; run 'computehop connect auto' when one nearby worker is visible, or run 'computehop devices' to choose a worker",
 			ErrRemoteWorkerUnavailable,
 		)
 	case 1:
 		return candidates[0], nil
 	default:
 		return trust.Peer{}, fmt.Errorf(
-			"%w: automatic worker selection found %d active workers; choose one with --on <device>",
-			trust.ErrConflict, len(candidates),
+			"%w: more than one active paired worker is available for --on auto; run 'computehop devices', then choose one with 'computehop run --on <device> ...'",
+			trust.ErrConflict,
 		)
 	}
 }

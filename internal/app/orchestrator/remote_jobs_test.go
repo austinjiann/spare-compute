@@ -167,7 +167,33 @@ func TestRemoteJobServiceAutoSelectorRequiresExactlyOneActiveWorker(t *testing.T
 	}
 	_, err = service.Submit(context.Background(), "auto", queuedJobForTest().Spec)
 	if !errors.Is(err, trust.ErrConflict) ||
-		!strings.Contains(err.Error(), "choose one with --on <device>") {
+		!strings.Contains(err.Error(), "computehop devices") ||
+		!strings.Contains(err.Error(), "computehop run --on <device> ...") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestRemoteJobServiceAutoSelectorExplainsNoActiveWorkers(t *testing.T) {
+	service, err := NewRemoteJobService(RemoteDependencies{
+		Nearby:     stubDeviceController{},
+		Trust:      remoteTrustStub{},
+		Placements: newRemotePlacementStub(),
+		Dialer: remoteDialerFunc(func(
+			context.Context,
+			device.NearbyDevice,
+			trust.Peer,
+		) (remoteprotocol.Caller, error) {
+			t.Fatal("empty automatic selection opened a remote connection")
+			return nil, nil
+		}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = service.Submit(context.Background(), "auto", queuedJobForTest().Spec)
+	if !errors.Is(err, ErrRemoteWorkerUnavailable) ||
+		!strings.Contains(err.Error(), "computehop connect auto") ||
+		!strings.Contains(err.Error(), "computehop devices") {
 		t.Fatalf("error = %v", err)
 	}
 }

@@ -1212,7 +1212,7 @@ flag-customizable one-VPS `setup vps`, first-run `doctor` with daemon-not-runnin
 duplicate-daemon startup guidance for local socket or ComputeHop port conflicts,
 local daemon identity in status output, `connect` as the guided pairing entry point,
 safe `connect auto` for the single nearby unpaired worker, actionable `connect confirm`
-messages, `--on auto` for the single active worker, explicit `run`,
+messages, actionable `--on auto` failure guidance, `--on auto` for the single active worker, explicit `run`,
 `run --follow/--wait/--get`, `jobs`, `logs`, and `cancel` routing through
 identity-pinned QUIC, and durable remote job placement are
 implemented. Remote runs now transfer an immutable project
@@ -1236,7 +1236,8 @@ Windows and Linux workers pass the same physical flow.
 
 **Checkpoint:** `computehop connect auto` starts trust setup only when one
 nearby unpaired worker is visible. `computehop run --on auto <command>` selects
-the only active worker, while `computehop run --on <name> <command>` discovers a
+the only active worker and explains how to connect or choose explicitly when it
+cannot select safely, while `computehop run --on <name> <command>` discovers a
 specific worker without an address, pairs it once, reconnects without prompting,
 streams logs, and rejects unpaired or revoked devices.
 

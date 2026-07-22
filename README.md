@@ -133,7 +133,9 @@ printing only a raw bind error.
 
 After connecting a currently nearby worker, use `--on auto` when there is one
 active worker. Use an explicit name or device ID when you have more than one
-worker:
+worker. If automatic selection cannot choose safely, the CLI tells you whether
+to run `computehop connect auto` for setup or `computehop devices` to pick an
+explicit worker:
 
 ```bash
 go run ./cmd/computehop --state-dir "$computehop_state_dir" run --on auto echo hello

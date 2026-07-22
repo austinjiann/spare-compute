@@ -17,6 +17,7 @@ import (
 	localv1 "github.com/austinjiann/spare-compute/gen/go/computehop/local/v1"
 	"github.com/austinjiann/spare-compute/internal/device"
 	"github.com/austinjiann/spare-compute/internal/job"
+	"github.com/austinjiann/spare-compute/internal/protocol/localipc"
 	"github.com/austinjiann/spare-compute/internal/protocol/mapper"
 	"github.com/austinjiann/spare-compute/internal/trust"
 )
@@ -1198,7 +1199,7 @@ func newRunCommand(
 				}},
 			})
 			if err != nil {
-				return err
+				return runSubmitError(deviceSelector, err)
 			}
 			result := response.GetSubmitJob()
 			if result == nil {
@@ -1710,6 +1711,40 @@ func addDeviceSelectorFlags(command *cobra.Command, destination *string) {
 	command.Flags().StringVar(destination, "on", "", "paired worker name, device ID, or auto")
 	command.Flags().StringVar(destination, "device", "", "paired worker name, device ID, or auto (legacy alias for --on)")
 	_ = command.Flags().MarkHidden("device")
+}
+
+func runSubmitError(selector string, err error) error {
+	if !isAutomaticSelector(selector) {
+		return err
+	}
+	var remoteError *localipc.RemoteError
+	if !errors.As(err, &remoteError) {
+		return err
+	}
+	if remoteError.Code == localv1.ErrorCode_ERROR_CODE_DEVICE_UNAVAILABLE &&
+		isAutoSelectorNoWorkerMessage(remoteError.Message) {
+		return errors.New(
+			"no active paired worker is available for --on auto; run 'computehop connect auto' when one nearby worker is visible, or run 'computehop devices' to choose a worker",
+		)
+	}
+	if remoteError.Code == localv1.ErrorCode_ERROR_CODE_CONFLICT &&
+		isAutoSelectorAmbiguousMessage(remoteError.Message) {
+		return errors.New(
+			"more than one active paired worker is available for --on auto; run 'computehop devices', then choose one with 'computehop run --on <device> ...'",
+		)
+	}
+	return err
+}
+
+func isAutoSelectorNoWorkerMessage(message string) bool {
+	return strings.Contains(message, "automatic worker selection found no active paired workers") ||
+		strings.Contains(message, "no active paired worker is available for --on auto")
+}
+
+func isAutoSelectorAmbiguousMessage(message string) bool {
+	return (strings.Contains(message, "automatic worker selection found") &&
+		strings.Contains(message, "active workers")) ||
+		strings.Contains(message, "more than one active paired worker is available for --on auto")
 }
 
 func isConnectAutoSelector(selector string) bool {
