@@ -243,7 +243,7 @@ func TestRunCommandFollowsAndFetchesDeclaredOutputs(t *testing.T) {
 	}
 }
 
-func TestRunCommandGetWaitsAndFetchesDeclaredOutputs(t *testing.T) {
+func TestRunCommandGetWaitsAndFetchesDeclaredOutputsToWorkingDirectory(t *testing.T) {
 	value := cliJobForTest(job.StateQueued)
 	value.Spec.Outputs = []string{"dist/result.txt"}
 	submitted, err := mapper.JobToProto(value)
@@ -257,7 +257,7 @@ func TestRunCommandGetWaitsAndFetchesDeclaredOutputs(t *testing.T) {
 		t.Fatal(err)
 	}
 	workingDirectory := t.TempDir()
-	wantDestination := filepath.Join(workingDirectory, ".computehop-results", string(value.ID))
+	wantDestination := workingDirectory
 	var calls int
 	var stdout bytes.Buffer
 	command := newRootCommand(dependencies{

@@ -955,8 +955,9 @@ func newRunCommand(
 				}
 				return err
 			}
-			return fetchArtifacts(
-				command.Context(), stdout, command.ErrOrStderr(), getwd, client, value.ID, deviceSelector, artifactDestination,
+			return fetchArtifactsWithDefault(
+				command.Context(), stdout, command.ErrOrStderr(), getwd, client,
+				value.ID, deviceSelector, targetDirectory, artifactDestination,
 			)
 		},
 	}
@@ -985,7 +986,7 @@ func newRunCommand(
 		"to",
 		"t",
 		"",
-		"output destination when used with --get (defaults to .computehop-results/<job-id>)",
+		"output destination when used with --get (defaults to the submitted working directory)",
 	)
 	return command
 }
@@ -1030,7 +1031,21 @@ func fetchArtifacts(
 	deviceSelector string,
 	destination string,
 ) error {
-	target, err := resolveArtifactDestination(getwd, id, destination)
+	return fetchArtifactsWithDefault(ctx, stdout, stderr, getwd, client, id, deviceSelector, "", destination)
+}
+
+func fetchArtifactsWithDefault(
+	ctx context.Context,
+	stdout io.Writer,
+	stderr io.Writer,
+	getwd func() (string, error),
+	client caller,
+	id job.ID,
+	deviceSelector string,
+	defaultDestination string,
+	destination string,
+) error {
+	target, err := resolveArtifactDestination(getwd, id, defaultDestination, destination)
 	if err != nil {
 		return err
 	}
@@ -1067,9 +1082,20 @@ func fetchArtifacts(
 func resolveArtifactDestination(
 	getwd func() (string, error),
 	id job.ID,
+	defaultDestination string,
 	destination string,
 ) (string, error) {
 	if destination == "" {
+		if defaultDestination != "" {
+			if filepath.IsAbs(defaultDestination) {
+				return filepath.Clean(defaultDestination), nil
+			}
+			target, err := filepath.Abs(defaultDestination)
+			if err != nil {
+				return "", fmt.Errorf("resolve output directory: %w", err)
+			}
+			return target, nil
+		}
 		workingDirectory, err := getwd()
 		if err != nil {
 			return "", fmt.Errorf("resolve output directory: %w", err)
