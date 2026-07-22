@@ -180,7 +180,7 @@ func TestRunCommandDeclaresOutputsAndPrintsFetchHint(t *testing.T) {
 	if err := command.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(stdout.String(), "Get outputs after it succeeds: computehop artifacts "+string(value.ID)) {
+	if !strings.Contains(stdout.String(), "Get outputs after it succeeds: computehop outputs "+string(value.ID)) {
 		t.Fatalf("stdout = %q", stdout.String())
 	}
 }
@@ -417,7 +417,7 @@ func TestRunCommandWaitReturnsTerminalFailure(t *testing.T) {
 	}
 }
 
-func TestArtifactsCommandUsesSafeDefaultDestinationAndReportsConflicts(t *testing.T) {
+func TestOutputsCommandUsesSafeDefaultDestinationAndReportsConflicts(t *testing.T) {
 	value := cliJobForTest(job.StateSucceeded)
 	workingDirectory := t.TempDir()
 	wantDestination := filepath.Join(workingDirectory, ".computehop-results", string(value.ID))
@@ -441,7 +441,7 @@ func TestArtifactsCommandUsesSafeDefaultDestinationAndReportsConflicts(t *testin
 			}}, nil
 		},
 	})
-	command.SetArgs([]string{"artifacts", string(value.ID)})
+	command.SetArgs([]string{"outputs", string(value.ID)})
 	if err := command.Execute(); err != nil {
 		t.Fatal(err)
 	}
@@ -449,6 +449,35 @@ func TestArtifactsCommandUsesSafeDefaultDestinationAndReportsConflicts(t *testin
 		!strings.Contains(stderr.String(), "Kept existing files unchanged") ||
 		!strings.Contains(stderr.String(), ".computehop-conflicts") {
 		t.Fatalf("stdout = %q; stderr = %q", stdout.String(), stderr.String())
+	}
+}
+
+func TestArtifactsAliasStillFetchesOutputs(t *testing.T) {
+	value := cliJobForTest(job.StateSucceeded)
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return t.TempDir(), nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+				fetch := request.GetFetchArtifacts()
+				if fetch.GetJobId() != string(value.ID) {
+					t.Fatalf("fetch = %#v", fetch)
+				}
+				return &localv1.Response{Result: &localv1.Response_FetchArtifacts{
+					FetchArtifacts: &localv1.FetchArtifactsResponse{
+						Destination:       fetch.GetDestination(),
+						RestoredFileCount: 1,
+					},
+				}}, nil
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"artifacts", string(value.ID)})
+	if err := command.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stdout.String(), "Restored 1 output file(s)") {
+		t.Fatalf("stdout = %q", stdout.String())
 	}
 }
 

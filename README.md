@@ -107,7 +107,7 @@ go run ./cmd/computehop --state-dir "$computehop_state_dir" logs --follow <job-i
 go run ./cmd/computehop --state-dir "$computehop_state_dir" cancel <job-id>
 go run ./cmd/computehop --state-dir "$computehop_state_dir" run -o result.txt sh -c 'printf done > result.txt'
 go run ./cmd/computehop --state-dir "$computehop_state_dir" run -o result.txt --follow --get sh -c 'printf done > result.txt'
-go run ./cmd/computehop --state-dir "$computehop_state_dir" artifacts <job-id>
+go run ./cmd/computehop --state-dir "$computehop_state_dir" outputs <job-id>
 ```
 
 `computehop status` and `computehop doctor` also print the local daemon's
@@ -144,7 +144,7 @@ go run ./cmd/computehop --state-dir "$computehop_state_dir" run --on "Gaming PC"
 go run ./cmd/computehop --state-dir "$computehop_state_dir" jobs --on auto
 go run ./cmd/computehop --state-dir "$computehop_state_dir" logs --follow <job-id>
 go run ./cmd/computehop --state-dir "$computehop_state_dir" cancel <job-id>
-go run ./cmd/computehop --state-dir "$computehop_state_dir" artifacts <job-id>
+go run ./cmd/computehop --state-dir "$computehop_state_dir" outputs <job-id>
 ```
 
 Repeat `-o`/`--output` for each relative file or directory to return. Add
@@ -152,10 +152,10 @@ Repeat `-o`/`--output` for each relative file or directory to return. Add
 streaming logs, and `--get`/`--fetch` to download declared outputs after a
 successful job. `--get` implies waiting and restores to the submitted working
 directory by default; use `--to <directory>` to choose another destination. You
-can still fetch later with `computehop artifacts <job-id>`, which infers its
-worker and restores to `.computehop-results/<job-id>` by default. Existing files
-are never overwritten. Incoming conflicts are retained beneath
-`.computehop-conflicts` in the destination.
+can still fetch later with `computehop outputs <job-id>` (`artifacts`, `fetch`,
+and `download` remain aliases), which infers its worker and restores to
+`.computehop-results/<job-id>` by default. Existing files are never overwritten.
+Incoming conflicts are retained beneath `.computehop-conflicts` in the destination.
 While outputs are being fetched or restored, `computehop jobs`, remote job
 refreshes, and the menu-bar job list show durable byte-level progress for the
 current download or restore phase.

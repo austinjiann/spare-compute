@@ -1228,7 +1228,7 @@ func newRunCommand(
 					return err
 				}
 				if len(outputs) > 0 {
-					_, err = fmt.Fprintf(stdout, "Get outputs after it succeeds: computehop artifacts %s\n", value.ID)
+					_, err = fmt.Fprintf(stdout, "Get outputs after it succeeds: computehop outputs %s\n", value.ID)
 				}
 				return err
 			}
@@ -1254,7 +1254,7 @@ func newRunCommand(
 			}
 			if !fetchOutputs {
 				if len(outputs) > 0 {
-					_, err = fmt.Fprintf(stdout, "Get outputs: computehop artifacts %s\n", value.ID)
+					_, err = fmt.Fprintf(stdout, "Get outputs: computehop outputs %s\n", value.ID)
 				}
 				return err
 			}
@@ -1303,8 +1303,8 @@ func newArtifactsCommand(
 	var destination string
 	var deviceSelector string
 	command := &cobra.Command{
-		Use:     "artifacts <job-id>",
-		Aliases: []string{"fetch", "download"},
+		Use:     "outputs <job-id>",
+		Aliases: []string{"artifacts", "fetch", "download"},
 		Short:   "Download a completed job's declared outputs",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(command *cobra.Command, arguments []string) error {

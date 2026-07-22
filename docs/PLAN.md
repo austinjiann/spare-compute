@@ -563,7 +563,7 @@ computehop jobs
 computehop logs <job-id> --follow
 computehop cancel <job-id>
 computehop retry <job-id>
-computehop artifacts <job-id>
+computehop outputs <job-id>
 
 # Commands used locally on a worker
 computehop worker status
