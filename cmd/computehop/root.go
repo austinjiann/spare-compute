@@ -42,8 +42,25 @@ type nearbyDeviceView struct {
 func newRootCommand(dependencies dependencies) *cobra.Command {
 	var stateDir string
 	root := &cobra.Command{
-		Use:           "computehop",
-		Short:         "Run background jobs across your computers",
+		Use:   "computehop",
+		Short: "Run background jobs across your computers",
+		Long: strings.TrimSpace(`ComputeHop runs background jobs on this Mac or on paired workers.
+
+Normal flow:
+1. Print the local setup command for this Mac.
+2. Connect a nearby worker once on the LAN.
+3. Run a smoke test.
+4. Run real commands and fetch declared outputs when needed.
+
+Use doctor when setup or connectivity is unclear.`),
+		Example: strings.TrimSpace(`computehop setup
+computehop connect
+computehop connect nearby
+computehop smoke
+computehop run --on auto --no-project hostname
+computehop run --on auto -o dist --follow --get npm run build
+computehop outputs <job-id>
+computehop doctor`),
 		SilenceErrors: true,
 		SilenceUsage:  true,
 	}

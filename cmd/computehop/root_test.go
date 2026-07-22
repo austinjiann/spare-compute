@@ -2294,7 +2294,16 @@ func TestRootHelpShowsSetupAndConnectButHidesLegacyPair(t *testing.T) {
 		t.Fatalf("Execute() error = %v", err)
 	}
 	output := stdout.String()
-	for _, want := range []string{"setup", "connect", "disconnect", "smoke"} {
+	for _, want := range []string{
+		"Normal flow:",
+		"computehop setup",
+		"computehop connect nearby",
+		"computehop smoke",
+		"computehop run --on auto --no-project hostname",
+		"computehop outputs <job-id>",
+		"computehop doctor",
+		"disconnect",
+	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("help %q does not contain %q", output, want)
 		}
