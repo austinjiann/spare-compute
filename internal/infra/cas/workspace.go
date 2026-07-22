@@ -54,6 +54,37 @@ func (store *WorkspaceStore) Put(
 	return store.content.Put(ctx, digest, contents)
 }
 
+// BeginUse protects chunks touched while a complete snapshot is validated and
+// materialized.
+func (store *WorkspaceStore) BeginUse() func() {
+	if store == nil || store.content == nil {
+		return func() {}
+	}
+	return store.content.BeginUse()
+}
+
+// Reserve pins an incoming manifest across its batched preflight and upload RPCs.
+func (store *WorkspaceStore) Reserve(
+	ctx context.Context,
+	manifestID snapshot.Digest,
+	digests []snapshot.Digest,
+) error {
+	if store == nil || store.content == nil {
+		return ErrInvalidStore
+	}
+	if store.content.index == nil {
+		return nil
+	}
+	return store.content.Reserve(ctx, manifestID, digests)
+}
+
+// ReleaseReservation ends one incoming manifest lease.
+func (store *WorkspaceStore) ReleaseReservation(manifestID snapshot.Digest) {
+	if store != nil && store.content != nil {
+		store.content.ReleaseReservation(manifestID)
+	}
+}
+
 // Materialize reconstructs manifest into an isolated, owner-only workspace and
 // returns the selected working directory.
 func (store *WorkspaceStore) Materialize(

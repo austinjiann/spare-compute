@@ -36,29 +36,45 @@ func (repository *ArtifactRepository) Save(ctx context.Context, bundle artifact.
 	if len(encoded) > artifact.MaximumStoredManifestBytes {
 		return artifact.ErrInvalidBundle
 	}
-	_, err = repository.database.ExecContext(ctx, `
+	transaction, err := repository.database.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin job artifact save: %w", err)
+	}
+	defer func() { _ = transaction.Rollback() }()
+	_, err = transaction.ExecContext(ctx, `
 		INSERT INTO job_artifacts (
 			job_id, manifest_id, manifest_json, total_bytes, collected_at_ns
 		) VALUES (?, ?, ?, ?, ?)
 	`, bundle.JobID, manifestID, string(encoded), bundle.Manifest.TotalBytes, bundle.CollectedAt.UTC().UnixNano())
-	if err == nil {
-		return nil
-	}
-	if !isConstraintError(err) {
+	if err != nil && !isConstraintError(err) {
 		return fmt.Errorf("save job artifacts: %w", err)
 	}
-	existing, getErr := repository.Get(ctx, bundle.JobID)
-	if getErr != nil {
-		return errors.Join(artifact.ErrConflict, getErr)
+	if err != nil {
+		_ = transaction.Rollback()
+		existing, getErr := repository.Get(ctx, bundle.JobID)
+		if getErr != nil {
+			return errors.Join(artifact.ErrConflict, getErr)
+		}
+		existingID, _ := existing.Manifest.ID()
+		// Collection is content-addressed. A runner retry after a crash may observe
+		// the same immutable output with a later clock value; retain the first
+		// durable timestamp and accept the identical manifest idempotently.
+		if existingID == manifestID {
+			return nil
+		}
+		return artifact.ErrConflict
 	}
-	existingID, _ := existing.Manifest.ID()
-	// Collection is content-addressed. A runner retry after a crash may observe
-	// the same immutable output with a later clock value; retain the first
-	// durable timestamp and accept the identical manifest idempotently.
-	if existingID == manifestID {
-		return nil
+	for _, digest := range bundle.Manifest.Digests() {
+		if _, err := transaction.ExecContext(ctx, `
+			INSERT INTO content_cache_artifact_refs (job_id, digest) VALUES (?, ?)
+		`, bundle.JobID, digest); err != nil {
+			return fmt.Errorf("protect job artifact content: %w", err)
+		}
 	}
-	return artifact.ErrConflict
+	if err := transaction.Commit(); err != nil {
+		return fmt.Errorf("commit job artifact save: %w", err)
+	}
+	return nil
 }
 
 // Get loads and revalidates one collected artifact bundle.
@@ -103,4 +119,32 @@ func (repository *ArtifactRepository) Get(ctx context.Context, id job.ID) (artif
 		return artifact.Bundle{}, err
 	}
 	return bundle, nil
+}
+
+// MarkRetrieved idempotently makes one successfully restored result eligible
+// for normal cache eviction. Missing rows are accepted so an orchestrator can
+// use this repository with remote bundles it does not own locally.
+func (repository *ArtifactRepository) MarkRetrieved(
+	ctx context.Context,
+	id job.ID,
+	at time.Time,
+) error {
+	if repository == nil || repository.database == nil || !id.Valid() || at.IsZero() {
+		return artifact.ErrInvalidBundle
+	}
+	result, err := repository.database.ExecContext(ctx, `
+		UPDATE job_artifacts
+		SET retrieved_at_ns = CASE
+			WHEN retrieved_at_ns IS NULL THEN ?
+			ELSE retrieved_at_ns
+		END
+		WHERE job_id = ? AND collected_at_ns <= ?
+	`, at.UTC().UnixNano(), id, at.UTC().UnixNano())
+	if err != nil {
+		return fmt.Errorf("mark job artifacts retrieved: %w", err)
+	}
+	if _, err := result.RowsAffected(); err != nil {
+		return fmt.Errorf("count retrieved job artifacts: %w", err)
+	}
+	return nil
 }

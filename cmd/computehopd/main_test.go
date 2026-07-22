@@ -350,6 +350,23 @@ func TestParseOptionsAcceptsFriendlyRemoteConnectivityFlags(t *testing.T) {
 	}
 }
 
+func TestParseOptionsUsesAndValidatesFriendlyCacheSize(t *testing.T) {
+	defaults, err := parseOptions(nil, &bytes.Buffer{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if defaults.cacheBytes != 20<<30 {
+		t.Fatalf("default cache bytes = %d", defaults.cacheBytes)
+	}
+	parsed, err := parseOptions([]string{"--cache-size", "1.5GiB"}, &bytes.Buffer{})
+	if err != nil || parsed.cacheBytes != 3<<29 {
+		t.Fatalf("cache bytes = %d, %v", parsed.cacheBytes, err)
+	}
+	if _, err := parseOptions([]string{"--cache-size", "512KiB"}, &bytes.Buffer{}); err == nil {
+		t.Fatal("undersized cache was accepted")
+	}
+}
+
 func TestParseOptionsRejectsPartialRemoteConnectivityFlags(t *testing.T) {
 	if _, err := parseOptions(
 		[]string{"--stun-server", "stun:turn.example.com:3478"}, &bytes.Buffer{},

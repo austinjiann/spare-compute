@@ -6,9 +6,11 @@ device_role=orchestrator
 device_name=""
 connectivity_url=""
 stun_server=""
+cache_size=""
 usage() {
     echo "Usage: packaging/macos/install.sh [--no-open] [--role orchestrator|worker]" >&2
-    echo "       [--device-name NAME] [--connectivity-url HTTPS_URL --stun-server STUN_URI]" >&2
+    echo "       [--device-name NAME] [--cache-size SIZE]" >&2
+    echo "       [--connectivity-url HTTPS_URL --stun-server STUN_URI]" >&2
 }
 while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -36,6 +38,12 @@ while [ "$#" -gt 0 ]; do
             stun_server=$2
             shift 2
             ;;
+        --cache-size)
+            [ "$#" -ge 2 ] || { usage; exit 1; }
+            cache_size=$2
+            [ -n "$cache_size" ] || { echo "--cache-size must not be empty." >&2; exit 1; }
+            shift 2
+            ;;
         *)
             usage
             exit 1
@@ -61,7 +69,6 @@ if [ -n "$connectivity_url" ]; then
         *) echo "--stun-server must begin with stun: or stuns:." >&2; exit 1 ;;
     esac
 fi
-
 if [ "$(uname -s)" != "Darwin" ]; then
     echo "The macOS installer must run on macOS." >&2
     exit 1
@@ -154,6 +161,10 @@ if [ -n "$connectivity_url" ]; then
     /usr/bin/plutil -insert ProgramArguments -string "$connectivity_url" -append "$launch_agent_target"
     /usr/bin/plutil -insert ProgramArguments -string "--stun-server" -append "$launch_agent_target"
     /usr/bin/plutil -insert ProgramArguments -string "$stun_server" -append "$launch_agent_target"
+fi
+if [ -n "$cache_size" ]; then
+    /usr/bin/plutil -insert ProgramArguments -string "--cache-size" -append "$launch_agent_target"
+    /usr/bin/plutil -insert ProgramArguments -string "$cache_size" -append "$launch_agent_target"
 fi
 /usr/libexec/PlistBuddy -c "Set :StandardErrorPath $log_dir/daemon.log" "$launch_agent_target"
 /usr/libexec/PlistBuddy -c "Set :StandardOutPath $log_dir/daemon.log" "$launch_agent_target"

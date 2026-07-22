@@ -24,6 +24,13 @@ For a named worker Mac:
 ./packaging/macos/install.sh --role worker --device-name "Gaming Mac"
 ```
 
+The daemon keeps a verified content cache for project chunks and returned
+artifacts. It defaults to 20GiB and can be tuned during install:
+
+```bash
+./packaging/macos/install.sh --cache-size 40GiB
+```
+
 After the VPS and DNS are ready, enable direct cross-network paths on both the
 orchestrator and every worker by reinstalling with the same endpoint values:
 

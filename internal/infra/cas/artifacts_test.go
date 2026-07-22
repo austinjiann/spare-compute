@@ -50,6 +50,9 @@ func TestArtifactManagerCollectsImmutableOutputsAndRestoresWithoutOverwrite(t *t
 	if err != nil || string(restored) != "original binary" || len(result.Restored) != 2 || len(result.Conflicts) != 0 {
 		t.Fatalf("first restore = %#v, contents = %q, error = %v", result, restored, err)
 	}
+	if got := repository.retrieved[value.ID]; !got.Equal(collectedAt) {
+		t.Fatalf("retrieved at = %s, want %s", got, collectedAt)
+	}
 
 	if err := os.WriteFile(filepath.Join(destination, "dist", "app"), []byte("keep local"), 0o600); err != nil {
 		t.Fatal(err)
@@ -144,8 +147,9 @@ func writeArtifactTestFile(t *testing.T, filename string, contents []byte, mode 
 }
 
 type memoryArtifactRepository struct {
-	mu      sync.Mutex
-	bundles map[job.ID]artifact.Bundle
+	mu        sync.Mutex
+	bundles   map[job.ID]artifact.Bundle
+	retrieved map[job.ID]time.Time
 }
 
 func (repository *memoryArtifactRepository) Save(_ context.Context, bundle artifact.Bundle) error {
@@ -171,4 +175,18 @@ func (repository *memoryArtifactRepository) Get(_ context.Context, id job.ID) (a
 		return artifact.Bundle{}, artifact.ErrNotFound
 	}
 	return bundle.Clone(), nil
+}
+
+func (repository *memoryArtifactRepository) MarkRetrieved(
+	_ context.Context,
+	id job.ID,
+	at time.Time,
+) error {
+	repository.mu.Lock()
+	defer repository.mu.Unlock()
+	if repository.retrieved == nil {
+		repository.retrieved = make(map[job.ID]time.Time)
+	}
+	repository.retrieved[id] = at.UTC()
+	return nil
 }

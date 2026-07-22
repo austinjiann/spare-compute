@@ -124,6 +124,8 @@ func (service *RemoteJobService) FetchArtifacts(
 	if service.artifactContent == nil || service.artifacts == nil {
 		return artifact.RestoreResult{}, worker.ErrArtifactsDisabled
 	}
+	release := beginCacheUse(service.artifactContent)
+	defer release()
 	peer, err := service.resolveJobWorker(ctx, selector, id)
 	if err != nil {
 		return artifact.RestoreResult{}, err
@@ -195,7 +197,22 @@ func (service *RemoteJobService) FetchArtifacts(
 			return artifact.RestoreResult{}, err
 		}
 	}
-	return service.artifacts.Restore(ctx, bundle, destination)
+	restored, err := service.artifacts.Restore(ctx, bundle, destination)
+	if err != nil {
+		return artifact.RestoreResult{}, err
+	}
+	response, err = caller.Call(ctx, &computehopv1.RemoteRequest{
+		Operation: &computehopv1.RemoteRequest_AcknowledgeJobArtifacts{
+			AcknowledgeJobArtifacts: &computehopv1.AcknowledgeJobArtifactsRequest{JobId: string(id)},
+		},
+	})
+	if err != nil {
+		return artifact.RestoreResult{}, fmt.Errorf("acknowledge restored artifacts: %w", err)
+	}
+	if response.GetAcknowledgeJobArtifacts().GetJobId() != string(id) {
+		return artifact.RestoreResult{}, remoteprotocol.ErrInvalidMessage
+	}
+	return restored, nil
 }
 
 func (service *RemoteJobService) Submit(
@@ -234,6 +251,8 @@ func (service *RemoteJobService) submitSnapshot(
 			ErrRemoteSnapshotUnavailable,
 		)
 	}
+	release := beginCacheUse(service.content)
+	defer release()
 	project, err := service.snapshots.Build(ctx, spec.WorkingDirectory)
 	if err != nil {
 		return job.Job{}, fmt.Errorf("create project snapshot: %w", err)
@@ -297,6 +316,17 @@ func (service *RemoteJobService) submitSnapshot(
 		return job.Job{}, err
 	}
 	return service.acceptSubmitted(ctx, peer, response)
+}
+
+type cacheUseBoundary interface {
+	BeginUse() func()
+}
+
+func beginCacheUse(value any) func() {
+	if boundary, ok := value.(cacheUseBoundary); ok {
+		return boundary.BeginUse()
+	}
+	return func() {}
 }
 
 func (service *RemoteJobService) preflightSnapshot(

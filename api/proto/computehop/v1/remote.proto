@@ -20,6 +20,7 @@ message RemoteRequest {
     PutChunkRequest put_chunk = 16;
     GetJobArtifactsRequest get_job_artifacts = 17;
     GetArtifactChunkRequest get_artifact_chunk = 18;
+    AcknowledgeJobArtifactsRequest acknowledge_job_artifacts = 19;
   }
 }
 
@@ -39,6 +40,7 @@ message RemoteResponse {
     PutChunkResponse put_chunk = 16;
     GetJobArtifactsResponse get_job_artifacts = 17;
     GetArtifactChunkResponse get_artifact_chunk = 18;
+    AcknowledgeJobArtifactsResponse acknowledge_job_artifacts = 19;
   }
 }
 
@@ -90,6 +92,14 @@ message GetArtifactChunkResponse {
   bytes data = 2;
   ChunkEncoding encoding = 3;
   uint32 uncompressed_size = 4;
+}
+
+message AcknowledgeJobArtifactsRequest {
+  string job_id = 1;
+}
+
+message AcknowledgeJobArtifactsResponse {
+  string job_id = 1;
 }
 
 enum ChunkEncoding {

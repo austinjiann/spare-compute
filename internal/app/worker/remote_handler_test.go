@@ -91,6 +91,8 @@ func TestRemoteHandlerPreflightsUploadsAndSubmitsSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := remoteHandlerJob(t)
+	reserved := false
+	released := false
 	controller := &remoteSnapshotControllerStub{
 		remoteControllerStub: remoteControllerStub{},
 		missing: func(_ context.Context, digests []snapshot.Digest) ([]snapshot.Digest, error) {
@@ -117,6 +119,21 @@ func TestRemoteHandlerPreflightsUploadsAndSubmitsSnapshot(t *testing.T) {
 				t.Fatalf("SubmitSnapshot() = %#v, %s, %q", spec, gotID, subdirectory)
 			}
 			return want, nil
+		},
+		reserve: func(_ context.Context, got snapshot.Digest, digests []snapshot.Digest) error {
+			manifestID, _ := manifest.ID()
+			if got != manifestID || len(digests) != 1 || digests[0] != digest {
+				t.Fatalf("ReserveSnapshot() = %s, %#v", got, digests)
+			}
+			reserved = true
+			return nil
+		},
+		release: func(got snapshot.Digest) {
+			manifestID, _ := manifest.ID()
+			if got != manifestID {
+				t.Fatalf("ReleaseSnapshot() = %s", got)
+			}
+			released = true
 		},
 	}
 	handler, err := NewRemoteHandler(controller)
@@ -151,6 +168,9 @@ func TestRemoteHandlerPreflightsUploadsAndSubmitsSnapshot(t *testing.T) {
 	})
 	if response.GetError() != nil || response.GetSubmitJob().GetJob().GetId() != string(want.ID) {
 		t.Fatalf("submit response = %#v", response)
+	}
+	if !reserved || !released {
+		t.Fatalf("reserved = %t, released = %t", reserved, released)
 	}
 }
 
@@ -205,6 +225,7 @@ func TestRemoteHandlerReturnsCompletedArtifactManifestAndAuthorizedChunk(t *test
 		},
 		CollectedAt: time.Unix(1_900_000_000, 0).UTC(),
 	}
+	acknowledged := false
 	controller := &remoteArtifactControllerStub{
 		remoteControllerStub: remoteControllerStub{},
 		readArtifacts: func(_ context.Context, id job.ID) (JobArtifacts, error) {
@@ -218,6 +239,13 @@ func TestRemoteHandlerReturnsCompletedArtifactManifestAndAuthorizedChunk(t *test
 				t.Fatalf("ReadArtifactChunk(%s, %s)", id, got)
 			}
 			return contents, nil
+		},
+		markRetrieved: func(_ context.Context, id job.ID) error {
+			if id != want.ID {
+				t.Fatalf("MarkArtifactsRetrieved(%s)", id)
+			}
+			acknowledged = true
+			return nil
 		},
 	}
 	handler, err := NewRemoteHandler(controller)
@@ -251,6 +279,15 @@ func TestRemoteHandlerReturnsCompletedArtifactManifestAndAuthorizedChunk(t *test
 	if response.GetError() != nil || chunk.GetEncoding() != computehopv1.ChunkEncoding_CHUNK_ENCODING_ZSTD ||
 		mapErr != nil || decodeErr != nil || !bytes.Equal(decoded, contents) {
 		t.Fatalf("chunk response = %#v", response)
+	}
+	response = handler.Handle(context.Background(), &computehopv1.RemoteRequest{
+		Operation: &computehopv1.RemoteRequest_AcknowledgeJobArtifacts{
+			AcknowledgeJobArtifacts: &computehopv1.AcknowledgeJobArtifactsRequest{JobId: string(want.ID)},
+		},
+	})
+	if response.GetError() != nil || response.GetAcknowledgeJobArtifacts().GetJobId() != string(want.ID) ||
+		!acknowledged {
+		t.Fatalf("acknowledgment response = %#v", response)
 	}
 }
 
@@ -286,12 +323,42 @@ type remoteSnapshotControllerStub struct {
 	missing        func(context.Context, []snapshot.Digest) ([]snapshot.Digest, error)
 	put            func(context.Context, snapshot.Digest, []byte) error
 	submitSnapshot func(context.Context, job.Spec, snapshot.Manifest, string) (job.Job, error)
+	reserve        func(context.Context, snapshot.Digest, []snapshot.Digest) error
+	release        func(snapshot.Digest)
+}
+
+func (stub *remoteSnapshotControllerStub) ReserveSnapshot(
+	ctx context.Context,
+	manifestID snapshot.Digest,
+	digests []snapshot.Digest,
+) error {
+	if stub.reserve == nil {
+		return nil
+	}
+	return stub.reserve(ctx, manifestID, digests)
+}
+
+func (stub *remoteSnapshotControllerStub) ReleaseSnapshot(manifestID snapshot.Digest) {
+	if stub.release != nil {
+		stub.release(manifestID)
+	}
 }
 
 type remoteArtifactControllerStub struct {
 	remoteControllerStub
 	readArtifacts func(context.Context, job.ID) (JobArtifacts, error)
 	readChunk     func(context.Context, job.ID, snapshot.Digest) ([]byte, error)
+	markRetrieved func(context.Context, job.ID) error
+}
+
+func (stub *remoteArtifactControllerStub) MarkArtifactsRetrieved(
+	ctx context.Context,
+	id job.ID,
+) error {
+	if stub.markRetrieved == nil {
+		return nil
+	}
+	return stub.markRetrieved(ctx, id)
 }
 
 func (stub *remoteArtifactControllerStub) ReadArtifacts(

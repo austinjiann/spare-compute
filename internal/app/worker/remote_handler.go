@@ -7,6 +7,7 @@ import (
 
 	computehopv1 "github.com/austinjiann/spare-compute/gen/go/computehop/v1"
 	"github.com/austinjiann/spare-compute/internal/artifact"
+	"github.com/austinjiann/spare-compute/internal/contentcache"
 	"github.com/austinjiann/spare-compute/internal/execution"
 	"github.com/austinjiann/spare-compute/internal/job"
 	joblogging "github.com/austinjiann/spare-compute/internal/logging"
@@ -36,10 +37,16 @@ type RemoteSnapshotController interface {
 	SubmitSnapshot(context.Context, job.Spec, snapshot.Manifest, string) (job.Job, error)
 }
 
+type RemoteSnapshotReservationController interface {
+	ReserveSnapshot(context.Context, snapshot.Digest, []snapshot.Digest) error
+	ReleaseSnapshot(snapshot.Digest)
+}
+
 // RemoteArtifactController exposes only completed declared outputs and their referenced chunks.
 type RemoteArtifactController interface {
 	ReadArtifacts(context.Context, job.ID) (JobArtifacts, error)
 	ReadArtifactChunk(context.Context, job.ID, snapshot.Digest) ([]byte, error)
+	MarkArtifactsRetrieved(context.Context, job.ID) error
 }
 
 // RemoteHandler maps authenticated network requests to the durable worker job service.
@@ -80,12 +87,40 @@ func (handler *RemoteHandler) Handle(
 		return handler.getJobArtifacts(ctx, operation.GetJobArtifacts)
 	case *computehopv1.RemoteRequest_GetArtifactChunk:
 		return handler.getArtifactChunk(ctx, operation.GetArtifactChunk)
+	case *computehopv1.RemoteRequest_AcknowledgeJobArtifacts:
+		return handler.acknowledgeJobArtifacts(ctx, operation.AcknowledgeJobArtifacts)
 	default:
 		return remoteFailure(
 			computehopv1.RemoteErrorCode_REMOTE_ERROR_CODE_INVALID_ARGUMENT,
 			"unsupported remote operation",
 		)
 	}
+}
+
+func (handler *RemoteHandler) acknowledgeJobArtifacts(
+	ctx context.Context,
+	request *computehopv1.AcknowledgeJobArtifactsRequest,
+) *computehopv1.RemoteResponse {
+	controller, ok := handler.jobs.(RemoteArtifactController)
+	if !ok {
+		return remoteErrorResponse(ErrArtifactsDisabled)
+	}
+	if request == nil {
+		return remoteFailure(
+			computehopv1.RemoteErrorCode_REMOTE_ERROR_CODE_INVALID_ARGUMENT,
+			"artifact acknowledgment is required",
+		)
+	}
+	id, err := job.ParseID(request.GetJobId())
+	if err != nil {
+		return remoteErrorResponse(err)
+	}
+	if err := controller.MarkArtifactsRetrieved(ctx, id); err != nil {
+		return remoteErrorResponse(err)
+	}
+	return &computehopv1.RemoteResponse{Result: &computehopv1.RemoteResponse_AcknowledgeJobArtifacts{
+		AcknowledgeJobArtifacts: &computehopv1.AcknowledgeJobArtifactsResponse{JobId: string(id)},
+	}}
 }
 
 func (handler *RemoteHandler) getJobArtifacts(
@@ -198,6 +233,13 @@ func (handler *RemoteHandler) submit(
 		if manifestErr != nil {
 			return remoteErrorResponse(manifestErr)
 		}
+		if reservations, ok := handler.jobs.(RemoteSnapshotReservationController); ok {
+			manifestID, manifestErr := manifest.ID()
+			if manifestErr != nil {
+				return remoteErrorResponse(manifestErr)
+			}
+			defer reservations.ReleaseSnapshot(manifestID)
+		}
 		value, err = controller.SubmitSnapshot(ctx, spec, manifest, request.GetWorkingSubdirectory())
 	}
 	if err != nil {
@@ -227,7 +269,8 @@ func (handler *RemoteHandler) checkSnapshot(
 			fmt.Sprintf("snapshot preflight requires 1 to %d chunks", maximumPreflightDigests),
 		)
 	}
-	if _, err := snapshot.ParseDigest(request.GetManifestId()); err != nil {
+	manifestID, err := snapshot.ParseDigest(request.GetManifestId())
+	if err != nil {
 		return remoteErrorResponse(err)
 	}
 	digests := make([]snapshot.Digest, len(request.GetChunkDigests()))
@@ -237,6 +280,11 @@ func (handler *RemoteHandler) checkSnapshot(
 			return remoteErrorResponse(err)
 		}
 		digests[index] = digest
+	}
+	if reservations, ok := handler.jobs.(RemoteSnapshotReservationController); ok {
+		if err := reservations.ReserveSnapshot(ctx, manifestID, digests); err != nil {
+			return remoteErrorResponse(err)
+		}
 	}
 	missing, err := controller.MissingChunks(ctx, digests)
 	if err != nil {
@@ -431,6 +479,9 @@ func remoteErrorResponse(err error) *computehopv1.RemoteResponse {
 		code = computehopv1.RemoteErrorCode_REMOTE_ERROR_CODE_JOB_TERMINAL
 		message = err.Error()
 	case errors.Is(err, ErrSnapshotsDisabled), errors.Is(err, ErrSnapshotIncomplete):
+		code = computehopv1.RemoteErrorCode_REMOTE_ERROR_CODE_CONFLICT
+		message = err.Error()
+	case errors.Is(err, contentcache.ErrQuotaExceeded), errors.Is(err, contentcache.ErrReservationLimit):
 		code = computehopv1.RemoteErrorCode_REMOTE_ERROR_CODE_CONFLICT
 		message = err.Error()
 	case errors.Is(err, ErrArtifactsDisabled), errors.Is(err, ErrArtifactsNotReady):

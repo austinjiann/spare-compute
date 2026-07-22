@@ -10,23 +10,41 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
+	"time"
 
+	"github.com/austinjiann/spare-compute/internal/contentcache"
 	"github.com/austinjiann/spare-compute/internal/snapshot"
 )
 
 var (
-	ErrInvalidStore = errors.New("invalid content store")
-	ErrNotFound     = errors.New("content chunk not found")
-	ErrCorrupt      = errors.New("content chunk failed verification")
+	ErrInvalidStore     = errors.New("invalid content store")
+	ErrNotFound         = errors.New("content chunk not found")
+	ErrCorrupt          = errors.New("content chunk failed verification")
+	ErrReservationLimit = contentcache.ErrReservationLimit
 )
 
 // Store is an owner-local immutable chunk store.
 type Store struct {
-	root string
+	root         string
+	index        contentcache.Repository
+	maximumBytes int64
+	now          func() time.Time
+
+	accessMu      sync.Mutex
+	activeUses    int
+	operationPins map[snapshot.Digest]struct{}
+	transientPins map[snapshot.Digest]int
+	reservations  map[snapshot.Digest]reservation
+	enforceMu     sync.Mutex
 }
 
 // New validates and creates an owner-only store root.
 func New(root string) (*Store, error) {
+	return newStore(root)
+}
+
+func newStore(root string) (*Store, error) {
 	if strings.TrimSpace(root) == "" || !filepath.IsAbs(root) {
 		return nil, ErrInvalidStore
 	}
@@ -48,6 +66,8 @@ func (store *Store) Put(ctx context.Context, digest snapshot.Digest, contents []
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	release := store.pinAccess(digest)
+	defer release()
 	filename, err := store.chunkPath(digest)
 	if err != nil {
 		return err
@@ -64,6 +84,11 @@ func (store *Store) Put(ctx context.Context, digest snapshot.Digest, contents []
 		// upload can repair it without requiring manual state-directory surgery.
 		if err := os.Remove(filename); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("remove corrupt content chunk: %w", err)
+		}
+		if store.index != nil {
+			if err := store.index.Delete(ctx, digest); err != nil {
+				return err
+			}
 		}
 	}
 	directory := filepath.Dir(filename)
@@ -97,6 +122,16 @@ func (store *Store) Put(ctx context.Context, digest snapshot.Digest, contents []
 			return nil
 		}
 		return fmt.Errorf("commit content chunk: %w", err)
+	}
+	if store.index != nil {
+		if err := store.index.Record(ctx, contentcache.Entry{
+			Digest: digest, Size: int64(len(contents)), LastAccessed: store.now().UTC(),
+		}); err != nil {
+			return err
+		}
+		if err := store.Enforce(ctx); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -153,12 +188,19 @@ func (store *Store) Read(ctx context.Context, digest snapshot.Digest) ([]byte, e
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	release := store.pinAccess(digest)
+	defer release()
 	filename, err := store.chunkPath(digest)
 	if err != nil {
 		return nil, err
 	}
 	file, err := os.Open(filename)
 	if errors.Is(err, os.ErrNotExist) {
+		if store.index != nil {
+			if deleteErr := store.index.Delete(ctx, digest); deleteErr != nil {
+				return nil, deleteErr
+			}
+		}
 		return nil, ErrNotFound
 	}
 	if err != nil {
@@ -178,6 +220,13 @@ func (store *Store) Read(ctx context.Context, digest snapshot.Digest) ([]byte, e
 	}
 	if len(contents) != int(info.Size()) || snapshot.Sum(contents) != digest {
 		return nil, ErrCorrupt
+	}
+	if store.index != nil {
+		if err := store.index.Record(ctx, contentcache.Entry{
+			Digest: digest, Size: info.Size(), LastAccessed: store.now().UTC(),
+		}); err != nil {
+			return nil, err
+		}
 	}
 	return contents, nil
 }

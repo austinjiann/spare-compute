@@ -300,6 +300,7 @@ func TestRemoteJobServiceDownloadsOnlyMissingArtifactChunksAndRestores(t *testin
 	cached := false
 	downloads := 0
 	restores := 0
+	acknowledgments := 0
 	destination := filepath.Join(t.TempDir(), "results")
 	service, err := NewRemoteJobService(RemoteDependencies{
 		Nearby: stubDeviceController{}, Trust: remoteTrustStub{peers: []trust.Peer{peer}},
@@ -332,6 +333,14 @@ func TestRemoteJobServiceDownloadsOnlyMissingArtifactChunksAndRestores(t *testin
 							Encoding:         computehopv1.ChunkEncoding_CHUNK_ENCODING_ZSTD,
 							UncompressedSize: wireChunk.UncompressedSize,
 						},
+					}}, nil
+				case *computehopv1.RemoteRequest_AcknowledgeJobArtifacts:
+					acknowledgments++
+					if request.GetAcknowledgeJobArtifacts().GetJobId() != string(want.ID) {
+						t.Fatalf("acknowledgment request = %#v", request.GetAcknowledgeJobArtifacts())
+					}
+					return &computehopv1.RemoteResponse{Result: &computehopv1.RemoteResponse_AcknowledgeJobArtifacts{
+						AcknowledgeJobArtifacts: &computehopv1.AcknowledgeJobArtifactsResponse{JobId: string(want.ID)},
 					}}, nil
 				default:
 					t.Fatalf("unexpected request = %#v", request)
@@ -378,8 +387,8 @@ func TestRemoteJobServiceDownloadsOnlyMissingArtifactChunksAndRestores(t *testin
 			t.Fatalf("FetchArtifacts(%d) = %#v, %v", attempt, result, err)
 		}
 	}
-	if downloads != 1 || restores != 2 {
-		t.Fatalf("downloads = %d, restores = %d", downloads, restores)
+	if downloads != 1 || restores != 2 || acknowledgments != 2 {
+		t.Fatalf("downloads = %d, restores = %d, acknowledgments = %d", downloads, restores, acknowledgments)
 	}
 }
 

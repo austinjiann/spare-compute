@@ -44,6 +44,8 @@ func (manager *ArtifactManager) Collect(ctx context.Context, value job.Job) (art
 		value.Validate() != nil || len(value.Spec.Outputs) == 0 {
 		return artifact.Bundle{}, artifact.ErrInvalidBundle
 	}
+	release := manager.content.BeginUse()
+	defer release()
 	manifest, err := snapshot.BuildDeclared(ctx, value.Spec.WorkingDirectory, value.Spec.Outputs, manager.content)
 	if err != nil {
 		return artifact.Bundle{}, err
@@ -61,6 +63,14 @@ func (manager *ArtifactManager) Get(ctx context.Context, id job.ID) (artifact.Bu
 		return artifact.Bundle{}, ErrInvalidStore
 	}
 	return manager.repository.Get(ctx, id)
+}
+
+// MarkRetrieved releases durable result protection after a successful restore.
+func (manager *ArtifactManager) MarkRetrieved(ctx context.Context, id job.ID) error {
+	if manager == nil || manager.repository == nil || manager.now == nil || !id.Valid() {
+		return artifact.ErrInvalidBundle
+	}
+	return manager.repository.MarkRetrieved(ctx, id, manager.now().UTC())
 }
 
 // ReadJobChunk returns only content referenced by the selected job's artifact
@@ -101,6 +111,8 @@ func (manager *ArtifactManager) Restore(
 		!filepath.IsAbs(destination) {
 		return artifact.RestoreResult{}, artifact.ErrInvalidDestination
 	}
+	release := manager.content.BeginUse()
+	defer release()
 	destination = filepath.Clean(destination)
 	if filepath.Dir(destination) == destination {
 		return artifact.RestoreResult{}, artifact.ErrInvalidDestination
@@ -163,6 +175,9 @@ func (manager *ArtifactManager) Restore(
 	}
 	result = artifact.NormalizeResult(result)
 	if err := result.Validate(); err != nil {
+		return artifact.RestoreResult{}, err
+	}
+	if err := manager.repository.MarkRetrieved(ctx, bundle.JobID, manager.now().UTC()); err != nil {
 		return artifact.RestoreResult{}, err
 	}
 	return result, nil

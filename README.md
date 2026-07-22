@@ -27,10 +27,12 @@ worker, and execute from a fresh worker-owned workspace. Repeating an unchanged
 job reuses the verified worker cache. Jobs can declare output files or folders;
 the worker collects them before success, and the orchestrator downloads only
 missing hash-verified chunks into a conflict-safe local results directory.
-Automated local end-to-end coverage
-passes, while physical unrelated-network validation is still open. Public TURN
-relay traffic remains gated on entitlement-backed, quota-limited credential
-issuance.
+The verified content cache is persistent, SQLite-indexed, LRU-evicted, and
+bounded to 20GiB by default. Active transfers, running jobs, and output chunks
+that have not yet been successfully restored and acknowledged are protected
+from eviction. Automated local end-to-end coverage passes, while physical
+unrelated-network validation is still open. Public TURN relay traffic remains
+gated on entitlement-backed, quota-limited credential issuance.
 
 See [`docs/PLAN.md`](docs/PLAN.md) for the product, architecture, security,
 execution, deployment, and launch plan.
@@ -65,9 +67,11 @@ applied; `.git`, `.computehop-results`, symlinks, sockets, devices, traversal,
 and non-portable paths cannot enter a snapshot. Declared outputs use the same
 verified content store and are restored without overwriting existing files or
 following destination symlinks. Chunk transfers negotiate bounded zstd or
-identity encoding while keeping hashes defined over decoded content. Cache
-quotas, automatic placement, and fully validated network-change reconnection
-are later slices. Discovery records never authorize commands: the
+identity encoding while keeping hashes defined over decoded content. The
+verified content cache defaults to 20GiB and can be changed with
+`computehopd --cache-size 40GiB` or the macOS installer `--cache-size` flag.
+Automatic placement and fully validated network-change reconnection are later
+slices. Discovery records never authorize commands: the
 live QUIC certificate must match the selected active public-key pin.
 
 Pairings created before connectivity-secret support remain valid for LAN use
@@ -184,8 +188,8 @@ open dist/macos/ComputeHop.app
 After stopping any daemon started manually with `go run`, `make install-macos`
 installs the orchestrator bundle for the current user and configures the daemon
 to start at login. The installer also accepts `--role worker`, `--device-name`,
-`--connectivity-url`, and `--stun-server` for a named worker or the one-VPS
-direct-connectivity setup. This developer package is ad-hoc signed, not
-notarized, and is not yet a
+`--cache-size`, `--connectivity-url`, and `--stun-server` for a named worker,
+cache tuning, or the one-VPS direct-connectivity setup. This developer package
+is ad-hoc signed, not notarized, and is not yet a
 public release artifact. See [`packaging/macos/README.md`](packaging/macos/README.md)
 for install and uninstall behavior.

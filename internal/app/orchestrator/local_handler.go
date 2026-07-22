@@ -11,6 +11,7 @@ import (
 	"github.com/austinjiann/spare-compute/internal/app/worker"
 	"github.com/austinjiann/spare-compute/internal/artifact"
 	"github.com/austinjiann/spare-compute/internal/connectivity/remoteconn"
+	"github.com/austinjiann/spare-compute/internal/contentcache"
 	"github.com/austinjiann/spare-compute/internal/device"
 	"github.com/austinjiann/spare-compute/internal/job"
 	joblogging "github.com/austinjiann/spare-compute/internal/logging"
@@ -626,7 +627,8 @@ func errorResponse(err error) *localv1.Response {
 		code = localv1.ErrorCode_ERROR_CODE_NOT_FOUND
 		message = err.Error()
 	case errors.Is(err, job.ErrConflict), errors.Is(err, trust.ErrConflict), errors.Is(err, artifact.ErrConflict),
-		errors.Is(err, ErrNearbyDeviceAmbiguous):
+		errors.Is(err, ErrNearbyDeviceAmbiguous), errors.Is(err, contentcache.ErrQuotaExceeded),
+		errors.Is(err, contentcache.ErrReservationLimit):
 		code = localv1.ErrorCode_ERROR_CODE_CONFLICT
 		message = err.Error()
 	case errors.Is(err, worker.ErrJobTerminal):

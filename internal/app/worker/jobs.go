@@ -40,6 +40,16 @@ type ArtifactController interface {
 	Get(context.Context, job.ID) (artifact.Bundle, error)
 	ReadJobChunk(context.Context, job.ID, snapshot.Digest) ([]byte, error)
 	Restore(context.Context, artifact.Bundle, string) (artifact.RestoreResult, error)
+	MarkRetrieved(context.Context, job.ID) error
+}
+
+// MarkArtifactsRetrieved releases uncollected-result protection only after the
+// orchestrator confirms a complete verified restore.
+func (service *JobService) MarkArtifactsRetrieved(ctx context.Context, id job.ID) error {
+	if _, err := service.ReadArtifacts(ctx, id); err != nil {
+		return err
+	}
+	return service.artifacts.MarkRetrieved(ctx, id)
 }
 
 // SnapshotWorkspace owns verified chunks and isolated job materialization.
@@ -48,6 +58,15 @@ type SnapshotWorkspace interface {
 	Put(context.Context, snapshot.Digest, []byte) error
 	Materialize(context.Context, job.ID, snapshot.Manifest, string) (string, error)
 	RemoveWorkspace(job.ID) error
+}
+
+type snapshotReservationWorkspace interface {
+	Reserve(context.Context, snapshot.Digest, []snapshot.Digest) error
+	ReleaseReservation(snapshot.Digest)
+}
+
+type snapshotUseWorkspace interface {
+	BeginUse() func()
 }
 
 // ExecutionController is the execution state required by local job commands.
@@ -196,6 +215,29 @@ func (service *JobService) PutChunk(
 	return service.snapshots.Put(ctx, digest, contents)
 }
 
+// ReserveSnapshot pins a batch while a manifest uploads over multiple calls.
+func (service *JobService) ReserveSnapshot(
+	ctx context.Context,
+	manifestID snapshot.Digest,
+	digests []snapshot.Digest,
+) error {
+	if service.snapshots == nil {
+		return ErrSnapshotsDisabled
+	}
+	reservations, ok := service.snapshots.(snapshotReservationWorkspace)
+	if !ok {
+		return nil
+	}
+	return reservations.Reserve(ctx, manifestID, digests)
+}
+
+// ReleaseSnapshot releases an incoming manifest reservation.
+func (service *JobService) ReleaseSnapshot(manifestID snapshot.Digest) {
+	if reservations, ok := service.snapshots.(snapshotReservationWorkspace); ok {
+		reservations.ReleaseReservation(manifestID)
+	}
+}
+
 // SubmitSnapshot materializes one complete immutable project into a fresh job
 // workspace before durably queueing the command.
 func (service *JobService) SubmitSnapshot(
@@ -218,6 +260,11 @@ func (service *JobService) SubmitSnapshot(
 			return job.Job{}, err
 		}
 	}
+	release := func() {}
+	if boundary, ok := service.snapshots.(snapshotUseWorkspace); ok {
+		release = boundary.BeginUse()
+	}
+	defer release()
 	missing, err := service.snapshots.Missing(ctx, manifest.Digests())
 	if err != nil {
 		return job.Job{}, err

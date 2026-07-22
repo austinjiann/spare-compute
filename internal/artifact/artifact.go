@@ -51,6 +51,7 @@ func (bundle Bundle) Clone() Bundle {
 type Repository interface {
 	Save(context.Context, Bundle) error
 	Get(context.Context, job.ID) (Bundle, error)
+	MarkRetrieved(context.Context, job.ID, time.Time) error
 }
 
 // RestoreResult describes files placed without overwriting local content.

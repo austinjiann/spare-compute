@@ -21,6 +21,7 @@ import (
 	"github.com/austinjiann/spare-compute/internal/connectivity/icepath"
 	"github.com/austinjiann/spare-compute/internal/connectivity/remoteconn"
 	"github.com/austinjiann/spare-compute/internal/connectivity/rendezvous"
+	"github.com/austinjiann/spare-compute/internal/contentcache"
 	"github.com/austinjiann/spare-compute/internal/device"
 	"github.com/austinjiann/spare-compute/internal/infra/cas"
 	"github.com/austinjiann/spare-compute/internal/infra/discovery/mdns"
@@ -49,6 +50,7 @@ type options struct {
 	role            string
 	connectivityURL string
 	stunServers     stringValues
+	cacheBytes      int64
 }
 
 type runtimeDependencies struct {
@@ -121,7 +123,10 @@ func runWithDependencies(
 	if err != nil {
 		return err
 	}
-	contentStore, err := cas.New(contentDirectory)
+	contentStore, err := cas.NewManaged(ctx, cas.Config{
+		Root: contentDirectory, Index: database.ContentCache(),
+		MaximumBytes: parsed.cacheBytes, Now: time.Now,
+	})
 	if err != nil {
 		return fmt.Errorf("initialize project content store: %w", err)
 	}
@@ -352,7 +357,7 @@ func runWithDependencies(
 		if err != nil {
 			return fmt.Errorf("resolve daemon executable: %w", err)
 		}
-		launcher, err := processes.NewRunnerLauncher(executable, stateDir)
+		launcher, err := processes.NewRunnerLauncher(executable, stateDir, parsed.cacheBytes)
 		if err != nil {
 			return fmt.Errorf("initialize runner launcher: %w", err)
 		}
@@ -380,6 +385,7 @@ func runWithDependencies(
 		"device_id", localIdentity.ID().Short(),
 		"role", localRole,
 		"remote_connectivity", remoteManager != nil,
+		"cache_limit_bytes", parsed.cacheBytes,
 		"version", version,
 	)
 	serveContext, stopServing := context.WithCancel(ctx)
@@ -429,7 +435,7 @@ func runWithDependencies(
 }
 
 func parseOptions(arguments []string, stderr io.Writer) (options, error) {
-	var parsed options
+	parsed := options{cacheBytes: contentcache.DefaultMaximumBytes}
 	flags := flag.NewFlagSet("computehopd", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	flags.StringVar(&parsed.stateDir, "state-dir", "", "directory for durable local state")
@@ -449,6 +455,11 @@ func parseOptions(arguments []string, stderr io.Writer) (options, error) {
 		"stun-server",
 		"STUN URI used for direct internet paths; may be repeated",
 	)
+	flags.Var(
+		&byteSizeValue{target: &parsed.cacheBytes},
+		"cache-size",
+		"maximum verified content cache size (for example 20GiB or 512MB)",
+	)
 	if err := flags.Parse(arguments); err != nil {
 		return options{}, err
 	}
@@ -460,6 +471,9 @@ func parseOptions(arguments []string, stderr io.Writer) (options, error) {
 	}
 	if (parsed.connectivityURL == "") != (len(parsed.stunServers) == 0) {
 		return options{}, errors.New("--connectivity-url and --stun-server must be supplied together")
+	}
+	if err := contentcache.ValidateMaximumBytes(parsed.cacheBytes); err != nil {
+		return options{}, fmt.Errorf("--cache-size: %w", err)
 	}
 	return parsed, nil
 }
