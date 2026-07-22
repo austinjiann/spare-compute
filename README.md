@@ -260,10 +260,10 @@ native command to this Mac, the single active worker through Auto worker, or a
 paired available worker, skip project upload for remote utility commands, choose
 the local project folder to snapshot, declare comma-separated output paths,
 restore completed outputs through a native folder picker, and read durable logs
-directly in the menu. The menu also explains stale or incompatible daemon
-versions as a restart/reinstall problem instead of surfacing raw IPC protocol
-wording. Quotes only group literal arguments; the app does not silently invoke
-a shell. The app and generated
+directly in the menu. The menu also explains disabled Run states, stale or
+incompatible daemon versions, and output retrieval failures as actionable
+next steps instead of surfacing raw IPC protocol wording. Quotes only group
+literal arguments; the app does not silently invoke a shell. The app and generated
 Swift protocol models build with `swift build` and test with `swift test`. See
 [`apps/macos/README.md`](apps/macos/README.md) for the current packaging
 boundary. See [`deploy/vps/README.md`](deploy/vps/README.md) for the one-VPS

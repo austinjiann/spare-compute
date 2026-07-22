@@ -18,7 +18,9 @@ worker is runnable, or a paired available worker, a Smoke Test button that runs
 output, cancellation, declared output paths, empty-jobs hints, and
 conflict-safe artifact restoration through a native destination picker. Output
 retrieval errors explain not-ready, missing, and undeclared outputs instead of
-showing raw daemon messages. The
+showing raw daemon messages. When Run is disabled, the menu explains whether
+the daemon is offline, the command is empty, or a remote project folder must be
+chosen before upload. The
 command field splits quotes and escapes into literal arguments but never invokes
 a shell or performs shell expansion. Local jobs default to the user's home
 directory. For a remote job, choose a project folder on this Mac; the daemon

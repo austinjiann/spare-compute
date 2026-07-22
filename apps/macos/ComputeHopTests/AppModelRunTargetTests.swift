@@ -6,6 +6,74 @@ import Testing
 
 @Test
 @MainActor
+func runDisabledReasonExplainsDaemonOfflineState() {
+    let model = AppModel(client: RecordingDaemonClient())
+    model.commandInput = "hostname"
+
+    #expect(!model.canSubmitCommand)
+    #expect(model.runDisabledReason == "Start ComputeHop before running jobs.")
+    #expect(model.runHelpText == "Start ComputeHop before running jobs.")
+}
+
+@Test
+@MainActor
+func runDisabledReasonExplainsEmptyCommand() {
+    let model = AppModel(client: RecordingDaemonClient())
+    model.daemon = daemonSummary()
+
+    #expect(!model.canSubmitCommand)
+    #expect(model.runDisabledReason == "Enter a command to run.")
+}
+
+@Test
+@MainActor
+func runDisabledReasonExplainsMissingRemoteProjectFolder() {
+    let worker = runTargetDevice(id: "worker-id", name: "Gaming PC")
+    let model = AppModel(client: RecordingDaemonClient(devices: [worker]))
+    model.daemon = daemonSummary()
+    model.devices = [worker]
+    model.runTargetID = AppModel.automaticWorkerTargetID
+    model.commandInput = "cargo build"
+
+    #expect(!model.canSubmitCommand)
+    #expect(model.runDisabledReason == "Choose a project folder to upload, or enable Skip project upload for a utility command.")
+}
+
+@Test
+@MainActor
+func submitCommandRefusesMissingRemoteProjectFolder() async {
+    let worker = runTargetDevice(id: "worker-id", name: "Gaming PC")
+    let client = RecordingDaemonClient(devices: [worker])
+    let model = AppModel(client: client)
+    model.daemon = daemonSummary()
+    model.devices = [worker]
+    model.runTargetID = AppModel.automaticWorkerTargetID
+    model.commandInput = "cargo build"
+
+    await model.submitCommand()
+
+    #expect(await client.lastSubmittedExecutable() == nil)
+    #expect(model.lastError == "Choose a project folder to upload, or enable Skip project upload for a utility command.")
+}
+
+@Test
+@MainActor
+func runDisabledReasonAllowsRemoteUtilityWithoutProjectFolder() {
+    let worker = runTargetDevice(id: "worker-id", name: "Gaming PC")
+    let model = AppModel(client: RecordingDaemonClient(devices: [worker]))
+    model.daemon = daemonSummary()
+    model.devices = [worker]
+    model.runTargetID = AppModel.automaticWorkerTargetID
+    model.remoteRunWithoutProject = true
+    model.commandInput = "hostname"
+
+    #expect(model.canSubmitCommand)
+    #expect(model.runDisabledReason == nil)
+    #expect(model.runHelpText == "Run this command on the selected target.")
+}
+
+@Test
+@MainActor
 func appModelOffersAutomaticWorkerForExactlyOneRunnableDevice() {
     let model = AppModel(client: RecordingDaemonClient())
     model.devices = [

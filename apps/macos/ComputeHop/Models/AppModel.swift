@@ -106,6 +106,40 @@ final class AppModel {
         return "Run a command on This Mac, or connect a nearby worker to enable Smoke Test."
     }
 
+    var canSubmitCommand: Bool { runDisabledReason == nil }
+
+    var runDisabledReason: String? {
+        if !isConnected {
+            return "Start ComputeHop before running jobs."
+        }
+        if actionInProgress != nil {
+            return "Another ComputeHop action is already running."
+        }
+        if commandInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "Enter a command to run."
+        }
+        if isAutomaticRunTargetSelected && !canRunAutomatically {
+            return automaticWorkerSelectionError().localizedDescription
+        }
+        let selectedWorkerUnavailable = !runTargetID.isEmpty &&
+            !isAutomaticRunTargetSelected &&
+            !runnableDevices.contains(where: { $0.id == runTargetID })
+        if selectedWorkerUnavailable {
+            return AppActionError.selectedWorkerUnavailable.localizedDescription
+        }
+        let missingRemoteProjectFolder = isRemoteRunTargetSelected &&
+            !isNoProjectRemoteRunSelected &&
+            workingDirectory.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        if missingRemoteProjectFolder {
+            return "Choose a project folder to upload, or enable Skip project upload for a utility command."
+        }
+        return nil
+    }
+
+    var runHelpText: String {
+        runDisabledReason ?? "Run this command on the selected target."
+    }
+
     var isRemoteRunTargetSelected: Bool { !runTargetID.isEmpty }
 
     var isNoProjectRemoteRunSelected: Bool { isRemoteRunTargetSelected && remoteRunWithoutProject }
@@ -220,6 +254,10 @@ final class AppModel {
     }
 
     func submitCommand() async {
+        if let runDisabledReason {
+            lastError = runDisabledReason
+            return
+        }
         await perform("submit-job") {
             let arguments = try CommandInput.parse(commandInput)
             let executable = arguments[0]

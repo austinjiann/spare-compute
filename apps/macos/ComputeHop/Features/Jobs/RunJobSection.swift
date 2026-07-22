@@ -56,6 +56,12 @@ struct RunJobSection: View {
             )
             .textFieldStyle(.roundedBorder)
             .disabled(model.isNoProjectRemoteRunSelected)
+            if let runDisabledReason = model.runDisabledReason {
+                Text(runDisabledReason)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             if let smokeTestDisabledReason = model.smokeTestDisabledReason {
                 Text(smokeTestDisabledReason)
                     .font(.caption2)
@@ -80,12 +86,8 @@ struct RunJobSection: View {
                     Task { await model.submitCommand() }
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(
-                    !model.isConnected ||
-                    model.commandInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-                    (model.isRemoteRunTargetSelected && !model.isNoProjectRemoteRunSelected && model.workingDirectory.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) ||
-                    model.actionInProgress != nil
-                )
+                .disabled(!model.canSubmitCommand)
+                .help(model.runHelpText)
             }
         }
     }
