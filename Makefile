@@ -1,4 +1,4 @@
-.PHONY: check deploy-check fmt proto proto-check proto-lint test race vet
+.PHONY: check deploy-check fmt install-macos macos-package macos-package-check proto proto-check proto-lint race test uninstall-macos vet
 
 BUF_VERSION := v1.72.0
 
@@ -34,3 +34,16 @@ race:
 deploy-check:
 	sh -n deploy/vps/bootstrap-ubuntu.sh deploy/vps/coturn-entrypoint.sh deploy/vps/verify.sh
 	cd deploy/vps && TURN_SECRET_FILE=/dev/null docker compose --env-file .env.example config --quiet
+
+macos-package: macos-package-check
+	packaging/macos/build.sh
+
+macos-package-check:
+	sh -n packaging/macos/build.sh packaging/macos/install.sh packaging/macos/uninstall.sh packaging/macos/verify.sh
+	plutil -lint packaging/macos/Info.plist packaging/macos/com.computehop.daemon.plist
+
+install-macos:
+	packaging/macos/install.sh
+
+uninstall-macos:
+	packaging/macos/uninstall.sh

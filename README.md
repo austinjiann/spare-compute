@@ -140,3 +140,16 @@ Swift protocol models build with `swift build` and test with `swift test`. See
 [`apps/macos/README.md`](apps/macos/README.md) for the current packaging
 boundary. See [`deploy/vps/README.md`](deploy/vps/README.md) for the one-VPS
 staging setup to use after purchasing a host.
+
+To build a real local macOS app bundle containing the menu app, CLI, and daemon:
+
+```bash
+make macos-package
+open dist/macos/ComputeHop.app
+```
+
+After stopping any daemon started manually with `go run`, `make install-macos`
+installs the bundle for the current user and configures the daemon to start at
+login. This developer package is ad-hoc signed, not notarized, and is not yet a
+public release artifact. See [`packaging/macos/README.md`](packaging/macos/README.md)
+for install and uninstall behavior.
