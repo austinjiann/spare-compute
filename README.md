@@ -201,7 +201,9 @@ invoke a shell. The app and generated
 Swift protocol models build with `swift build` and test with `swift test`. See
 [`apps/macos/README.md`](apps/macos/README.md) for the current packaging
 boundary. See [`deploy/vps/README.md`](deploy/vps/README.md) for the one-VPS
-staging setup to use after purchasing a host.
+staging setup to use after purchasing a host. After DNS is pointed at the VPS,
+`deploy/vps/init.sh` writes the local `.env` file and generates the server-only
+TURN shared secret from the chosen domains, operations email, and public IPv4.
 
 To build a real local macOS app bundle containing the menu app, CLI, and daemon:
 

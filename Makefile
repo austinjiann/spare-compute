@@ -32,7 +32,17 @@ race:
 	go test -race ./...
 
 deploy-check:
-	sh -n deploy/vps/bootstrap-ubuntu.sh deploy/vps/coturn-entrypoint.sh deploy/vps/verify.sh
+	sh -n deploy/vps/bootstrap-ubuntu.sh deploy/vps/coturn-entrypoint.sh deploy/vps/init.sh deploy/vps/verify.sh
+	@deploy_vps_tmp="$$(mktemp -d)"; \
+	trap 'rm -rf "$$deploy_vps_tmp"' EXIT; \
+	deploy/vps/init.sh --target-dir "$$deploy_vps_tmp" \
+		--connectivity-domain connect.example.com \
+		--turn-domain turn.example.com \
+		--email admin@example.com \
+		--public-ip 203.0.113.10 >/dev/null; \
+	grep -q '^CONNECTIVITY_DOMAIN=connect.example.com$$' "$$deploy_vps_tmp/.env"; \
+	grep -q '^TURN_REALM=turn.example.com$$' "$$deploy_vps_tmp/.env"; \
+	test "$$(tr -d '\r\n' < "$$deploy_vps_tmp/secrets/turn_shared_secret" | wc -c | tr -d ' ')" -eq 64
 	cd deploy/vps && TURN_SECRET_FILE=/dev/null docker compose --env-file .env.example config --quiet
 
 macos-package: macos-package-check

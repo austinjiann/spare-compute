@@ -46,10 +46,11 @@ those ports in UFW. Review it before running it on a non-disposable host.
 From `deploy/vps`:
 
 ```bash
-cp .env.example .env
-nano .env
-umask 077
-openssl rand -hex 32 > secrets/turn_shared_secret
+./init.sh \
+  --connectivity-domain connect.example.com \
+  --turn-domain turn.example.com \
+  --email admin@example.com \
+  --public-ip 203.0.113.10
 docker compose config --quiet
 docker compose up -d --build
 docker compose ps
@@ -58,9 +59,11 @@ docker compose ps
 Use real domains, an operations email, and the VPS's public IPv4 in `.env`.
 `TURN_RELAY_IP` normally equals that public address. If `ip -4 addr` does not
 show the public address because the provider uses 1:1 NAT, set it to the host's
-primary private IPv4; coturn will advertise the public/private mapping. Neither
-`.env` nor `secrets/turn_shared_secret` is committed. Caddy obtains and renews
-the HTTPS certificate after DNS and ports 80/443 are working.
+primary private IPv4 with `--relay-ip`; coturn will advertise the
+public/private mapping. `init.sh` refuses to overwrite an existing `.env`
+unless `--force` is passed and preserves an existing TURN secret. Neither `.env`
+nor `secrets/turn_shared_secret` is committed. Caddy obtains and renews the
+HTTPS certificate after DNS and ports 80/443 are working.
 
 Verify the deployment from the VPS:
 
