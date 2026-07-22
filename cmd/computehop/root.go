@@ -57,6 +57,7 @@ func newRootCommand(dependencies dependencies) *cobra.Command {
 	}
 
 	root.AddCommand(newVersionCommand(dependencies.stdout))
+	root.AddCommand(newSetupCommand(dependencies.stdout))
 	root.AddCommand(newStatusCommand(dependencies.stdout, clientForCommand))
 	root.AddCommand(newDoctorCommand(dependencies.stdout, clientForCommand))
 	root.AddCommand(newDevicesCommand(dependencies.stdout, dependencies.stderr, clientForCommand))
@@ -267,14 +268,62 @@ func deviceDisplayKey(name, role string) string {
 	return name + "\x00" + role
 }
 
+func newSetupCommand(stdout io.Writer) *cobra.Command {
+	return &cobra.Command{
+		Use:   "setup",
+		Short: "Print first-run setup commands",
+		Args:  cobra.NoArgs,
+		RunE: func(*cobra.Command, []string) error {
+			return printSetupGuide(stdout)
+		},
+	}
+}
+
+func printSetupGuide(stdout io.Writer) error {
+	lines := []string{
+		"ComputeHop setup",
+		"",
+		"1. Install the macOS menu-bar app and launch-at-login daemon:",
+		"   make install-macos",
+		"",
+		"2. Check this computer:",
+		"   computehop doctor",
+		"",
+		"3. Start ComputeHop on another computer on the same LAN:",
+		"   go run ./cmd/computehopd --role worker --device-name \"Gaming PC\"",
+		"",
+		"4. Connect devices:",
+		"   computehop connect",
+		"   computehop connect <device>",
+		"   computehop connect confirm",
+		"",
+		"5. Run a smoke test:",
+		"   computehop run --on <device> hostname",
+		"",
+		"After buying the VPS:",
+		"   cd deploy/vps",
+		"   sudo ./bootstrap-ubuntu.sh",
+		"   ./init.sh --connectivity-domain connect.example.com --turn-domain turn.example.com --email admin@example.com --public-ip 203.0.113.10",
+		"   docker compose up -d --build",
+		"   ./verify.sh",
+	}
+	for _, line := range lines {
+		if _, err := fmt.Fprintln(stdout, line); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func newPairCommand(
 	stdout io.Writer,
 	clientForCommand func() (caller, error),
 ) *cobra.Command {
 	command := &cobra.Command{
-		Use:   "pair [device]",
-		Short: "Start pairing or list current verification requests",
-		Args:  cobra.MaximumNArgs(1),
+		Use:    "pair [device]",
+		Short:  "Start pairing or list current verification requests",
+		Hidden: true,
+		Args:   cobra.MaximumNArgs(1),
 		RunE: func(command *cobra.Command, arguments []string) error {
 			client, err := clientForCommand()
 			if err != nil {

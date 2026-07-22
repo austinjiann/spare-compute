@@ -882,6 +882,59 @@ func TestDoctorCommandPrintsStartAdviceWhenPingCannotReachDaemon(t *testing.T) {
 	}
 }
 
+func TestSetupCommandPrintsFirstRunChecklistWithoutDaemon(t *testing.T) {
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			t.Fatal("setup should not require a daemon client")
+			return nil, nil
+		},
+	})
+	command.SetArgs([]string{"setup"})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	for _, want := range []string{
+		"ComputeHop setup",
+		"make install-macos",
+		"computehop doctor",
+		"computehop connect <device>",
+		"computehop run --on <device> hostname",
+		"cd deploy/vps",
+		"./init.sh --connectivity-domain connect.example.com",
+		"./verify.sh",
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
+		}
+	}
+}
+
+func TestRootHelpShowsSetupAndConnectButHidesLegacyPair(t *testing.T) {
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			t.Fatal("help should not require a daemon client")
+			return nil, nil
+		},
+	})
+	command.SetArgs([]string{"--help"})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := stdout.String()
+	for _, want := range []string{"setup", "connect"} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("help %q does not contain %q", output, want)
+		}
+	}
+	if strings.Contains(output, "pair [device]") || strings.Contains(output, "\n  pair ") {
+		t.Fatalf("help exposes legacy pair command: %q", output)
+	}
+}
+
 func TestConnectCommandWithoutDeviceSuggestsNearbyWorker(t *testing.T) {
 	presenceID, err := device.NewPresenceID(bytes.NewReader(bytes.Repeat([]byte{22}, 16)))
 	if err != nil {

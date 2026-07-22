@@ -91,14 +91,12 @@ Then use the same state directory in another terminal:
 
 ```bash
 go run ./cmd/computehop --state-dir "$computehop_state_dir" status
+go run ./cmd/computehop --state-dir "$computehop_state_dir" setup
 go run ./cmd/computehop --state-dir "$computehop_state_dir" doctor
 go run ./cmd/computehop --state-dir "$computehop_state_dir" devices
 go run ./cmd/computehop --state-dir "$computehop_state_dir" connect
 go run ./cmd/computehop --state-dir "$computehop_state_dir" connect <device-name-or-session>
 go run ./cmd/computehop --state-dir "$computehop_state_dir" connect confirm
-go run ./cmd/computehop --state-dir "$computehop_state_dir" pair <device-name-or-session>
-go run ./cmd/computehop --state-dir "$computehop_state_dir" pair
-go run ./cmd/computehop --state-dir "$computehop_state_dir" pair confirm
 go run ./cmd/computehop --state-dir "$computehop_state_dir" unpair <device-name-or-id>
 go run ./cmd/computehop --state-dir "$computehop_state_dir" run echo hello
 go run ./cmd/computehop --state-dir "$computehop_state_dir" jobs
@@ -110,16 +108,18 @@ go run ./cmd/computehop --state-dir "$computehop_state_dir" artifacts <job-id>
 ```
 
 `computehop status` and `computehop doctor` also print the local daemon's
-device name, role, and short device ID when available. `doctor` is the quickest
-manual smoke-check: it is safe to run before the daemon is up, prints exact
-start/install commands when ComputeHop is not running, and otherwise verifies
-daemon reachability, LAN discovery, paired-device counts, reachable workers, and
-nearby unpaired devices before printing the next command to run for the current
-state. `connect` is the friendlier pairing entry point: run it with no arguments
-for the next connection step, `connect <device>` to start trust setup, and
-`connect confirm` on both devices after the verification code matches.
+device name, role, and short device ID when available. `setup` prints the
+first-run local, connection, smoke-test, and one-VPS commands without requiring
+the daemon to be running. `doctor` is the quickest manual smoke-check: it is
+safe to run before the daemon is up, prints exact start/install commands when
+ComputeHop is not running, and otherwise verifies daemon reachability, LAN
+discovery, paired-device counts, reachable workers, and nearby unpaired devices
+before printing the next command to run for the current state. `connect` is the
+friendlier pairing entry point: run it with no arguments for the next connection
+step, `connect <device>` to start trust setup, and `connect confirm` on both
+devices after the verification code matches.
 
-After pairing a currently nearby worker, explicit remote job control uses the
+After connecting a currently nearby worker, explicit remote job control uses the
 same commands with a device selector:
 
 ```bash
@@ -167,20 +167,21 @@ identity and advertises `_computehop._udp` on the LAN. Advertisements contain a
 random per-session presence ID, device name, role, protocol version, and routing
 hints only—the durable identity fingerprint is never placed in mDNS.
 Observations remain in memory, expire when they stop being refreshed, and are
-untrusted until an explicit pairing reveals and pins the public key.
+untrusted until an explicit connection setup reveals and pins the public key.
 
 macOS defaults to the `orchestrator` role; Linux and Windows default to
 `worker`. Use `--role worker` when running a worker daemon on another Mac. A
-pairing starts from the orchestrator with `computehop pair <device>`. Both local
-CLIs then show the same connection-bound verification code. Compare it exactly
-and run `computehop pair confirm` on both machines; the CLI infers the request
-when only one is actionable and asks for an ID only if there is ambiguity. A
-worker stores at most one active orchestrator pin, while the orchestrator may
-store multiple workers. `computehop unpair` durably revokes the selected local
-pin; pairing again is explicit. Remote job connections use a separate protocol
-on the same QUIC listener, pin both endpoint identities, and re-check
-worker-side trust for every operation so revocation takes effect without
-waiting for a restart.
+connection starts from the orchestrator with `computehop connect <device>`.
+Both local CLIs then show the same connection-bound verification code. Compare
+it exactly and run `computehop connect confirm` on both machines; the CLI infers
+the request when only one is actionable and asks for an ID only if there is
+ambiguity. A worker stores at most one active orchestrator pin, while the
+orchestrator may store multiple workers. `computehop unpair` durably revokes the
+selected local pin; connecting again is explicit. Remote job connections use a
+separate protocol on the same QUIC listener, pin both endpoint identities, and
+re-check worker-side trust for every operation so revocation takes effect
+without waiting for a restart. The older `pair` command remains callable for
+compatibility but is hidden from normal help; new flows should use `connect`.
 
 The full macOS-to-macOS path has been physically exercised: discovery,
 two-sided pairing, remote hostname execution, reconnectable logs after both
