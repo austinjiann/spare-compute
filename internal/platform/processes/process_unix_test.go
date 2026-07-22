@@ -87,7 +87,12 @@ func waitForChildPID(t *testing.T, path string) int {
 	for time.Now().Before(deadline) {
 		contents, err := os.ReadFile(path)
 		if err == nil {
-			pid, parseErr := strconv.Atoi(strings.TrimSpace(string(contents)))
+			trimmed := strings.TrimSpace(string(contents))
+			if trimmed == "" {
+				time.Sleep(10 * time.Millisecond)
+				continue
+			}
+			pid, parseErr := strconv.Atoi(trimmed)
 			if parseErr != nil {
 				t.Fatal(parseErr)
 			}
