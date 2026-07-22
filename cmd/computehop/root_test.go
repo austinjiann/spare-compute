@@ -885,6 +885,37 @@ func TestDevicesCommandPrintsNearbyDevicesAsNotConnected(t *testing.T) {
 	}
 }
 
+func TestDevicesCommandPrintsConnectedAndNearbyEmptyState(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout,
+		stderr: &stderr,
+		getwd:  func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+				if request.GetListDevices() == nil {
+					t.Fatalf("request = %#v", request)
+				}
+				return &localv1.Response{Result: &localv1.Response_ListDevices{
+					ListDevices: &localv1.ListDevicesResponse{
+						DiscoveryState: localv1.DiscoveryState_DISCOVERY_STATE_AVAILABLE,
+					},
+				}}, nil
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"devices"})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if got, want := strings.TrimSpace(stdout.String()), "No connected or nearby devices."; got != want {
+		t.Fatalf("stdout = %q, want %q", got, want)
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q", stderr.String())
+	}
+}
+
 func TestDevicesCommandCombinesOneTrustedPeerWithItsNearbyPresence(t *testing.T) {
 	identity, err := device.GenerateIdentity(bytes.NewReader(bytes.Repeat([]byte{9}, 64)))
 	if err != nil {

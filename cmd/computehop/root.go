@@ -137,7 +137,7 @@ computehop disconnect "Gaming PC"`),
 				return fmt.Errorf("%w: invalid discovery state", ErrInvalidDaemonResponse)
 			}
 			if len(result.GetDevices()) == 0 && len(result.GetTrustedDevices()) == 0 {
-				_, err = fmt.Fprintln(stdout, "No nearby devices.")
+				_, err = fmt.Fprintln(stdout, "No connected or nearby devices.")
 				return err
 			}
 
