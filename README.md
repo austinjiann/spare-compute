@@ -126,8 +126,8 @@ role shortcuts for exact macOS install commands, while `setup mac` exposes the
 same role selection as a flag for scripting; these guides include optional cache
 sizing, explicit LAN-only installs, optional VPS endpoint flags, and short-lived
 TURN relay credentials printed by the VPS. `setup vps` expands the hosted side into a concrete buy,
-DNS, firewall, bootstrap, install, TURN credential, and smoke-test checklist for
-the one-VPS stack.
+DNS, firewall, SSH, bootstrap, install, TURN credential, and smoke-test
+checklist for the one-VPS stack.
 Pass `--connectivity-domain`, `--turn-domain`, `--email`, and `--public-ip` to
 print the checklist with your actual VPS values instead of the example values.
 The first-run and doctor guidance prefers the packaged macOS worker installer
@@ -149,7 +149,9 @@ matches. `connect auto` remains a compatibility alias for `connect nearby`.
 If a second daemon is started while the first one is still using the local
 socket or ComputeHop network port, `computehopd` now reports that another daemon
 appears to be running and points the user to `computehop status` instead of
-printing only a raw bind error.
+printing only a raw bind error. If the CLI or menu app is newer than the daemon
+listening on the local socket, they report that ComputeHop needs to be restarted
+or reinstalled instead of leaking a low-level IPC mismatch.
 
 After connecting a currently nearby worker, use `--on auto` when there is one
 active worker. Use an explicit name or device ID when you have more than one
@@ -250,8 +252,10 @@ native command to this Mac, the single active worker through Auto worker, or a
 paired available worker, skip project upload for remote utility commands, choose
 the local project folder to snapshot, declare comma-separated output paths,
 restore completed outputs through a native folder picker, and read durable logs
-directly in the menu. Quotes only group literal arguments; the app does not silently invoke a
-shell. The app and generated
+directly in the menu. The menu also explains stale or incompatible daemon
+versions as a restart/reinstall problem instead of surfacing raw IPC protocol
+wording. Quotes only group literal arguments; the app does not silently invoke
+a shell. The app and generated
 Swift protocol models build with `swift build` and test with `swift test`. See
 [`apps/macos/README.md`](apps/macos/README.md) for the current packaging
 boundary. See [`deploy/vps/README.md`](deploy/vps/README.md) for the one-VPS
@@ -269,13 +273,15 @@ make macos-package
 open dist/macos/ComputeHop.app
 ```
 
-After stopping any daemon started manually with `go run`, `make install-macos`
-installs the orchestrator bundle for the current user and configures the daemon
-to start at login. The installer also accepts `--role worker`, `--device-name`,
-`--cache-size`, `--lan-only`, `--connectivity-url`, `--stun-server`,
-`--turn-server`, `--turn-username`, and `--turn-password` for a named worker,
-cache tuning, explicit same-LAN-only operation, direct connectivity, or
-operator-provisioned TURN relay fallback. This developer package is ad-hoc
-signed, not notarized, and is not yet a public release artifact. See
+`make install-macos` installs the orchestrator bundle for the current user and
+configures the daemon to start at login. If a manually started compatible or
+incompatible daemon is already using the ComputeHop socket, the installer asks
+you to stop it instead of killing it or starting a conflicting LaunchAgent. The
+installer also accepts `--role worker`, `--device-name`, `--cache-size`,
+`--lan-only`, `--connectivity-url`, `--stun-server`, `--turn-server`,
+`--turn-username`, and `--turn-password` for a named worker, cache tuning,
+explicit same-LAN-only operation, direct connectivity, or operator-provisioned
+TURN relay fallback. This developer package is ad-hoc signed, not notarized,
+and is not yet a public release artifact. See
 [`packaging/macos/README.md`](packaging/macos/README.md) for install and
 uninstall behavior.
