@@ -2085,7 +2085,7 @@ func fetchArtifactsWithDefault(
 		}},
 	})
 	if err != nil {
-		return err
+		return fetchArtifactsError(id, err)
 	}
 	result := response.GetFetchArtifacts()
 	if result == nil || result.GetDestination() == "" {
@@ -2107,6 +2107,50 @@ func fetchArtifactsWithDefault(
 		}
 	}
 	return nil
+}
+
+func fetchArtifactsError(id job.ID, err error) error {
+	var remoteError *localipc.RemoteError
+	if !errors.As(err, &remoteError) {
+		return err
+	}
+	message := strings.ToLower(remoteError.Message)
+	if remoteError.Code == localv1.ErrorCode_ERROR_CODE_CONFLICT &&
+		strings.Contains(message, "job artifacts are not ready") {
+		if strings.Contains(message, " is succeeded") {
+			return fmt.Errorf(
+				"no declared outputs are available for %s; rerun the job with -o/--output for each file or directory you want returned",
+				id,
+			)
+		}
+		if strings.Contains(message, " is failed") ||
+			strings.Contains(message, " is cancelled") ||
+			strings.Contains(message, " is rejected") ||
+			strings.Contains(message, " is lost") {
+			return fmt.Errorf(
+				"outputs are not available for %s because the job ended before producing declared outputs",
+				id,
+			)
+		}
+		return fmt.Errorf(
+			"outputs for %s are not ready yet; wait for the job to succeed, then run 'computehop outputs %s'",
+			id, id,
+		)
+	}
+	if remoteError.Code == localv1.ErrorCode_ERROR_CODE_NOT_FOUND &&
+		strings.Contains(message, "artifacts") {
+		return fmt.Errorf(
+			"outputs were not found for %s; check the job ID/worker and make sure the job was submitted with -o/--output",
+			id,
+		)
+	}
+	if remoteError.Code == localv1.ErrorCode_ERROR_CODE_CONFLICT &&
+		strings.Contains(message, "artifacts are not configured") {
+		return errors.New(
+			"output retrieval is not enabled on this daemon or worker; restart ComputeHop from this checkout, then run 'computehop doctor'",
+		)
+	}
+	return err
 }
 
 func resolveArtifactDestination(

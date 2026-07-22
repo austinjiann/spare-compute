@@ -796,6 +796,112 @@ func TestArtifactsAliasStillFetchesOutputs(t *testing.T) {
 	}
 }
 
+func TestOutputsCommandExplainsArtifactsNotReady(t *testing.T) {
+	value := cliJobForTest(job.StateRunning)
+	var stdout, stderr bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &stderr, getwd: func() (string, error) { return t.TempDir(), nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+				if request.GetFetchArtifacts().GetJobId() != string(value.ID) {
+					t.Fatalf("fetch = %#v", request.GetFetchArtifacts())
+				}
+				return nil, &localipc.RemoteError{
+					Code:    localv1.ErrorCode_ERROR_CODE_CONFLICT,
+					Message: "job artifacts are not ready: job " + string(value.ID) + " is running",
+				}
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"outputs", string(value.ID)})
+	err := command.Execute()
+	if err == nil {
+		t.Fatal("Execute() error = nil")
+	}
+	for _, want := range []string{
+		"outputs for " + string(value.ID) + " are not ready yet",
+		"computehop outputs " + string(value.ID),
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("error %q does not contain %q", err.Error(), want)
+		}
+	}
+	if stdout.Len() != 0 || stderr.Len() != 0 {
+		t.Fatalf("stdout = %q, stderr = %q", stdout.String(), stderr.String())
+	}
+}
+
+func TestOutputsCommandExplainsNoDeclaredOutputs(t *testing.T) {
+	value := cliJobForTest(job.StateSucceeded)
+	var stdout, stderr bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &stderr, getwd: func() (string, error) { return t.TempDir(), nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+				if request.GetFetchArtifacts().GetJobId() != string(value.ID) {
+					t.Fatalf("fetch = %#v", request.GetFetchArtifacts())
+				}
+				return nil, &localipc.RemoteError{
+					Code:    localv1.ErrorCode_ERROR_CODE_CONFLICT,
+					Message: "job artifacts are not ready: job " + string(value.ID) + " is succeeded",
+				}
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"outputs", string(value.ID)})
+	err := command.Execute()
+	if err == nil {
+		t.Fatal("Execute() error = nil")
+	}
+	for _, want := range []string{
+		"no declared outputs are available for " + string(value.ID),
+		"-o/--output",
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("error %q does not contain %q", err.Error(), want)
+		}
+	}
+	if stdout.Len() != 0 || stderr.Len() != 0 {
+		t.Fatalf("stdout = %q, stderr = %q", stdout.String(), stderr.String())
+	}
+}
+
+func TestOutputsCommandExplainsMissingArtifactBundle(t *testing.T) {
+	value := cliJobForTest(job.StateSucceeded)
+	var stdout, stderr bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &stderr, getwd: func() (string, error) { return t.TempDir(), nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+				if request.GetFetchArtifacts().GetJobId() != string(value.ID) {
+					t.Fatalf("fetch = %#v", request.GetFetchArtifacts())
+				}
+				return nil, &localipc.RemoteError{
+					Code:    localv1.ErrorCode_ERROR_CODE_NOT_FOUND,
+					Message: "job artifacts not found: " + string(value.ID),
+				}
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"outputs", string(value.ID)})
+	err := command.Execute()
+	if err == nil {
+		t.Fatal("Execute() error = nil")
+	}
+	for _, want := range []string{
+		"outputs were not found for " + string(value.ID),
+		"job ID/worker",
+		"-o/--output",
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("error %q does not contain %q", err.Error(), want)
+		}
+	}
+	if stdout.Len() != 0 || stderr.Len() != 0 {
+		t.Fatalf("stdout = %q, stderr = %q", stdout.String(), stderr.String())
+	}
+}
+
 func TestJobsCommandPrintsDurableJobs(t *testing.T) {
 	value := cliJobForTest(job.StateQueued)
 	value.Progress = &job.Progress{

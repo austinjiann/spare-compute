@@ -189,7 +189,9 @@ finished job has not produced stdout/stderr yet, the CLI says that explicitly
 instead of exiting silently. Fetch outputs later with `computehop outputs
 <job-id>` (`artifacts`, `fetch`, and `download` remain aliases), which infers
 its worker and restores to `.computehop-results/<job-id>` by default. Existing
-files are never overwritten.
+files are never overwritten. If outputs are requested too early, from a job
+without `-o`/`--output`, or from the wrong worker, the CLI explains the next
+step instead of surfacing the raw daemon error.
 Incoming conflicts are retained beneath `.computehop-conflicts` in the destination.
 While outputs are being fetched or restored, `computehop jobs`, remote job
 refreshes, and the menu-bar job list show durable byte-level progress for the
