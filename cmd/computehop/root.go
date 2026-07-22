@@ -1301,14 +1301,33 @@ func newPairDecisionCommand(
 ) *cobra.Command {
 	verb := "confirm"
 	short := "Confirm that the verification code matches on this device"
+	long := strings.TrimSpace(`Confirm a waiting connection request after comparing the verification
+code on both devices.
+
+Run without an ID when only one request is waiting. If multiple requests are
+waiting, use the short ID shown by computehop connect. Do not confirm if the
+codes differ.`)
+	example := strings.TrimSpace(`computehop connect
+computehop connect confirm
+computehop connect confirm <id>`)
 	if !confirmed {
 		verb = "reject"
 		short = "Reject a pairing request on this device"
+		long = strings.TrimSpace(`Reject a waiting connection request.
+
+Run without an ID when only one request is waiting. If multiple requests are
+waiting, use the short ID shown by computehop connect. Reject immediately when
+the verification code does not match on both devices.`)
+		example = strings.TrimSpace(`computehop connect
+computehop connect reject
+computehop connect reject <id>`)
 	}
 	return &cobra.Command{
-		Use:   verb + " [pairing]",
-		Short: short,
-		Args:  cobra.MaximumNArgs(1),
+		Use:     verb + " [pairing]",
+		Short:   short,
+		Long:    long,
+		Example: example,
+		Args:    cobra.MaximumNArgs(1),
 		RunE: func(command *cobra.Command, arguments []string) error {
 			client, err := clientForCommand()
 			if err != nil {

@@ -2344,6 +2344,24 @@ func TestCoreCommandHelpShowsFriendlyExamplesWithoutDaemon(t *testing.T) {
 			},
 		},
 		{
+			name: "connect confirm",
+			args: []string{"connect", "confirm", "--help"},
+			want: []string{
+				"Confirm a waiting connection request",
+				"Do not confirm if the",
+				"computehop connect confirm <id>",
+			},
+		},
+		{
+			name: "connect reject",
+			args: []string{"connect", "reject", "--help"},
+			want: []string{
+				"Reject a waiting connection request",
+				"verification code does not match",
+				"computehop connect reject <id>",
+			},
+		},
+		{
 			name: "disconnect",
 			args: []string{"disconnect", "--help"},
 			want: []string{
