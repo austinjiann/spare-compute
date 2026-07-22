@@ -58,6 +58,39 @@ func deviceSummaryCombinesOneTrustedPeerWithItsNearbyPresence() {
 }
 
 @Test
+func deviceSummaryCollapsesDuplicateNearbyPresenceRowsForTrustedPeer() {
+    var trusted = Computehop_Local_V1_TrustedDevice()
+    trusted.deviceID = "durable-device-id"
+    trusted.name = "Gaming PC"
+    trusted.role = .worker
+    trusted.trustState = .paired
+
+    var first = Computehop_Local_V1_NearbyDevice()
+    first.presenceID = "first-ephemeral-presence-id"
+    first.name = "Gaming PC"
+    first.role = .worker
+    first.endpointReady = true
+    first.addresses = ["192.0.2.20"]
+    first.port = 47_823
+
+    var second = first
+    second.presenceID = "second-ephemeral-presence-id"
+    second.addresses = ["192.0.2.21"]
+
+    var response = Computehop_Local_V1_ListDevicesResponse()
+    response.trustedDevices = [trusted]
+    response.devices = [first, second]
+
+    let summaries = DeviceSummary.make(from: response)
+    #expect(summaries.count == 1)
+    #expect(summaries[0].id == "durable-device-id")
+    #expect(summaries[0].availability == .nearby)
+    #expect(summaries[0].path == "LAN")
+    #expect(summaries[0].address == "2 LAN records")
+    #expect(!summaries[0].canPair)
+}
+
+@Test
 func deviceSummaryMakesConnectedRemoteWorkerRunnable() {
     var trusted = Computehop_Local_V1_TrustedDevice()
     trusted.deviceID = "remote-device-id"

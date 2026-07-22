@@ -30,7 +30,7 @@ struct DevicesSection: View {
                             }
                             .disabled(model.actionInProgress != nil)
                         } else {
-                            Text([device.availability.rawValue, device.path].compactMap { $0 }.joined(separator: " · "))
+                            Text([device.availability.rawValue, device.path, device.address].compactMap { $0 }.joined(separator: " · "))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }

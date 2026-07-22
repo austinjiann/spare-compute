@@ -67,10 +67,10 @@ struct DeviceSummary: Identifiable, Sendable {
         var result = response.trustedDevices.map { trusted in
             let key = deviceKey(trusted)
             let matches = nearbyByKey[key] ?? []
-            let nearby = trusted.trustState == .paired && activeCounts[key] == 1 && matches.count == 1
-                ? matches[0]
-                : nil
-            if let nearby {
+            let nearbyMatches = trusted.trustState == .paired && activeCounts[key] == 1
+                ? matches
+                : []
+            for nearby in nearbyMatches {
                 consumedPresenceIDs.insert(nearby.presenceID)
             }
             let remote = remoteAvailability(trusted)
@@ -79,9 +79,9 @@ struct DeviceSummary: Identifiable, Sendable {
                 name: trusted.name,
                 role: roleLabel(trusted.role),
                 trust: trusted.trustState == .paired ? "Paired" : "Revoked",
-                availability: nearby == nil ? remote.availability : .nearby,
-                path: nearby == nil ? remote.path : "LAN",
-                address: nearby.flatMap(address),
+                availability: nearbyMatches.isEmpty ? remote.availability : .nearby,
+                path: nearbyMatches.isEmpty ? remote.path : "LAN",
+                address: address(nearbyMatches),
                 canPair: false
             )
         }
@@ -120,6 +120,17 @@ struct DeviceSummary: Identifiable, Sendable {
             return "[\(host)]:\(value.port)"
         }
         return "\(host):\(value.port)"
+    }
+
+    private static func address(_ values: [Computehop_Local_V1_NearbyDevice]) -> String? {
+        switch values.count {
+        case 0:
+            return nil
+        case 1:
+            return address(values[0])
+        default:
+            return "\(values.count) LAN records"
+        }
     }
 
     private static func remoteAvailability(
