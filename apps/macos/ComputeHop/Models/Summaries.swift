@@ -166,9 +166,19 @@ struct SetupGuideSummary: Sendable {
         if pairings.contains(where: { $0.state == "Waiting" }) {
             return nil
         }
-        if let nearby = devices.first(where: { $0.canPair }) {
+        let nearbyWorkers = devices.filter {
+            $0.canPair && $0.availability == .nearby && $0.role == "Worker"
+        }
+        if nearbyWorkers.count == 1 {
             return SetupGuideSummary(
-                title: "Connect \(nearby.name)",
+                title: "Connect Nearby Worker",
+                detail: "Use Connect Nearby Worker, compare the code on both devices, then confirm.",
+                command: nil
+            )
+        }
+        if let nearby = nearbyWorkers.first {
+            return SetupGuideSummary(
+                title: "Choose a worker to connect",
                 detail: "Click Connect beside \(nearby.name), compare the code on both devices, then confirm.",
                 command: nil
             )

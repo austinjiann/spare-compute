@@ -5,7 +5,8 @@ jobs, discovery, trust, and remote sessions stay in the Go daemon, so closing
 the menu does not stop work.
 
 The current menu supports daemon health with local Mac identity, first-run
-next-step guidance, nearby and connected devices, two-sided connect
+next-step guidance with a one-click Connect Nearby Worker action when exactly
+one unpaired worker is visible, nearby and connected devices, two-sided connect
 confirmation, native job submission to this Mac, Auto worker when exactly one
 worker is runnable, or a paired available worker, recent jobs, reconnectable
 output, cancellation, declared output paths, and

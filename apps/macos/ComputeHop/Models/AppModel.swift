@@ -2,10 +2,16 @@ import Foundation
 import Observation
 
 enum AppActionError: LocalizedError {
+    case nearbyWorkerAmbiguous
     case targetUnavailable
 
     var errorDescription: String? {
-        "That worker is no longer nearby. Refresh and choose an available device."
+        switch self {
+        case .nearbyWorkerAmbiguous:
+            return "Connect automatically works only when exactly one nearby worker is available. Refresh and choose one manually."
+        case .targetUnavailable:
+            return "That worker is no longer nearby. Refresh and choose an available device."
+        }
     }
 }
 
@@ -48,7 +54,15 @@ final class AppModel {
         }
     }
 
+    var pairableWorkers: [DeviceSummary] {
+        devices.filter {
+            $0.canPair && $0.availability == .nearby && $0.role == "Worker"
+        }
+    }
+
     var canRunAutomatically: Bool { runnableDevices.count == 1 }
+
+    var canConnectNearbyWorker: Bool { pairableWorkers.count == 1 }
 
     var isRemoteRunTargetSelected: Bool { !runTargetID.isEmpty }
 
@@ -109,6 +123,15 @@ final class AppModel {
 
     func connect(_ device: DeviceSummary) async {
         await perform("connect-\(device.id)") {
+            _ = try await client.beginPairing(device: device.id)
+        }
+    }
+
+    func connectNearbyWorker() async {
+        await perform("connect-auto") {
+            guard pairableWorkers.count == 1, let device = pairableWorkers.first else {
+                throw AppActionError.nearbyWorkerAmbiguous
+            }
             _ = try await client.beginPairing(device: device.id)
         }
     }

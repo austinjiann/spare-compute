@@ -61,6 +61,39 @@ func connectUsesPresenceIDInsteadOfDisplayName() async {
     #expect(model.lastError == nil)
 }
 
+@Test
+@MainActor
+func connectNearbyWorkerUsesOnlyNearbyWorkerPresenceID() async {
+    let nearby = pairableDevice(id: "ephemeral-presence-id", name: "Gaming PC")
+    let client = RecordingDaemonClient(devices: [nearby])
+    let model = AppModel(client: client)
+    model.devices = [nearby]
+
+    #expect(model.canConnectNearbyWorker)
+
+    await model.connectNearbyWorker()
+
+    #expect(await client.lastPairingSelector() == "ephemeral-presence-id")
+    #expect(model.lastError == nil)
+}
+
+@Test
+@MainActor
+func connectNearbyWorkerRefusesAmbiguousNearbyWorkers() async {
+    let first = pairableDevice(id: "first-presence-id", name: "Gaming PC")
+    let second = pairableDevice(id: "second-presence-id", name: "Mini PC")
+    let client = RecordingDaemonClient(devices: [first, second])
+    let model = AppModel(client: client)
+    model.devices = [first, second]
+
+    #expect(!model.canConnectNearbyWorker)
+
+    await model.connectNearbyWorker()
+
+    #expect(await client.lastPairingSelector() == nil)
+    #expect(model.lastError == "Connect automatically works only when exactly one nearby worker is available. Refresh and choose one manually.")
+}
+
 private actor RecordingDaemonClient: LocalDaemonClientProtocol {
     private let devices: [DeviceSummary]
     private var submittedSelector: String?
@@ -157,6 +190,19 @@ private func runTargetDevice(id: String, name: String) -> DeviceSummary {
         path: "LAN",
         address: "192.0.2.20:47823",
         canPair: false
+    )
+}
+
+private func pairableDevice(id: String, name: String) -> DeviceSummary {
+    DeviceSummary(
+        id: id,
+        name: name,
+        role: "Worker",
+        trust: "Unpaired",
+        availability: .nearby,
+        path: "LAN",
+        address: "192.0.2.20:47823",
+        canPair: true
     )
 }
 

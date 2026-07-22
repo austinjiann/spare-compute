@@ -31,7 +31,33 @@ func setupGuidePointsAtNearbyUnconnectedDevice() {
         runnableDevices: []
     )
 
-    #expect(guide?.title == "Connect Gaming PC")
+    #expect(guide?.title == "Connect Nearby Worker")
+    #expect(guide?.command == nil)
+}
+
+@Test
+func setupGuidePointsAtManualChoiceForMultipleNearbyWorkers() {
+    let first = deviceSummary(
+        name: "Gaming PC",
+        trust: "Unpaired",
+        availability: .nearby,
+        canPair: true
+    )
+    let second = deviceSummary(
+        name: "Mini PC",
+        trust: "Unpaired",
+        availability: .nearby,
+        canPair: true
+    )
+
+    let guide = SetupGuideSummary.make(
+        isConnected: true,
+        devices: [first, second],
+        pairings: [],
+        runnableDevices: []
+    )
+
+    #expect(guide?.title == "Choose a worker to connect")
     #expect(guide?.command == nil)
 }
 

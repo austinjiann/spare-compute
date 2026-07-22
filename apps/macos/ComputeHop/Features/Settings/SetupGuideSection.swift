@@ -20,6 +20,12 @@ struct SetupGuideSection: View {
                         .padding(.vertical, 4)
                         .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
                 }
+                if model.canConnectNearbyWorker {
+                    Button("Connect Nearby Worker") {
+                        Task { await model.connectNearbyWorker() }
+                    }
+                    .disabled(model.actionInProgress != nil)
+                }
             }
             .padding(8)
             .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10))
