@@ -48,11 +48,11 @@ func TestRunCommandSubmitsNativeSpec(t *testing.T) {
 			}}, nil
 		},
 	})
-	command.SetArgs([]string{"run", "--", "cargo", "build", "--release"})
+	command.SetArgs([]string{"run", "cargo", "build", "--release"})
 	if err := command.Execute(); err != nil {
 		t.Fatalf("Execute() error = %v", err)
 	}
-	if got := stdout.String(); got != "Submitted "+string(value.ID)+" (queued)\n" {
+	if got := stdout.String(); got != "Submitted "+string(value.ID)+" (queued)\nFollow it: computehop logs --follow "+string(value.ID)+"\n" {
 		t.Fatalf("stdout = %q", got)
 	}
 }
@@ -85,12 +85,12 @@ func TestRunCommandSelectsRemoteWorkerAndTargetDirectory(t *testing.T) {
 		},
 	})
 	command.SetArgs([]string{
-		"run", "--device", "Gaming PC", "--working-directory", "D:\\projects\\demo", "--", "echo", "hello",
+		"run", "--on", "Gaming PC", "--working-directory", "D:\\projects\\demo", "echo", "hello",
 	})
 	if err := command.Execute(); err != nil {
 		t.Fatalf("Execute() error = %v", err)
 	}
-	if got := stdout.String(); got != "Submitted "+string(value.ID)+" to Gaming PC (queued)\n" {
+	if got := stdout.String(); got != "Submitted "+string(value.ID)+" to Gaming PC (queued)\nFollow it: computehop logs --follow "+string(value.ID)+"\n" {
 		t.Fatalf("stdout = %q", got)
 	}
 }
@@ -177,6 +177,67 @@ func TestDevicesCommandPrintsNearbyDevicesAsUnpaired(t *testing.T) {
 	}
 }
 
+func TestDevicesCommandCombinesOneTrustedPeerWithItsNearbyPresence(t *testing.T) {
+	identity, err := device.GenerateIdentity(bytes.NewReader(bytes.Repeat([]byte{9}, 64)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pairID, err := trust.NewPairID(bytes.NewReader(bytes.Repeat([]byte{10}, 16)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	presenceID, err := device.NewPresenceID(bytes.NewReader(bytes.Repeat([]byte{11}, 16)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := time.Date(2026, time.July, 22, 5, 0, 0, 0, time.UTC)
+	trusted, err := mapper.TrustedPeerToProto(trust.Peer{
+		PairID: pairID, DeviceID: identity.ID(), PublicKey: identity.PublicKey(),
+		Name: "Gaming PC", Role: device.RoleWorker, State: trust.StateActive,
+		PairedAt: seen.Add(-time.Hour), UpdatedAt: seen.Add(-time.Hour),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &stderr, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(context.Context, *localv1.Request) (*localv1.Response, error) {
+				return &localv1.Response{Result: &localv1.Response_ListDevices{
+					ListDevices: &localv1.ListDevicesResponse{
+						DiscoveryState: localv1.DiscoveryState_DISCOVERY_STATE_AVAILABLE,
+						TrustedDevices: []*localv1.TrustedDevice{trusted},
+						Devices: []*localv1.NearbyDevice{{
+							PresenceId: string(presenceID), Name: "Gaming PC",
+							Role: localv1.DeviceRole_DEVICE_ROLE_WORKER, Addresses: []string{"192.0.2.20"},
+							Port: 47823, EndpointReady: true, LastSeenAtUnixNano: seen.UnixNano(),
+							TrustState: localv1.DeviceTrustState_DEVICE_TRUST_STATE_UNPAIRED,
+						}},
+					},
+				}}, nil
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"devices"})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := stdout.String()
+	if strings.Count(output, "Gaming PC") != 1 {
+		t.Fatalf("stdout contains duplicate device rows: %q", output)
+	}
+	for _, want := range []string{identity.ID().Short(), "active", "nearby", "192.0.2.20:47823"} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("stdout %q does not contain %q", output, want)
+		}
+	}
+	if strings.Contains(output, presenceID.Short()) {
+		t.Fatalf("stdout leaked the redundant ephemeral identifier: %q", output)
+	}
+}
+
 func TestPairCommandPrintsConnectionBoundVerificationInstructions(t *testing.T) {
 	value := cliPairingForTest(t)
 	message, err := mapper.PairingToProto(value)
@@ -203,11 +264,62 @@ func TestPairCommandPrintsConnectionBoundVerificationInstructions(t *testing.T) 
 	}
 	for _, want := range []string{
 		value.ID.Short(), value.PeerName, string(value.Verification),
-		"Compare this exact code on both devices", "pair confirm " + value.ID.Short(),
+		"Compare this exact code on both devices", "computehop pair confirm",
 	} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
 		}
+	}
+}
+
+func TestPairConfirmInfersTheOnlyActionableRequest(t *testing.T) {
+	value := cliPairingForTest(t)
+	waiting, err := mapper.PairingToProto(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	confirmedValue := value
+	confirmedValue.LocalConfirmed = true
+	confirmed, err := mapper.PairingToProto(confirmedValue)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var calls int
+	var stdout, stderr bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &stderr, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+				calls++
+				switch calls {
+				case 1:
+					if request.GetListPairings() == nil {
+						t.Fatalf("first request = %#v", request)
+					}
+					return &localv1.Response{Result: &localv1.Response_ListPairings{
+						ListPairings: &localv1.ListPairingsResponse{Pairings: []*localv1.Pairing{waiting}},
+					}}, nil
+				case 2:
+					if got := request.GetConfirmPairing().GetPairingSelector(); got != string(value.ID) {
+						t.Fatalf("pairing selector = %q", got)
+					}
+					return &localv1.Response{Result: &localv1.Response_ConfirmPairing{
+						ConfirmPairing: &localv1.ConfirmPairingResponse{Pairing: confirmed},
+					}}, nil
+				default:
+					t.Fatalf("unexpected call %d", calls)
+					return nil, nil
+				}
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"pair", "confirm"})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if got := stdout.String(); got != "Confirmed Gaming PC locally; state: waiting.\n" {
+		t.Fatalf("stdout = %q", got)
 	}
 }
 

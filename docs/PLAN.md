@@ -10,7 +10,7 @@ model, delivery milestones, and acceptance criteria.
 
 ### Implementation snapshot
 
-Last updated: 2026-07-20.
+Last updated: 2026-07-22.
 
 | Slice | Status | Delivered behavior |
 | --- | --- | --- |
@@ -22,8 +22,10 @@ Last updated: 2026-07-20.
 | Explicit remote execution | Complete | Submit to a selected paired LAN worker, observe durable state and logs, and cancel remotely. |
 | Durable remote job routing | Complete | Remember the pinned worker that accepted each remote job so job-specific operations reconnect by ID without another device selector. |
 | Hosted rendezvous foundation | Complete | Derive rotating anonymous pair credentials and exchange bounded, encrypted, expiring presence and signaling payloads through a standalone service. |
-| Staging rendezvous deployment | In progress | Railway config, dynamic platform-port binding, health-gated rollout, and an operator runbook are ready; the live staging project is provisioned only after this slice lands. |
-| Cross-network paths and later launch slices | Not started | Daemon rendezvous clients, ICE/STUN/TURN, project snapshots, artifacts, scheduling, adapters, menu-bar UI, packaging, and release operations. |
+| One-VPS staging deployment | In progress | Provider-neutral Compose stack, Caddy HTTPS edge, authenticated coturn relay, bounded ports/quotas, secrets, firewall bootstrap, health checks, and rollback runbook are ready; buying the VPS and forced-relay validation remain. |
+| CLI and physical Mac validation | In progress | Friendlier `--on` and no-`--` command syntax, inferred pairing confirmation, and merged trusted/nearby presentation are implemented; physical macOS-to-macOS discovery, pairing, execution, restart recovery, logs, and cancellation passed. Windows/Linux remain. |
+| macOS menu-bar foundation | In progress | SwiftUI `MenuBarExtra`, generated SwiftProtobuf v3 models, authenticated Unix-socket IPC, device/pairing/job views, and action controls build and pass a real Swift-to-Go ping; product packaging and the remaining workflows are open. |
+| Cross-network paths and later launch slices | Not started | Daemon rendezvous clients, ICE/STUN/TURN path selection, project snapshots, artifacts, scheduling, adapters, packaging, and release operations. |
 
 “Complete” here means implemented with automated coverage and merged to `main`.
 Physical multi-machine validation remains required by the launch acceptance
@@ -80,7 +82,7 @@ scp target/release/my-app .
 the user runs:
 
 ```bash
-computehop run -- cargo build --release
+computehop run cargo build --release
 ```
 
 ComputeHop selects a compatible worker, sends only missing project content, streams
@@ -532,12 +534,13 @@ orchestrator requests records after its last durable offset.
 # Discovery and trust
 computehop devices
 computehop pair <device>
+computehop pair confirm
 computehop unpair <device>
 
 # Ad hoc and saved jobs
-computehop run -- <program> [args...]
+computehop run <program> [args...]
 computehop run <job-name>
-computehop run --device <device> -- <program> [args...]
+computehop run --on <device> <program> [args...]
 
 # Observation and control
 computehop jobs
@@ -693,7 +696,7 @@ Each device supports:
 The orchestrator queues a job if compatible devices exist but are temporarily
 busy. It rejects the job immediately when no known device is compatible.
 
-An explicit `--device` choice bypasses scoring but never bypasses authentication,
+An explicit `--on` choice bypasses scoring but never bypasses authentication,
 compatibility, availability, or resource-safety checks.
 
 ---
@@ -1190,8 +1193,9 @@ after a daemon restart.
 `logs`, and `cancel` routing through identity-pinned QUIC, and durable remote job
 placement are merged. Project contents are not transferred, so an explicitly
 supplied remote working directory must already exist on the worker. The
-checkpoint remains open until the complete flow is exercised on physical macOS,
-Windows, and Linux machines.
+macOS-to-macOS physical flow has passed discovery, pairing, execution, daemon
+restart recovery, durable log retrieval, and cancellation. The checkpoint
+remains open until Windows and Linux workers pass the same physical flow.
 
 - Advertise and browse daemon endpoints with mDNS without treating discovery as
   authentication.
@@ -1205,7 +1209,7 @@ Windows, and Linux machines.
 - Validate macOS-to-macOS, macOS-to-Windows, and macOS-to-Linux behavior on
   physical machines as soon as each worker build exists.
 
-**Checkpoint:** `computehop run --device <name> -- <command>` discovers a worker
+**Checkpoint:** `computehop run --on <name> <command>` discovers a worker
 without an address, pairs it once, reconnects without prompting, streams logs,
 and rejects unpaired or revoked devices.
 
@@ -1216,11 +1220,12 @@ connectivity secret during confirmed pairing, persists it only on the two
 devices, rotates anonymous route credentials every five minutes, and adds a
 bounded in-memory rendezvous/signaling service. The service sees only opaque
 route IDs, credential digests, endpoint roles, timing, and encrypted payloads.
-The current deployment slice adds a single-instance Railway staging
-configuration and health/rollback runbook. The service is not connected to
-either daemon yet and does not implement ICE, STUN, or TURN. Existing pairings
-without connectivity material must be explicitly re-paired before later
-cross-network testing.
+The current deployment slice adds a one-VPS staging stack with Caddy automatic
+HTTPS and an authenticated coturn STUN/TURN service using a bounded relay port
+range and Docker secret. The containers have been built and locally smoke
+tested, but the live VPS has not been purchased and the service is not connected
+to either daemon yet. Existing pairings without connectivity material must be
+explicitly re-paired before later cross-network testing.
 
 - Deploy a staging rendezvous service, STUN endpoints, and TURN relays before
   implementing remote path selection in the client.
@@ -1286,6 +1291,14 @@ preflight rather than after a large transfer.
 
 ### Step 7: macOS product experience
 
+**Implementation status:** the SwiftUI menu-bar foundation now builds from the
+root Swift package, uses generated SwiftProtobuf models, authenticates to local
+IPC protocol v3, and presents daemon health, devices, pairing confirmation,
+recent jobs, and cancellation. Unit tests cover framing and a real Swift client
+has successfully pinged the Go daemon. Submission UI, logs, artifacts,
+notifications, settings, packaging, launchd, signing, and clean-machine tests
+remain.
+
 - Connect the SwiftUI menu-bar app to the stable local IPC contract.
 - Add device discovery, pairing confirmation, trust and revocation, connection
   path, policies, job submission, logs, cancellation, history, artifacts,
@@ -1336,8 +1349,9 @@ client displays its channel in diagnostics and never silently changes channels.
 
 ### Hosted connectivity deployment
 
-1. Provision two small public hosts in different failure domains with static
-   IPv4/IPv6 addresses and sufficient outbound transfer allowance.
+1. Provision one small public staging VPS with a static IPv4 address and
+   sufficient transfer allowance. Production later requires at least two hosts
+   in different failure domains.
 2. Configure DNS for rendezvous and TURN endpoints, TLS certificates, firewall
    rules, UDP connectivity, TURN relay port ranges, and time synchronization.
 3. Deploy `computehop-connectivity` and coturn as separately supervised,

@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"strings"
@@ -21,6 +22,7 @@ var version = "dev"
 type options struct {
 	listenAddress       string
 	showVersion         bool
+	healthcheck         bool
 	maxRoutes           int
 	maxSignalsPerRoute  int
 	maxPayloadBytes     int
@@ -44,6 +46,9 @@ func run(ctx context.Context, arguments []string, stdout, stderr io.Writer) erro
 	if parsed.showVersion {
 		_, err := fmt.Fprintln(stdout, version)
 		return err
+	}
+	if parsed.healthcheck {
+		return checkHealth(ctx, parsed.listenAddress)
 	}
 	if parsed.listenAddress == "" || parsed.maxRoutes <= 0 || parsed.maxSignalsPerRoute <= 0 ||
 		parsed.maxPayloadBytes <= 0 || parsed.maxRequestsPerRoute <= 0 {
@@ -100,6 +105,7 @@ func parseOptions(arguments []string, stderr io.Writer) (options, error) {
 	flags.SetOutput(stderr)
 	flags.StringVar(&parsed.listenAddress, "listen", defaultListenAddress(), "HTTP listen address behind the TLS edge")
 	flags.BoolVar(&parsed.showVersion, "version", false, "print version and exit")
+	flags.BoolVar(&parsed.healthcheck, "healthcheck", false, "check the local HTTP health endpoint and exit")
 	flags.IntVar(&parsed.maxRoutes, "max-routes", 10_000, "maximum concurrent anonymous pair routes")
 	flags.IntVar(&parsed.maxSignalsPerRoute, "max-signals-per-route", 64, "maximum queued signals per pair route")
 	flags.IntVar(&parsed.maxPayloadBytes, "max-payload-bytes", 32<<10, "maximum encrypted presence or signal payload")
@@ -119,4 +125,37 @@ func defaultListenAddress() string {
 		port = "8080"
 	}
 	return net.JoinHostPort("", port)
+}
+
+func checkHealth(ctx context.Context, listenAddress string) error {
+	host, port, err := net.SplitHostPort(listenAddress)
+	if err != nil {
+		return fmt.Errorf("parse healthcheck listen address: %w", err)
+	}
+	if host == "" || host == "0.0.0.0" || host == "::" {
+		host = "127.0.0.1"
+	}
+	endpoint := (&url.URL{
+		Scheme: "http",
+		Host:   net.JoinHostPort(host, port),
+		Path:   "/healthz",
+	}).String()
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return fmt.Errorf("create healthcheck request: %w", err)
+	}
+	client := http.Client{Timeout: 3 * time.Second}
+	response, err := client.Do(request)
+	if err != nil {
+		return fmt.Errorf("request %s: %w", endpoint, err)
+	}
+	defer response.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(response.Body, 16))
+	if err != nil {
+		return fmt.Errorf("read healthcheck response: %w", err)
+	}
+	if response.StatusCode != http.StatusOK || strings.TrimSpace(string(body)) != "ok" {
+		return fmt.Errorf("healthcheck failed: HTTP %d body %q", response.StatusCode, body)
+	}
+	return nil
 }

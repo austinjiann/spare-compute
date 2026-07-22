@@ -6,5 +6,5 @@ contain production credentials or device-private state.
 
 - `connectivity/` packages the in-memory rendezvous/signaling service and
   documents its TLS-edge and scaling requirements.
-- `staging/` documents the first Railway deployment, verification, rollback,
-  and the boundary between HTTP rendezvous hosting and the later TURN relay.
+- `vps/` runs the staging rendezvous, HTTPS edge, STUN, and authenticated TURN
+  relay together on one small provider-neutral Linux VPS.

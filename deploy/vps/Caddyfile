@@ -1,0 +1,12 @@
+{
+	email {$ACME_EMAIL}
+}
+
+{$CONNECTIVITY_DOMAIN} {
+	header -Server
+	reverse_proxy rendezvous:8080 {
+		health_uri /healthz
+		health_interval 30s
+		health_timeout 3s
+	}
+}

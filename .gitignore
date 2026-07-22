@@ -19,6 +19,13 @@ coverage.out
 *.sock
 
 # Xcode user state and build output
+.build/
+.swiftpm/
 DerivedData/
 *.xcuserstate
 xcuserdata/
+
+# Local VPS deployment configuration and secrets
+deploy/vps/.env
+deploy/vps/secrets/*
+!deploy/vps/secrets/.gitkeep

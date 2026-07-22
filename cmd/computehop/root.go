@@ -21,6 +21,15 @@ import (
 
 var ErrInvalidDaemonResponse = errors.New("invalid response from computehopd")
 
+type nearbyDeviceView struct {
+	presenceID   device.PresenceID
+	name         string
+	role         string
+	address      string
+	availability string
+	lastSeen     time.Time
+}
+
 func newRootCommand(dependencies dependencies) *cobra.Command {
 	var stateDir string
 	root := &cobra.Command{
@@ -105,56 +114,70 @@ func newDevicesCommand(
 				return err
 			}
 
-			writer := tabwriter.NewWriter(stdout, 0, 4, 2, ' ', 0)
-			if _, err := fmt.Fprintln(writer, "NAME\tIDENTIFIER\tTRUST\tROLE\tADDRESS\tUPDATED"); err != nil {
-				return err
-			}
+			trustedPeers := make([]trust.Peer, 0, len(result.GetTrustedDevices()))
 			for _, message := range result.GetTrustedDevices() {
 				peer, err := mapper.TrustedPeerFromProto(message)
 				if err != nil {
 					return fmt.Errorf("%w: %v", ErrInvalidDaemonResponse, err)
 				}
+				trustedPeers = append(trustedPeers, peer)
+			}
+			nearbyDevices := make([]nearbyDeviceView, 0, len(result.GetDevices()))
+			for _, message := range result.GetDevices() {
+				nearby, err := nearbyViewFromProto(message)
+				if err != nil {
+					return fmt.Errorf("%w: %v", ErrInvalidDaemonResponse, err)
+				}
+				nearbyDevices = append(nearbyDevices, nearby)
+			}
+
+			activePeerCounts := make(map[string]int)
+			nearbyByKey := make(map[string][]int)
+			for _, peer := range trustedPeers {
+				if peer.State == trust.StateActive {
+					activePeerCounts[deviceDisplayKey(peer.Name, string(peer.Role))]++
+				}
+			}
+			for index, nearby := range nearbyDevices {
+				key := deviceDisplayKey(nearby.name, nearby.role)
+				nearbyByKey[key] = append(nearbyByKey[key], index)
+			}
+
+			writer := tabwriter.NewWriter(stdout, 0, 4, 2, ' ', 0)
+			if _, err := fmt.Fprintln(writer, "NAME\tIDENTIFIER\tTRUST\tROLE\tAVAILABILITY\tADDRESS\tUPDATED"); err != nil {
+				return err
+			}
+			matchedNearby := make(map[int]bool)
+			for _, peer := range trustedPeers {
+				availability := "offline"
+				address := "—"
+				updatedAt := peer.UpdatedAt
+				key := deviceDisplayKey(peer.Name, string(peer.Role))
+				matches := nearbyByKey[key]
+				if peer.State == trust.StateActive && activePeerCounts[key] == 1 && len(matches) == 1 {
+					matchIndex := matches[0]
+					matchedNearby[matchIndex] = true
+					availability = nearbyDevices[matchIndex].availability
+					address = nearbyDevices[matchIndex].address
+					updatedAt = nearbyDevices[matchIndex].lastSeen
+				}
 				if _, err := fmt.Fprintf(
-					writer, "%s\t%s\t%s\t%s\t%s\t%s\n",
-					peer.Name, peer.DeviceID.Short(), peer.State, peer.Role, "—", peer.UpdatedAt.Format(time.RFC3339),
+					writer, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+					peer.Name, peer.DeviceID.Short(), peer.State, peer.Role, availability, address,
+					updatedAt.Format(time.RFC3339),
 				); err != nil {
 					return err
 				}
 			}
-			for _, nearby := range result.GetDevices() {
-				presenceID, err := device.ParsePresenceID(nearby.GetPresenceId())
-				if err != nil {
-					return fmt.Errorf("%w: %v", ErrInvalidDaemonResponse, err)
-				}
-				if nearby.GetTrustState() != localv1.DeviceTrustState_DEVICE_TRUST_STATE_UNPAIRED {
-					return fmt.Errorf("%w: invalid nearby trust state", ErrInvalidDaemonResponse)
-				}
-				role := ""
-				switch nearby.GetRole() {
-				case localv1.DeviceRole_DEVICE_ROLE_WORKER:
-					role = "worker"
-				case localv1.DeviceRole_DEVICE_ROLE_ORCHESTRATOR:
-					role = "orchestrator"
-				default:
-					return fmt.Errorf("%w: invalid nearby device role", ErrInvalidDaemonResponse)
-				}
-				address := nearby.GetHostName()
-				if len(nearby.GetAddresses()) > 0 {
-					address = nearby.GetAddresses()[0]
-				}
-				if address != "" && nearby.GetEndpointReady() && nearby.GetPort() > 0 {
-					address = net.JoinHostPort(address, strconv.FormatUint(uint64(nearby.GetPort()), 10))
-				} else if address != "" {
-					address += " (discovery only)"
-				}
-				lastSeen := time.Unix(0, nearby.GetLastSeenAtUnixNano()).UTC()
-				if nearby.GetName() == "" || address == "" || nearby.GetLastSeenAtUnixNano() <= 0 {
-					return fmt.Errorf("%w: incomplete nearby device", ErrInvalidDaemonResponse)
+			for index, nearby := range nearbyDevices {
+				if matchedNearby[index] {
+					continue
 				}
 				if _, err := fmt.Fprintf(
 					writer,
-					"%s\t%s\tunpaired\t%s\t%s\t%s\n",
-					nearby.GetName(), presenceID.Short(), role, address, lastSeen.Format(time.RFC3339),
+					"%s\t%s\tunpaired\t%s\t%s\t%s\t%s\n",
+					nearby.name, nearby.presenceID.Short(), nearby.role, nearby.availability,
+					nearby.address, nearby.lastSeen.Format(time.RFC3339),
 				); err != nil {
 					return err
 				}
@@ -162,6 +185,47 @@ func newDevicesCommand(
 			return writer.Flush()
 		},
 	}
+}
+
+func nearbyViewFromProto(nearby *localv1.NearbyDevice) (nearbyDeviceView, error) {
+	presenceID, err := device.ParsePresenceID(nearby.GetPresenceId())
+	if err != nil {
+		return nearbyDeviceView{}, err
+	}
+	if nearby.GetTrustState() != localv1.DeviceTrustState_DEVICE_TRUST_STATE_UNPAIRED {
+		return nearbyDeviceView{}, errors.New("invalid nearby trust state")
+	}
+	role := ""
+	switch nearby.GetRole() {
+	case localv1.DeviceRole_DEVICE_ROLE_WORKER:
+		role = string(device.RoleWorker)
+	case localv1.DeviceRole_DEVICE_ROLE_ORCHESTRATOR:
+		role = string(device.RoleOrchestrator)
+	default:
+		return nearbyDeviceView{}, errors.New("invalid nearby device role")
+	}
+	address := nearby.GetHostName()
+	if len(nearby.GetAddresses()) > 0 {
+		address = nearby.GetAddresses()[0]
+	}
+	availability := "nearby"
+	if address != "" && nearby.GetEndpointReady() && nearby.GetPort() > 0 {
+		address = net.JoinHostPort(address, strconv.FormatUint(uint64(nearby.GetPort()), 10))
+	} else if address != "" {
+		address += " (discovery only)"
+	}
+	lastSeen := time.Unix(0, nearby.GetLastSeenAtUnixNano()).UTC()
+	if nearby.GetName() == "" || address == "" || nearby.GetLastSeenAtUnixNano() <= 0 {
+		return nearbyDeviceView{}, errors.New("incomplete nearby device")
+	}
+	return nearbyDeviceView{
+		presenceID: presenceID, name: nearby.GetName(), role: role, address: address,
+		availability: availability, lastSeen: lastSeen,
+	}, nil
+}
+
+func deviceDisplayKey(name, role string) string {
+	return name + "\x00" + role
 }
 
 func newPairCommand(
@@ -252,22 +316,31 @@ func newPairDecisionCommand(
 		short = "Reject a pairing request on this device"
 	}
 	return &cobra.Command{
-		Use:   verb + " <pairing>",
+		Use:   verb + " [pairing]",
 		Short: short,
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(command *cobra.Command, arguments []string) error {
 			client, err := clientForCommand()
 			if err != nil {
 				return err
 			}
+			pairingSelector := ""
+			if len(arguments) == 1 {
+				pairingSelector = arguments[0]
+			} else {
+				pairingSelector, err = inferPairingSelector(command, client, confirmed)
+				if err != nil {
+					return err
+				}
+			}
 			var request *localv1.Request
 			if confirmed {
 				request = &localv1.Request{Operation: &localv1.Request_ConfirmPairing{
-					ConfirmPairing: &localv1.ConfirmPairingRequest{PairingSelector: arguments[0]},
+					ConfirmPairing: &localv1.ConfirmPairingRequest{PairingSelector: pairingSelector},
 				}}
 			} else {
 				request = &localv1.Request{Operation: &localv1.Request_RejectPairing{
-					RejectPairing: &localv1.RejectPairingRequest{PairingSelector: arguments[0]},
+					RejectPairing: &localv1.RejectPairingRequest{PairingSelector: pairingSelector},
 				}}
 			}
 			response, err := client.Call(command.Context(), request)
@@ -293,6 +366,47 @@ func newPairDecisionCommand(
 			return err
 		},
 	}
+}
+
+func inferPairingSelector(command *cobra.Command, client caller, confirmed bool) (string, error) {
+	response, err := client.Call(command.Context(), &localv1.Request{
+		Operation: &localv1.Request_ListPairings{ListPairings: &localv1.ListPairingsRequest{}},
+	})
+	if err != nil {
+		return "", err
+	}
+	result := response.GetListPairings()
+	if result == nil {
+		return "", fmt.Errorf("%w: missing pairing list result", ErrInvalidDaemonResponse)
+	}
+	candidates := make([]trust.Pairing, 0, len(result.GetPairings()))
+	for _, message := range result.GetPairings() {
+		value, err := mapper.PairingFromProto(message)
+		if err != nil {
+			return "", fmt.Errorf("%w: %v", ErrInvalidDaemonResponse, err)
+		}
+		if value.State == trust.PairingWaiting && (!confirmed || !value.LocalConfirmed) {
+			candidates = append(candidates, value)
+		}
+	}
+	if len(candidates) == 1 {
+		return string(candidates[0].ID), nil
+	}
+	verb := "reject"
+	if confirmed {
+		verb = "confirm"
+	}
+	if len(candidates) == 0 {
+		return "", fmt.Errorf("no pairing request is ready to %s; run 'computehop pair' to inspect requests", verb)
+	}
+	choices := make([]string, len(candidates))
+	for index, candidate := range candidates {
+		choices[index] = fmt.Sprintf("%s (%s)", candidate.PeerName, candidate.ID.Short())
+	}
+	return "", fmt.Errorf(
+		"more than one pairing can be %sed: %s; choose one with 'computehop pair %s <id>'",
+		verb, strings.Join(choices, ", "), verb,
+	)
 }
 
 func newUnpairCommand(
@@ -339,7 +453,7 @@ func printPairingInstructions(stdout io.Writer, value trust.Pairing) error {
 	if _, err := fmt.Fprintln(stdout, "Compare this exact code on both devices. Do not confirm if it differs."); err != nil {
 		return err
 	}
-	_, err := fmt.Fprintf(stdout, "Confirm on this device with: computehop pair confirm %s\n", value.ID.Short())
+	_, err := fmt.Fprintln(stdout, "If the codes match, run this on both devices: computehop pair confirm")
 	return err
 }
 
@@ -399,7 +513,7 @@ func newRunCommand(
 	var deviceSelector string
 	var workingDirectory string
 	command := &cobra.Command{
-		Use:   "run -- <program> [args...]",
+		Use:   "run [--on device] <program> [args...]",
 		Short: "Submit a background command",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(command *cobra.Command, arguments []string) error {
@@ -445,10 +559,15 @@ func newRunCommand(
 			} else {
 				_, err = fmt.Fprintf(stdout, "Submitted %s to %s (%s)\n", value.ID, deviceSelector, value.State)
 			}
+			if err != nil {
+				return err
+			}
+			_, err = fmt.Fprintf(stdout, "Follow it: computehop logs --follow %s\n", value.ID)
 			return err
 		},
 	}
-	command.Flags().StringVar(&deviceSelector, "device", "", "paired worker name or device ID")
+	command.Flags().SetInterspersed(false)
+	addDeviceSelectorFlags(command, &deviceSelector)
 	command.Flags().StringVarP(
 		&workingDirectory,
 		"working-directory",
@@ -516,7 +635,7 @@ func newJobsCommand(
 		},
 	}
 	command.Flags().Uint32Var(&limit, "limit", 100, "maximum jobs to return")
-	command.Flags().StringVar(&deviceSelector, "device", "", "paired worker name or device ID")
+	addDeviceSelectorFlags(command, &deviceSelector)
 	return command
 }
 
@@ -562,7 +681,7 @@ func newCancelCommand(
 			return err
 		},
 	}
-	command.Flags().StringVar(&deviceSelector, "device", "", "paired worker name or device ID")
+	addDeviceSelectorFlags(command, &deviceSelector)
 	return command
 }
 
@@ -644,6 +763,12 @@ func newLogsCommand(
 		},
 	}
 	command.Flags().BoolVarP(&follow, "follow", "f", false, "wait for new output until the job finishes")
-	command.Flags().StringVar(&deviceSelector, "device", "", "paired worker name or device ID")
+	addDeviceSelectorFlags(command, &deviceSelector)
 	return command
+}
+
+func addDeviceSelectorFlags(command *cobra.Command, destination *string) {
+	command.Flags().StringVar(destination, "on", "", "paired worker name or device ID")
+	command.Flags().StringVar(destination, "device", "", "paired worker name or device ID (legacy alias for --on)")
+	_ = command.Flags().MarkHidden("device")
 }
