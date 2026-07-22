@@ -93,9 +93,10 @@ docker compose --project-directory deploy/vps logs --tail=100 rendezvous caddy c
 ```
 
 `verify.sh` checks the generated `.env`, TURN shared secret, Docker Compose
-availability, HTTPS health endpoint, local STUN, and authenticated TURN
-allocation. When a preflight step fails, it prints the next command or subsystem
-to check instead of requiring you to infer it from Docker or curl output.
+availability, expected running services, HTTPS health endpoint, local STUN, and
+authenticated TURN allocation. When a preflight step fails, it prints the next
+command or subsystem to check instead of requiring you to infer it from Docker
+or curl output.
 
 Then verify from a machine on another network:
 
