@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"path/filepath"
 	"strconv"
@@ -15,6 +16,7 @@ import (
 	"github.com/spf13/cobra"
 
 	localv1 "github.com/austinjiann/spare-compute/gen/go/computehop/local/v1"
+	"github.com/austinjiann/spare-compute/internal/contentcache"
 	"github.com/austinjiann/spare-compute/internal/device"
 	"github.com/austinjiann/spare-compute/internal/job"
 	"github.com/austinjiann/spare-compute/internal/protocol/localipc"
@@ -290,7 +292,29 @@ func newSetupCommand(stdout io.Writer) *cobra.Command {
 			return printSetupGuide(stdout)
 		},
 	}
+	command.AddCommand(newSetupMacCommand(stdout))
 	command.AddCommand(newSetupVPSCommand(stdout))
+	return command
+}
+
+func newSetupMacCommand(stdout io.Writer) *cobra.Command {
+	options := macSetupOptions{role: string(device.RoleOrchestrator)}
+	command := &cobra.Command{
+		Use:   "mac",
+		Short: "Print the macOS app and daemon install checklist",
+		Args:  cobra.NoArgs,
+		RunE: func(*cobra.Command, []string) error {
+			if err := options.validate(); err != nil {
+				return err
+			}
+			return printMacSetupGuide(stdout, options)
+		},
+	}
+	command.Flags().StringVar(&options.role, "role", options.role, "mac role: orchestrator or worker")
+	command.Flags().StringVar(&options.deviceName, "device-name", "", "human-readable device name")
+	command.Flags().StringVar(&options.cacheSize, "cache-size", "", "verified content cache limit, for example 40GiB")
+	command.Flags().StringVar(&options.connectivityDomain, "connectivity-domain", "", "public HTTPS domain from the one-VPS setup")
+	command.Flags().StringVar(&options.turnDomain, "turn-domain", "", "public STUN/TURN domain from the one-VPS setup")
 	return command
 }
 
@@ -316,6 +340,139 @@ type vpsSetupOptions struct {
 	turnDomain         string
 	email              string
 	publicIP           string
+}
+
+type macSetupOptions struct {
+	role               string
+	deviceName         string
+	cacheSize          string
+	connectivityDomain string
+	turnDomain         string
+}
+
+func (options macSetupOptions) validate() error {
+	switch strings.TrimSpace(options.role) {
+	case string(device.RoleOrchestrator), string(device.RoleWorker):
+	default:
+		return errors.New("--role must be orchestrator or worker")
+	}
+	if (strings.TrimSpace(options.connectivityDomain) == "") != (strings.TrimSpace(options.turnDomain) == "") {
+		return errors.New("--connectivity-domain and --turn-domain must be supplied together")
+	}
+	if strings.TrimSpace(options.cacheSize) == "" {
+		return nil
+	}
+	if err := validateSetupCacheSize(options.cacheSize); err != nil {
+		return fmt.Errorf("--cache-size: %w", err)
+	}
+	return nil
+}
+
+func validateSetupCacheSize(encoded string) error {
+	value, err := parseSetupByteSize(encoded)
+	if err != nil {
+		return err
+	}
+	return contentcache.ValidateMaximumBytes(value)
+}
+
+func parseSetupByteSize(encoded string) (int64, error) {
+	normalized := strings.ToUpper(strings.TrimSpace(encoded))
+	if normalized == "" {
+		return 0, errors.New("invalid byte size: use a value such as 20GiB or 512MB")
+	}
+	type unit struct {
+		suffix     string
+		multiplier float64
+	}
+	units := []unit{
+		{suffix: "TIB", multiplier: 1 << 40},
+		{suffix: "GIB", multiplier: 1 << 30},
+		{suffix: "MIB", multiplier: 1 << 20},
+		{suffix: "KIB", multiplier: 1 << 10},
+		{suffix: "TB", multiplier: 1_000_000_000_000},
+		{suffix: "GB", multiplier: 1_000_000_000},
+		{suffix: "MB", multiplier: 1_000_000},
+		{suffix: "KB", multiplier: 1_000},
+		{suffix: "B", multiplier: 1},
+	}
+	multiplier := float64(1)
+	number := normalized
+	for _, candidate := range units {
+		if strings.HasSuffix(normalized, candidate.suffix) {
+			multiplier = candidate.multiplier
+			number = strings.TrimSpace(strings.TrimSuffix(normalized, candidate.suffix))
+			break
+		}
+	}
+	numeric, err := strconv.ParseFloat(number, 64)
+	bytes := numeric * multiplier
+	if err != nil || numeric <= 0 || math.IsInf(bytes, 0) || math.IsNaN(bytes) ||
+		bytes > math.MaxInt64 || bytes != math.Trunc(bytes) {
+		return 0, fmt.Errorf("invalid byte size %q: use a value such as 20GiB or 512MB", encoded)
+	}
+	return int64(bytes), nil
+}
+
+func (options macSetupOptions) installCommand() string {
+	role := strings.TrimSpace(options.role)
+	deviceName := strings.TrimSpace(options.deviceName)
+	if role == string(device.RoleOrchestrator) && deviceName == "" &&
+		strings.TrimSpace(options.cacheSize) == "" &&
+		strings.TrimSpace(options.connectivityDomain) == "" {
+		return "make install-macos"
+	}
+	parts := []string{"./packaging/macos/install.sh", "--role", role}
+	if deviceName != "" {
+		parts = append(parts, "--device-name", deviceName)
+	} else if role == string(device.RoleWorker) {
+		parts = append(parts, "--device-name", "Gaming PC")
+	}
+	if strings.TrimSpace(options.cacheSize) != "" {
+		parts = append(parts, "--cache-size", options.cacheSize)
+	}
+	if strings.TrimSpace(options.connectivityDomain) != "" {
+		parts = append(
+			parts,
+			"--connectivity-url", "https://"+strings.TrimSpace(options.connectivityDomain),
+			"--stun-server", "stun:"+strings.TrimSpace(options.turnDomain)+":3478",
+		)
+	}
+	escaped := make([]string, len(parts))
+	for index, part := range parts {
+		escaped[index] = shellArg(part)
+	}
+	return strings.Join(escaped, " ")
+}
+
+func (options macSetupOptions) customizeCommand() string {
+	role := strings.TrimSpace(options.role)
+	if role == "" {
+		role = string(device.RoleOrchestrator)
+	}
+	deviceName := strings.TrimSpace(options.deviceName)
+	if deviceName == "" && role == string(device.RoleWorker) {
+		deviceName = "Gaming PC"
+	}
+	parts := []string{"computehop", "setup", "mac", "--role", role}
+	if deviceName != "" {
+		parts = append(parts, "--device-name", deviceName)
+	}
+	if strings.TrimSpace(options.cacheSize) != "" {
+		parts = append(parts, "--cache-size", options.cacheSize)
+	}
+	if strings.TrimSpace(options.connectivityDomain) != "" {
+		parts = append(
+			parts,
+			"--connectivity-domain", strings.TrimSpace(options.connectivityDomain),
+			"--turn-domain", strings.TrimSpace(options.turnDomain),
+		)
+	}
+	escaped := make([]string, len(parts))
+	for index, part := range parts {
+		escaped[index] = shellArg(part)
+	}
+	return strings.Join(escaped, " ")
 }
 
 func defaultVPSSetupOptions() vpsSetupOptions {
@@ -368,14 +525,15 @@ func printSetupGuide(stdout io.Writer) error {
 	lines := []string{
 		"ComputeHop setup",
 		"",
-		"1. Install the macOS menu-bar app and launch-at-login daemon:",
-		"   make install-macos",
+		"1. Print the exact macOS install command for this computer:",
+		"   computehop setup mac",
+		"   computehop setup mac --role worker --device-name \"Gaming PC\"",
 		"",
 		"2. Check this computer:",
 		"   computehop doctor",
 		"",
 		"3. Install a worker on another Mac on the same LAN:",
-		"   ./packaging/macos/install.sh --role worker --device-name \"Gaming PC\"",
+		"   computehop setup mac --role worker --device-name \"Gaming PC\"",
 		"   # Development-only alternative: go run ./cmd/computehopd --role worker --device-name \"Gaming PC\"",
 		"",
 		"4. Connect devices:",
@@ -395,6 +553,55 @@ func printSetupGuide(stdout io.Writer) error {
 		"   docker compose up -d --build",
 		"   ./verify.sh",
 		"   ./turn-credentials.sh",
+	}
+	for _, line := range lines {
+		if _, err := fmt.Fprintln(stdout, line); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func printMacSetupGuide(stdout io.Writer, options macSetupOptions) error {
+	lines := []string{
+		"ComputeHop macOS setup",
+		"",
+		"Customize:",
+		"   " + options.customizeCommand(),
+		"",
+		"Install on this Mac:",
+		"   " + options.installCommand(),
+		"",
+		"After install:",
+		"   computehop doctor",
+	}
+	if strings.TrimSpace(options.role) == string(device.RoleWorker) {
+		lines = append(lines,
+			"",
+			"Connect from your orchestrator Mac:",
+			"   computehop connect auto",
+			"   computehop connect confirm",
+			"",
+			"Confirm on this worker if a pairing request is waiting:",
+			"   computehop connect confirm",
+		)
+	} else {
+		lines = append(lines,
+			"",
+			"Connect a worker on the same LAN:",
+			"   computehop connect auto",
+			"   computehop connect confirm",
+			"",
+			"Smoke test:",
+			"   computehop smoke",
+		)
+	}
+	if strings.TrimSpace(options.connectivityDomain) == "" {
+		lines = append(lines,
+			"",
+			"After buying the VPS, rerun with:",
+			"   computehop setup mac --role "+shellArg(strings.TrimSpace(options.role))+" --connectivity-domain connect.example.com --turn-domain turn.example.com",
+		)
 	}
 	for _, line := range lines {
 		if _, err := fmt.Fprintln(stdout, line); err != nil {

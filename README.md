@@ -93,6 +93,9 @@ Then use the same state directory in another terminal:
 ```bash
 go run ./cmd/computehop --state-dir "$computehop_state_dir" status
 go run ./cmd/computehop --state-dir "$computehop_state_dir" setup
+go run ./cmd/computehop --state-dir "$computehop_state_dir" setup mac
+go run ./cmd/computehop --state-dir "$computehop_state_dir" setup mac --role worker --device-name "Gaming PC"
+go run ./cmd/computehop --state-dir "$computehop_state_dir" setup mac --role orchestrator --connectivity-domain connect.example.com --turn-domain turn.example.com
 go run ./cmd/computehop --state-dir "$computehop_state_dir" setup vps
 go run ./cmd/computehop --state-dir "$computehop_state_dir" setup vps --connectivity-domain connect.example.com --turn-domain turn.example.com --email admin@example.com --public-ip 203.0.113.10
 go run ./cmd/computehop --state-dir "$computehop_state_dir" doctor
@@ -114,9 +117,11 @@ go run ./cmd/computehop --state-dir "$computehop_state_dir" outputs <job-id>
 `computehop status` and `computehop doctor` also print the local daemon's
 device name, role, and short device ID when available. `setup` prints the
 first-run local, connection, smoke-test, and one-VPS commands without requiring
-the daemon to be running; `setup vps` expands that into a concrete buy, DNS,
-firewall, bootstrap, install, TURN credential, and smoke-test checklist for the
-one-VPS stack.
+the daemon to be running; `setup mac` prints exact macOS install commands for
+orchestrator or worker roles, optional cache sizing, and optional VPS endpoint
+flags; `setup vps` expands the hosted side into a concrete buy, DNS, firewall,
+bootstrap, install, TURN credential, and smoke-test checklist for the one-VPS
+stack.
 Pass `--connectivity-domain`, `--turn-domain`, `--email`, and `--public-ip` to
 print the checklist with your actual VPS values instead of the example values.
 The first-run and doctor guidance prefers the packaged macOS worker installer
