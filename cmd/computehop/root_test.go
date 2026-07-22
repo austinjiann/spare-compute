@@ -1629,7 +1629,8 @@ func TestDoctorCommandPrintsRestartAdviceWhenDaemonProtocolMismatches(t *testing
 	for _, want := range []string{
 		"Daemon: running, but not compatible with this CLI",
 		"make install-macos",
-		"stop the existing computehopd terminal or launch agent",
+		"make uninstall-macos",
+		"go run ./cmd/computehopd --role orchestrator",
 		"computehop doctor",
 	} {
 		if !strings.Contains(stdout.String(), want) {

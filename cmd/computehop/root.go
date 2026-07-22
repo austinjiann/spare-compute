@@ -1510,7 +1510,8 @@ func printDaemonStartAdvice(stdout io.Writer, err error) error {
 			"",
 			"Next:",
 			"- If you installed from this checkout: make install-macos",
-			"- If you are developing from this repo: stop the existing computehopd terminal or launch agent, then start it again:",
+			"- If you want to switch back to a manual development daemon: make uninstall-macos",
+			"- Then start the daemon from this checkout:",
 			"  go run ./cmd/computehopd --role orchestrator --device-name \"This Mac\"",
 			"- Then run: computehop doctor",
 		}
