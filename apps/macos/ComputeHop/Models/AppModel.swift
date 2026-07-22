@@ -1,6 +1,10 @@
 import Foundation
 import Observation
 
+protocol ClipboardWriting {
+    func write(_ value: String)
+}
+
 enum AppActionError: LocalizedError {
     case nearbyWorkerAmbiguous
     case targetUnavailable
@@ -77,6 +81,11 @@ final class AppModel {
             pairings: pairings,
             runnableDevices: runnableDevices
         )
+    }
+
+    func copySetupGuideCommand(to clipboard: ClipboardWriting) {
+        guard let command = setupGuide?.command else { return }
+        clipboard.write(command)
     }
 
     func refreshLoop() async {

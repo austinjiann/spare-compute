@@ -173,6 +173,40 @@ func disconnectUsesDurableDeviceIDAndClearsSelectedRunTarget() async {
     #expect(model.lastError == nil)
 }
 
+@Test
+@MainActor
+func copySetupGuideCommandCopiesCurrentCommand() {
+    let model = AppModel(client: RecordingDaemonClient())
+    model.daemon = daemonSummary()
+    let clipboard = RecordingClipboard()
+
+    model.copySetupGuideCommand(to: clipboard)
+
+    #expect(clipboard.value == "computehop setup worker --device-name \"Gaming PC\"")
+}
+
+@Test
+@MainActor
+func copySetupGuideCommandDoesNothingWhenGuideHasNoCommand() {
+    let nearby = pairableDevice(id: "ephemeral-presence-id", name: "Gaming PC")
+    let model = AppModel(client: RecordingDaemonClient())
+    model.daemon = daemonSummary()
+    model.devices = [nearby]
+    let clipboard = RecordingClipboard()
+
+    model.copySetupGuideCommand(to: clipboard)
+
+    #expect(clipboard.value == nil)
+}
+
+private final class RecordingClipboard: ClipboardWriting {
+    var value: String?
+
+    func write(_ value: String) {
+        self.value = value
+    }
+}
+
 private actor RecordingDaemonClient: LocalDaemonClientProtocol {
     private let devices: [DeviceSummary]
     private var submittedExecutable: String?

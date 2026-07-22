@@ -1,4 +1,12 @@
+import AppKit
 import SwiftUI
+
+private struct SystemClipboardWriter: ClipboardWriting {
+    func write(_ value: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(value, forType: .string)
+    }
+}
 
 struct SetupGuideSection: View {
     let model: AppModel
@@ -13,12 +21,18 @@ struct SetupGuideSection: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 if let command = guide.command {
-                    Text(command)
-                        .font(.system(.caption, design: .monospaced))
-                        .textSelection(.enabled)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 4)
-                        .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
+                    HStack(alignment: .top, spacing: 6) {
+                        Text(command)
+                            .font(.system(.caption, design: .monospaced))
+                            .textSelection(.enabled)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 4)
+                            .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
+                        Button("Copy") {
+                            model.copySetupGuideCommand(to: SystemClipboardWriter())
+                        }
+                        .buttonStyle(.borderless)
+                    }
                 }
                 if model.canConnectNearbyWorker {
                     Button("Connect Nearby Worker") {
