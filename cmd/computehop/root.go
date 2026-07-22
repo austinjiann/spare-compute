@@ -500,9 +500,19 @@ func newConnectCommand(
 	clientForCommand func() (caller, error),
 ) *cobra.Command {
 	command := &cobra.Command{
-		Use:   "connect [device]",
+		Use:   "connect [auto|device]",
 		Short: "Connect another computer",
-		Args:  cobra.MaximumNArgs(1),
+		Long: "Connect starts trust setup with another ComputeHop device.\n\n" +
+			"Run without arguments to see the next connection step for the current state.\n" +
+			"Use 'auto' when exactly one nearby unpaired worker is visible, or pass a\n" +
+			"device name, full presence ID, or short presence ID prefix to choose explicitly.",
+		Example: strings.Join([]string{
+			"computehop connect",
+			"computehop connect auto",
+			"computehop connect \"Gaming PC\"",
+			"computehop connect confirm",
+		}, "\n"),
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(command *cobra.Command, arguments []string) error {
 			client, err := clientForCommand()
 			if err != nil {
@@ -1186,9 +1196,20 @@ func newRunCommand(
 	var fetchOutputs bool
 	var artifactDestination string
 	command := &cobra.Command{
-		Use:   "run [--on device] <program> [args...]",
-		Short: "Submit a background command",
-		Args:  cobra.MinimumNArgs(1),
+		Use:   "run [--on auto|device] <program> [args...]",
+		Short: "Run a background command here or on a paired worker",
+		Long: "Run submits a native background process.\n\n" +
+			"Without --on, the command runs on this computer. With --on auto, ComputeHop\n" +
+			"uses the single active paired worker. With --on <device>, it targets a named\n" +
+			"or short-ID paired worker. Declare outputs with -o and add --get when you want\n" +
+			"the CLI to wait for success and restore those outputs immediately.",
+		Example: strings.Join([]string{
+			"computehop run hostname",
+			"computehop run --on auto cargo build --release",
+			"computehop run --on \"Gaming PC\" -C /local/project go test ./...",
+			"computehop run --on auto -o target/release/app --follow --get cargo build --release",
+		}, "\n"),
+		Args: cobra.MinimumNArgs(1),
 		RunE: func(command *cobra.Command, arguments []string) error {
 			if artifactDestination != "" && !fetchOutputs {
 				return errors.New("--to requires --get")
@@ -1332,7 +1353,14 @@ func newArtifactsCommand(
 		Use:     "outputs <job-id>",
 		Aliases: []string{"artifacts", "fetch", "download"},
 		Short:   "Download a completed job's declared outputs",
-		Args:    cobra.ExactArgs(1),
+		Long: "Download declared outputs for a completed job.\n\n" +
+			"By default ComputeHop infers the worker from the job ID and restores into\n" +
+			".computehop-results/<job-id>. Use --to to choose another destination.",
+		Example: strings.Join([]string{
+			"computehop outputs <job-id>",
+			"computehop outputs <job-id> --to ./results",
+		}, "\n"),
+		Args: cobra.ExactArgs(1),
 		RunE: func(command *cobra.Command, arguments []string) error {
 			id, err := job.ParseID(arguments[0])
 			if err != nil {
@@ -1733,7 +1761,7 @@ func formatByteCount(value int64) string {
 }
 
 func addDeviceSelectorFlags(command *cobra.Command, destination *string) {
-	command.Flags().StringVar(destination, "on", "", "paired worker name, device ID, or auto")
+	command.Flags().StringVar(destination, "on", "", "paired worker name, device ID, or auto (single active worker)")
 	command.Flags().StringVar(destination, "device", "", "paired worker name, device ID, or auto (legacy alias for --on)")
 	_ = command.Flags().MarkHidden("device")
 }

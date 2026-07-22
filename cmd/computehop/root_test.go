@@ -1226,6 +1226,65 @@ func TestRootHelpShowsSetupAndConnectButHidesLegacyPair(t *testing.T) {
 	}
 }
 
+func TestCoreCommandHelpShowsFriendlyExamplesWithoutDaemon(t *testing.T) {
+	for _, testCase := range []struct {
+		name string
+		args []string
+		want []string
+	}{
+		{
+			name: "connect",
+			args: []string{"connect", "--help"},
+			want: []string{
+				"connect [auto|device]",
+				"computehop connect auto",
+				"computehop connect confirm",
+				"nearby unpaired worker",
+			},
+		},
+		{
+			name: "run",
+			args: []string{"run", "--help"},
+			want: []string{
+				"run [--on auto|device]",
+				"computehop run --on auto cargo build --release",
+				"single active paired worker",
+				"--on string",
+			},
+		},
+		{
+			name: "outputs",
+			args: []string{"outputs", "--help"},
+			want: []string{
+				"Download declared outputs",
+				"computehop outputs <job-id> --to ./results",
+				"infers the worker from the job ID",
+			},
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			var stdout bytes.Buffer
+			command := newRootCommand(dependencies{
+				stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+				newClient: func(string) (caller, error) {
+					t.Fatal("help should not require a daemon client")
+					return nil, nil
+				},
+			})
+			command.SetArgs(testCase.args)
+			if err := command.Execute(); err != nil {
+				t.Fatalf("Execute() error = %v", err)
+			}
+			output := stdout.String()
+			for _, want := range testCase.want {
+				if !strings.Contains(output, want) {
+					t.Fatalf("help %q does not contain %q", output, want)
+				}
+			}
+		})
+	}
+}
+
 func TestConnectCommandWithoutDeviceSuggestsNearbyWorker(t *testing.T) {
 	presenceID, err := device.NewPresenceID(bytes.NewReader(bytes.Repeat([]byte{22}, 16)))
 	if err != nil {
