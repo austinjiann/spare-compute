@@ -1,8 +1,9 @@
 #!/bin/sh
 set -eu
 
-env_file="./.env"
-secret_file="./secrets/turn_shared_secret"
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+env_file="$script_dir/.env"
+secret_file="$script_dir/secrets/turn_shared_secret"
 connectivity_domain=""
 turn_domain=""
 ttl_hours=24

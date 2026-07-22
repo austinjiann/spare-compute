@@ -1,6 +1,9 @@
 #!/bin/sh
 set -eu
 
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+cd "$script_dir"
+
 if [ ! -f .env ]; then
 	echo "deploy/vps/.env is missing; copy .env.example and fill it in" >&2
 	exit 1

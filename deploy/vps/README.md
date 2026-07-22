@@ -70,6 +70,10 @@ docker compose up -d --build
 docker compose ps
 ```
 
+The helper scripts resolve their own directory, so they also work from the
+repository root as `./deploy/vps/verify.sh` and
+`./deploy/vps/turn-credentials.sh`.
+
 Use real domains, an operations email, and the VPS's public IPv4 in `.env`.
 `TURN_RELAY_IP` normally equals that public address. If `ip -4 addr` does not
 show the public address because the provider uses 1:1 NAT, set it to the host's
