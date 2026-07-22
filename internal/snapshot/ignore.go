@@ -35,6 +35,7 @@ func loadIgnoreMatcher(root string) (ignoreMatcher, error) {
 	matcher := ignoreMatcher{rules: []ignoreRule{
 		{pattern: ".git", directory: true},
 		{pattern: ".computehop-results", directory: true},
+		{pattern: ".computehop-conflicts", directory: true},
 	}}
 	ignoreFiles := 0
 	err := filepath.WalkDir(root, func(current string, entry fs.DirEntry, walkErr error) error {
@@ -150,7 +151,7 @@ func (matcher ignoreMatcher) ignored(relative string, directory bool) bool {
 	// Internal metadata and returned results are never eligible for transfer,
 	// even if a later user rule attempts to negate the exclusion.
 	for _, segment := range strings.Split(relative, "/") {
-		if segment == ".git" || segment == ".computehop-results" {
+		if segment == ".git" || segment == ".computehop-results" || segment == ".computehop-conflicts" {
 			return true
 		}
 	}

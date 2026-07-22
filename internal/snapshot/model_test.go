@@ -127,7 +127,7 @@ func TestResolveProjectAcceptsSymlinkToSelectedDirectory(t *testing.T) {
 func TestBuildResolvesProjectAppliesNestedIgnoreRulesAndStoresChunks(t *testing.T) {
 	root := t.TempDir()
 	writeSnapshotTestFile(t, filepath.Join(root, ".git", "config"), []byte("ignored"), 0o644)
-	writeSnapshotTestFile(t, filepath.Join(root, ".gitignore"), []byte("*.tmp\nbuild/\n!keep.tmp\n!.git/\n!.computehop-results/\n"), 0o644)
+	writeSnapshotTestFile(t, filepath.Join(root, ".gitignore"), []byte("*.tmp\nbuild/\n!keep.tmp\n!.git/\n!.computehop-results/\n!.computehop-conflicts/\n"), 0o644)
 	writeSnapshotTestFile(t, filepath.Join(root, ".computehopignore"), []byte("!special.tmp\nprivate.txt\n"), 0o644)
 	writeSnapshotTestFile(t, filepath.Join(root, "go.mod"), []byte("module example.test/project\n"), 0o644)
 	writeSnapshotTestFile(t, filepath.Join(root, "keep.tmp"), []byte("keep"), 0o644)
@@ -137,6 +137,7 @@ func TestBuildResolvesProjectAppliesNestedIgnoreRulesAndStoresChunks(t *testing.
 	writeSnapshotTestFile(t, filepath.Join(root, "build", "binary"), []byte("drop"), 0o755)
 	writeSnapshotTestFile(t, filepath.Join(root, "build", ".gitignore"), bytes.Repeat([]byte("x"), maximumIgnoreBytes+1), 0o644)
 	writeSnapshotTestFile(t, filepath.Join(root, ".computehop-results", "secret"), []byte("drop"), 0o644)
+	writeSnapshotTestFile(t, filepath.Join(root, ".computehop-conflicts", "secret"), []byte("drop"), 0o644)
 	writeSnapshotTestFile(t, filepath.Join(root, "cmd", ".gitignore"), []byte("generated.go\n"), 0o644)
 	writeSnapshotTestFile(t, filepath.Join(root, "cmd", "generated.go"), []byte("drop"), 0o644)
 	writeSnapshotTestFile(t, filepath.Join(root, "cmd", "app", "main.go"), []byte("package main\n"), 0o755)

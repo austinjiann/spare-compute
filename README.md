@@ -66,11 +66,12 @@ to the CLI's current directory. ComputeHop finds the enclosing Git worktree or
 nearest recognized project marker, creates an immutable snapshot, transfers
 only missing content-defined chunks, and reconstructs it under a private
 per-job worker directory. `.gitignore` and `.computehopignore` rules are
-applied; `.git`, `.computehop-results`, symlinks, sockets, devices, traversal,
-and non-portable paths cannot enter a snapshot. Declared outputs use the same
-verified content store and are restored without overwriting existing files or
-following destination symlinks. Chunk transfers negotiate bounded zstd or
-identity encoding while keeping hashes defined over decoded content. The
+applied; `.git`, `.computehop-results`, `.computehop-conflicts`, symlinks,
+sockets, devices, traversal, and non-portable paths cannot enter a snapshot.
+Declared outputs use the same verified content store and are restored without
+overwriting existing files or following destination symlinks. Chunk transfers
+negotiate bounded zstd or identity encoding while keeping hashes defined over
+decoded content. The
 verified content cache defaults to 20GiB and can be changed with
 `computehopd --cache-size 40GiB` or the macOS installer `--cache-size` flag.
 Automatic placement and fully validated network-change reconnection are later
