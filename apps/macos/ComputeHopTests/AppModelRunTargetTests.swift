@@ -198,6 +198,67 @@ func copyRunCommandCopiesCurrentCLICommand() {
 
 @Test
 @MainActor
+func refreshNotifiesWhenObservedJobFinishes() async {
+    let jobID = "7a338fa3-7ba4-4c54-bf59-da1161f6b76f"
+    let client = RecordingDaemonClient(
+        jobs: [
+            jobSummary(
+                id: jobID,
+                executable: "cargo",
+                arguments: ["build"],
+                target: "Gaming PC",
+                state: .running
+            )
+        ]
+    )
+    let notifier = RecordingJobCompletionNotifier()
+    let model = AppModel(client: client, notifier: notifier)
+
+    await model.refresh()
+
+    #expect(notifier.notifications.isEmpty)
+
+    await client.setJobs([
+        jobSummary(
+            id: jobID,
+            executable: "cargo",
+            arguments: ["build"],
+            target: "Gaming PC",
+            state: .succeeded
+        )
+    ])
+    await model.refresh()
+
+    #expect(notifier.notifications == [
+        NotificationRecord(
+            title: "ComputeHop job succeeded",
+            body: "cargo build on Gaming PC · 7a338fa3"
+        )
+    ])
+}
+
+@Test
+@MainActor
+func refreshDoesNotNotifyForExistingTerminalHistory() async {
+    let client = RecordingDaemonClient(
+        jobs: [
+            jobSummary(
+                id: "7a338fa3-7ba4-4c54-bf59-da1161f6b76f",
+                target: "This Mac",
+                state: .succeeded
+            )
+        ]
+    )
+    let notifier = RecordingJobCompletionNotifier()
+    let model = AppModel(client: client, notifier: notifier)
+
+    await model.refresh()
+
+    #expect(notifier.notifications.isEmpty)
+}
+
+@Test
+@MainActor
 func submitLocalCommandIgnoresStaleNoProjectToggle() async {
     let client = RecordingDaemonClient(devices: [])
     let model = AppModel(client: client)
@@ -524,8 +585,23 @@ private final class RecordingClipboard: ClipboardWriting {
     }
 }
 
+private struct NotificationRecord: Equatable {
+    let title: String
+    let body: String
+}
+
+@MainActor
+private final class RecordingJobCompletionNotifier: JobCompletionNotifying {
+    var notifications: [NotificationRecord] = []
+
+    func notifyJobFinished(title: String, body: String) async {
+        notifications.append(NotificationRecord(title: title, body: body))
+    }
+}
+
 private actor RecordingDaemonClient: LocalDaemonClientProtocol {
     private let devices: [DeviceSummary]
+    private var jobs: [JobSummary]
     private var submittedExecutable: String?
     private var submittedArguments: [String]?
     private var submittedSelector: String?
@@ -535,8 +611,9 @@ private actor RecordingDaemonClient: LocalDaemonClientProtocol {
     private var unpairedSelector: String?
     private let submittedID = "7a338fa3-7ba4-4c54-bf59-da1161f6b76f"
 
-    init(devices: [DeviceSummary] = []) {
+    init(devices: [DeviceSummary] = [], jobs: [JobSummary] = []) {
         self.devices = devices
+        self.jobs = jobs
     }
 
     func lastSubmittedExecutable() -> String? { submittedExecutable }
@@ -553,11 +630,17 @@ private actor RecordingDaemonClient: LocalDaemonClientProtocol {
 
     func lastUnpairedSelector() -> String? { unpairedSelector }
 
+    func setJobs(_ jobs: [JobSummary]) {
+        self.jobs = jobs
+    }
+
     func ping() async throws -> LocalDaemonSummary { daemonSummary() }
 
     func listDevices() async throws -> [DeviceSummary] { devices }
 
-    func listJobs(limit: UInt32) async throws -> [JobSummary] { [] }
+    func listJobs(limit: UInt32) async throws -> [JobSummary] {
+        Array(jobs.prefix(Int(limit)))
+    }
 
     func getJob(id: String, target: String) async throws -> JobSummary {
         jobSummary(id: id, target: target)

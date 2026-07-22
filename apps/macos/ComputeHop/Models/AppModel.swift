@@ -29,9 +29,18 @@ enum AppActionError: LocalizedError {
 @MainActor
 final class AppModel {
     static let automaticWorkerTargetID = "auto"
+    private static let terminalJobStates: Set<String> = [
+        "Succeeded",
+        "Failed",
+        "Cancelled",
+        "Rejected",
+        "Lost",
+    ]
 
     private let client: LocalDaemonClientProtocol
+    private let notifier: JobCompletionNotifying
     private var trackedRemoteJobs: [String: String] = [:]
+    private var observedJobStates: [String: String] = [:]
     private var nextLogSequence: UInt64 = 0
 
     var daemon: LocalDaemonSummary?
@@ -52,8 +61,12 @@ final class AppModel {
     var isLoadingLogs = false
     var artifactMessage: String?
 
-    init(client: LocalDaemonClientProtocol = LocalDaemonClient()) {
+    init(
+        client: LocalDaemonClientProtocol = LocalDaemonClient(),
+        notifier: JobCompletionNotifying = SystemJobCompletionNotifier()
+    ) {
         self.client = client
+        self.notifier = notifier
     }
 
     var daemonVersion: String? { daemon?.version }
@@ -251,6 +264,7 @@ final class AppModel {
                 }
             }
             jobs = refreshedJobs.sorted { $0.updatedAt > $1.updatedAt }
+            await recordJobStateTransitions(jobs)
             pairings = snapshot.3
             if isAutomaticRunTargetSelected && !canRunAutomatically {
                 runTargetID = ""
@@ -353,6 +367,7 @@ final class AppModel {
             }
             jobs.removeAll { $0.id == submitted.id }
             jobs.insert(submitted, at: 0)
+            observedJobStates[submitted.id] = submitted.state
             selectedJobID = submitted.id
             selectedJobLogs = ""
             selectedJobLogsTruncated = false
@@ -376,6 +391,7 @@ final class AppModel {
             trackedRemoteJobs[submitted.id] = target.name
             jobs.removeAll { $0.id == submitted.id }
             jobs.insert(submitted, at: 0)
+            observedJobStates[submitted.id] = submitted.state
             selectedJobID = submitted.id
             selectedJobLogs = ""
             selectedJobLogsTruncated = false
@@ -433,7 +449,9 @@ final class AppModel {
                     target: target
                 )
                 if let jobIndex = jobs.firstIndex(where: { $0.id == selectedJobID }) {
+                    let previousState = jobs[jobIndex].state
                     jobs[jobIndex] = page.job
+                    await recordJobStateTransition(from: previousState, to: page.job)
                 }
                 for record in page.records {
                     selectedJobLogs.append(record.text)
@@ -453,6 +471,25 @@ final class AppModel {
         guard selectedJobLogs.count > maximumCharacters else { return }
         selectedJobLogs = String(selectedJobLogs.suffix(maximumCharacters))
         selectedJobLogsTruncated = true
+    }
+
+    private func recordJobStateTransitions(_ refreshedJobs: [JobSummary]) async {
+        for job in refreshedJobs {
+            await recordJobStateTransition(from: observedJobStates[job.id], to: job)
+        }
+        let currentJobIDs = Set(refreshedJobs.map(\.id))
+        observedJobStates = observedJobStates.filter { currentJobIDs.contains($0.key) }
+    }
+
+    private func recordJobStateTransition(from previousState: String?, to job: JobSummary) async {
+        defer { observedJobStates[job.id] = job.state }
+        guard let previousState, previousState != job.state else { return }
+        guard job.terminal, !Self.terminalJobStates.contains(previousState) else { return }
+
+        await notifier.notifyJobFinished(
+            title: "ComputeHop job \(job.state.lowercased())",
+            body: "\(job.command) on \(job.target) · \(job.shortID)"
+        )
     }
 
     private func smokeTestTarget() throws -> (selector: String, name: String) {
