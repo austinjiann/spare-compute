@@ -2927,11 +2927,14 @@ func TestPairCommandPrintsConnectionBoundVerificationInstructions(t *testing.T) 
 	}
 	for _, want := range []string{
 		value.ID.Short(), value.PeerName, string(value.Verification),
-		"Compare this exact code on both devices", "computehop pair confirm",
+		"Compare this exact code on both devices", "computehop connect confirm",
 	} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
 		}
+	}
+	if strings.Contains(stdout.String(), "computehop pair confirm") {
+		t.Fatalf("legacy pair output should point at connect confirm: %q", stdout.String())
 	}
 }
 

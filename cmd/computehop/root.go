@@ -1026,7 +1026,7 @@ func newPairCommand(
 			if err != nil {
 				return fmt.Errorf("%w: %v", ErrInvalidDaemonResponse, err)
 			}
-			return printPairingInstructions(stdout, value)
+			return printPairingInstructionsWithConfirm(stdout, value, "computehop connect confirm")
 		},
 	}
 	command.AddCommand(newPairDecisionCommand(stdout, clientForCommand, true))
@@ -1446,10 +1446,6 @@ computehop disconnect abc12345`),
 			return err
 		},
 	}
-}
-
-func printPairingInstructions(stdout io.Writer, value trust.Pairing) error {
-	return printPairingInstructionsWithConfirm(stdout, value, "computehop pair confirm")
 }
 
 func printPairingInstructionsWithConfirm(stdout io.Writer, value trust.Pairing, confirmCommand string) error {
