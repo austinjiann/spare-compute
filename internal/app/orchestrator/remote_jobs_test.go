@@ -372,6 +372,57 @@ func TestRemoteJobServiceTransfersOnlyMissingSnapshotChunks(t *testing.T) {
 	}
 }
 
+func TestRemoteJobServiceSkipsSnapshotForEmptyWorkingDirectory(t *testing.T) {
+	peer := activeWorkerPeer(t, 18, "Utility PC")
+	want := queuedJobForTest()
+	want.Spec.WorkingDirectory = ""
+	message, err := mapper.JobToRemoteProto(want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	submissions := 0
+	service, err := NewRemoteJobService(RemoteDependencies{
+		Nearby: stubDeviceController{}, Trust: remoteTrustStub{peers: []trust.Peer{peer}},
+		Placements: newRemotePlacementStub(),
+		Dialer: remoteDialerFunc(func(context.Context, device.NearbyDevice, trust.Peer) (remoteprotocol.Caller, error) {
+			t.Fatal("absent LAN path was dialed")
+			return nil, nil
+		}),
+		Remote: pairedRemoteDialerFunc(func(context.Context, trust.Peer) (remoteprotocol.Caller, error) {
+			return &remoteCallerStub{call: func(
+				_ context.Context,
+				request *computehopv1.RemoteRequest,
+			) (*computehopv1.RemoteResponse, error) {
+				submit := request.GetSubmitJob()
+				if submit == nil {
+					t.Fatalf("request = %#v", request)
+				}
+				if submit.GetSnapshot() != nil ||
+					submit.GetWorkingSubdirectory() != "" ||
+					submit.GetSpec().GetWorkingDirectory() != "" {
+					t.Fatalf("submit request = %#v", submit)
+				}
+				submissions++
+				return &computehopv1.RemoteResponse{Result: &computehopv1.RemoteResponse_SubmitJob{
+					SubmitJob: &computehopv1.SubmitJobResponse{Job: message},
+				}}, nil
+			}}, nil
+		}),
+		Snapshots: projectSnapshotterStub{err: errors.New("snapshot should not be built")},
+		Content:   snapshotContentStub{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := service.Submit(context.Background(), "Utility PC", want.Spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if submissions != 1 || got.ID != want.ID {
+		t.Fatalf("submissions = %d; job = %#v", submissions, got)
+	}
+}
+
 func TestRemoteJobServiceDownloadsOnlyMissingArtifactChunksAndRestores(t *testing.T) {
 	peer := activeWorkerPeer(t, 23, "Render PC")
 	contents := bytes.Repeat([]byte("rendered output\n"), 8_192)

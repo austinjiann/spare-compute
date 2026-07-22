@@ -237,6 +237,78 @@ func TestRunCommandDefaultsRemoteProjectToCurrentDirectory(t *testing.T) {
 	}
 }
 
+func TestRunCommandNoProjectSubmitsEmptyWorkingDirectory(t *testing.T) {
+	value := cliJobForTest(job.StateQueued)
+	message, err := mapper.JobToProto(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	command := newRootCommand(dependencies{
+		stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{},
+		getwd: func() (string, error) {
+			t.Fatal("--no-project resolved the local working directory")
+			return "", nil
+		},
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+				submit := request.GetSubmitJob()
+				if submit.GetDeviceSelector() != "auto" || submit.GetSpec().GetWorkingDirectory() != "" {
+					t.Fatalf("submit = %#v", submit)
+				}
+				return &localv1.Response{Result: &localv1.Response_SubmitJob{
+					SubmitJob: &localv1.SubmitJobResponse{Job: message},
+				}}, nil
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"run", "--on", "auto", "--no-project", "hostname"})
+	if err := command.Execute(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRunCommandNoProjectRequiresRemoteTarget(t *testing.T) {
+	command := newRootCommand(dependencies{
+		stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			t.Fatal("client should not be created for invalid --no-project usage")
+			return nil, nil
+		},
+	})
+	command.SetArgs([]string{"run", "--no-project", "hostname"})
+	if err := command.Execute(); err == nil || !strings.Contains(err.Error(), "--no-project requires --on") {
+		t.Fatalf("Execute() error = %v", err)
+	}
+}
+
+func TestRunCommandNoProjectRejectsWorkingDirectory(t *testing.T) {
+	command := newRootCommand(dependencies{
+		stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			t.Fatal("client should not be created for invalid --no-project usage")
+			return nil, nil
+		},
+	})
+	command.SetArgs([]string{"run", "--on", "auto", "--no-project", "-C", "/project", "hostname"})
+	if err := command.Execute(); err == nil || !strings.Contains(err.Error(), "cannot be combined") {
+		t.Fatalf("Execute() error = %v", err)
+	}
+}
+
+func TestRunCommandNoProjectRejectsDeclaredOutputs(t *testing.T) {
+	command := newRootCommand(dependencies{
+		stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			t.Fatal("client should not be created for invalid --no-project usage")
+			return nil, nil
+		},
+	})
+	command.SetArgs([]string{"run", "--on", "auto", "--no-project", "-o", "result.txt", "hostname"})
+	if err := command.Execute(); err == nil || !strings.Contains(err.Error(), "cannot be combined with --output") {
+		t.Fatalf("Execute() error = %v", err)
+	}
+}
+
 func TestRunCommandDeclaresOutputsAndPrintsFetchHint(t *testing.T) {
 	value := cliJobForTest(job.StateQueued)
 	value.Spec.Outputs = []string{"dist", "report.json"}
@@ -496,6 +568,80 @@ func TestRunCommandWaitReturnsTerminalFailure(t *testing.T) {
 	command.SetArgs([]string{"run", "--wait", "false"})
 	if err := command.Execute(); err == nil || !strings.Contains(err.Error(), "ended as failed") {
 		t.Fatalf("Execute() error = %v", err)
+	}
+}
+
+func TestSmokeCommandSubmitsHostnameWithoutProjectAndFollowsLogs(t *testing.T) {
+	value := cliJobForTest(job.StateQueued)
+	value.Spec.Executable = "hostname"
+	submitted, err := mapper.JobToProto(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	succeeded := value
+	succeeded.State = job.StateSucceeded
+	succeededMessage, err := mapper.JobToProto(succeeded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var calls int
+	var stdout, stderr bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &stderr, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+				calls++
+				switch calls {
+				case 1:
+					submit := request.GetSubmitJob()
+					if submit.GetDeviceSelector() != "auto" ||
+						submit.GetSpec().GetExecutable() != "hostname" ||
+						submit.GetSpec().GetWorkingDirectory() != "" {
+						t.Fatalf("submit = %#v", submit)
+					}
+					return &localv1.Response{Result: &localv1.Response_SubmitJob{
+						SubmitJob: &localv1.SubmitJobResponse{Job: submitted},
+					}}, nil
+				case 2:
+					read := request.GetReadJobLogs()
+					if read.GetJobId() != string(value.ID) ||
+						read.GetDeviceSelector() != "auto" ||
+						read.GetAfterSequence() != 0 {
+						t.Fatalf("read logs = %#v", read)
+					}
+					return &localv1.Response{Result: &localv1.Response_ReadJobLogs{
+						ReadJobLogs: &localv1.ReadJobLogsResponse{
+							Job: succeededMessage,
+							Records: []*localv1.JobLogRecord{{
+								Sequence: 1,
+								Stream:   localv1.JobLogStream_JOB_LOG_STREAM_STDOUT,
+								Data:     []byte("worker-host\n"),
+							}},
+						},
+					}}, nil
+				default:
+					t.Fatalf("unexpected call %d", calls)
+					return nil, nil
+				}
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"smoke"})
+	if err := command.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"Submitted smoke test " + string(value.ID) + " to an automatically selected worker (queued)",
+		"worker-host\n",
+		"Job " + string(value.ID) + " succeeded",
+		"Smoke test passed.",
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
+		}
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q", stderr.String())
 	}
 }
 
@@ -975,8 +1121,7 @@ func TestDoctorCommandSuggestsRemoteSmokeTestForConnectedWorker(t *testing.T) {
 	for _, want := range []string{
 		"Reachable workers: 1 (Gaming PC)",
 		"Nearby unpaired devices: 0",
-		"computehop run --on auto hostname",
-		"computehop jobs --on auto",
+		"computehop smoke --on auto",
 	} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
@@ -1177,7 +1322,7 @@ func TestSetupCommandPrintsFirstRunChecklistWithoutDaemon(t *testing.T) {
 		"Development-only alternative: go run ./cmd/computehopd --role worker",
 		"computehop connect auto",
 		"computehop connect <device>",
-		"computehop run --on auto hostname",
+		"computehop smoke",
 		"cd deploy/vps",
 		"./init.sh --connectivity-domain connect.example.com",
 		"./verify.sh",
@@ -1215,7 +1360,7 @@ func TestSetupVPSCommandPrintsDeploymentChecklistWithoutDaemon(t *testing.T) {
 		"./turn-credentials.sh",
 		"./packaging/macos/install.sh --role worker",
 		"--turn-server",
-		"computehop run --on auto hostname",
+		"computehop smoke",
 		"operator-provisioned TURN relay testing",
 		"Public production relay still needs server-verifiable entitlement",
 	} {
@@ -1275,7 +1420,7 @@ func TestRootHelpShowsSetupAndConnectButHidesLegacyPair(t *testing.T) {
 		t.Fatalf("Execute() error = %v", err)
 	}
 	output := stdout.String()
-	for _, want := range []string{"setup", "connect"} {
+	for _, want := range []string{"setup", "connect", "smoke"} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("help %q does not contain %q", output, want)
 		}
@@ -1307,8 +1452,18 @@ func TestCoreCommandHelpShowsFriendlyExamplesWithoutDaemon(t *testing.T) {
 			want: []string{
 				"run [--on auto|device]",
 				"computehop run --on auto cargo build --release",
+				"computehop run --on auto --no-project hostname",
 				"single active paired worker",
 				"--on string",
+			},
+		},
+		{
+			name: "smoke",
+			args: []string{"smoke", "--help"},
+			want: []string{
+				"Run a cheap remote connectivity smoke test",
+				"computehop smoke --on \"Gaming PC\"",
+				"without uploading a project",
 			},
 		},
 		{

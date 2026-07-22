@@ -250,7 +250,7 @@ func (service *RemoteJobService) Submit(
 	if err != nil {
 		return job.Job{}, err
 	}
-	if service.snapshots != nil {
+	if service.snapshots != nil && strings.TrimSpace(spec.WorkingDirectory) != "" {
 		return service.submitSnapshot(ctx, peer, spec)
 	}
 	message, err := mapper.SpecToRemoteProto(spec)

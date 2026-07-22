@@ -25,7 +25,7 @@ Last updated: 2026-07-22.
 | Direct ICE path and signaling foundation | Complete | Gather bounded UDP candidates with Pion ICE, exchange versioned descriptions through pair-encrypted rendezvous presence, select orchestrator/worker paths, report routing without secrets, and carry QUIC over the selected packet connection. |
 | Supervised direct internet control | In progress | Daemons reconcile active pair records, retry encrypted rendezvous/ICE negotiation, run the identity-pinned control protocol over selected paths, prefer LAN for jobs, and expose path state to CLI/Swift. Automated end-to-end and race coverage pass; physical unrelated-network and network-change validation remain. |
 | One-VPS staging deployment | In progress | Provider-neutral Compose stack, Caddy HTTPS edge, authenticated coturn relay, bounded ports/quotas, generated local env/secrets, operator-provisioned short-lived TURN credentials for single-owner relay testing, firewall bootstrap, health checks, rollback runbook, and daemon-free, flag-customizable `computehop setup vps` checklist are ready; buying the VPS and forced-relay validation remain. |
-| CLI and physical Mac validation | In progress | Friendlier `--on`, `--on auto` for the single active worker, safe `connect auto` for the single nearby unpaired worker, and no-`--` command syntax, daemon-free `setup` and `setup vps`, installer-first worker setup guidance, example-rich help for `connect`/`run`/`outputs`, `run --follow/--wait/--get`, `connect` as the guided pairing entry point, inferred and actionable pairing confirmation, first-run `doctor`, duplicate-daemon startup guidance, local daemon identity in status output, hidden legacy `pair` help, merged trusted/nearby presentation, and stale duplicate LAN-presence suppression are implemented; physical macOS-to-macOS discovery, pairing, execution, restart recovery, logs, and cancellation passed. Windows/Linux remain. |
+| CLI and physical Mac validation | In progress | Friendlier `--on`, `--on auto` for the single active worker, safe `connect auto` for the single nearby unpaired worker, and no-`--` command syntax, daemon-free `setup` and `setup vps`, installer-first worker setup guidance, one-command `smoke`, remote `--no-project` utility runs, example-rich help for `connect`/`run`/`outputs`/`smoke`, `run --follow/--wait/--get`, `connect` as the guided pairing entry point, inferred and actionable pairing confirmation, first-run `doctor`, duplicate-daemon startup guidance, local daemon identity in status output, hidden legacy `pair` help, merged trusted/nearby presentation, and stale duplicate LAN-presence suppression are implemented; physical macOS-to-macOS discovery, pairing, execution, restart recovery, logs, and cancellation passed. Windows/Linux remain. |
 | macOS menu-bar foundation | In progress | SwiftUI `MenuBarExtra`, generated SwiftProtobuf models, authenticated Unix-socket IPC, local daemon identity, first-run next-step guidance with one-click safe nearby-worker connection, device/connect controls that pair by discovered identifiers instead of display names, stale duplicate LAN-presence suppression for trusted devices, native job submission with This Mac, Auto worker, and explicit worker targets, output declarations and retrieval, reconnectable logs, cancellation, and role-specific installer handoff commands build and pass Swift/package checks; an ad-hoc app bundle and per-user launchd installer are ready for development. |
 | Project snapshots, incremental transfer, and declared artifacts | In progress | Remote runs resolve a local project root, create bounded content-defined snapshots, upload only missing verified chunks, and execute in isolated workspaces. Workers durably collect exact declared files/directories before success; orchestrators fetch only missing verified chunks and restore without overwrites or symlink traversal. Transfer peers negotiate bounded identity/zstd chunk encoding while preserving decoded-content hashes. The persistent verified content cache is SQLite-indexed, LRU-evicted, quota-bound, and protects active jobs plus unacknowledged artifact chunks. Artifact download/restore progress is durable and visible in CLI/Swift job summaries, and `run --get` restores to the submitted working directory by default. Automated LAN/supervised-path reuse and artifact coverage pass; full ignore conformance, secrets, upload progress, and physical cross-platform validation remain. |
 | Later launch slices | In progress | Direct internet control still needs physical unrelated-network and reconnect validation, and public TURN relay issuance requires a hosted entitlement boundary. Full compatibility/resource scheduling, adapters, production packaging, and release operations follow. |
@@ -555,8 +555,11 @@ computehop unpair <device>
 computehop run <program> [args...]
 computehop run <job-name>
 computehop run --on auto <program> [args...]
+computehop run --on auto --no-project <program> [args...]
 computehop run --on <device> --output <relative-path> <program> [args...]
 computehop run --on <device> --output <relative-path> --follow --get <program> [args...]
+computehop smoke
+computehop smoke --on <device>
 
 # Observation and control
 computehop jobs
@@ -1213,11 +1216,13 @@ duplicate-daemon startup guidance for local socket or ComputeHop port conflicts,
 local daemon identity in status output, `connect` as the guided pairing entry point,
 safe `connect auto` for the single nearby unpaired worker, actionable `connect confirm`
 messages, actionable `--on auto` failure guidance, `--on auto` for the single active worker, explicit `run`,
+remote `run --no-project` for utility commands that need no local files, one-command `smoke`,
 `run --follow/--wait/--get`, `jobs`, `logs`, and `cancel` routing through
 identity-pinned QUIC, and durable remote job placement are
 implemented. Remote runs now transfer an immutable project
 snapshot and use an isolated worker workspace; `-C` identifies the local source
-directory and defaults to the CLI's current directory. The macOS-to-macOS
+directory and defaults to the CLI's current directory, while `--no-project`
+intentionally skips snapshot transfer. The macOS-to-macOS
 physical flow has passed discovery, pairing, execution, daemon restart recovery,
 durable log retrieval, and cancellation. The checkpoint remains open until
 Windows and Linux workers pass the same physical flow.
@@ -1235,7 +1240,8 @@ Windows and Linux workers pass the same physical flow.
   physical machines as soon as each worker build exists.
 
 **Checkpoint:** `computehop connect auto` starts trust setup only when one
-nearby unpaired worker is visible. `computehop run --on auto <command>` selects
+nearby unpaired worker is visible. `computehop smoke` runs a cheap hostname
+check against the selected worker. `computehop run --on auto <command>` selects
 the only active worker and explains how to connect or choose explicitly when it
 cannot select safely, while `computehop run --on <name> <command>` discovers a
 specific worker without an address, pairs it once, reconnects without prompting,

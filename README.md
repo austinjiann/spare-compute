@@ -141,10 +141,14 @@ After connecting a currently nearby worker, use `--on auto` when there is one
 active worker. Use an explicit name or device ID when you have more than one
 worker. If automatic selection cannot choose safely, the CLI tells you whether
 to run `computehop connect auto` for setup or `computehop devices` to pick an
-explicit worker:
+explicit worker. For the cheap “does remote execution work?” check, run
+`computehop smoke`; it submits `hostname` to the selected worker without
+uploading a project and follows the result:
 
 ```bash
+go run ./cmd/computehop --state-dir "$computehop_state_dir" smoke
 go run ./cmd/computehop --state-dir "$computehop_state_dir" run --on auto echo hello
+go run ./cmd/computehop --state-dir "$computehop_state_dir" run --on auto --no-project hostname
 go run ./cmd/computehop --state-dir "$computehop_state_dir" run --on auto cargo build --release
 go run ./cmd/computehop --state-dir "$computehop_state_dir" run --on "Gaming PC" -C /local/project cargo test
 go run ./cmd/computehop --state-dir "$computehop_state_dir" run --on "Gaming PC" -o target/release/my-app cargo build --release
@@ -159,7 +163,10 @@ Repeat `-o`/`--output` for each relative file or directory to return. Add
 `--follow` to stream logs from `run`, `--wait` to block until completion without
 streaming logs, and `--get`/`--fetch` to download declared outputs after a
 successful job. `--get` implies waiting and restores to the submitted working
-directory by default; use `--to <directory>` to choose another destination. You
+directory by default; use `--to <directory>` to choose another destination. Use
+`--no-project` for remote utility commands that do not need local files or
+declared outputs, so the worker runs the command without a project snapshot
+upload. You
 can still fetch later with `computehop outputs <job-id>` (`artifacts`, `fetch`,
 and `download` remain aliases), which infers its worker and restores to
 `.computehop-results/<job-id>` by default. Existing files are never overwritten.

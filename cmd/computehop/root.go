@@ -66,6 +66,7 @@ func newRootCommand(dependencies dependencies) *cobra.Command {
 	root.AddCommand(newPairCommand(dependencies.stdout, clientForCommand))
 	root.AddCommand(newUnpairCommand(dependencies.stdout, clientForCommand))
 	root.AddCommand(newRunCommand(dependencies.stdout, dependencies.getwd, clientForCommand))
+	root.AddCommand(newSmokeCommand(dependencies.stdout, dependencies.stderr, clientForCommand))
 	root.AddCommand(newJobsCommand(dependencies.stdout, clientForCommand))
 	root.AddCommand(newArtifactsCommand(
 		dependencies.stdout, dependencies.stderr, dependencies.getwd, clientForCommand,
@@ -384,7 +385,7 @@ func printSetupGuide(stdout io.Writer) error {
 		"   computehop connect confirm",
 		"",
 		"5. Run a smoke test:",
-		"   computehop run --on auto hostname",
+		"   computehop smoke",
 		"",
 		"After buying the VPS:",
 		"   computehop setup vps",
@@ -441,7 +442,7 @@ func printVPSSetupGuide(stdout io.Writer, options vpsSetupOptions) error {
 		"",
 		"Smoke test:",
 		"   computehop devices",
-		"   computehop run --on auto hostname",
+		"   computehop smoke",
 		"",
 		"Boundary:",
 		"- This enables rendezvous, direct ICE/STUN paths, and operator-provisioned TURN relay testing.",
@@ -1097,10 +1098,7 @@ func printDoctorDevices(stdout io.Writer, result *localv1.ListDevicesResponse) e
 		if len(reachableWorkers) == 1 {
 			selector = "auto"
 		}
-		if _, err := fmt.Fprintf(stdout, "- Run a smoke test: computehop run --on %s hostname\n", selector); err != nil {
-			return err
-		}
-		_, err := fmt.Fprintf(stdout, "- Watch it: computehop jobs --on %s\n", selector)
+		_, err := fmt.Fprintf(stdout, "- Run a smoke test: computehop smoke --on %s\n", selector)
 		return err
 	case len(unpairedNearbyDevices) > 0:
 		unpairedWorkers := make([]nearbyDeviceView, 0, len(unpairedNearbyDevices))
@@ -1202,6 +1200,7 @@ func newRunCommand(
 	var wait bool
 	var fetchOutputs bool
 	var artifactDestination string
+	var noProject bool
 	command := &cobra.Command{
 		Use:   "run [--on auto|device] <program> [args...]",
 		Short: "Run a background command here or on a paired worker",
@@ -1212,6 +1211,7 @@ func newRunCommand(
 			"the CLI to wait for success and restore those outputs immediately.",
 		Example: strings.Join([]string{
 			"computehop run hostname",
+			"computehop run --on auto --no-project hostname",
 			"computehop run --on auto cargo build --release",
 			"computehop run --on \"Gaming PC\" -C /local/project go test ./...",
 			"computehop run --on auto -o target/release/app --follow --get cargo build --release",
@@ -1224,8 +1224,19 @@ func newRunCommand(
 			if fetchOutputs && len(outputs) == 0 {
 				return errors.New("--get requires at least one declared output with -o/--output")
 			}
+			if noProject && deviceSelector == "" {
+				return errors.New("--no-project requires --on auto or --on <device>")
+			}
+			if noProject && workingDirectory != "" {
+				return errors.New("--no-project cannot be combined with --working-directory/-C")
+			}
+			if noProject && len(outputs) > 0 {
+				return errors.New("--no-project cannot be combined with --output/-o")
+			}
 			targetDirectory := workingDirectory
-			if targetDirectory == "" {
+			if noProject {
+				targetDirectory = ""
+			} else if targetDirectory == "" {
 				var err error
 				targetDirectory, err = getwd()
 				if err != nil {
@@ -1338,6 +1349,7 @@ func newRunCommand(
 	command.Flags().BoolVar(&wait, "wait", false, "wait until the job finishes without streaming logs")
 	command.Flags().BoolVar(&fetchOutputs, "get", false, "after success, download declared outputs")
 	command.Flags().BoolVar(&fetchOutputs, "fetch", false, "alias for --get")
+	command.Flags().BoolVar(&noProject, "no-project", false, "skip project snapshot for remote commands that do not need local files")
 	command.Flags().StringVarP(
 		&artifactDestination,
 		"to",
@@ -1345,6 +1357,78 @@ func newRunCommand(
 		"",
 		"output destination when used with --get (defaults to the submitted working directory)",
 	)
+	return command
+}
+
+func newSmokeCommand(
+	stdout io.Writer,
+	stderr io.Writer,
+	clientForCommand func() (caller, error),
+) *cobra.Command {
+	var deviceSelector string
+	command := &cobra.Command{
+		Use:   "smoke",
+		Short: "Run a cheap remote connectivity smoke test",
+		Long: "Run a cheap remote connectivity smoke test.\n\n" +
+			"Smoke submits hostname to a paired worker without uploading a project,\n" +
+			"streams the result, and reports whether the remote job succeeded.",
+		Example: strings.Join([]string{
+			"computehop smoke",
+			"computehop smoke --on \"Gaming PC\"",
+		}, "\n"),
+		Args: cobra.NoArgs,
+		RunE: func(command *cobra.Command, _ []string) error {
+			spec, err := mapper.SpecToProto(job.Spec{
+				Executable: "hostname",
+				Executor:   job.ExecutorNative,
+			})
+			if err != nil {
+				return err
+			}
+			client, err := clientForCommand()
+			if err != nil {
+				return err
+			}
+			response, err := client.Call(command.Context(), &localv1.Request{
+				Operation: &localv1.Request_SubmitJob{SubmitJob: &localv1.SubmitJobRequest{
+					Spec: spec, DeviceSelector: deviceSelector,
+				}},
+			})
+			if err != nil {
+				return runSubmitError(deviceSelector, err)
+			}
+			result := response.GetSubmitJob()
+			if result == nil {
+				return fmt.Errorf("%w: missing submit result", ErrInvalidDaemonResponse)
+			}
+			value, err := mapper.JobFromProto(result.GetJob())
+			if err != nil {
+				return fmt.Errorf("%w: %v", ErrInvalidDaemonResponse, err)
+			}
+			if _, err := fmt.Fprintf(
+				stdout,
+				"Submitted smoke test %s to %s (%s)\n",
+				value.ID,
+				deviceSelectorDisplay(deviceSelector),
+				value.State,
+			); err != nil {
+				return err
+			}
+			value, err = streamJobLogs(command.Context(), stdout, stderr, client, value.ID, deviceSelector, true)
+			if err != nil {
+				return err
+			}
+			if _, err := fmt.Fprintf(stdout, "Job %s %s\n", value.ID, value.State); err != nil {
+				return err
+			}
+			if value.State != job.StateSucceeded {
+				return fmt.Errorf("smoke test job %s ended as %s", value.ID, value.State)
+			}
+			_, err = fmt.Fprintln(stdout, "Smoke test passed.")
+			return err
+		},
+	}
+	addDeviceSelectorFlagsWithDefault(command, &deviceSelector, "auto")
 	return command
 }
 
@@ -1768,8 +1852,12 @@ func formatByteCount(value int64) string {
 }
 
 func addDeviceSelectorFlags(command *cobra.Command, destination *string) {
-	command.Flags().StringVar(destination, "on", "", "paired worker name, device ID, or auto (single active worker)")
-	command.Flags().StringVar(destination, "device", "", "paired worker name, device ID, or auto (legacy alias for --on)")
+	addDeviceSelectorFlagsWithDefault(command, destination, "")
+}
+
+func addDeviceSelectorFlagsWithDefault(command *cobra.Command, destination *string, defaultValue string) {
+	command.Flags().StringVar(destination, "on", defaultValue, "paired worker name, device ID, or auto (single active worker)")
+	command.Flags().StringVar(destination, "device", defaultValue, "paired worker name, device ID, or auto (legacy alias for --on)")
 	_ = command.Flags().MarkHidden("device")
 }
 
