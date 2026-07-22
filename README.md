@@ -131,10 +131,12 @@ Pass `--connectivity-domain`, `--turn-domain`, `--email`, and `--public-ip` to
 print the checklist with your actual VPS values instead of the example values.
 The first-run and doctor guidance prefers the packaged macOS worker installer
 and labels raw `go run` daemon commands as development-only. `doctor` is the quickest manual smoke-check: it is
-safe to run before the daemon is up, prints exact start/install commands when
-ComputeHop is not running, and otherwise verifies daemon reachability, LAN
+safe to run before the daemon is up, points at `computehop setup orchestrator`
+when ComputeHop is not running, and otherwise verifies daemon reachability, LAN
 discovery, paired-device counts, reachable workers, and nearby unpaired devices
-before printing the next command to run for the current state. `devices` merges
+before printing the next command to run for the current state. When no worker is
+visible yet, that next command is `computehop setup worker --device-name
+"Gaming PC"`. `devices` merges
 trusted peers with matching LAN presence and collapses duplicate same-name LAN
 records for a single active peer so stale daemon restarts do not look like
 extra unpaired computers. `connect` is the

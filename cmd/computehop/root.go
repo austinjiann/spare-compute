@@ -1326,7 +1326,7 @@ func printDaemonStartAdvice(stdout io.Writer, err error) error {
 		"Next:",
 		"- If the app is installed: open -a ComputeHop",
 		"- If you are developing from this repo: go run ./cmd/computehopd --role orchestrator --device-name \"This Mac\"",
-		"- To install the menu-bar app and launch-at-login daemon: make install-macos",
+		"- To print the exact menu-bar app and launch-at-login install command: computehop setup orchestrator",
 		"- Then run: computehop doctor",
 	} {
 		if _, writeErr := fmt.Fprintln(stdout, line); writeErr != nil {
@@ -1505,7 +1505,7 @@ func printDoctorDevices(stdout io.Writer, result *localv1.ListDevicesResponse) e
 	default:
 		if _, err := fmt.Fprintln(
 			stdout,
-			"- Install a worker on another Mac on the same LAN: ./packaging/macos/install.sh --role worker --device-name \"Gaming PC\"",
+			"- Print the exact worker install command for another Mac on this LAN: computehop setup worker --device-name \"Gaming PC\"",
 		); err != nil {
 			return err
 		}

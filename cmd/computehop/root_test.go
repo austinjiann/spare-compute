@@ -1216,7 +1216,7 @@ func TestDoctorCommandSuggestsRemoteSmokeTestForConnectedWorker(t *testing.T) {
 	}
 }
 
-func TestDoctorCommandPrefersInstallerForMissingWorkers(t *testing.T) {
+func TestDoctorCommandPointsAtWorkerSetupForMissingWorkers(t *testing.T) {
 	identity, err := device.GenerateIdentity(bytes.NewReader(bytes.Repeat([]byte{31}, 64)))
 	if err != nil {
 		t.Fatal(err)
@@ -1262,8 +1262,8 @@ func TestDoctorCommandPrefersInstallerForMissingWorkers(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, want := range []string{
-		"Install a worker on another Mac",
-		"./packaging/macos/install.sh --role worker --device-name \"Gaming PC\"",
+		"Print the exact worker install command",
+		"computehop setup worker --device-name \"Gaming PC\"",
 		"Development-only alternative: go run ./cmd/computehopd --role worker",
 		"Then run: computehop devices",
 	} {
@@ -1341,7 +1341,7 @@ func TestDoctorCommandPrintsStartAdviceWhenDaemonIsNotRunning(t *testing.T) {
 	for _, want := range []string{
 		"Daemon: not running",
 		"open -a ComputeHop",
-		"make install-macos",
+		"computehop setup orchestrator",
 		"go run ./cmd/computehopd --role orchestrator --device-name \"This Mac\"",
 		"computehop doctor",
 	} {
