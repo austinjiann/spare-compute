@@ -713,12 +713,87 @@ func TestDevicesCommandCombinesOneTrustedPeerWithItsNearbyPresence(t *testing.T)
 	}
 }
 
-func TestDevicesCommandShowsRemotePathForOfflineLANPeer(t *testing.T) {
+func TestDevicesCommandCollapsesDuplicateNearbyRowsForSingleActivePeer(t *testing.T) {
 	identity, err := device.GenerateIdentity(bytes.NewReader(bytes.Repeat([]byte{12}, 64)))
 	if err != nil {
 		t.Fatal(err)
 	}
 	pairID, err := trust.NewPairID(bytes.NewReader(bytes.Repeat([]byte{13}, 16)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstPresence, err := device.NewPresenceID(bytes.NewReader(bytes.Repeat([]byte{14}, 16)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondPresence, err := device.NewPresenceID(bytes.NewReader(bytes.Repeat([]byte{15}, 16)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := time.Date(2026, time.July, 22, 5, 30, 0, 0, time.UTC)
+	trusted, err := mapper.TrustedPeerToProto(trust.Peer{
+		PairID: pairID, DeviceID: identity.ID(), PublicKey: identity.PublicKey(),
+		Name: "Gaming PC", Role: device.RoleWorker, State: trust.StateActive,
+		PairedAt: seen.Add(-time.Hour), UpdatedAt: seen.Add(-time.Hour),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(context.Context, *localv1.Request) (*localv1.Response, error) {
+				return &localv1.Response{Result: &localv1.Response_ListDevices{
+					ListDevices: &localv1.ListDevicesResponse{
+						DiscoveryState: localv1.DiscoveryState_DISCOVERY_STATE_AVAILABLE,
+						TrustedDevices: []*localv1.TrustedDevice{trusted},
+						Devices: []*localv1.NearbyDevice{
+							{
+								PresenceId: string(firstPresence), Name: "Gaming PC",
+								Role: localv1.DeviceRole_DEVICE_ROLE_WORKER, Addresses: []string{"192.0.2.20"},
+								Port: 47823, EndpointReady: true, LastSeenAtUnixNano: seen.UnixNano(),
+								TrustState: localv1.DeviceTrustState_DEVICE_TRUST_STATE_UNPAIRED,
+							},
+							{
+								PresenceId: string(secondPresence), Name: "Gaming PC",
+								Role: localv1.DeviceRole_DEVICE_ROLE_WORKER, Addresses: []string{"192.0.2.21"},
+								Port: 47823, EndpointReady: true, LastSeenAtUnixNano: seen.Add(time.Second).UnixNano(),
+								TrustState: localv1.DeviceTrustState_DEVICE_TRUST_STATE_UNPAIRED,
+							},
+						},
+					},
+				}}, nil
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"devices"})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := stdout.String()
+	if strings.Count(output, "Gaming PC") != 1 {
+		t.Fatalf("stdout contains duplicate device rows: %q", output)
+	}
+	for _, want := range []string{identity.ID().Short(), "active", "nearby", "LAN", "2 LAN records"} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("stdout %q does not contain %q", output, want)
+		}
+	}
+	for _, unwanted := range []string{firstPresence.Short(), secondPresence.Short(), "unpaired"} {
+		if strings.Contains(output, unwanted) {
+			t.Fatalf("stdout contains suppressed duplicate %q: %q", unwanted, output)
+		}
+	}
+}
+
+func TestDevicesCommandShowsRemotePathForOfflineLANPeer(t *testing.T) {
+	identity, err := device.GenerateIdentity(bytes.NewReader(bytes.Repeat([]byte{16}, 64)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pairID, err := trust.NewPairID(bytes.NewReader(bytes.Repeat([]byte{17}, 16)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1262,6 +1337,63 @@ func TestConnectAutoBeginsPairingWithOnlyNearbyWorker(t *testing.T) {
 		}
 	}
 	if calls != 2 {
+		t.Fatalf("calls = %d", calls)
+	}
+}
+
+func TestConnectAutoIgnoresNearbyPresenceMatchingActiveWorker(t *testing.T) {
+	identity, err := device.GenerateIdentity(bytes.NewReader(bytes.Repeat([]byte{24}, 64)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pairID, err := trust.NewPairID(bytes.NewReader(bytes.Repeat([]byte{25}, 16)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	presenceID, err := device.NewPresenceID(bytes.NewReader(bytes.Repeat([]byte{26}, 16)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := time.Date(2026, time.July, 22, 11, 45, 0, 0, time.UTC)
+	trusted, err := mapper.TrustedPeerToProto(trust.Peer{
+		PairID: pairID, DeviceID: identity.ID(), PublicKey: identity.PublicKey(),
+		Name: "Gaming PC", Role: device.RoleWorker, State: trust.StateActive,
+		PairedAt: seen.Add(-time.Hour), UpdatedAt: seen.Add(-time.Hour),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var calls int
+	command := newRootCommand(dependencies{
+		stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+				calls++
+				if request.GetListDevices() == nil {
+					t.Fatalf("request = %#v", request)
+				}
+				return &localv1.Response{Result: &localv1.Response_ListDevices{
+					ListDevices: &localv1.ListDevicesResponse{
+						DiscoveryState: localv1.DiscoveryState_DISCOVERY_STATE_AVAILABLE,
+						TrustedDevices: []*localv1.TrustedDevice{trusted},
+						Devices: []*localv1.NearbyDevice{{
+							PresenceId: string(presenceID), Name: "Gaming PC",
+							Role: localv1.DeviceRole_DEVICE_ROLE_WORKER, Addresses: []string{"192.0.2.20"},
+							Port: 47823, EndpointReady: true, LastSeenAtUnixNano: seen.UnixNano(),
+							TrustState: localv1.DeviceTrustState_DEVICE_TRUST_STATE_UNPAIRED,
+						}},
+					},
+				}}, nil
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"connect", "auto"})
+	err = command.Execute()
+	if err == nil || !strings.Contains(err.Error(), "no nearby unpaired worker found") {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if calls != 1 {
 		t.Fatalf("calls = %d", calls)
 	}
 }

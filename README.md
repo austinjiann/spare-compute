@@ -123,7 +123,10 @@ print the checklist with your actual VPS values instead of the example values.
 safe to run before the daemon is up, prints exact start/install commands when
 ComputeHop is not running, and otherwise verifies daemon reachability, LAN
 discovery, paired-device counts, reachable workers, and nearby unpaired devices
-before printing the next command to run for the current state. `connect` is the
+before printing the next command to run for the current state. `devices` merges
+trusted peers with matching LAN presence and collapses duplicate same-name LAN
+records for a single active peer so stale daemon restarts do not look like
+extra unpaired computers. `connect` is the
 friendlier pairing entry point: run it with no arguments for the next connection
 step, `connect auto` to start trust setup only when exactly one nearby unpaired
 worker is visible, `connect <device>` when you need to choose explicitly, and

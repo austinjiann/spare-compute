@@ -169,13 +169,24 @@ func newDevicesCommand(
 				updatedAt := peer.UpdatedAt
 				key := deviceDisplayKey(peer.Name, string(peer.Role))
 				matches := nearbyByKey[key]
-				if peer.State == trust.StateActive && activePeerCounts[key] == 1 && len(matches) == 1 {
-					matchIndex := matches[0]
-					matchedNearby[matchIndex] = true
-					availability = nearbyDevices[matchIndex].availability
+				if peer.State == trust.StateActive && activePeerCounts[key] == 1 && len(matches) > 0 {
 					path = "LAN"
-					address = nearbyDevices[matchIndex].address
-					updatedAt = nearbyDevices[matchIndex].lastSeen
+					if len(matches) == 1 {
+						matchIndex := matches[0]
+						matchedNearby[matchIndex] = true
+						availability = nearbyDevices[matchIndex].availability
+						address = nearbyDevices[matchIndex].address
+						updatedAt = nearbyDevices[matchIndex].lastSeen
+					} else {
+						availability = "nearby"
+						address = fmt.Sprintf("%d LAN records", len(matches))
+						for _, matchIndex := range matches {
+							matchedNearby[matchIndex] = true
+							if nearbyDevices[matchIndex].lastSeen.After(updatedAt) {
+								updatedAt = nearbyDevices[matchIndex].lastSeen
+							}
+						}
+					}
 				} else if message := trustedMessages[peer.DeviceID]; message != nil {
 					switch message.GetConnectivityState() {
 					case localv1.ConnectivityState_CONNECTIVITY_STATE_CONNECTED:
@@ -590,13 +601,24 @@ func beginAutomaticPairing(ctx context.Context, client caller) (trust.Pairing, e
 }
 
 func nearbyUnpairedWorkers(result *localv1.ListDevicesResponse) ([]nearbyDeviceView, error) {
+	activePeerKeys := make(map[string]int)
+	for _, message := range result.GetTrustedDevices() {
+		peer, err := mapper.TrustedPeerFromProto(message)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %v", ErrInvalidDaemonResponse, err)
+		}
+		if peer.State == trust.StateActive && peer.Role == device.RoleWorker {
+			activePeerKeys[deviceDisplayKey(peer.Name, string(peer.Role))]++
+		}
+	}
 	candidates := make([]nearbyDeviceView, 0, len(result.GetDevices()))
 	for _, message := range result.GetDevices() {
 		nearby, err := nearbyViewFromProto(message)
 		if err != nil {
 			return nil, fmt.Errorf("%w: %v", ErrInvalidDaemonResponse, err)
 		}
-		if nearby.role == string(device.RoleWorker) {
+		if nearby.role == string(device.RoleWorker) &&
+			activePeerKeys[deviceDisplayKey(nearby.name, nearby.role)] == 0 {
 			candidates = append(candidates, nearby)
 		}
 	}
