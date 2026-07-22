@@ -1295,7 +1295,14 @@ func newStatusCommand(
 	return &cobra.Command{
 		Use:   "status",
 		Short: "Check the local ComputeHop daemon",
-		Args:  cobra.NoArgs,
+		Long: strings.TrimSpace(`Check whether the local computehopd daemon is reachable.
+
+When the daemon reports local identity, status prints this computer's device
+name, role, and short device ID. Use doctor when status cannot connect or when
+you want next-step setup guidance.`),
+		Example: strings.TrimSpace(`computehop status
+computehop doctor`),
+		Args: cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
 			client, err := clientForCommand()
 			if err != nil {
@@ -1999,7 +2006,15 @@ func newJobsCommand(
 	command := &cobra.Command{
 		Use:   "jobs",
 		Short: "List durable jobs",
-		Args:  cobra.NoArgs,
+		Long: strings.TrimSpace(`List recent durable jobs known to this daemon.
+
+Without --on, jobs lists jobs stored on this computer. Use --on auto when there
+is exactly one active paired worker, or pass a worker name/device ID to inspect
+that worker directly.`),
+		Example: strings.TrimSpace(`computehop jobs
+computehop jobs --on auto
+computehop jobs --on "Gaming PC" --limit 25`),
+		Args: cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
 			client, err := clientForCommand()
 			if err != nil {
@@ -2060,7 +2075,13 @@ func newCancelCommand(
 	command := &cobra.Command{
 		Use:   "cancel <job-id>",
 		Short: "Cancel a durable job",
-		Args:  cobra.ExactArgs(1),
+		Long: strings.TrimSpace(`Request cancellation for a queued or running durable job.
+
+ComputeHop usually routes job-specific commands by job ID. Use --on only when
+you need to choose a worker explicitly.`),
+		Example: strings.TrimSpace(`computehop cancel <job-id>
+computehop cancel --on "Gaming PC" <job-id>`),
+		Args: cobra.ExactArgs(1),
 		RunE: func(command *cobra.Command, arguments []string) error {
 			id, err := job.ParseID(arguments[0])
 			if err != nil {
@@ -2108,7 +2129,14 @@ func newLogsCommand(
 	command := &cobra.Command{
 		Use:   "logs <job-id>",
 		Short: "Read durable stdout and stderr for a job",
-		Args:  cobra.ExactArgs(1),
+		Long: strings.TrimSpace(`Read durable stdout and stderr for a job.
+
+Use --follow to stream new output until the job reaches a terminal state. For
+remote jobs, ComputeHop usually infers the worker from the job ID.`),
+		Example: strings.TrimSpace(`computehop logs <job-id>
+computehop logs --follow <job-id>
+computehop logs --on "Gaming PC" <job-id>`),
+		Args: cobra.ExactArgs(1),
 		RunE: func(command *cobra.Command, arguments []string) error {
 			id, err := job.ParseID(arguments[0])
 			if err != nil {

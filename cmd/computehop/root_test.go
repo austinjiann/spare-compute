@@ -2067,6 +2067,16 @@ func TestCoreCommandHelpShowsFriendlyExamplesWithoutDaemon(t *testing.T) {
 			},
 		},
 		{
+			name: "status",
+			args: []string{"status", "--help"},
+			want: []string{
+				"Check whether the local computehopd daemon is reachable.",
+				"name, role, and short device ID",
+				"computehop status",
+				"computehop doctor",
+			},
+		},
+		{
 			name: "connect",
 			args: []string{"connect", "--help"},
 			want: []string{
@@ -2087,6 +2097,16 @@ func TestCoreCommandHelpShowsFriendlyExamplesWithoutDaemon(t *testing.T) {
 			},
 		},
 		{
+			name: "jobs",
+			args: []string{"jobs", "--help"},
+			want: []string{
+				"List recent durable jobs known to this daemon.",
+				"computehop jobs --on auto",
+				"computehop jobs --on \"Gaming PC\" --limit 25",
+				"--limit uint32",
+			},
+		},
+		{
 			name: "run",
 			args: []string{"run", "--help"},
 			want: []string{
@@ -2104,6 +2124,24 @@ func TestCoreCommandHelpShowsFriendlyExamplesWithoutDaemon(t *testing.T) {
 				"Run a cheap remote connectivity smoke test",
 				"computehop smoke --on \"Gaming PC\"",
 				"without uploading a project",
+			},
+		},
+		{
+			name: "cancel",
+			args: []string{"cancel", "--help"},
+			want: []string{
+				"Request cancellation for a queued or running durable job.",
+				"routes job-specific commands by job ID",
+				"computehop cancel --on \"Gaming PC\" <job-id>",
+			},
+		},
+		{
+			name: "logs",
+			args: []string{"logs", "--help"},
+			want: []string{
+				"Read durable stdout and stderr for a job.",
+				"computehop logs --follow <job-id>",
+				"infers the worker from the job ID",
 			},
 		},
 		{
