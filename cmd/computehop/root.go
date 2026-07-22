@@ -287,7 +287,15 @@ func newSetupCommand(stdout io.Writer) *cobra.Command {
 	command := &cobra.Command{
 		Use:   "setup",
 		Short: "Print first-run setup commands",
-		Args:  cobra.NoArgs,
+		Long: strings.TrimSpace(`Print first-run commands without requiring the ComputeHop daemon.
+
+Use this before the app is installed, when the daemon is stopped, or when you
+want the exact commands for another Mac or the one-VPS staging stack.`),
+		Example: strings.TrimSpace(`computehop setup
+computehop setup orchestrator
+computehop setup worker --device-name "Gaming PC"
+computehop setup vps --connectivity-domain connect.example.com --turn-domain turn.example.com --email admin@example.com --public-ip 203.0.113.10`),
+		Args: cobra.NoArgs,
 		RunE: func(*cobra.Command, []string) error {
 			return printSetupGuide(stdout)
 		},
@@ -305,7 +313,14 @@ func newSetupMacCommand(stdout io.Writer) *cobra.Command {
 	command := &cobra.Command{
 		Use:   "mac",
 		Short: "Print the macOS app and daemon install checklist",
-		Args:  cobra.NoArgs,
+		Long: strings.TrimSpace(`Print the exact macOS installer command for an orchestrator or worker.
+
+This is the flag-based form of setup orchestrator and setup worker. It is useful
+for scripts or generated setup instructions.`),
+		Example: strings.TrimSpace(`computehop setup mac
+computehop setup mac --role worker --device-name "Gaming PC" --cache-size 40GiB
+computehop setup mac --role orchestrator --connectivity-domain connect.example.com --turn-domain turn.example.com`),
+		Args: cobra.NoArgs,
 		RunE: func(*cobra.Command, []string) error {
 			if err := options.validate(); err != nil {
 				return err
@@ -320,10 +335,16 @@ func newSetupMacCommand(stdout io.Writer) *cobra.Command {
 
 func newSetupMacRoleCommand(stdout io.Writer, role device.Role) *cobra.Command {
 	options := defaultMacSetupOptions(string(role), "computehop", "setup", string(role))
+	article := "a"
+	if role == device.RoleOrchestrator {
+		article = "an"
+	}
 	command := &cobra.Command{
-		Use:   string(role),
-		Short: "Print the macOS " + string(role) + " install checklist",
-		Args:  cobra.NoArgs,
+		Use:     string(role),
+		Short:   "Print the macOS " + string(role) + " install checklist",
+		Long:    "Print the exact macOS installer command for " + article + " " + string(role) + " Mac without requiring the daemon.",
+		Example: setupRoleExample(role),
+		Args:    cobra.NoArgs,
 		RunE: func(*cobra.Command, []string) error {
 			if err := options.validate(); err != nil {
 				return err
@@ -335,12 +356,32 @@ func newSetupMacRoleCommand(stdout io.Writer, role device.Role) *cobra.Command {
 	return command
 }
 
+func setupRoleExample(role device.Role) string {
+	switch role {
+	case device.RoleWorker:
+		return strings.TrimSpace(`computehop setup worker --device-name "Gaming PC"
+computehop setup worker --device-name "Gaming PC" --cache-size 40GiB
+computehop setup worker --device-name "Gaming PC" --connectivity-domain connect.example.com --turn-domain turn.example.com`)
+	default:
+		return strings.TrimSpace(`computehop setup orchestrator
+computehop setup orchestrator --cache-size 40GiB
+computehop setup orchestrator --connectivity-domain connect.example.com --turn-domain turn.example.com`)
+	}
+}
+
 func newSetupVPSCommand(stdout io.Writer) *cobra.Command {
 	options := defaultVPSSetupOptions()
 	command := &cobra.Command{
 		Use:   "vps",
 		Short: "Print the one-VPS deployment checklist",
-		Args:  cobra.NoArgs,
+		Long: strings.TrimSpace(`Print a provider-neutral one-VPS checklist.
+
+The VPS runs the public rendezvous service, HTTPS edge, and authenticated TURN
+relay for devices that are no longer on the same LAN. The command only prints
+commands and safe planning guidance; it does not buy or mutate a server.`),
+		Example: strings.TrimSpace(`computehop setup vps
+computehop setup vps --connectivity-domain connect.example.com --turn-domain turn.example.com --email admin@example.com --public-ip 203.0.113.10`),
+		Args: cobra.NoArgs,
 		RunE: func(*cobra.Command, []string) error {
 			return printVPSSetupGuide(stdout, options)
 		},

@@ -1436,6 +1436,9 @@ func TestSetupHelpShowsRoleAliasesMacAndVPS(t *testing.T) {
 		t.Fatalf("Execute() error = %v", err)
 	}
 	for _, want := range []string{
+		"Print first-run commands without requiring the ComputeHop daemon",
+		"computehop setup worker --device-name \"Gaming PC\"",
+		"computehop setup vps --connectivity-domain connect.example.com",
 		"orchestrator",
 		"worker",
 		"mac",
@@ -1444,6 +1447,69 @@ func TestSetupHelpShowsRoleAliasesMacAndVPS(t *testing.T) {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
 		}
+	}
+}
+
+func TestSetupSubcommandHelpShowsExamplesWithoutDaemon(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want []string
+	}{
+		{
+			name: "orchestrator",
+			args: []string{"setup", "orchestrator", "--help"},
+			want: []string{
+				"Print the exact macOS installer command for an orchestrator Mac",
+				"computehop setup orchestrator --connectivity-domain connect.example.com",
+			},
+		},
+		{
+			name: "worker",
+			args: []string{"setup", "worker", "--help"},
+			want: []string{
+				"Print the exact macOS installer command for a worker Mac",
+				"computehop setup worker --device-name \"Gaming PC\" --cache-size 40GiB",
+			},
+		},
+		{
+			name: "mac",
+			args: []string{"setup", "mac", "--help"},
+			want: []string{
+				"flag-based form of setup orchestrator and setup worker",
+				"computehop setup mac --role worker --device-name \"Gaming PC\" --cache-size 40GiB",
+			},
+		},
+		{
+			name: "vps",
+			args: []string{"setup", "vps", "--help"},
+			want: []string{
+				"provider-neutral one-VPS checklist",
+				"does not buy or mutate a server",
+				"computehop setup vps --connectivity-domain connect.example.com",
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var stdout bytes.Buffer
+			command := newRootCommand(dependencies{
+				stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+				newClient: func(string) (caller, error) {
+					t.Fatal("setup help should not require a daemon client")
+					return nil, nil
+				},
+			})
+			command.SetArgs(test.args)
+			if err := command.Execute(); err != nil {
+				t.Fatalf("Execute() error = %v", err)
+			}
+			for _, want := range test.want {
+				if !strings.Contains(stdout.String(), want) {
+					t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
+				}
+			}
+		})
 	}
 }
 
