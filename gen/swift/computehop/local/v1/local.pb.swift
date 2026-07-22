@@ -627,6 +627,14 @@ public nonisolated struct Computehop_Local_V1_Request: Sendable {
     set {operation = .unpairDevice(newValue)}
   }
 
+  public var fetchArtifacts: Computehop_Local_V1_FetchArtifactsRequest {
+    get {
+      if case .fetchArtifacts(let v)? = operation {return v}
+      return Computehop_Local_V1_FetchArtifactsRequest()
+    }
+    set {operation = .fetchArtifacts(newValue)}
+  }
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public nonisolated enum OneOf_Operation: Equatable, Sendable {
@@ -643,6 +651,7 @@ public nonisolated struct Computehop_Local_V1_Request: Sendable {
     case rejectPairing(Computehop_Local_V1_RejectPairingRequest)
     case listTrustedDevices(Computehop_Local_V1_ListTrustedDevicesRequest)
     case unpairDevice(Computehop_Local_V1_UnpairDeviceRequest)
+    case fetchArtifacts(Computehop_Local_V1_FetchArtifactsRequest)
 
   }
 
@@ -783,6 +792,14 @@ public nonisolated struct Computehop_Local_V1_Response: @unchecked Sendable {
     set {_uniqueStorage()._result = .unpairDevice(newValue)}
   }
 
+  public var fetchArtifacts: Computehop_Local_V1_FetchArtifactsResponse {
+    get {
+      if case .fetchArtifacts(let v)? = _storage._result {return v}
+      return Computehop_Local_V1_FetchArtifactsResponse()
+    }
+    set {_uniqueStorage()._result = .fetchArtifacts(newValue)}
+  }
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public nonisolated enum OneOf_Result: Equatable, Sendable {
@@ -799,6 +816,7 @@ public nonisolated struct Computehop_Local_V1_Response: @unchecked Sendable {
     case rejectPairing(Computehop_Local_V1_RejectPairingResponse)
     case listTrustedDevices(Computehop_Local_V1_ListTrustedDevicesResponse)
     case unpairDevice(Computehop_Local_V1_UnpairDeviceResponse)
+    case fetchArtifacts(Computehop_Local_V1_FetchArtifactsResponse)
 
   }
 
@@ -1238,6 +1256,38 @@ public nonisolated struct Computehop_Local_V1_UnpairDeviceResponse: Sendable {
   fileprivate var _device: Computehop_Local_V1_TrustedDevice? = nil
 }
 
+public nonisolated struct Computehop_Local_V1_FetchArtifactsRequest: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  public var jobID: String = String()
+
+  public var deviceSelector: String = String()
+
+  public var destination: String = String()
+
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  public init() {}
+}
+
+public nonisolated struct Computehop_Local_V1_FetchArtifactsResponse: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  public var destination: String = String()
+
+  public var restoredFileCount: UInt32 = 0
+
+  public var conflictFileCount: UInt32 = 0
+
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  public init() {}
+}
+
 public nonisolated struct Computehop_Local_V1_Pairing: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
@@ -1363,6 +1413,8 @@ public nonisolated struct Computehop_Local_V1_JobSpec: Sendable {
 
   public var containerImage: String = String()
 
+  public var outputs: [String] = []
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
@@ -1483,7 +1535,7 @@ nonisolated extension Computehop_Local_V1_ConnectivityState: SwiftProtobuf._Prot
 
 nonisolated extension Computehop_Local_V1_Request: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".Request"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}protocol_version\0\u{3}request_id\0\u{3}capability_token\0\u{2}\u{7}ping\0\u{3}submit_job\0\u{3}get_job\0\u{3}list_jobs\0\u{3}cancel_job\0\u{3}read_job_logs\0\u{3}list_devices\0\u{3}begin_pairing\0\u{3}list_pairings\0\u{3}confirm_pairing\0\u{3}reject_pairing\0\u{3}list_trusted_devices\0\u{3}unpair_device\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}protocol_version\0\u{3}request_id\0\u{3}capability_token\0\u{2}\u{7}ping\0\u{3}submit_job\0\u{3}get_job\0\u{3}list_jobs\0\u{3}cancel_job\0\u{3}read_job_logs\0\u{3}list_devices\0\u{3}begin_pairing\0\u{3}list_pairings\0\u{3}confirm_pairing\0\u{3}reject_pairing\0\u{3}list_trusted_devices\0\u{3}unpair_device\0\u{3}fetch_artifacts\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -1663,6 +1715,19 @@ nonisolated extension Computehop_Local_V1_Request: SwiftProtobuf.Message, SwiftP
           self.operation = .unpairDevice(v)
         }
       }()
+      case 23: try {
+        var v: Computehop_Local_V1_FetchArtifactsRequest?
+        var hadOneofValue = false
+        if let current = self.operation {
+          hadOneofValue = true
+          if case .fetchArtifacts(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.operation = .fetchArtifacts(v)
+        }
+      }()
       default: break
       }
     }
@@ -1735,6 +1800,10 @@ nonisolated extension Computehop_Local_V1_Request: SwiftProtobuf.Message, SwiftP
       guard case .unpairDevice(let v)? = self.operation else { preconditionFailure() }
       try visitor.visitSingularMessageField(value: v, fieldNumber: 22)
     }()
+    case .fetchArtifacts?: try {
+      guard case .fetchArtifacts(let v)? = self.operation else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 23)
+    }()
     case nil: break
     }
     try unknownFields.traverse(visitor: &visitor)
@@ -1752,7 +1821,7 @@ nonisolated extension Computehop_Local_V1_Request: SwiftProtobuf.Message, SwiftP
 
 nonisolated extension Computehop_Local_V1_Response: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".Response"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}protocol_version\0\u{3}request_id\0\u{1}error\0\u{2}\u{7}ping\0\u{3}submit_job\0\u{3}get_job\0\u{3}list_jobs\0\u{3}cancel_job\0\u{3}read_job_logs\0\u{3}list_devices\0\u{3}begin_pairing\0\u{3}list_pairings\0\u{3}confirm_pairing\0\u{3}reject_pairing\0\u{3}list_trusted_devices\0\u{3}unpair_device\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}protocol_version\0\u{3}request_id\0\u{1}error\0\u{2}\u{7}ping\0\u{3}submit_job\0\u{3}get_job\0\u{3}list_jobs\0\u{3}cancel_job\0\u{3}read_job_logs\0\u{3}list_devices\0\u{3}begin_pairing\0\u{3}list_pairings\0\u{3}confirm_pairing\0\u{3}reject_pairing\0\u{3}list_trusted_devices\0\u{3}unpair_device\0\u{3}fetch_artifacts\0")
 
   fileprivate class _StorageClass {
     var _protocolVersion: UInt32 = 0
@@ -1963,6 +2032,19 @@ nonisolated extension Computehop_Local_V1_Response: SwiftProtobuf.Message, Swift
             _storage._result = .unpairDevice(v)
           }
         }()
+        case 23: try {
+          var v: Computehop_Local_V1_FetchArtifactsResponse?
+          var hadOneofValue = false
+          if let current = _storage._result {
+            hadOneofValue = true
+            if case .fetchArtifacts(let m) = current {v = m}
+          }
+          try decoder.decodeSingularMessageField(value: &v)
+          if let v = v {
+            if hadOneofValue {try decoder.handleConflictingOneOf()}
+            _storage._result = .fetchArtifacts(v)
+          }
+        }()
         default: break
         }
       }
@@ -2036,6 +2118,10 @@ nonisolated extension Computehop_Local_V1_Response: SwiftProtobuf.Message, Swift
       case .unpairDevice?: try {
         guard case .unpairDevice(let v)? = _storage._result else { preconditionFailure() }
         try visitor.visitSingularMessageField(value: v, fieldNumber: 22)
+      }()
+      case .fetchArtifacts?: try {
+        guard case .fetchArtifacts(let v)? = _storage._result else { preconditionFailure() }
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 23)
       }()
       case nil: break
       }
@@ -2948,6 +3034,86 @@ nonisolated extension Computehop_Local_V1_UnpairDeviceResponse: SwiftProtobuf.Me
   }
 }
 
+nonisolated extension Computehop_Local_V1_FetchArtifactsRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = _protobuf_package + ".FetchArtifactsRequest"
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}job_id\0\u{3}device_selector\0\u{1}destination\0")
+
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.jobID) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.deviceSelector) }()
+      case 3: try { try decoder.decodeSingularStringField(value: &self.destination) }()
+      default: break
+      }
+    }
+  }
+
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.jobID.isEmpty {
+      try visitor.visitSingularStringField(value: self.jobID, fieldNumber: 1)
+    }
+    if !self.deviceSelector.isEmpty {
+      try visitor.visitSingularStringField(value: self.deviceSelector, fieldNumber: 2)
+    }
+    if !self.destination.isEmpty {
+      try visitor.visitSingularStringField(value: self.destination, fieldNumber: 3)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  public static func ==(lhs: Computehop_Local_V1_FetchArtifactsRequest, rhs: Computehop_Local_V1_FetchArtifactsRequest) -> Bool {
+    if lhs.jobID != rhs.jobID {return false}
+    if lhs.deviceSelector != rhs.deviceSelector {return false}
+    if lhs.destination != rhs.destination {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Computehop_Local_V1_FetchArtifactsResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = _protobuf_package + ".FetchArtifactsResponse"
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}destination\0\u{3}restored_file_count\0\u{3}conflict_file_count\0")
+
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.destination) }()
+      case 2: try { try decoder.decodeSingularUInt32Field(value: &self.restoredFileCount) }()
+      case 3: try { try decoder.decodeSingularUInt32Field(value: &self.conflictFileCount) }()
+      default: break
+      }
+    }
+  }
+
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.destination.isEmpty {
+      try visitor.visitSingularStringField(value: self.destination, fieldNumber: 1)
+    }
+    if self.restoredFileCount != 0 {
+      try visitor.visitSingularUInt32Field(value: self.restoredFileCount, fieldNumber: 2)
+    }
+    if self.conflictFileCount != 0 {
+      try visitor.visitSingularUInt32Field(value: self.conflictFileCount, fieldNumber: 3)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  public static func ==(lhs: Computehop_Local_V1_FetchArtifactsResponse, rhs: Computehop_Local_V1_FetchArtifactsResponse) -> Bool {
+    if lhs.destination != rhs.destination {return false}
+    if lhs.restoredFileCount != rhs.restoredFileCount {return false}
+    if lhs.conflictFileCount != rhs.conflictFileCount {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
 nonisolated extension Computehop_Local_V1_Pairing: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".Pairing"
   public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{3}peer_device_id\0\u{3}peer_public_key\0\u{3}peer_name\0\u{3}peer_role\0\u{3}verification_code\0\u{1}direction\0\u{1}state\0\u{3}local_confirmed\0\u{3}remote_confirmed\0\u{3}started_at_unix_nano\0\u{3}expires_at_unix_nano\0\u{1}failure\0")
@@ -3220,7 +3386,7 @@ nonisolated extension Computehop_Local_V1_NearbyDevice: SwiftProtobuf.Message, S
 
 nonisolated extension Computehop_Local_V1_JobSpec: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".JobSpec"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}executable\0\u{1}arguments\0\u{3}working_directory\0\u{1}environment\0\u{1}executor\0\u{3}container_image\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}executable\0\u{1}arguments\0\u{3}working_directory\0\u{1}environment\0\u{1}executor\0\u{3}container_image\0\u{1}outputs\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -3234,6 +3400,7 @@ nonisolated extension Computehop_Local_V1_JobSpec: SwiftProtobuf.Message, SwiftP
       case 4: try { try decoder.decodeMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: &self.environment) }()
       case 5: try { try decoder.decodeSingularEnumField(value: &self.executor) }()
       case 6: try { try decoder.decodeSingularStringField(value: &self.containerImage) }()
+      case 7: try { try decoder.decodeRepeatedStringField(value: &self.outputs) }()
       default: break
       }
     }
@@ -3258,6 +3425,9 @@ nonisolated extension Computehop_Local_V1_JobSpec: SwiftProtobuf.Message, SwiftP
     if !self.containerImage.isEmpty {
       try visitor.visitSingularStringField(value: self.containerImage, fieldNumber: 6)
     }
+    if !self.outputs.isEmpty {
+      try visitor.visitRepeatedStringField(value: self.outputs, fieldNumber: 7)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -3268,6 +3438,7 @@ nonisolated extension Computehop_Local_V1_JobSpec: SwiftProtobuf.Message, SwiftP
     if lhs.environment != rhs.environment {return false}
     if lhs.executor != rhs.executor {return false}
     if lhs.containerImage != rhs.containerImage {return false}
+    if lhs.outputs != rhs.outputs {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

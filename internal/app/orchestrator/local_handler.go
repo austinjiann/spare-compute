@@ -9,6 +9,7 @@ import (
 	localv1 "github.com/austinjiann/spare-compute/gen/go/computehop/local/v1"
 	computehopv1 "github.com/austinjiann/spare-compute/gen/go/computehop/v1"
 	"github.com/austinjiann/spare-compute/internal/app/worker"
+	"github.com/austinjiann/spare-compute/internal/artifact"
 	"github.com/austinjiann/spare-compute/internal/connectivity/remoteconn"
 	"github.com/austinjiann/spare-compute/internal/device"
 	"github.com/austinjiann/spare-compute/internal/job"
@@ -44,6 +45,16 @@ type PairedJobController interface {
 	List(context.Context, string, job.ListOptions) ([]job.Job, error)
 	Cancel(context.Context, string, job.ID) (job.Job, error)
 	ReadLogs(context.Context, string, job.ID, uint64, int) (worker.JobLogs, error)
+}
+
+// LocalArtifactController restores outputs owned by this daemon.
+type LocalArtifactController interface {
+	RestoreArtifacts(context.Context, job.ID, string) (artifact.RestoreResult, error)
+}
+
+// PairedArtifactController fetches and restores outputs owned by a paired worker.
+type PairedArtifactController interface {
+	FetchArtifacts(context.Context, string, job.ID, string) (artifact.RestoreResult, error)
 }
 
 // DeviceController is the narrow nearby-device boundary exposed over local IPC.
@@ -141,9 +152,58 @@ func (handler *LocalHandler) Handle(ctx context.Context, request *localv1.Reques
 		return handler.listTrustedDevices(ctx, operation.ListTrustedDevices)
 	case *localv1.Request_UnpairDevice:
 		return handler.unpairDevice(ctx, operation.UnpairDevice)
+	case *localv1.Request_FetchArtifacts:
+		return handler.fetchArtifacts(ctx, operation.FetchArtifacts)
 	default:
 		return failureResponse(localv1.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "unsupported local operation")
 	}
+}
+
+func (handler *LocalHandler) fetchArtifacts(
+	ctx context.Context,
+	request *localv1.FetchArtifactsRequest,
+) *localv1.Response {
+	if request == nil || request.GetDestination() == "" {
+		return failureResponse(localv1.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "artifact destination is required")
+	}
+	id, err := job.ParseID(request.GetJobId())
+	if err != nil {
+		return errorResponse(err)
+	}
+	remoteOperation, err := handler.shouldRouteRemotely(ctx, request.GetDeviceSelector(), id)
+	if err != nil {
+		return errorResponse(err)
+	}
+	var result artifact.RestoreResult
+	if remoteOperation {
+		controller, ok := handler.remote.(PairedArtifactController)
+		if !ok {
+			return errorResponse(worker.ErrArtifactsDisabled)
+		}
+		result, err = controller.FetchArtifacts(
+			ctx, request.GetDeviceSelector(), id, request.GetDestination(),
+		)
+	} else {
+		controller, ok := handler.jobs.(LocalArtifactController)
+		if !ok {
+			return errorResponse(worker.ErrArtifactsDisabled)
+		}
+		result, err = controller.RestoreArtifacts(ctx, id, request.GetDestination())
+	}
+	if err != nil {
+		return errorResponse(err)
+	}
+	result = artifact.NormalizeResult(result)
+	if err := result.Validate(); err != nil {
+		return errorResponse(err)
+	}
+	return &localv1.Response{Result: &localv1.Response_FetchArtifacts{
+		FetchArtifacts: &localv1.FetchArtifactsResponse{
+			Destination:       result.Destination,
+			RestoredFileCount: uint32(len(result.Restored)),
+			ConflictFileCount: uint32(len(result.Conflicts)),
+		},
+	}}
 }
 
 func (handler *LocalHandler) listDevices(
@@ -555,20 +615,25 @@ func errorResponse(err error) *localv1.Response {
 		errors.Is(err, trust.ErrInvalidPairID),
 		errors.Is(err, trust.ErrInvalidPairing),
 		errors.Is(err, trust.ErrInvalidPeer),
-		errors.Is(err, device.ErrInvalidID):
+		errors.Is(err, device.ErrInvalidID),
+		errors.Is(err, artifact.ErrInvalidBundle),
+		errors.Is(err, artifact.ErrInvalidDestination):
 		code = localv1.ErrorCode_ERROR_CODE_INVALID_ARGUMENT
 		message = err.Error()
 	case errors.Is(err, job.ErrNotFound), errors.Is(err, joblogging.ErrNotFound),
 		errors.Is(err, trust.ErrNotFound), errors.Is(err, trust.ErrPairingNotFound),
-		errors.Is(err, ErrNearbyDeviceNotFound):
+		errors.Is(err, ErrNearbyDeviceNotFound), errors.Is(err, artifact.ErrNotFound):
 		code = localv1.ErrorCode_ERROR_CODE_NOT_FOUND
 		message = err.Error()
-	case errors.Is(err, job.ErrConflict), errors.Is(err, trust.ErrConflict),
+	case errors.Is(err, job.ErrConflict), errors.Is(err, trust.ErrConflict), errors.Is(err, artifact.ErrConflict),
 		errors.Is(err, ErrNearbyDeviceAmbiguous):
 		code = localv1.ErrorCode_ERROR_CODE_CONFLICT
 		message = err.Error()
 	case errors.Is(err, worker.ErrJobTerminal):
 		code = localv1.ErrorCode_ERROR_CODE_JOB_TERMINAL
+		message = err.Error()
+	case errors.Is(err, worker.ErrArtifactsDisabled), errors.Is(err, worker.ErrArtifactsNotReady):
+		code = localv1.ErrorCode_ERROR_CODE_CONFLICT
 		message = err.Error()
 	case errors.Is(err, trust.ErrPairingUnavailable):
 		code = localv1.ErrorCode_ERROR_CODE_PAIRING_UNAVAILABLE

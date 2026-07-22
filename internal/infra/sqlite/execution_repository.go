@@ -273,14 +273,18 @@ func (repository *ExecutionRepository) Complete(
 	if completion.At.Before(attempt.HeartbeatAt) {
 		return job.Job{}, execution.Attempt{}, execution.ErrInvalidCompletion
 	}
+	current, err := queryJob(ctx, transaction, `SELECT `+jobColumns+` FROM jobs WHERE id = ?`, id)
+	if err != nil {
+		return job.Job{}, execution.Attempt{}, fmt.Errorf("load job for execution completion: %w", err)
+	}
 	if attempt.Status == execution.StatusStarting && completion.Kind() == execution.CompletionSucceeded {
 		return job.Job{}, execution.Attempt{}, execution.ErrInvalidCompletion
 	}
-
-	from := job.StateStarting
-	if attempt.Status == execution.StatusRunning {
-		from = job.StateRunning
+	if attempt.Status == execution.StatusStarting && current.State != job.StateStarting ||
+		attempt.Status == execution.StatusRunning && current.State != job.StateRunning && current.State != job.StateCollecting {
+		return job.Job{}, execution.Attempt{}, execution.ErrInvalidCompletion
 	}
+	from := current.State
 	to := job.StateSucceeded
 	failure := completion.Failure
 	if completion.Cancelled {

@@ -314,6 +314,22 @@ public nonisolated struct Computehop_V1_RemoteRequest: Sendable {
     set {operation = .putChunk(newValue)}
   }
 
+  public var getJobArtifacts: Computehop_V1_GetJobArtifactsRequest {
+    get {
+      if case .getJobArtifacts(let v)? = operation {return v}
+      return Computehop_V1_GetJobArtifactsRequest()
+    }
+    set {operation = .getJobArtifacts(newValue)}
+  }
+
+  public var getArtifactChunk: Computehop_V1_GetArtifactChunkRequest {
+    get {
+      if case .getArtifactChunk(let v)? = operation {return v}
+      return Computehop_V1_GetArtifactChunkRequest()
+    }
+    set {operation = .getArtifactChunk(newValue)}
+  }
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public nonisolated enum OneOf_Operation: Equatable, Sendable {
@@ -324,6 +340,8 @@ public nonisolated struct Computehop_V1_RemoteRequest: Sendable {
     case readJobLogs(Computehop_V1_ReadJobLogsRequest)
     case checkSnapshot(Computehop_V1_CheckSnapshotRequest)
     case putChunk(Computehop_V1_PutChunkRequest)
+    case getJobArtifacts(Computehop_V1_GetJobArtifactsRequest)
+    case getArtifactChunk(Computehop_V1_GetArtifactChunkRequest)
 
   }
 
@@ -416,6 +434,22 @@ public nonisolated struct Computehop_V1_RemoteResponse: @unchecked Sendable {
     set {_uniqueStorage()._result = .putChunk(newValue)}
   }
 
+  public var getJobArtifacts: Computehop_V1_GetJobArtifactsResponse {
+    get {
+      if case .getJobArtifacts(let v)? = _storage._result {return v}
+      return Computehop_V1_GetJobArtifactsResponse()
+    }
+    set {_uniqueStorage()._result = .getJobArtifacts(newValue)}
+  }
+
+  public var getArtifactChunk: Computehop_V1_GetArtifactChunkResponse {
+    get {
+      if case .getArtifactChunk(let v)? = _storage._result {return v}
+      return Computehop_V1_GetArtifactChunkResponse()
+    }
+    set {_uniqueStorage()._result = .getArtifactChunk(newValue)}
+  }
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public nonisolated enum OneOf_Result: Equatable, Sendable {
@@ -426,6 +460,8 @@ public nonisolated struct Computehop_V1_RemoteResponse: @unchecked Sendable {
     case readJobLogs(Computehop_V1_ReadJobLogsResponse)
     case checkSnapshot(Computehop_V1_CheckSnapshotResponse)
     case putChunk(Computehop_V1_PutChunkResponse)
+    case getJobArtifacts(Computehop_V1_GetJobArtifactsResponse)
+    case getArtifactChunk(Computehop_V1_GetArtifactChunkResponse)
 
   }
 
@@ -513,6 +549,81 @@ public nonisolated struct Computehop_V1_PutChunkResponse: Sendable {
   // methods supported on all messages.
 
   public var digest: String = String()
+
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  public init() {}
+}
+
+public nonisolated struct Computehop_V1_GetJobArtifactsRequest: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  public var jobID: String = String()
+
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  public init() {}
+}
+
+public nonisolated struct Computehop_V1_GetJobArtifactsResponse: @unchecked Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  public var job: Computehop_V1_Job {
+    get {_storage._job ?? Computehop_V1_Job()}
+    set {_uniqueStorage()._job = newValue}
+  }
+  /// Returns true if `job` has been explicitly set.
+  public var hasJob: Bool {_storage._job != nil}
+  /// Clears the value of `job`. Subsequent reads from it will return its default value.
+  public mutating func clearJob() {_uniqueStorage()._job = nil}
+
+  public var artifacts: Computehop_V1_SnapshotManifest {
+    get {_storage._artifacts ?? Computehop_V1_SnapshotManifest()}
+    set {_uniqueStorage()._artifacts = newValue}
+  }
+  /// Returns true if `artifacts` has been explicitly set.
+  public var hasArtifacts: Bool {_storage._artifacts != nil}
+  /// Clears the value of `artifacts`. Subsequent reads from it will return its default value.
+  public mutating func clearArtifacts() {_uniqueStorage()._artifacts = nil}
+
+  public var collectedAtUnixNano: Int64 {
+    get {_storage._collectedAtUnixNano}
+    set {_uniqueStorage()._collectedAtUnixNano = newValue}
+  }
+
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  public init() {}
+
+  fileprivate var _storage = _StorageClass.defaultInstance
+}
+
+public nonisolated struct Computehop_V1_GetArtifactChunkRequest: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  public var jobID: String = String()
+
+  public var digest: String = String()
+
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  public init() {}
+}
+
+public nonisolated struct Computehop_V1_GetArtifactChunkResponse: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  public var digest: String = String()
+
+  public var data: Data = Data()
 
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -758,6 +869,8 @@ public nonisolated struct Computehop_V1_JobSpec: Sendable {
 
   public var containerImage: String = String()
 
+  public var outputs: [String] = []
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
@@ -854,7 +967,7 @@ nonisolated extension Computehop_V1_RemoteErrorCode: SwiftProtobuf._ProtoNamePro
 
 nonisolated extension Computehop_V1_RemoteRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".RemoteRequest"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}protocol_version\0\u{3}request_id\0\u{4}\u{8}submit_job\0\u{3}get_job\0\u{3}list_jobs\0\u{3}cancel_job\0\u{3}read_job_logs\0\u{3}check_snapshot\0\u{3}put_chunk\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}protocol_version\0\u{3}request_id\0\u{4}\u{8}submit_job\0\u{3}get_job\0\u{3}list_jobs\0\u{3}cancel_job\0\u{3}read_job_logs\0\u{3}check_snapshot\0\u{3}put_chunk\0\u{3}get_job_artifacts\0\u{3}get_artifact_chunk\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -955,6 +1068,32 @@ nonisolated extension Computehop_V1_RemoteRequest: SwiftProtobuf.Message, SwiftP
           self.operation = .putChunk(v)
         }
       }()
+      case 17: try {
+        var v: Computehop_V1_GetJobArtifactsRequest?
+        var hadOneofValue = false
+        if let current = self.operation {
+          hadOneofValue = true
+          if case .getJobArtifacts(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.operation = .getJobArtifacts(v)
+        }
+      }()
+      case 18: try {
+        var v: Computehop_V1_GetArtifactChunkRequest?
+        var hadOneofValue = false
+        if let current = self.operation {
+          hadOneofValue = true
+          if case .getArtifactChunk(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.operation = .getArtifactChunk(v)
+        }
+      }()
       default: break
       }
     }
@@ -1000,6 +1139,14 @@ nonisolated extension Computehop_V1_RemoteRequest: SwiftProtobuf.Message, SwiftP
       guard case .putChunk(let v)? = self.operation else { preconditionFailure() }
       try visitor.visitSingularMessageField(value: v, fieldNumber: 16)
     }()
+    case .getJobArtifacts?: try {
+      guard case .getJobArtifacts(let v)? = self.operation else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 17)
+    }()
+    case .getArtifactChunk?: try {
+      guard case .getArtifactChunk(let v)? = self.operation else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 18)
+    }()
     case nil: break
     }
     try unknownFields.traverse(visitor: &visitor)
@@ -1016,7 +1163,7 @@ nonisolated extension Computehop_V1_RemoteRequest: SwiftProtobuf.Message, SwiftP
 
 nonisolated extension Computehop_V1_RemoteResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".RemoteResponse"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}protocol_version\0\u{3}request_id\0\u{1}error\0\u{4}\u{7}submit_job\0\u{3}get_job\0\u{3}list_jobs\0\u{3}cancel_job\0\u{3}read_job_logs\0\u{3}check_snapshot\0\u{3}put_chunk\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}protocol_version\0\u{3}request_id\0\u{1}error\0\u{4}\u{7}submit_job\0\u{3}get_job\0\u{3}list_jobs\0\u{3}cancel_job\0\u{3}read_job_logs\0\u{3}check_snapshot\0\u{3}put_chunk\0\u{3}get_job_artifacts\0\u{3}get_artifact_chunk\0")
 
   fileprivate class _StorageClass {
     var _protocolVersion: UInt32 = 0
@@ -1149,6 +1296,32 @@ nonisolated extension Computehop_V1_RemoteResponse: SwiftProtobuf.Message, Swift
             _storage._result = .putChunk(v)
           }
         }()
+        case 17: try {
+          var v: Computehop_V1_GetJobArtifactsResponse?
+          var hadOneofValue = false
+          if let current = _storage._result {
+            hadOneofValue = true
+            if case .getJobArtifacts(let m) = current {v = m}
+          }
+          try decoder.decodeSingularMessageField(value: &v)
+          if let v = v {
+            if hadOneofValue {try decoder.handleConflictingOneOf()}
+            _storage._result = .getJobArtifacts(v)
+          }
+        }()
+        case 18: try {
+          var v: Computehop_V1_GetArtifactChunkResponse?
+          var hadOneofValue = false
+          if let current = _storage._result {
+            hadOneofValue = true
+            if case .getArtifactChunk(let m) = current {v = m}
+          }
+          try decoder.decodeSingularMessageField(value: &v)
+          if let v = v {
+            if hadOneofValue {try decoder.handleConflictingOneOf()}
+            _storage._result = .getArtifactChunk(v)
+          }
+        }()
         default: break
         }
       }
@@ -1198,6 +1371,14 @@ nonisolated extension Computehop_V1_RemoteResponse: SwiftProtobuf.Message, Swift
       case .putChunk?: try {
         guard case .putChunk(let v)? = _storage._result else { preconditionFailure() }
         try visitor.visitSingularMessageField(value: v, fieldNumber: 16)
+      }()
+      case .getJobArtifacts?: try {
+        guard case .getJobArtifacts(let v)? = _storage._result else { preconditionFailure() }
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 17)
+      }()
+      case .getArtifactChunk?: try {
+        guard case .getArtifactChunk(let v)? = _storage._result else { preconditionFailure() }
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 18)
       }()
       case nil: break
       }
@@ -1392,6 +1573,190 @@ nonisolated extension Computehop_V1_PutChunkResponse: SwiftProtobuf.Message, Swi
 
   public static func ==(lhs: Computehop_V1_PutChunkResponse, rhs: Computehop_V1_PutChunkResponse) -> Bool {
     if lhs.digest != rhs.digest {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Computehop_V1_GetJobArtifactsRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = _protobuf_package + ".GetJobArtifactsRequest"
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}job_id\0")
+
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.jobID) }()
+      default: break
+      }
+    }
+  }
+
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.jobID.isEmpty {
+      try visitor.visitSingularStringField(value: self.jobID, fieldNumber: 1)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  public static func ==(lhs: Computehop_V1_GetJobArtifactsRequest, rhs: Computehop_V1_GetJobArtifactsRequest) -> Bool {
+    if lhs.jobID != rhs.jobID {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Computehop_V1_GetJobArtifactsResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = _protobuf_package + ".GetJobArtifactsResponse"
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}job\0\u{1}artifacts\0\u{3}collected_at_unix_nano\0")
+
+  fileprivate class _StorageClass {
+    var _job: Computehop_V1_Job? = nil
+    var _artifacts: Computehop_V1_SnapshotManifest? = nil
+    var _collectedAtUnixNano: Int64 = 0
+
+      // This property is used as the initial default value for new instances of the type.
+      // The type itself is protecting the reference to its storage via CoW semantics.
+      // This will force a copy to be made of this reference when the first mutation occurs;
+      // hence, it is safe to mark this as `nonisolated(unsafe)`.
+      static nonisolated(unsafe) let defaultInstance = _StorageClass()
+
+    private init() {}
+
+    init(copying source: _StorageClass) {
+      _job = source._job
+      _artifacts = source._artifacts
+      _collectedAtUnixNano = source._collectedAtUnixNano
+    }
+  }
+
+  fileprivate mutating func _uniqueStorage() -> _StorageClass {
+    if !isKnownUniquelyReferenced(&_storage) {
+      _storage = _StorageClass(copying: _storage)
+    }
+    return _storage
+  }
+
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    _ = _uniqueStorage()
+    try withExtendedLifetime(_storage) { (_storage: _StorageClass) in
+      while let fieldNumber = try decoder.nextFieldNumber() {
+        // The use of inline closures is to circumvent an issue where the compiler
+        // allocates stack space for every case branch when no optimizations are
+        // enabled. https://github.com/apple/swift-protobuf/issues/1034
+        switch fieldNumber {
+        case 1: try { try decoder.decodeSingularMessageField(value: &_storage._job) }()
+        case 2: try { try decoder.decodeSingularMessageField(value: &_storage._artifacts) }()
+        case 3: try { try decoder.decodeSingularInt64Field(value: &_storage._collectedAtUnixNano) }()
+        default: break
+        }
+      }
+    }
+  }
+
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    try withExtendedLifetime(_storage) { (_storage: _StorageClass) in
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every if/case branch local when no optimizations
+      // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+      // https://github.com/apple/swift-protobuf/issues/1182
+      try { if let v = _storage._job {
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 1)
+      } }()
+      try { if let v = _storage._artifacts {
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 2)
+      } }()
+      if _storage._collectedAtUnixNano != 0 {
+        try visitor.visitSingularInt64Field(value: _storage._collectedAtUnixNano, fieldNumber: 3)
+      }
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  public static func ==(lhs: Computehop_V1_GetJobArtifactsResponse, rhs: Computehop_V1_GetJobArtifactsResponse) -> Bool {
+    if lhs._storage !== rhs._storage {
+      let storagesAreEqual: Bool = withExtendedLifetime((lhs._storage, rhs._storage)) { (_args: (_StorageClass, _StorageClass)) in
+        let _storage = _args.0
+        let rhs_storage = _args.1
+        if _storage._job != rhs_storage._job {return false}
+        if _storage._artifacts != rhs_storage._artifacts {return false}
+        if _storage._collectedAtUnixNano != rhs_storage._collectedAtUnixNano {return false}
+        return true
+      }
+      if !storagesAreEqual {return false}
+    }
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Computehop_V1_GetArtifactChunkRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = _protobuf_package + ".GetArtifactChunkRequest"
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}job_id\0\u{1}digest\0")
+
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.jobID) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.digest) }()
+      default: break
+      }
+    }
+  }
+
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.jobID.isEmpty {
+      try visitor.visitSingularStringField(value: self.jobID, fieldNumber: 1)
+    }
+    if !self.digest.isEmpty {
+      try visitor.visitSingularStringField(value: self.digest, fieldNumber: 2)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  public static func ==(lhs: Computehop_V1_GetArtifactChunkRequest, rhs: Computehop_V1_GetArtifactChunkRequest) -> Bool {
+    if lhs.jobID != rhs.jobID {return false}
+    if lhs.digest != rhs.digest {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Computehop_V1_GetArtifactChunkResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = _protobuf_package + ".GetArtifactChunkResponse"
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}digest\0\u{1}data\0")
+
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.digest) }()
+      case 2: try { try decoder.decodeSingularBytesField(value: &self.data) }()
+      default: break
+      }
+    }
+  }
+
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.digest.isEmpty {
+      try visitor.visitSingularStringField(value: self.digest, fieldNumber: 1)
+    }
+    if !self.data.isEmpty {
+      try visitor.visitSingularBytesField(value: self.data, fieldNumber: 2)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  public static func ==(lhs: Computehop_V1_GetArtifactChunkResponse, rhs: Computehop_V1_GetArtifactChunkResponse) -> Bool {
+    if lhs.digest != rhs.digest {return false}
+    if lhs.data != rhs.data {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -1880,7 +2245,7 @@ nonisolated extension Computehop_V1_JobLogRecord: SwiftProtobuf.Message, SwiftPr
 
 nonisolated extension Computehop_V1_JobSpec: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".JobSpec"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}executable\0\u{1}arguments\0\u{3}working_directory\0\u{1}environment\0\u{1}executor\0\u{3}container_image\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}executable\0\u{1}arguments\0\u{3}working_directory\0\u{1}environment\0\u{1}executor\0\u{3}container_image\0\u{1}outputs\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -1894,6 +2259,7 @@ nonisolated extension Computehop_V1_JobSpec: SwiftProtobuf.Message, SwiftProtobu
       case 4: try { try decoder.decodeMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: &self.environment) }()
       case 5: try { try decoder.decodeSingularEnumField(value: &self.executor) }()
       case 6: try { try decoder.decodeSingularStringField(value: &self.containerImage) }()
+      case 7: try { try decoder.decodeRepeatedStringField(value: &self.outputs) }()
       default: break
       }
     }
@@ -1918,6 +2284,9 @@ nonisolated extension Computehop_V1_JobSpec: SwiftProtobuf.Message, SwiftProtobu
     if !self.containerImage.isEmpty {
       try visitor.visitSingularStringField(value: self.containerImage, fieldNumber: 6)
     }
+    if !self.outputs.isEmpty {
+      try visitor.visitRepeatedStringField(value: self.outputs, fieldNumber: 7)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -1928,6 +2297,7 @@ nonisolated extension Computehop_V1_JobSpec: SwiftProtobuf.Message, SwiftProtobu
     if lhs.environment != rhs.environment {return false}
     if lhs.executor != rhs.executor {return false}
     if lhs.containerImage != rhs.containerImage {return false}
+    if lhs.outputs != rhs.outputs {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

@@ -204,6 +204,45 @@ func TestBuildRejectsSymlinksInsideProject(t *testing.T) {
 	}
 }
 
+func TestBuildDeclaredCollectsOnlyExactOutputsAndDeduplicatesOverlap(t *testing.T) {
+	root := t.TempDir()
+	writeSnapshotTestFile(t, filepath.Join(root, "dist", "app"), []byte("binary"), 0o755)
+	writeSnapshotTestFile(t, filepath.Join(root, "dist", "report.txt"), []byte("report"), 0o644)
+	writeSnapshotTestFile(t, filepath.Join(root, "source.txt"), []byte("not an output"), 0o644)
+	store := newMemoryStore()
+	manifest, err := BuildDeclared(context.Background(), root, []string{"dist", "dist/app"}, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(manifest.Files) != 2 || manifest.Files[0].Path != "dist/app" ||
+		manifest.Files[1].Path != "dist/report.txt" {
+		t.Fatalf("declared files = %#v", manifest.Files)
+	}
+	if runtime.GOOS != "windows" && manifest.Files[0].Mode != 0o755 {
+		t.Fatalf("declared executable mode = %#o", manifest.Files[0].Mode)
+	}
+}
+
+func TestBuildDeclaredRejectsMissingReservedAndSymlinkOutputs(t *testing.T) {
+	root := t.TempDir()
+	writeSnapshotTestFile(t, filepath.Join(root, "real"), []byte("contents"), 0o644)
+	if _, err := BuildDeclared(context.Background(), root, []string{"missing"}, newMemoryStore()); !errors.Is(err, ErrDeclaredOutputMissing) {
+		t.Fatalf("missing output error = %v", err)
+	}
+	if _, err := BuildDeclared(context.Background(), root, []string{".git/config"}, newMemoryStore()); !errors.Is(err, ErrUnsafePath) {
+		t.Fatalf("reserved output error = %v", err)
+	}
+	if runtime.GOOS == "windows" {
+		return
+	}
+	if err := os.Symlink("real", filepath.Join(root, "link")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := BuildDeclared(context.Background(), root, []string{"link"}, newMemoryStore()); !errors.Is(err, ErrUnsupportedEntry) {
+		t.Fatalf("symlink output error = %v", err)
+	}
+}
+
 func chunkDigests(t *testing.T, contents []byte) []Digest {
 	t.Helper()
 	var result []Digest

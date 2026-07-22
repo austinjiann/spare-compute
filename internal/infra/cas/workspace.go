@@ -102,7 +102,7 @@ func (store *WorkspaceStore) Materialize(
 		if err := os.MkdirAll(filepath.Dir(destination), 0o700); err != nil {
 			return "", err
 		}
-		if err := store.materializeFile(ctx, destination, file); err != nil {
+		if err := materializeFile(ctx, store.content, destination, file); err != nil {
 			return "", err
 		}
 	}
@@ -137,14 +137,14 @@ func (store *WorkspaceStore) RemoveWorkspace(id job.ID) error {
 	return nil
 }
 
-func (store *WorkspaceStore) materializeFile(ctx context.Context, destination string, file snapshot.File) error {
+func materializeFile(ctx context.Context, content *Store, destination string, file snapshot.File) error {
 	opened, err := os.OpenFile(destination, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
 		return err
 	}
 	var writeErr error
 	for _, chunk := range file.Chunks {
-		contents, err := store.content.Read(ctx, chunk.Digest)
+		contents, err := content.Read(ctx, chunk.Digest)
 		if err != nil {
 			writeErr = err
 			break

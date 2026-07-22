@@ -26,9 +26,9 @@ Last updated: 2026-07-22.
 | Supervised direct internet control | In progress | Daemons reconcile active pair records, retry encrypted rendezvous/ICE negotiation, run the identity-pinned control protocol over selected paths, prefer LAN for jobs, and expose path state to CLI/Swift. Automated end-to-end and race coverage pass; physical unrelated-network and network-change validation remain. |
 | One-VPS staging deployment | In progress | Provider-neutral Compose stack, Caddy HTTPS edge, authenticated coturn relay, bounded ports/quotas, secrets, firewall bootstrap, health checks, and rollback runbook are ready; buying the VPS and forced-relay validation remain. |
 | CLI and physical Mac validation | In progress | Friendlier `--on` and no-`--` command syntax, inferred pairing confirmation, and merged trusted/nearby presentation are implemented; physical macOS-to-macOS discovery, pairing, execution, restart recovery, logs, and cancellation passed. Windows/Linux remain. |
-| macOS menu-bar foundation | In progress | SwiftUI `MenuBarExtra`, generated SwiftProtobuf v3 models, authenticated Unix-socket IPC, device/pairing controls, native job submission, reconnectable output, and cancellation build and pass real Swift-to-Go ping and job tests; an ad-hoc app bundle and per-user launchd installer are ready for development. |
-| Project snapshots and incremental transfer | In progress | Remote runs resolve a local project root, apply bounded nested `.gitignore`/`.computehopignore` rules, create canonical content-defined snapshots, preflight a verified worker cache, upload only missing chunks, and execute in isolated workspaces. Automated LAN and supervised-path execution plus unchanged-project reuse pass; compression, cache quotas, full ignore conformance, artifacts, secrets, and physical cross-platform validation remain. |
-| Later launch slices | In progress | Direct internet control still needs physical unrelated-network and reconnect validation, and TURN credential issuance requires a hosted entitlement boundary. Artifacts, scheduling, adapters, production packaging, and release operations follow. |
+| macOS menu-bar foundation | In progress | SwiftUI `MenuBarExtra`, generated SwiftProtobuf models, authenticated Unix-socket IPC, device/pairing controls, native job submission, output declarations and retrieval, reconnectable logs, and cancellation build and pass Swift tests; an ad-hoc app bundle and per-user launchd installer are ready for development. |
+| Project snapshots, incremental transfer, and declared artifacts | In progress | Remote runs resolve a local project root, create bounded content-defined snapshots, upload only missing verified chunks, and execute in isolated workspaces. Workers durably collect exact declared files/directories before success; orchestrators fetch only missing verified chunks and restore without overwrites or symlink traversal. Automated LAN/supervised-path reuse and artifact coverage pass; compression, cache quotas, full ignore conformance, automatic restoration, secrets, and physical cross-platform validation remain. |
+| Later launch slices | In progress | Direct internet control still needs physical unrelated-network and reconnect validation, and TURN credential issuance requires a hosted entitlement boundary. Scheduling, adapters, production packaging, and release operations follow. |
 
 “Complete” here means implemented with automated coverage and merged to `main`.
 Physical multi-machine validation remains required by the launch acceptance
@@ -544,7 +544,7 @@ computehop unpair <device>
 # Ad hoc and saved jobs
 computehop run <program> [args...]
 computehop run <job-name>
-computehop run --on <device> <program> [args...]
+computehop run --on <device> --output <relative-path> <program> [args...]
 
 # Observation and control
 computehop jobs
@@ -1274,7 +1274,7 @@ still end-to-end encrypted.
 
 ### Step 4: Project snapshots, transfer, and artifact recovery
 
-**Implementation status:** the input-transfer half is implemented end to end.
+**Implementation status:** project transfer and explicit artifact return are implemented end to end.
 The orchestrator prefers an enclosing Git root, falls back to the nearest known
 project marker or selected directory, applies nested `.gitignore` and
 `.computehopignore` rules, retries unstable reads, and creates a bounded,
@@ -1285,11 +1285,18 @@ atomically materializes a new owner-only workspace for each accepted job.
 Transfers are resumable at chunk granularity because a retried submission
 preflights the persistent cache again. Real LAN and supervised-path integration
 tests execute from the reconstructed workspace and prove that an unchanged
-second submission uploads no chunks. Symlinks and special files are safely
-rejected for now rather than preserved. Compression negotiation, cache
-quota/LRU policy, durable transfer-progress records, declared artifact return,
-secret delivery, and physical Windows/Linux validation remain, so the Step 4
-checkpoint is not complete.
+second submission uploads no chunks. Jobs may declare up to 64 portable relative
+output files or directories. The worker recursively collects exact declarations
+into an immutable manifest, remains cancellable while collecting, and reports
+success only after durable publication. The orchestrator preflights its local
+content store, downloads and re-verifies only missing chunks, stages a complete
+result, and never overwrites existing files or follows destination symlinks;
+conflicts are preserved under `.computehop-conflicts`. CLI aliases and the macOS
+menu expose retrieval after restart by durable job placement. Symlinks and
+special files are safely rejected for now rather than preserved. Compression
+negotiation, cache quota/LRU policy, durable byte-level transfer progress,
+automatic restoration to submission-time paths, secret delivery, and physical
+Windows/Linux validation remain, so the Step 4 checkpoint is not complete.
 
 - Add project-root resolution, ignore semantics, immutable manifests,
   content-defined chunks, compression negotiation, and a bounded content cache.

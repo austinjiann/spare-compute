@@ -24,7 +24,10 @@ existing identity-pinned QUIC control protocol over a selected path; job
 routing prefers LAN and falls back to a ready direct ICE path. Remote jobs now
 snapshot the local project, transfer only content chunks missing from the
 worker, and execute from a fresh worker-owned workspace. Repeating an unchanged
-job reuses the verified worker cache. Automated local end-to-end coverage
+job reuses the verified worker cache. Jobs can declare output files or folders;
+the worker collects them before success, and the orchestrator downloads only
+missing hash-verified chunks into a conflict-safe local results directory.
+Automated local end-to-end coverage
 passes, while physical unrelated-network validation is still open. Public TURN
 relay traffic remains gated on entitlement-backed, quota-limited credential
 issuance.
@@ -59,8 +62,9 @@ nearest recognized project marker, creates an immutable snapshot, transfers
 only missing content-defined chunks, and reconstructs it under a private
 per-job worker directory. `.gitignore` and `.computehopignore` rules are
 applied; `.git`, `.computehop-results`, symlinks, sockets, devices, traversal,
-and non-portable paths cannot enter a snapshot. Artifact return, cache quotas,
-transfer compression, automatic placement, and fully validated network-change
+and non-portable paths cannot enter a snapshot. Declared outputs use the same
+verified content store and are restored without overwriting existing files or
+following destination symlinks. Cache quotas, transfer compression, automatic placement, and fully validated network-change
 reconnection are later slices. Discovery records never authorize commands: the
 live QUIC certificate must match the selected active public-key pin.
 
@@ -88,6 +92,8 @@ go run ./cmd/computehop --state-dir "$computehop_state_dir" run echo hello
 go run ./cmd/computehop --state-dir "$computehop_state_dir" jobs
 go run ./cmd/computehop --state-dir "$computehop_state_dir" logs --follow <job-id>
 go run ./cmd/computehop --state-dir "$computehop_state_dir" cancel <job-id>
+go run ./cmd/computehop --state-dir "$computehop_state_dir" run -o result.txt sh -c 'printf done > result.txt'
+go run ./cmd/computehop --state-dir "$computehop_state_dir" artifacts <job-id>
 ```
 
 After pairing a currently nearby worker, explicit remote job control uses the
@@ -97,10 +103,18 @@ same commands with a device selector:
 go run ./cmd/computehop --state-dir "$computehop_state_dir" run --on "Gaming PC" echo hello
 go run ./cmd/computehop --state-dir "$computehop_state_dir" run --on "Gaming PC" cargo build --release
 go run ./cmd/computehop --state-dir "$computehop_state_dir" run --on "Gaming PC" -C /local/project cargo test
+go run ./cmd/computehop --state-dir "$computehop_state_dir" run --on "Gaming PC" -o target/release/my-app cargo build --release
 go run ./cmd/computehop --state-dir "$computehop_state_dir" jobs --on "Gaming PC"
 go run ./cmd/computehop --state-dir "$computehop_state_dir" logs --follow <job-id>
 go run ./cmd/computehop --state-dir "$computehop_state_dir" cancel <job-id>
+go run ./cmd/computehop --state-dir "$computehop_state_dir" artifacts <job-id>
 ```
+
+Repeat `-o`/`--output` for each relative file or directory to return. After the
+job succeeds, `computehop artifacts <job-id>` infers its worker and restores to
+`.computehop-results/<job-id>` by default; use `--to <directory>` to choose a
+different destination. Existing files are never overwritten. Incoming
+conflicts are retained beneath `.computehop-conflicts` in the destination.
 
 Remote job state, logs, and execution history remain authoritative on the
 selected worker. The orchestrator stores only a durable mapping from each
@@ -149,8 +163,9 @@ swift run ComputeHop
 ```
 
 The app can submit a native command to this Mac or a paired available worker,
-choose the local project folder to snapshot, and read durable output directly
-in the menu. Quotes only group literal arguments; the app does not silently
+choose the local project folder to snapshot, declare comma-separated output
+paths, restore completed outputs through a native folder picker, and read
+durable logs directly in the menu. Quotes only group literal arguments; the app does not silently
 invoke a shell. The app and generated
 Swift protocol models build with `swift build` and test with `swift test`. See
 [`apps/macos/README.md`](apps/macos/README.md) for the current packaging

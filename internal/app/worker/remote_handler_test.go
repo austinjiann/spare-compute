@@ -1,12 +1,14 @@
 package worker
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"testing"
 	"time"
 
 	computehopv1 "github.com/austinjiann/spare-compute/gen/go/computehop/v1"
+	"github.com/austinjiann/spare-compute/internal/artifact"
 	"github.com/austinjiann/spare-compute/internal/job"
 	joblogging "github.com/austinjiann/spare-compute/internal/logging"
 	"github.com/austinjiann/spare-compute/internal/protocol/mapper"
@@ -148,6 +150,63 @@ func TestRemoteHandlerPreflightsUploadsAndSubmitsSnapshot(t *testing.T) {
 	}
 }
 
+func TestRemoteHandlerReturnsCompletedArtifactManifestAndAuthorizedChunk(t *testing.T) {
+	contents := []byte("rendered")
+	digest := snapshot.Sum(contents)
+	want := remoteHandlerJob(t)
+	want.State = job.StateSucceeded
+	want.Spec.Outputs = []string{"dist/render.png"}
+	bundle := artifact.Bundle{
+		JobID: want.ID,
+		Manifest: snapshot.Manifest{
+			Version: snapshot.ManifestVersion,
+			Files: []snapshot.File{{
+				Path: "dist/render.png", Mode: 0o644, Size: int64(len(contents)),
+				Chunks: []snapshot.Chunk{{Digest: digest, Size: uint32(len(contents))}},
+			}},
+			TotalBytes: int64(len(contents)),
+		},
+		CollectedAt: time.Unix(1_900_000_000, 0).UTC(),
+	}
+	controller := &remoteArtifactControllerStub{
+		remoteControllerStub: remoteControllerStub{},
+		readArtifacts: func(_ context.Context, id job.ID) (JobArtifacts, error) {
+			if id != want.ID {
+				t.Fatalf("ReadArtifacts(%s)", id)
+			}
+			return JobArtifacts{Job: want, Bundle: bundle}, nil
+		},
+		readChunk: func(_ context.Context, id job.ID, got snapshot.Digest) ([]byte, error) {
+			if id != want.ID || got != digest {
+				t.Fatalf("ReadArtifactChunk(%s, %s)", id, got)
+			}
+			return contents, nil
+		},
+	}
+	handler, err := NewRemoteHandler(controller)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := handler.Handle(context.Background(), &computehopv1.RemoteRequest{
+		Operation: &computehopv1.RemoteRequest_GetJobArtifacts{GetJobArtifacts: &computehopv1.GetJobArtifactsRequest{
+			JobId: string(want.ID),
+		}},
+	})
+	result := response.GetGetJobArtifacts()
+	if response.GetError() != nil || result.GetCollectedAtUnixNano() != bundle.CollectedAt.UnixNano() ||
+		len(result.GetArtifacts().GetFiles()) != 1 {
+		t.Fatalf("artifact response = %#v", response)
+	}
+	response = handler.Handle(context.Background(), &computehopv1.RemoteRequest{
+		Operation: &computehopv1.RemoteRequest_GetArtifactChunk{GetArtifactChunk: &computehopv1.GetArtifactChunkRequest{
+			JobId: string(want.ID), Digest: string(digest),
+		}},
+	})
+	if response.GetError() != nil || !bytes.Equal(response.GetGetArtifactChunk().GetData(), contents) {
+		t.Fatalf("chunk response = %#v", response)
+	}
+}
+
 func TestRemoteHandlerDoesNotLeakInternalErrors(t *testing.T) {
 	controller := remoteControllerStub{get: func(context.Context, job.ID) (job.Job, error) {
 		return job.Job{}, errors.New("database password was here")
@@ -180,6 +239,27 @@ type remoteSnapshotControllerStub struct {
 	missing        func(context.Context, []snapshot.Digest) ([]snapshot.Digest, error)
 	put            func(context.Context, snapshot.Digest, []byte) error
 	submitSnapshot func(context.Context, job.Spec, snapshot.Manifest, string) (job.Job, error)
+}
+
+type remoteArtifactControllerStub struct {
+	remoteControllerStub
+	readArtifacts func(context.Context, job.ID) (JobArtifacts, error)
+	readChunk     func(context.Context, job.ID, snapshot.Digest) ([]byte, error)
+}
+
+func (stub *remoteArtifactControllerStub) ReadArtifacts(
+	ctx context.Context,
+	id job.ID,
+) (JobArtifacts, error) {
+	return stub.readArtifacts(ctx, id)
+}
+
+func (stub *remoteArtifactControllerStub) ReadArtifactChunk(
+	ctx context.Context,
+	id job.ID,
+	digest snapshot.Digest,
+) ([]byte, error) {
+	return stub.readChunk(ctx, id, digest)
 }
 
 func (stub *remoteSnapshotControllerStub) MissingChunks(

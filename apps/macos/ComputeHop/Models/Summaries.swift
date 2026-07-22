@@ -114,6 +114,7 @@ struct JobSummary: Identifiable, Sendable {
     let terminal: Bool
     let updatedAt: Date
     let target: String
+    let outputs: [String]
 
     init(_ value: Computehop_Local_V1_Job, target: String = "This Mac") {
         id = value.id
@@ -122,9 +123,17 @@ struct JobSummary: Identifiable, Sendable {
         terminal = [.succeeded, .failed, .cancelled, .rejected, .lost].contains(value.state)
         updatedAt = Date(timeIntervalSince1970: Double(value.updatedAtUnixNano) / 1_000_000_000)
         self.target = target
+        outputs = value.spec.outputs
     }
 
     var shortID: String { String(id.prefix(8)) }
+    var canFetchOutputs: Bool { state == "Succeeded" && !outputs.isEmpty }
+}
+
+struct ArtifactRestoreSummary: Sendable {
+    let destination: String
+    let restoredFileCount: UInt32
+    let conflictFileCount: UInt32
 }
 
 struct JobLogRecordSummary: Sendable {

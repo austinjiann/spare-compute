@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct JobsSection: View {
@@ -26,6 +27,12 @@ struct JobsSection: View {
                             Task { await model.showLogs(for: job) }
                         }
                         .disabled(model.isLoadingLogs)
+                        if job.canFetchOutputs {
+                            Button("Outputs…") {
+                                chooseArtifactDestination(for: job)
+                            }
+                            .disabled(model.actionInProgress != nil)
+                        }
                         if !job.terminal {
                             Button("Cancel") {
                                 Task { await model.cancel(job) }
@@ -34,6 +41,13 @@ struct JobsSection: View {
                         }
                     }
                 }
+            }
+
+            if let message = model.artifactMessage {
+                Text(message)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             if let selectedJobID = model.selectedJobID {
@@ -70,6 +84,17 @@ struct JobsSection: View {
                     }
                 }
             }
+        }
+    }
+
+    private func chooseArtifactDestination(for job: JobSummary) {
+        let panel = NSSavePanel()
+        panel.title = "Choose Output Folder"
+        panel.prompt = "Restore Outputs"
+        panel.canCreateDirectories = true
+        panel.nameFieldStringValue = "ComputeHop-\(job.shortID)"
+        if panel.runModal() == .OK, let destination = panel.url {
+            Task { await model.fetchArtifacts(for: job, destination: destination.path) }
         }
     }
 }

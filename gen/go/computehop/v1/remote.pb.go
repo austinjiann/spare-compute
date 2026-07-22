@@ -283,6 +283,8 @@ type RemoteRequest struct {
 	//	*RemoteRequest_ReadJobLogs
 	//	*RemoteRequest_CheckSnapshot
 	//	*RemoteRequest_PutChunk
+	//	*RemoteRequest_GetJobArtifacts
+	//	*RemoteRequest_GetArtifactChunk
 	Operation     isRemoteRequest_Operation `protobuf_oneof:"operation"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -402,6 +404,24 @@ func (x *RemoteRequest) GetPutChunk() *PutChunkRequest {
 	return nil
 }
 
+func (x *RemoteRequest) GetGetJobArtifacts() *GetJobArtifactsRequest {
+	if x != nil {
+		if x, ok := x.Operation.(*RemoteRequest_GetJobArtifacts); ok {
+			return x.GetJobArtifacts
+		}
+	}
+	return nil
+}
+
+func (x *RemoteRequest) GetGetArtifactChunk() *GetArtifactChunkRequest {
+	if x != nil {
+		if x, ok := x.Operation.(*RemoteRequest_GetArtifactChunk); ok {
+			return x.GetArtifactChunk
+		}
+	}
+	return nil
+}
+
 type isRemoteRequest_Operation interface {
 	isRemoteRequest_Operation()
 }
@@ -434,6 +454,14 @@ type RemoteRequest_PutChunk struct {
 	PutChunk *PutChunkRequest `protobuf:"bytes,16,opt,name=put_chunk,json=putChunk,proto3,oneof"`
 }
 
+type RemoteRequest_GetJobArtifacts struct {
+	GetJobArtifacts *GetJobArtifactsRequest `protobuf:"bytes,17,opt,name=get_job_artifacts,json=getJobArtifacts,proto3,oneof"`
+}
+
+type RemoteRequest_GetArtifactChunk struct {
+	GetArtifactChunk *GetArtifactChunkRequest `protobuf:"bytes,18,opt,name=get_artifact_chunk,json=getArtifactChunk,proto3,oneof"`
+}
+
 func (*RemoteRequest_SubmitJob) isRemoteRequest_Operation() {}
 
 func (*RemoteRequest_GetJob) isRemoteRequest_Operation() {}
@@ -447,6 +475,10 @@ func (*RemoteRequest_ReadJobLogs) isRemoteRequest_Operation() {}
 func (*RemoteRequest_CheckSnapshot) isRemoteRequest_Operation() {}
 
 func (*RemoteRequest_PutChunk) isRemoteRequest_Operation() {}
+
+func (*RemoteRequest_GetJobArtifacts) isRemoteRequest_Operation() {}
+
+func (*RemoteRequest_GetArtifactChunk) isRemoteRequest_Operation() {}
 
 // RemoteResponse is correlated to exactly one RemoteRequest.
 type RemoteResponse struct {
@@ -463,6 +495,8 @@ type RemoteResponse struct {
 	//	*RemoteResponse_ReadJobLogs
 	//	*RemoteResponse_CheckSnapshot
 	//	*RemoteResponse_PutChunk
+	//	*RemoteResponse_GetJobArtifacts
+	//	*RemoteResponse_GetArtifactChunk
 	Result        isRemoteResponse_Result `protobuf_oneof:"result"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -589,6 +623,24 @@ func (x *RemoteResponse) GetPutChunk() *PutChunkResponse {
 	return nil
 }
 
+func (x *RemoteResponse) GetGetJobArtifacts() *GetJobArtifactsResponse {
+	if x != nil {
+		if x, ok := x.Result.(*RemoteResponse_GetJobArtifacts); ok {
+			return x.GetJobArtifacts
+		}
+	}
+	return nil
+}
+
+func (x *RemoteResponse) GetGetArtifactChunk() *GetArtifactChunkResponse {
+	if x != nil {
+		if x, ok := x.Result.(*RemoteResponse_GetArtifactChunk); ok {
+			return x.GetArtifactChunk
+		}
+	}
+	return nil
+}
+
 type isRemoteResponse_Result interface {
 	isRemoteResponse_Result()
 }
@@ -621,6 +673,14 @@ type RemoteResponse_PutChunk struct {
 	PutChunk *PutChunkResponse `protobuf:"bytes,16,opt,name=put_chunk,json=putChunk,proto3,oneof"`
 }
 
+type RemoteResponse_GetJobArtifacts struct {
+	GetJobArtifacts *GetJobArtifactsResponse `protobuf:"bytes,17,opt,name=get_job_artifacts,json=getJobArtifacts,proto3,oneof"`
+}
+
+type RemoteResponse_GetArtifactChunk struct {
+	GetArtifactChunk *GetArtifactChunkResponse `protobuf:"bytes,18,opt,name=get_artifact_chunk,json=getArtifactChunk,proto3,oneof"`
+}
+
 func (*RemoteResponse_SubmitJob) isRemoteResponse_Result() {}
 
 func (*RemoteResponse_GetJob) isRemoteResponse_Result() {}
@@ -634,6 +694,10 @@ func (*RemoteResponse_ReadJobLogs) isRemoteResponse_Result() {}
 func (*RemoteResponse_CheckSnapshot) isRemoteResponse_Result() {}
 
 func (*RemoteResponse_PutChunk) isRemoteResponse_Result() {}
+
+func (*RemoteResponse_GetJobArtifacts) isRemoteResponse_Result() {}
+
+func (*RemoteResponse_GetArtifactChunk) isRemoteResponse_Result() {}
 
 type SubmitJobRequest struct {
 	state               protoimpl.MessageState `protogen:"open.v1"`
@@ -887,6 +951,214 @@ func (x *PutChunkResponse) GetDigest() string {
 	return ""
 }
 
+type GetJobArtifactsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	JobId         string                 `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetJobArtifactsRequest) Reset() {
+	*x = GetJobArtifactsRequest{}
+	mi := &file_computehop_v1_remote_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetJobArtifactsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetJobArtifactsRequest) ProtoMessage() {}
+
+func (x *GetJobArtifactsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_computehop_v1_remote_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetJobArtifactsRequest.ProtoReflect.Descriptor instead.
+func (*GetJobArtifactsRequest) Descriptor() ([]byte, []int) {
+	return file_computehop_v1_remote_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *GetJobArtifactsRequest) GetJobId() string {
+	if x != nil {
+		return x.JobId
+	}
+	return ""
+}
+
+type GetJobArtifactsResponse struct {
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	Job                 *Job                   `protobuf:"bytes,1,opt,name=job,proto3" json:"job,omitempty"`
+	Artifacts           *SnapshotManifest      `protobuf:"bytes,2,opt,name=artifacts,proto3" json:"artifacts,omitempty"`
+	CollectedAtUnixNano int64                  `protobuf:"varint,3,opt,name=collected_at_unix_nano,json=collectedAtUnixNano,proto3" json:"collected_at_unix_nano,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
+}
+
+func (x *GetJobArtifactsResponse) Reset() {
+	*x = GetJobArtifactsResponse{}
+	mi := &file_computehop_v1_remote_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetJobArtifactsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetJobArtifactsResponse) ProtoMessage() {}
+
+func (x *GetJobArtifactsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_computehop_v1_remote_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetJobArtifactsResponse.ProtoReflect.Descriptor instead.
+func (*GetJobArtifactsResponse) Descriptor() ([]byte, []int) {
+	return file_computehop_v1_remote_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *GetJobArtifactsResponse) GetJob() *Job {
+	if x != nil {
+		return x.Job
+	}
+	return nil
+}
+
+func (x *GetJobArtifactsResponse) GetArtifacts() *SnapshotManifest {
+	if x != nil {
+		return x.Artifacts
+	}
+	return nil
+}
+
+func (x *GetJobArtifactsResponse) GetCollectedAtUnixNano() int64 {
+	if x != nil {
+		return x.CollectedAtUnixNano
+	}
+	return 0
+}
+
+type GetArtifactChunkRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	JobId         string                 `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	Digest        string                 `protobuf:"bytes,2,opt,name=digest,proto3" json:"digest,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetArtifactChunkRequest) Reset() {
+	*x = GetArtifactChunkRequest{}
+	mi := &file_computehop_v1_remote_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetArtifactChunkRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetArtifactChunkRequest) ProtoMessage() {}
+
+func (x *GetArtifactChunkRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_computehop_v1_remote_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetArtifactChunkRequest.ProtoReflect.Descriptor instead.
+func (*GetArtifactChunkRequest) Descriptor() ([]byte, []int) {
+	return file_computehop_v1_remote_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *GetArtifactChunkRequest) GetJobId() string {
+	if x != nil {
+		return x.JobId
+	}
+	return ""
+}
+
+func (x *GetArtifactChunkRequest) GetDigest() string {
+	if x != nil {
+		return x.Digest
+	}
+	return ""
+}
+
+type GetArtifactChunkResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Digest        string                 `protobuf:"bytes,1,opt,name=digest,proto3" json:"digest,omitempty"`
+	Data          []byte                 `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetArtifactChunkResponse) Reset() {
+	*x = GetArtifactChunkResponse{}
+	mi := &file_computehop_v1_remote_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetArtifactChunkResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetArtifactChunkResponse) ProtoMessage() {}
+
+func (x *GetArtifactChunkResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_computehop_v1_remote_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetArtifactChunkResponse.ProtoReflect.Descriptor instead.
+func (*GetArtifactChunkResponse) Descriptor() ([]byte, []int) {
+	return file_computehop_v1_remote_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *GetArtifactChunkResponse) GetDigest() string {
+	if x != nil {
+		return x.Digest
+	}
+	return ""
+}
+
+func (x *GetArtifactChunkResponse) GetData() []byte {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
 type SnapshotManifest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Version       uint32                 `protobuf:"varint,1,opt,name=version,proto3" json:"version,omitempty"`
@@ -899,7 +1171,7 @@ type SnapshotManifest struct {
 
 func (x *SnapshotManifest) Reset() {
 	*x = SnapshotManifest{}
-	mi := &file_computehop_v1_remote_proto_msgTypes[7]
+	mi := &file_computehop_v1_remote_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -911,7 +1183,7 @@ func (x *SnapshotManifest) String() string {
 func (*SnapshotManifest) ProtoMessage() {}
 
 func (x *SnapshotManifest) ProtoReflect() protoreflect.Message {
-	mi := &file_computehop_v1_remote_proto_msgTypes[7]
+	mi := &file_computehop_v1_remote_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -924,7 +1196,7 @@ func (x *SnapshotManifest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SnapshotManifest.ProtoReflect.Descriptor instead.
 func (*SnapshotManifest) Descriptor() ([]byte, []int) {
-	return file_computehop_v1_remote_proto_rawDescGZIP(), []int{7}
+	return file_computehop_v1_remote_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *SnapshotManifest) GetVersion() uint32 {
@@ -967,7 +1239,7 @@ type SnapshotFile struct {
 
 func (x *SnapshotFile) Reset() {
 	*x = SnapshotFile{}
-	mi := &file_computehop_v1_remote_proto_msgTypes[8]
+	mi := &file_computehop_v1_remote_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -979,7 +1251,7 @@ func (x *SnapshotFile) String() string {
 func (*SnapshotFile) ProtoMessage() {}
 
 func (x *SnapshotFile) ProtoReflect() protoreflect.Message {
-	mi := &file_computehop_v1_remote_proto_msgTypes[8]
+	mi := &file_computehop_v1_remote_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -992,7 +1264,7 @@ func (x *SnapshotFile) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SnapshotFile.ProtoReflect.Descriptor instead.
 func (*SnapshotFile) Descriptor() ([]byte, []int) {
-	return file_computehop_v1_remote_proto_rawDescGZIP(), []int{8}
+	return file_computehop_v1_remote_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *SnapshotFile) GetPath() string {
@@ -1033,7 +1305,7 @@ type SnapshotChunk struct {
 
 func (x *SnapshotChunk) Reset() {
 	*x = SnapshotChunk{}
-	mi := &file_computehop_v1_remote_proto_msgTypes[9]
+	mi := &file_computehop_v1_remote_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1045,7 +1317,7 @@ func (x *SnapshotChunk) String() string {
 func (*SnapshotChunk) ProtoMessage() {}
 
 func (x *SnapshotChunk) ProtoReflect() protoreflect.Message {
-	mi := &file_computehop_v1_remote_proto_msgTypes[9]
+	mi := &file_computehop_v1_remote_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1058,7 +1330,7 @@ func (x *SnapshotChunk) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SnapshotChunk.ProtoReflect.Descriptor instead.
 func (*SnapshotChunk) Descriptor() ([]byte, []int) {
-	return file_computehop_v1_remote_proto_rawDescGZIP(), []int{9}
+	return file_computehop_v1_remote_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *SnapshotChunk) GetDigest() string {
@@ -1084,7 +1356,7 @@ type SubmitJobResponse struct {
 
 func (x *SubmitJobResponse) Reset() {
 	*x = SubmitJobResponse{}
-	mi := &file_computehop_v1_remote_proto_msgTypes[10]
+	mi := &file_computehop_v1_remote_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1096,7 +1368,7 @@ func (x *SubmitJobResponse) String() string {
 func (*SubmitJobResponse) ProtoMessage() {}
 
 func (x *SubmitJobResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_computehop_v1_remote_proto_msgTypes[10]
+	mi := &file_computehop_v1_remote_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1109,7 +1381,7 @@ func (x *SubmitJobResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubmitJobResponse.ProtoReflect.Descriptor instead.
 func (*SubmitJobResponse) Descriptor() ([]byte, []int) {
-	return file_computehop_v1_remote_proto_rawDescGZIP(), []int{10}
+	return file_computehop_v1_remote_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *SubmitJobResponse) GetJob() *Job {
@@ -1128,7 +1400,7 @@ type GetJobRequest struct {
 
 func (x *GetJobRequest) Reset() {
 	*x = GetJobRequest{}
-	mi := &file_computehop_v1_remote_proto_msgTypes[11]
+	mi := &file_computehop_v1_remote_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1140,7 +1412,7 @@ func (x *GetJobRequest) String() string {
 func (*GetJobRequest) ProtoMessage() {}
 
 func (x *GetJobRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_computehop_v1_remote_proto_msgTypes[11]
+	mi := &file_computehop_v1_remote_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1153,7 +1425,7 @@ func (x *GetJobRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetJobRequest.ProtoReflect.Descriptor instead.
 func (*GetJobRequest) Descriptor() ([]byte, []int) {
-	return file_computehop_v1_remote_proto_rawDescGZIP(), []int{11}
+	return file_computehop_v1_remote_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *GetJobRequest) GetJobId() string {
@@ -1172,7 +1444,7 @@ type GetJobResponse struct {
 
 func (x *GetJobResponse) Reset() {
 	*x = GetJobResponse{}
-	mi := &file_computehop_v1_remote_proto_msgTypes[12]
+	mi := &file_computehop_v1_remote_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1184,7 +1456,7 @@ func (x *GetJobResponse) String() string {
 func (*GetJobResponse) ProtoMessage() {}
 
 func (x *GetJobResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_computehop_v1_remote_proto_msgTypes[12]
+	mi := &file_computehop_v1_remote_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1197,7 +1469,7 @@ func (x *GetJobResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetJobResponse.ProtoReflect.Descriptor instead.
 func (*GetJobResponse) Descriptor() ([]byte, []int) {
-	return file_computehop_v1_remote_proto_rawDescGZIP(), []int{12}
+	return file_computehop_v1_remote_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *GetJobResponse) GetJob() *Job {
@@ -1217,7 +1489,7 @@ type ListJobsRequest struct {
 
 func (x *ListJobsRequest) Reset() {
 	*x = ListJobsRequest{}
-	mi := &file_computehop_v1_remote_proto_msgTypes[13]
+	mi := &file_computehop_v1_remote_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1229,7 +1501,7 @@ func (x *ListJobsRequest) String() string {
 func (*ListJobsRequest) ProtoMessage() {}
 
 func (x *ListJobsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_computehop_v1_remote_proto_msgTypes[13]
+	mi := &file_computehop_v1_remote_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1242,7 +1514,7 @@ func (x *ListJobsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListJobsRequest.ProtoReflect.Descriptor instead.
 func (*ListJobsRequest) Descriptor() ([]byte, []int) {
-	return file_computehop_v1_remote_proto_rawDescGZIP(), []int{13}
+	return file_computehop_v1_remote_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *ListJobsRequest) GetStates() []JobState {
@@ -1268,7 +1540,7 @@ type ListJobsResponse struct {
 
 func (x *ListJobsResponse) Reset() {
 	*x = ListJobsResponse{}
-	mi := &file_computehop_v1_remote_proto_msgTypes[14]
+	mi := &file_computehop_v1_remote_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1280,7 +1552,7 @@ func (x *ListJobsResponse) String() string {
 func (*ListJobsResponse) ProtoMessage() {}
 
 func (x *ListJobsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_computehop_v1_remote_proto_msgTypes[14]
+	mi := &file_computehop_v1_remote_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1293,7 +1565,7 @@ func (x *ListJobsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListJobsResponse.ProtoReflect.Descriptor instead.
 func (*ListJobsResponse) Descriptor() ([]byte, []int) {
-	return file_computehop_v1_remote_proto_rawDescGZIP(), []int{14}
+	return file_computehop_v1_remote_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *ListJobsResponse) GetJobs() []*Job {
@@ -1312,7 +1584,7 @@ type CancelJobRequest struct {
 
 func (x *CancelJobRequest) Reset() {
 	*x = CancelJobRequest{}
-	mi := &file_computehop_v1_remote_proto_msgTypes[15]
+	mi := &file_computehop_v1_remote_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1324,7 +1596,7 @@ func (x *CancelJobRequest) String() string {
 func (*CancelJobRequest) ProtoMessage() {}
 
 func (x *CancelJobRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_computehop_v1_remote_proto_msgTypes[15]
+	mi := &file_computehop_v1_remote_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1337,7 +1609,7 @@ func (x *CancelJobRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelJobRequest.ProtoReflect.Descriptor instead.
 func (*CancelJobRequest) Descriptor() ([]byte, []int) {
-	return file_computehop_v1_remote_proto_rawDescGZIP(), []int{15}
+	return file_computehop_v1_remote_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *CancelJobRequest) GetJobId() string {
@@ -1356,7 +1628,7 @@ type CancelJobResponse struct {
 
 func (x *CancelJobResponse) Reset() {
 	*x = CancelJobResponse{}
-	mi := &file_computehop_v1_remote_proto_msgTypes[16]
+	mi := &file_computehop_v1_remote_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1368,7 +1640,7 @@ func (x *CancelJobResponse) String() string {
 func (*CancelJobResponse) ProtoMessage() {}
 
 func (x *CancelJobResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_computehop_v1_remote_proto_msgTypes[16]
+	mi := &file_computehop_v1_remote_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1381,7 +1653,7 @@ func (x *CancelJobResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelJobResponse.ProtoReflect.Descriptor instead.
 func (*CancelJobResponse) Descriptor() ([]byte, []int) {
-	return file_computehop_v1_remote_proto_rawDescGZIP(), []int{16}
+	return file_computehop_v1_remote_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *CancelJobResponse) GetJob() *Job {
@@ -1402,7 +1674,7 @@ type ReadJobLogsRequest struct {
 
 func (x *ReadJobLogsRequest) Reset() {
 	*x = ReadJobLogsRequest{}
-	mi := &file_computehop_v1_remote_proto_msgTypes[17]
+	mi := &file_computehop_v1_remote_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1414,7 +1686,7 @@ func (x *ReadJobLogsRequest) String() string {
 func (*ReadJobLogsRequest) ProtoMessage() {}
 
 func (x *ReadJobLogsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_computehop_v1_remote_proto_msgTypes[17]
+	mi := &file_computehop_v1_remote_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1427,7 +1699,7 @@ func (x *ReadJobLogsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReadJobLogsRequest.ProtoReflect.Descriptor instead.
 func (*ReadJobLogsRequest) Descriptor() ([]byte, []int) {
-	return file_computehop_v1_remote_proto_rawDescGZIP(), []int{17}
+	return file_computehop_v1_remote_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *ReadJobLogsRequest) GetJobId() string {
@@ -1462,7 +1734,7 @@ type ReadJobLogsResponse struct {
 
 func (x *ReadJobLogsResponse) Reset() {
 	*x = ReadJobLogsResponse{}
-	mi := &file_computehop_v1_remote_proto_msgTypes[18]
+	mi := &file_computehop_v1_remote_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1474,7 +1746,7 @@ func (x *ReadJobLogsResponse) String() string {
 func (*ReadJobLogsResponse) ProtoMessage() {}
 
 func (x *ReadJobLogsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_computehop_v1_remote_proto_msgTypes[18]
+	mi := &file_computehop_v1_remote_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1487,7 +1759,7 @@ func (x *ReadJobLogsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReadJobLogsResponse.ProtoReflect.Descriptor instead.
 func (*ReadJobLogsResponse) Descriptor() ([]byte, []int) {
-	return file_computehop_v1_remote_proto_rawDescGZIP(), []int{18}
+	return file_computehop_v1_remote_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *ReadJobLogsResponse) GetJob() *Job {
@@ -1523,7 +1795,7 @@ type JobLogRecord struct {
 
 func (x *JobLogRecord) Reset() {
 	*x = JobLogRecord{}
-	mi := &file_computehop_v1_remote_proto_msgTypes[19]
+	mi := &file_computehop_v1_remote_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1535,7 +1807,7 @@ func (x *JobLogRecord) String() string {
 func (*JobLogRecord) ProtoMessage() {}
 
 func (x *JobLogRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_computehop_v1_remote_proto_msgTypes[19]
+	mi := &file_computehop_v1_remote_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1548,7 +1820,7 @@ func (x *JobLogRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JobLogRecord.ProtoReflect.Descriptor instead.
 func (*JobLogRecord) Descriptor() ([]byte, []int) {
-	return file_computehop_v1_remote_proto_rawDescGZIP(), []int{19}
+	return file_computehop_v1_remote_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *JobLogRecord) GetSequence() uint64 {
@@ -1587,13 +1859,14 @@ type JobSpec struct {
 	Environment      map[string]string      `protobuf:"bytes,4,rep,name=environment,proto3" json:"environment,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	Executor         Executor               `protobuf:"varint,5,opt,name=executor,proto3,enum=computehop.v1.Executor" json:"executor,omitempty"`
 	ContainerImage   string                 `protobuf:"bytes,6,opt,name=container_image,json=containerImage,proto3" json:"container_image,omitempty"`
+	Outputs          []string               `protobuf:"bytes,7,rep,name=outputs,proto3" json:"outputs,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
 
 func (x *JobSpec) Reset() {
 	*x = JobSpec{}
-	mi := &file_computehop_v1_remote_proto_msgTypes[20]
+	mi := &file_computehop_v1_remote_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1605,7 +1878,7 @@ func (x *JobSpec) String() string {
 func (*JobSpec) ProtoMessage() {}
 
 func (x *JobSpec) ProtoReflect() protoreflect.Message {
-	mi := &file_computehop_v1_remote_proto_msgTypes[20]
+	mi := &file_computehop_v1_remote_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1618,7 +1891,7 @@ func (x *JobSpec) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JobSpec.ProtoReflect.Descriptor instead.
 func (*JobSpec) Descriptor() ([]byte, []int) {
-	return file_computehop_v1_remote_proto_rawDescGZIP(), []int{20}
+	return file_computehop_v1_remote_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *JobSpec) GetExecutable() string {
@@ -1663,6 +1936,13 @@ func (x *JobSpec) GetContainerImage() string {
 	return ""
 }
 
+func (x *JobSpec) GetOutputs() []string {
+	if x != nil {
+		return x.Outputs
+	}
+	return nil
+}
+
 type Job struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
 	Id                string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -1677,7 +1957,7 @@ type Job struct {
 
 func (x *Job) Reset() {
 	*x = Job{}
-	mi := &file_computehop_v1_remote_proto_msgTypes[21]
+	mi := &file_computehop_v1_remote_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1689,7 +1969,7 @@ func (x *Job) String() string {
 func (*Job) ProtoMessage() {}
 
 func (x *Job) ProtoReflect() protoreflect.Message {
-	mi := &file_computehop_v1_remote_proto_msgTypes[21]
+	mi := &file_computehop_v1_remote_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1702,7 +1982,7 @@ func (x *Job) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Job.ProtoReflect.Descriptor instead.
 func (*Job) Descriptor() ([]byte, []int) {
-	return file_computehop_v1_remote_proto_rawDescGZIP(), []int{21}
+	return file_computehop_v1_remote_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *Job) GetId() string {
@@ -1758,7 +2038,7 @@ type Failure struct {
 
 func (x *Failure) Reset() {
 	*x = Failure{}
-	mi := &file_computehop_v1_remote_proto_msgTypes[22]
+	mi := &file_computehop_v1_remote_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1770,7 +2050,7 @@ func (x *Failure) String() string {
 func (*Failure) ProtoMessage() {}
 
 func (x *Failure) ProtoReflect() protoreflect.Message {
-	mi := &file_computehop_v1_remote_proto_msgTypes[22]
+	mi := &file_computehop_v1_remote_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1783,7 +2063,7 @@ func (x *Failure) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Failure.ProtoReflect.Descriptor instead.
 func (*Failure) Descriptor() ([]byte, []int) {
-	return file_computehop_v1_remote_proto_rawDescGZIP(), []int{22}
+	return file_computehop_v1_remote_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *Failure) GetCode() string {
@@ -1817,7 +2097,7 @@ type RemoteError struct {
 
 func (x *RemoteError) Reset() {
 	*x = RemoteError{}
-	mi := &file_computehop_v1_remote_proto_msgTypes[23]
+	mi := &file_computehop_v1_remote_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1829,7 +2109,7 @@ func (x *RemoteError) String() string {
 func (*RemoteError) ProtoMessage() {}
 
 func (x *RemoteError) ProtoReflect() protoreflect.Message {
-	mi := &file_computehop_v1_remote_proto_msgTypes[23]
+	mi := &file_computehop_v1_remote_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1842,7 +2122,7 @@ func (x *RemoteError) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoteError.ProtoReflect.Descriptor instead.
 func (*RemoteError) Descriptor() ([]byte, []int) {
-	return file_computehop_v1_remote_proto_rawDescGZIP(), []int{23}
+	return file_computehop_v1_remote_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *RemoteError) GetCode() RemoteErrorCode {
@@ -1863,7 +2143,7 @@ var File_computehop_v1_remote_proto protoreflect.FileDescriptor
 
 const file_computehop_v1_remote_proto_rawDesc = "" +
 	"\n" +
-	"\x1acomputehop/v1/remote.proto\x12\rcomputehop.v1\"\xb8\x04\n" +
+	"\x1acomputehop/v1/remote.proto\x12\rcomputehop.v1\"\xe5\x05\n" +
 	"\rRemoteRequest\x12)\n" +
 	"\x10protocol_version\x18\x01 \x01(\rR\x0fprotocolVersion\x12\x1d\n" +
 	"\n" +
@@ -1877,8 +2157,10 @@ const file_computehop_v1_remote_proto_rawDesc = "" +
 	"cancel_job\x18\r \x01(\v2\x1f.computehop.v1.CancelJobRequestH\x00R\tcancelJob\x12G\n" +
 	"\rread_job_logs\x18\x0e \x01(\v2!.computehop.v1.ReadJobLogsRequestH\x00R\vreadJobLogs\x12L\n" +
 	"\x0echeck_snapshot\x18\x0f \x01(\v2#.computehop.v1.CheckSnapshotRequestH\x00R\rcheckSnapshot\x12=\n" +
-	"\tput_chunk\x18\x10 \x01(\v2\x1e.computehop.v1.PutChunkRequestH\x00R\bputChunkB\v\n" +
-	"\toperation\"\xef\x04\n" +
+	"\tput_chunk\x18\x10 \x01(\v2\x1e.computehop.v1.PutChunkRequestH\x00R\bputChunk\x12S\n" +
+	"\x11get_job_artifacts\x18\x11 \x01(\v2%.computehop.v1.GetJobArtifactsRequestH\x00R\x0fgetJobArtifacts\x12V\n" +
+	"\x12get_artifact_chunk\x18\x12 \x01(\v2&.computehop.v1.GetArtifactChunkRequestH\x00R\x10getArtifactChunkB\v\n" +
+	"\toperation\"\x9e\x06\n" +
 	"\x0eRemoteResponse\x12)\n" +
 	"\x10protocol_version\x18\x01 \x01(\rR\x0fprotocolVersion\x12\x1d\n" +
 	"\n" +
@@ -1893,7 +2175,9 @@ const file_computehop_v1_remote_proto_rawDesc = "" +
 	"cancel_job\x18\r \x01(\v2 .computehop.v1.CancelJobResponseH\x00R\tcancelJob\x12H\n" +
 	"\rread_job_logs\x18\x0e \x01(\v2\".computehop.v1.ReadJobLogsResponseH\x00R\vreadJobLogs\x12M\n" +
 	"\x0echeck_snapshot\x18\x0f \x01(\v2$.computehop.v1.CheckSnapshotResponseH\x00R\rcheckSnapshot\x12>\n" +
-	"\tput_chunk\x18\x10 \x01(\v2\x1f.computehop.v1.PutChunkResponseH\x00R\bputChunkB\b\n" +
+	"\tput_chunk\x18\x10 \x01(\v2\x1f.computehop.v1.PutChunkResponseH\x00R\bputChunk\x12T\n" +
+	"\x11get_job_artifacts\x18\x11 \x01(\v2&.computehop.v1.GetJobArtifactsResponseH\x00R\x0fgetJobArtifacts\x12W\n" +
+	"\x12get_artifact_chunk\x18\x12 \x01(\v2'.computehop.v1.GetArtifactChunkResponseH\x00R\x10getArtifactChunkB\b\n" +
 	"\x06result\"\xae\x01\n" +
 	"\x10SubmitJobRequest\x12*\n" +
 	"\x04spec\x18\x01 \x01(\v2\x16.computehop.v1.JobSpecR\x04spec\x12;\n" +
@@ -1909,7 +2193,19 @@ const file_computehop_v1_remote_proto_rawDesc = "" +
 	"\x06digest\x18\x01 \x01(\tR\x06digest\x12\x12\n" +
 	"\x04data\x18\x02 \x01(\fR\x04data\"*\n" +
 	"\x10PutChunkResponse\x12\x16\n" +
-	"\x06digest\x18\x01 \x01(\tR\x06digest\"\xa1\x01\n" +
+	"\x06digest\x18\x01 \x01(\tR\x06digest\"/\n" +
+	"\x16GetJobArtifactsRequest\x12\x15\n" +
+	"\x06job_id\x18\x01 \x01(\tR\x05jobId\"\xb3\x01\n" +
+	"\x17GetJobArtifactsResponse\x12$\n" +
+	"\x03job\x18\x01 \x01(\v2\x12.computehop.v1.JobR\x03job\x12=\n" +
+	"\tartifacts\x18\x02 \x01(\v2\x1f.computehop.v1.SnapshotManifestR\tartifacts\x123\n" +
+	"\x16collected_at_unix_nano\x18\x03 \x01(\x03R\x13collectedAtUnixNano\"H\n" +
+	"\x17GetArtifactChunkRequest\x12\x15\n" +
+	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12\x16\n" +
+	"\x06digest\x18\x02 \x01(\tR\x06digest\"F\n" +
+	"\x18GetArtifactChunkResponse\x12\x16\n" +
+	"\x06digest\x18\x01 \x01(\tR\x06digest\x12\x12\n" +
+	"\x04data\x18\x02 \x01(\fR\x04data\"\xa1\x01\n" +
 	"\x10SnapshotManifest\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\rR\aversion\x12\x1f\n" +
 	"\vmanifest_id\x18\x02 \x01(\tR\n" +
@@ -1953,7 +2249,7 @@ const file_computehop_v1_remote_proto_rawDesc = "" +
 	"\x06stream\x18\x02 \x01(\x0e2\x1b.computehop.v1.JobLogStreamR\x06stream\x12\x12\n" +
 	"\x04data\x18\x03 \x01(\fR\x04data\x12 \n" +
 	"\fat_unix_nano\x18\x04 \x01(\x03R\n" +
-	"atUnixNano\"\xdd\x02\n" +
+	"atUnixNano\"\xf7\x02\n" +
 	"\aJobSpec\x12\x1e\n" +
 	"\n" +
 	"executable\x18\x01 \x01(\tR\n" +
@@ -1962,7 +2258,8 @@ const file_computehop_v1_remote_proto_rawDesc = "" +
 	"\x11working_directory\x18\x03 \x01(\tR\x10workingDirectory\x12I\n" +
 	"\venvironment\x18\x04 \x03(\v2'.computehop.v1.JobSpec.EnvironmentEntryR\venvironment\x123\n" +
 	"\bexecutor\x18\x05 \x01(\x0e2\x17.computehop.v1.ExecutorR\bexecutor\x12'\n" +
-	"\x0fcontainer_image\x18\x06 \x01(\tR\x0econtainerImage\x1a>\n" +
+	"\x0fcontainer_image\x18\x06 \x01(\tR\x0econtainerImage\x12\x18\n" +
+	"\aoutputs\x18\a \x03(\tR\aoutputs\x1a>\n" +
 	"\x10EnvironmentEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x84\x02\n" +
@@ -2028,77 +2325,87 @@ func file_computehop_v1_remote_proto_rawDescGZIP() []byte {
 }
 
 var file_computehop_v1_remote_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_computehop_v1_remote_proto_msgTypes = make([]protoimpl.MessageInfo, 25)
+var file_computehop_v1_remote_proto_msgTypes = make([]protoimpl.MessageInfo, 29)
 var file_computehop_v1_remote_proto_goTypes = []any{
-	(Executor)(0),                 // 0: computehop.v1.Executor
-	(JobState)(0),                 // 1: computehop.v1.JobState
-	(JobLogStream)(0),             // 2: computehop.v1.JobLogStream
-	(RemoteErrorCode)(0),          // 3: computehop.v1.RemoteErrorCode
-	(*RemoteRequest)(nil),         // 4: computehop.v1.RemoteRequest
-	(*RemoteResponse)(nil),        // 5: computehop.v1.RemoteResponse
-	(*SubmitJobRequest)(nil),      // 6: computehop.v1.SubmitJobRequest
-	(*CheckSnapshotRequest)(nil),  // 7: computehop.v1.CheckSnapshotRequest
-	(*CheckSnapshotResponse)(nil), // 8: computehop.v1.CheckSnapshotResponse
-	(*PutChunkRequest)(nil),       // 9: computehop.v1.PutChunkRequest
-	(*PutChunkResponse)(nil),      // 10: computehop.v1.PutChunkResponse
-	(*SnapshotManifest)(nil),      // 11: computehop.v1.SnapshotManifest
-	(*SnapshotFile)(nil),          // 12: computehop.v1.SnapshotFile
-	(*SnapshotChunk)(nil),         // 13: computehop.v1.SnapshotChunk
-	(*SubmitJobResponse)(nil),     // 14: computehop.v1.SubmitJobResponse
-	(*GetJobRequest)(nil),         // 15: computehop.v1.GetJobRequest
-	(*GetJobResponse)(nil),        // 16: computehop.v1.GetJobResponse
-	(*ListJobsRequest)(nil),       // 17: computehop.v1.ListJobsRequest
-	(*ListJobsResponse)(nil),      // 18: computehop.v1.ListJobsResponse
-	(*CancelJobRequest)(nil),      // 19: computehop.v1.CancelJobRequest
-	(*CancelJobResponse)(nil),     // 20: computehop.v1.CancelJobResponse
-	(*ReadJobLogsRequest)(nil),    // 21: computehop.v1.ReadJobLogsRequest
-	(*ReadJobLogsResponse)(nil),   // 22: computehop.v1.ReadJobLogsResponse
-	(*JobLogRecord)(nil),          // 23: computehop.v1.JobLogRecord
-	(*JobSpec)(nil),               // 24: computehop.v1.JobSpec
-	(*Job)(nil),                   // 25: computehop.v1.Job
-	(*Failure)(nil),               // 26: computehop.v1.Failure
-	(*RemoteError)(nil),           // 27: computehop.v1.RemoteError
-	nil,                           // 28: computehop.v1.JobSpec.EnvironmentEntry
+	(Executor)(0),                    // 0: computehop.v1.Executor
+	(JobState)(0),                    // 1: computehop.v1.JobState
+	(JobLogStream)(0),                // 2: computehop.v1.JobLogStream
+	(RemoteErrorCode)(0),             // 3: computehop.v1.RemoteErrorCode
+	(*RemoteRequest)(nil),            // 4: computehop.v1.RemoteRequest
+	(*RemoteResponse)(nil),           // 5: computehop.v1.RemoteResponse
+	(*SubmitJobRequest)(nil),         // 6: computehop.v1.SubmitJobRequest
+	(*CheckSnapshotRequest)(nil),     // 7: computehop.v1.CheckSnapshotRequest
+	(*CheckSnapshotResponse)(nil),    // 8: computehop.v1.CheckSnapshotResponse
+	(*PutChunkRequest)(nil),          // 9: computehop.v1.PutChunkRequest
+	(*PutChunkResponse)(nil),         // 10: computehop.v1.PutChunkResponse
+	(*GetJobArtifactsRequest)(nil),   // 11: computehop.v1.GetJobArtifactsRequest
+	(*GetJobArtifactsResponse)(nil),  // 12: computehop.v1.GetJobArtifactsResponse
+	(*GetArtifactChunkRequest)(nil),  // 13: computehop.v1.GetArtifactChunkRequest
+	(*GetArtifactChunkResponse)(nil), // 14: computehop.v1.GetArtifactChunkResponse
+	(*SnapshotManifest)(nil),         // 15: computehop.v1.SnapshotManifest
+	(*SnapshotFile)(nil),             // 16: computehop.v1.SnapshotFile
+	(*SnapshotChunk)(nil),            // 17: computehop.v1.SnapshotChunk
+	(*SubmitJobResponse)(nil),        // 18: computehop.v1.SubmitJobResponse
+	(*GetJobRequest)(nil),            // 19: computehop.v1.GetJobRequest
+	(*GetJobResponse)(nil),           // 20: computehop.v1.GetJobResponse
+	(*ListJobsRequest)(nil),          // 21: computehop.v1.ListJobsRequest
+	(*ListJobsResponse)(nil),         // 22: computehop.v1.ListJobsResponse
+	(*CancelJobRequest)(nil),         // 23: computehop.v1.CancelJobRequest
+	(*CancelJobResponse)(nil),        // 24: computehop.v1.CancelJobResponse
+	(*ReadJobLogsRequest)(nil),       // 25: computehop.v1.ReadJobLogsRequest
+	(*ReadJobLogsResponse)(nil),      // 26: computehop.v1.ReadJobLogsResponse
+	(*JobLogRecord)(nil),             // 27: computehop.v1.JobLogRecord
+	(*JobSpec)(nil),                  // 28: computehop.v1.JobSpec
+	(*Job)(nil),                      // 29: computehop.v1.Job
+	(*Failure)(nil),                  // 30: computehop.v1.Failure
+	(*RemoteError)(nil),              // 31: computehop.v1.RemoteError
+	nil,                              // 32: computehop.v1.JobSpec.EnvironmentEntry
 }
 var file_computehop_v1_remote_proto_depIdxs = []int32{
 	6,  // 0: computehop.v1.RemoteRequest.submit_job:type_name -> computehop.v1.SubmitJobRequest
-	15, // 1: computehop.v1.RemoteRequest.get_job:type_name -> computehop.v1.GetJobRequest
-	17, // 2: computehop.v1.RemoteRequest.list_jobs:type_name -> computehop.v1.ListJobsRequest
-	19, // 3: computehop.v1.RemoteRequest.cancel_job:type_name -> computehop.v1.CancelJobRequest
-	21, // 4: computehop.v1.RemoteRequest.read_job_logs:type_name -> computehop.v1.ReadJobLogsRequest
+	19, // 1: computehop.v1.RemoteRequest.get_job:type_name -> computehop.v1.GetJobRequest
+	21, // 2: computehop.v1.RemoteRequest.list_jobs:type_name -> computehop.v1.ListJobsRequest
+	23, // 3: computehop.v1.RemoteRequest.cancel_job:type_name -> computehop.v1.CancelJobRequest
+	25, // 4: computehop.v1.RemoteRequest.read_job_logs:type_name -> computehop.v1.ReadJobLogsRequest
 	7,  // 5: computehop.v1.RemoteRequest.check_snapshot:type_name -> computehop.v1.CheckSnapshotRequest
 	9,  // 6: computehop.v1.RemoteRequest.put_chunk:type_name -> computehop.v1.PutChunkRequest
-	27, // 7: computehop.v1.RemoteResponse.error:type_name -> computehop.v1.RemoteError
-	14, // 8: computehop.v1.RemoteResponse.submit_job:type_name -> computehop.v1.SubmitJobResponse
-	16, // 9: computehop.v1.RemoteResponse.get_job:type_name -> computehop.v1.GetJobResponse
-	18, // 10: computehop.v1.RemoteResponse.list_jobs:type_name -> computehop.v1.ListJobsResponse
-	20, // 11: computehop.v1.RemoteResponse.cancel_job:type_name -> computehop.v1.CancelJobResponse
-	22, // 12: computehop.v1.RemoteResponse.read_job_logs:type_name -> computehop.v1.ReadJobLogsResponse
-	8,  // 13: computehop.v1.RemoteResponse.check_snapshot:type_name -> computehop.v1.CheckSnapshotResponse
-	10, // 14: computehop.v1.RemoteResponse.put_chunk:type_name -> computehop.v1.PutChunkResponse
-	24, // 15: computehop.v1.SubmitJobRequest.spec:type_name -> computehop.v1.JobSpec
-	11, // 16: computehop.v1.SubmitJobRequest.snapshot:type_name -> computehop.v1.SnapshotManifest
-	12, // 17: computehop.v1.SnapshotManifest.files:type_name -> computehop.v1.SnapshotFile
-	13, // 18: computehop.v1.SnapshotFile.chunks:type_name -> computehop.v1.SnapshotChunk
-	25, // 19: computehop.v1.SubmitJobResponse.job:type_name -> computehop.v1.Job
-	25, // 20: computehop.v1.GetJobResponse.job:type_name -> computehop.v1.Job
-	1,  // 21: computehop.v1.ListJobsRequest.states:type_name -> computehop.v1.JobState
-	25, // 22: computehop.v1.ListJobsResponse.jobs:type_name -> computehop.v1.Job
-	25, // 23: computehop.v1.CancelJobResponse.job:type_name -> computehop.v1.Job
-	25, // 24: computehop.v1.ReadJobLogsResponse.job:type_name -> computehop.v1.Job
-	23, // 25: computehop.v1.ReadJobLogsResponse.records:type_name -> computehop.v1.JobLogRecord
-	2,  // 26: computehop.v1.JobLogRecord.stream:type_name -> computehop.v1.JobLogStream
-	28, // 27: computehop.v1.JobSpec.environment:type_name -> computehop.v1.JobSpec.EnvironmentEntry
-	0,  // 28: computehop.v1.JobSpec.executor:type_name -> computehop.v1.Executor
-	24, // 29: computehop.v1.Job.spec:type_name -> computehop.v1.JobSpec
-	1,  // 30: computehop.v1.Job.state:type_name -> computehop.v1.JobState
-	26, // 31: computehop.v1.Job.failure:type_name -> computehop.v1.Failure
-	3,  // 32: computehop.v1.RemoteError.code:type_name -> computehop.v1.RemoteErrorCode
-	33, // [33:33] is the sub-list for method output_type
-	33, // [33:33] is the sub-list for method input_type
-	33, // [33:33] is the sub-list for extension type_name
-	33, // [33:33] is the sub-list for extension extendee
-	0,  // [0:33] is the sub-list for field type_name
+	11, // 7: computehop.v1.RemoteRequest.get_job_artifacts:type_name -> computehop.v1.GetJobArtifactsRequest
+	13, // 8: computehop.v1.RemoteRequest.get_artifact_chunk:type_name -> computehop.v1.GetArtifactChunkRequest
+	31, // 9: computehop.v1.RemoteResponse.error:type_name -> computehop.v1.RemoteError
+	18, // 10: computehop.v1.RemoteResponse.submit_job:type_name -> computehop.v1.SubmitJobResponse
+	20, // 11: computehop.v1.RemoteResponse.get_job:type_name -> computehop.v1.GetJobResponse
+	22, // 12: computehop.v1.RemoteResponse.list_jobs:type_name -> computehop.v1.ListJobsResponse
+	24, // 13: computehop.v1.RemoteResponse.cancel_job:type_name -> computehop.v1.CancelJobResponse
+	26, // 14: computehop.v1.RemoteResponse.read_job_logs:type_name -> computehop.v1.ReadJobLogsResponse
+	8,  // 15: computehop.v1.RemoteResponse.check_snapshot:type_name -> computehop.v1.CheckSnapshotResponse
+	10, // 16: computehop.v1.RemoteResponse.put_chunk:type_name -> computehop.v1.PutChunkResponse
+	12, // 17: computehop.v1.RemoteResponse.get_job_artifacts:type_name -> computehop.v1.GetJobArtifactsResponse
+	14, // 18: computehop.v1.RemoteResponse.get_artifact_chunk:type_name -> computehop.v1.GetArtifactChunkResponse
+	28, // 19: computehop.v1.SubmitJobRequest.spec:type_name -> computehop.v1.JobSpec
+	15, // 20: computehop.v1.SubmitJobRequest.snapshot:type_name -> computehop.v1.SnapshotManifest
+	29, // 21: computehop.v1.GetJobArtifactsResponse.job:type_name -> computehop.v1.Job
+	15, // 22: computehop.v1.GetJobArtifactsResponse.artifacts:type_name -> computehop.v1.SnapshotManifest
+	16, // 23: computehop.v1.SnapshotManifest.files:type_name -> computehop.v1.SnapshotFile
+	17, // 24: computehop.v1.SnapshotFile.chunks:type_name -> computehop.v1.SnapshotChunk
+	29, // 25: computehop.v1.SubmitJobResponse.job:type_name -> computehop.v1.Job
+	29, // 26: computehop.v1.GetJobResponse.job:type_name -> computehop.v1.Job
+	1,  // 27: computehop.v1.ListJobsRequest.states:type_name -> computehop.v1.JobState
+	29, // 28: computehop.v1.ListJobsResponse.jobs:type_name -> computehop.v1.Job
+	29, // 29: computehop.v1.CancelJobResponse.job:type_name -> computehop.v1.Job
+	29, // 30: computehop.v1.ReadJobLogsResponse.job:type_name -> computehop.v1.Job
+	27, // 31: computehop.v1.ReadJobLogsResponse.records:type_name -> computehop.v1.JobLogRecord
+	2,  // 32: computehop.v1.JobLogRecord.stream:type_name -> computehop.v1.JobLogStream
+	32, // 33: computehop.v1.JobSpec.environment:type_name -> computehop.v1.JobSpec.EnvironmentEntry
+	0,  // 34: computehop.v1.JobSpec.executor:type_name -> computehop.v1.Executor
+	28, // 35: computehop.v1.Job.spec:type_name -> computehop.v1.JobSpec
+	1,  // 36: computehop.v1.Job.state:type_name -> computehop.v1.JobState
+	30, // 37: computehop.v1.Job.failure:type_name -> computehop.v1.Failure
+	3,  // 38: computehop.v1.RemoteError.code:type_name -> computehop.v1.RemoteErrorCode
+	39, // [39:39] is the sub-list for method output_type
+	39, // [39:39] is the sub-list for method input_type
+	39, // [39:39] is the sub-list for extension type_name
+	39, // [39:39] is the sub-list for extension extendee
+	0,  // [0:39] is the sub-list for field type_name
 }
 
 func init() { file_computehop_v1_remote_proto_init() }
@@ -2114,6 +2421,8 @@ func file_computehop_v1_remote_proto_init() {
 		(*RemoteRequest_ReadJobLogs)(nil),
 		(*RemoteRequest_CheckSnapshot)(nil),
 		(*RemoteRequest_PutChunk)(nil),
+		(*RemoteRequest_GetJobArtifacts)(nil),
+		(*RemoteRequest_GetArtifactChunk)(nil),
 	}
 	file_computehop_v1_remote_proto_msgTypes[1].OneofWrappers = []any{
 		(*RemoteResponse_SubmitJob)(nil),
@@ -2123,6 +2432,8 @@ func file_computehop_v1_remote_proto_init() {
 		(*RemoteResponse_ReadJobLogs)(nil),
 		(*RemoteResponse_CheckSnapshot)(nil),
 		(*RemoteResponse_PutChunk)(nil),
+		(*RemoteResponse_GetJobArtifacts)(nil),
+		(*RemoteResponse_GetArtifactChunk)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -2130,7 +2441,7 @@ func file_computehop_v1_remote_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_computehop_v1_remote_proto_rawDesc), len(file_computehop_v1_remote_proto_rawDesc)),
 			NumEnums:      4,
-			NumMessages:   25,
+			NumMessages:   29,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

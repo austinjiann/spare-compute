@@ -133,6 +133,10 @@ func runWithDependencies(
 	if err != nil {
 		return fmt.Errorf("initialize project snapshotter: %w", err)
 	}
+	artifactManager, err := cas.NewArtifactManager(contentStore, database.Artifacts(), time.Now)
+	if err != nil {
+		return fmt.Errorf("initialize job artifacts: %w", err)
+	}
 
 	jobService, err := worker.NewJobService(worker.Dependencies{
 		Jobs:       database.Jobs(),
@@ -141,6 +145,7 @@ func runWithDependencies(
 		GenerateID: job.NewID,
 		Now:        time.Now,
 		Snapshots:  workspaceStore,
+		Artifacts:  artifactManager,
 	})
 	if err != nil {
 		return fmt.Errorf("initialize worker job service: %w", err)
@@ -160,6 +165,7 @@ func runWithDependencies(
 			},
 			RunnerPID: os.Getpid,
 			Now:       time.Now,
+			Artifacts: artifactManager,
 		})
 		if err != nil {
 			return fmt.Errorf("initialize native runner: %w", err)
@@ -300,6 +306,7 @@ func runWithDependencies(
 		Nearby: deviceService, Trust: database.Trust(),
 		Placements: database.Placements(), Dialer: pairingEndpoint, Remote: remoteManager,
 		Snapshots: projectSnapshots, Content: contentStore,
+		ArtifactContent: contentStore, Artifacts: artifactManager,
 	})
 	if err != nil {
 		return fmt.Errorf("initialize remote job service: %w", err)

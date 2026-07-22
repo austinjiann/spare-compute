@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/austinjiann/spare-compute/internal/artifact"
 	"github.com/austinjiann/spare-compute/internal/execution"
 	"github.com/austinjiann/spare-compute/internal/job"
 	joblogging "github.com/austinjiann/spare-compute/internal/logging"
@@ -18,6 +19,8 @@ var (
 	ErrJobTerminal        = errors.New("job is already terminal")
 	ErrSnapshotsDisabled  = errors.New("project snapshots are not configured on this worker")
 	ErrSnapshotIncomplete = errors.New("project snapshot is missing content")
+	ErrArtifactsDisabled  = errors.New("job artifacts are not configured on this worker")
+	ErrArtifactsNotReady  = errors.New("job artifacts are not ready")
 )
 
 // Dependencies are explicit so production wiring and tests use the same
@@ -29,6 +32,14 @@ type Dependencies struct {
 	GenerateID func() (job.ID, error)
 	Now        func() time.Time
 	Snapshots  SnapshotWorkspace
+	Artifacts  ArtifactController
+}
+
+// ArtifactController owns collected bundles, authorized chunk reads, and local restoration.
+type ArtifactController interface {
+	Get(context.Context, job.ID) (artifact.Bundle, error)
+	ReadJobChunk(context.Context, job.ID, snapshot.Digest) ([]byte, error)
+	Restore(context.Context, artifact.Bundle, string) (artifact.RestoreResult, error)
 }
 
 // SnapshotWorkspace owns verified chunks and isolated job materialization.
@@ -65,6 +76,7 @@ type JobService struct {
 	generateID func() (job.ID, error)
 	now        func() time.Time
 	snapshots  SnapshotWorkspace
+	artifacts  ArtifactController
 }
 
 // NewJobService validates and constructs the worker job application service.
@@ -91,7 +103,61 @@ func NewJobService(dependencies Dependencies) (*JobService, error) {
 		generateID: dependencies.GenerateID,
 		now:        dependencies.Now,
 		snapshots:  dependencies.Snapshots,
+		artifacts:  dependencies.Artifacts,
 	}, nil
+}
+
+// JobArtifacts binds a completed job to its immutable output bundle.
+type JobArtifacts struct {
+	Job    job.Job
+	Bundle artifact.Bundle
+}
+
+// ReadArtifacts returns a completed job's collected outputs.
+func (service *JobService) ReadArtifacts(ctx context.Context, id job.ID) (JobArtifacts, error) {
+	if service.artifacts == nil {
+		return JobArtifacts{}, ErrArtifactsDisabled
+	}
+	current, err := service.jobs.Get(ctx, id)
+	if err != nil {
+		return JobArtifacts{}, err
+	}
+	if current.State != job.StateSucceeded || len(current.Spec.Outputs) == 0 {
+		return JobArtifacts{}, fmt.Errorf("%w: job %s is %s", ErrArtifactsNotReady, id, current.State)
+	}
+	bundle, err := service.artifacts.Get(ctx, id)
+	if err != nil {
+		return JobArtifacts{}, err
+	}
+	if bundle.JobID != id {
+		return JobArtifacts{}, artifact.ErrInvalidBundle
+	}
+	return JobArtifacts{Job: current, Bundle: bundle}, nil
+}
+
+// ReadArtifactChunk returns one chunk authorized by a completed job bundle.
+func (service *JobService) ReadArtifactChunk(
+	ctx context.Context,
+	id job.ID,
+	digest snapshot.Digest,
+) ([]byte, error) {
+	if _, err := service.ReadArtifacts(ctx, id); err != nil {
+		return nil, err
+	}
+	return service.artifacts.ReadJobChunk(ctx, id, digest)
+}
+
+// RestoreArtifacts reconstructs local-job outputs without overwriting files.
+func (service *JobService) RestoreArtifacts(
+	ctx context.Context,
+	id job.ID,
+	destination string,
+) (artifact.RestoreResult, error) {
+	result, err := service.ReadArtifacts(ctx, id)
+	if err != nil {
+		return artifact.RestoreResult{}, err
+	}
+	return service.artifacts.Restore(ctx, result.Bundle, destination)
 }
 
 // Submit validates and durably accepts a job into the worker queue.
@@ -263,7 +329,8 @@ func (service *JobService) Cancel(ctx context.Context, id job.ID) (job.Job, erro
 		if current.State.Terminal() {
 			return job.Job{}, fmt.Errorf("%w: %s is %s", ErrJobTerminal, id, current.State)
 		}
-		if current.State == job.StateStarting || current.State == job.StateRunning {
+		if current.State == job.StateStarting || current.State == job.StateRunning ||
+			current.State == job.StateCollecting {
 			if err := service.executions.RequestCancellation(ctx, id, service.now()); err != nil {
 				if errors.Is(err, execution.ErrAttemptCompleted) {
 					return service.jobs.Get(ctx, id)

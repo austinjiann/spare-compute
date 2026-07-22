@@ -18,6 +18,8 @@ message RemoteRequest {
     ReadJobLogsRequest read_job_logs = 14;
     CheckSnapshotRequest check_snapshot = 15;
     PutChunkRequest put_chunk = 16;
+    GetJobArtifactsRequest get_job_artifacts = 17;
+    GetArtifactChunkRequest get_artifact_chunk = 18;
   }
 }
 
@@ -35,6 +37,8 @@ message RemoteResponse {
     ReadJobLogsResponse read_job_logs = 14;
     CheckSnapshotResponse check_snapshot = 15;
     PutChunkResponse put_chunk = 16;
+    GetJobArtifactsResponse get_job_artifacts = 17;
+    GetArtifactChunkResponse get_artifact_chunk = 18;
   }
 }
 
@@ -60,6 +64,26 @@ message PutChunkRequest {
 
 message PutChunkResponse {
   string digest = 1;
+}
+
+message GetJobArtifactsRequest {
+  string job_id = 1;
+}
+
+message GetJobArtifactsResponse {
+  Job job = 1;
+  SnapshotManifest artifacts = 2;
+  int64 collected_at_unix_nano = 3;
+}
+
+message GetArtifactChunkRequest {
+  string job_id = 1;
+  string digest = 2;
+}
+
+message GetArtifactChunkResponse {
+  string digest = 1;
+  bytes data = 2;
 }
 
 message SnapshotManifest {
@@ -136,6 +160,7 @@ message JobSpec {
   map<string, string> environment = 4;
   Executor executor = 5;
   string container_image = 6;
+  repeated string outputs = 7;
 }
 
 message Job {

@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	ProtocolVersion       uint32 = 2
+	ProtocolVersion       uint32 = 3
 	maximumFrameBytes            = 1 << 20
 	defaultCallTimeout           = 15 * time.Second
 	preflightCallTimeout         = time.Minute
@@ -207,6 +207,8 @@ func operationTimeout(request *computehopv1.RemoteRequest) time.Duration {
 		return preflightCallTimeout
 	case *computehopv1.RemoteRequest_PutChunk:
 		return chunkCallTimeout
+	case *computehopv1.RemoteRequest_GetArtifactChunk:
+		return chunkCallTimeout
 	case *computehopv1.RemoteRequest_SubmitJob:
 		if operation.SubmitJob != nil && operation.SubmitJob.GetSnapshot() != nil {
 			return snapshotSubmitTimeout
@@ -300,6 +302,10 @@ func hasUnknownRequestFields(message *computehopv1.RemoteRequest) bool {
 		return operation.CheckSnapshot == nil || hasUnknown(operation.CheckSnapshot)
 	case *computehopv1.RemoteRequest_PutChunk:
 		return operation.PutChunk == nil || hasUnknown(operation.PutChunk)
+	case *computehopv1.RemoteRequest_GetJobArtifacts:
+		return operation.GetJobArtifacts == nil || hasUnknown(operation.GetJobArtifacts)
+	case *computehopv1.RemoteRequest_GetArtifactChunk:
+		return operation.GetArtifactChunk == nil || hasUnknown(operation.GetArtifactChunk)
 	default:
 		return true
 	}
@@ -341,6 +347,12 @@ func hasUnknownResponseFields(message *computehopv1.RemoteResponse) bool {
 		return result.CheckSnapshot == nil || hasUnknown(result.CheckSnapshot)
 	case *computehopv1.RemoteResponse_PutChunk:
 		return result.PutChunk == nil || hasUnknown(result.PutChunk)
+	case *computehopv1.RemoteResponse_GetJobArtifacts:
+		return result.GetJobArtifacts == nil || hasUnknown(result.GetJobArtifacts) ||
+			hasUnknownJob(result.GetJobArtifacts.GetJob()) ||
+			hasUnknownSnapshot(result.GetJobArtifacts.GetArtifacts())
+	case *computehopv1.RemoteResponse_GetArtifactChunk:
+		return result.GetArtifactChunk == nil || hasUnknown(result.GetArtifactChunk)
 	case nil:
 		return message.GetError() == nil
 	default:

@@ -10,6 +10,7 @@ import (
 
 	computehopv1 "github.com/austinjiann/spare-compute/gen/go/computehop/v1"
 	"github.com/austinjiann/spare-compute/internal/app/worker"
+	"github.com/austinjiann/spare-compute/internal/artifact"
 	"github.com/austinjiann/spare-compute/internal/device"
 	"github.com/austinjiann/spare-compute/internal/job"
 	joblogging "github.com/austinjiann/spare-compute/internal/logging"
@@ -53,27 +54,42 @@ type SnapshotContent interface {
 	Read(context.Context, snapshot.Digest) ([]byte, error)
 }
 
+// ArtifactContent receives verified chunks returned by a worker.
+type ArtifactContent interface {
+	Missing(context.Context, []snapshot.Digest) ([]snapshot.Digest, error)
+	Put(context.Context, snapshot.Digest, []byte) error
+}
+
+// ArtifactRestorer stages and places a verified bundle without overwrites.
+type ArtifactRestorer interface {
+	Restore(context.Context, artifact.Bundle, string) (artifact.RestoreResult, error)
+}
+
 // RemoteDependencies configure explicit paired-worker job routing.
 type RemoteDependencies struct {
-	Nearby     DeviceController
-	Trust      trust.Repository
-	Placements placement.Repository
-	Dialer     RemoteDialer
-	Remote     PairedRemoteDialer
-	Snapshots  ProjectSnapshotter
-	Content    SnapshotContent
+	Nearby          DeviceController
+	Trust           trust.Repository
+	Placements      placement.Repository
+	Dialer          RemoteDialer
+	Remote          PairedRemoteDialer
+	Snapshots       ProjectSnapshotter
+	Content         SnapshotContent
+	ArtifactContent ArtifactContent
+	Artifacts       ArtifactRestorer
 }
 
 // RemoteJobService prefers current LAN observations, then falls back to a
 // supervised path. Every route must match the durable worker identity pin.
 type RemoteJobService struct {
-	nearby     DeviceController
-	trust      trust.Repository
-	placements placement.Repository
-	dialer     RemoteDialer
-	remote     PairedRemoteDialer
-	snapshots  ProjectSnapshotter
-	content    SnapshotContent
+	nearby          DeviceController
+	trust           trust.Repository
+	placements      placement.Repository
+	dialer          RemoteDialer
+	remote          PairedRemoteDialer
+	snapshots       ProjectSnapshotter
+	content         SnapshotContent
+	artifactContent ArtifactContent
+	artifacts       ArtifactRestorer
 }
 
 // NewRemoteJobService constructs the orchestrator-side remote job controller.
@@ -83,12 +99,88 @@ func NewRemoteJobService(dependencies RemoteDependencies) (*RemoteJobService, er
 		(dependencies.Snapshots == nil) != (dependencies.Content == nil) {
 		return nil, ErrMissingRemoteDependency
 	}
+	if (dependencies.ArtifactContent == nil) != (dependencies.Artifacts == nil) {
+		return nil, ErrMissingRemoteDependency
+	}
 	return &RemoteJobService{
 		nearby: dependencies.Nearby, trust: dependencies.Trust,
 		placements: dependencies.Placements, dialer: dependencies.Dialer,
 		remote:    dependencies.Remote,
 		snapshots: dependencies.Snapshots, content: dependencies.Content,
+		artifactContent: dependencies.ArtifactContent, artifacts: dependencies.Artifacts,
 	}, nil
+}
+
+// FetchArtifacts downloads only missing verified output chunks and restores
+// them without overwriting local files.
+func (service *RemoteJobService) FetchArtifacts(
+	ctx context.Context,
+	selector string,
+	id job.ID,
+	destination string,
+) (artifact.RestoreResult, error) {
+	if service.artifactContent == nil || service.artifacts == nil {
+		return artifact.RestoreResult{}, worker.ErrArtifactsDisabled
+	}
+	peer, err := service.resolveJobWorker(ctx, selector, id)
+	if err != nil {
+		return artifact.RestoreResult{}, err
+	}
+	caller, err := service.open(ctx, peer)
+	if err != nil {
+		return artifact.RestoreResult{}, err
+	}
+	defer caller.Close()
+	response, err := caller.Call(ctx, &computehopv1.RemoteRequest{
+		Operation: &computehopv1.RemoteRequest_GetJobArtifacts{GetJobArtifacts: &computehopv1.GetJobArtifactsRequest{
+			JobId: string(id),
+		}},
+	})
+	if err != nil {
+		return artifact.RestoreResult{}, err
+	}
+	result := response.GetGetJobArtifacts()
+	if result == nil || result.GetArtifacts() == nil || result.GetCollectedAtUnixNano() <= 0 {
+		return artifact.RestoreResult{}, remoteprotocol.ErrInvalidMessage
+	}
+	current, err := mapper.JobFromRemoteProto(result.GetJob())
+	if err != nil || current.ID != id || current.State != job.StateSucceeded {
+		return artifact.RestoreResult{}, remoteprotocol.ErrInvalidMessage
+	}
+	manifest, err := mapper.ManifestFromRemoteProto(result.GetArtifacts())
+	if err != nil {
+		return artifact.RestoreResult{}, err
+	}
+	bundle := artifact.Bundle{
+		JobID: id, Manifest: manifest,
+		CollectedAt: time.Unix(0, result.GetCollectedAtUnixNano()).UTC(),
+	}
+	if err := bundle.Validate(); err != nil {
+		return artifact.RestoreResult{}, err
+	}
+	missing, err := service.artifactContent.Missing(ctx, manifest.Digests())
+	if err != nil {
+		return artifact.RestoreResult{}, err
+	}
+	for _, digest := range missing {
+		response, err := caller.Call(ctx, &computehopv1.RemoteRequest{
+			Operation: &computehopv1.RemoteRequest_GetArtifactChunk{GetArtifactChunk: &computehopv1.GetArtifactChunkRequest{
+				JobId: string(id), Digest: string(digest),
+			}},
+		})
+		if err != nil {
+			return artifact.RestoreResult{}, fmt.Errorf("download artifact chunk %s: %w", digest, err)
+		}
+		chunk := response.GetGetArtifactChunk()
+		if chunk == nil || chunk.GetDigest() != string(digest) || len(chunk.GetData()) == 0 ||
+			len(chunk.GetData()) > snapshot.MaximumChunkBytes || snapshot.Sum(chunk.GetData()) != digest {
+			return artifact.RestoreResult{}, remoteprotocol.ErrInvalidMessage
+		}
+		if err := service.artifactContent.Put(ctx, digest, chunk.GetData()); err != nil {
+			return artifact.RestoreResult{}, err
+		}
+	}
+	return service.artifacts.Restore(ctx, bundle, destination)
 }
 
 func (service *RemoteJobService) Submit(

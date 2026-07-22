@@ -70,7 +70,7 @@ func (client *Client) Call(ctx context.Context, request *localv1.Request) (*loca
 	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
 		var cancel context.CancelFunc
 		timeout := client.timeout
-		if request.GetSubmitJob() != nil && timeout == defaultRequestTimeout {
+		if isLongOperation(request) && timeout == defaultRequestTimeout {
 			timeout = submitRequestTimeout
 		}
 		callContext, cancel = context.WithTimeout(ctx, timeout)
@@ -115,6 +115,10 @@ func (client *Client) Call(ctx context.Context, request *localv1.Request) (*loca
 		return nil, &RemoteError{Code: failure.GetCode(), Message: failure.GetMessage()}
 	}
 	return response, nil
+}
+
+func isLongOperation(request *localv1.Request) bool {
+	return request.GetSubmitJob() != nil || request.GetFetchArtifacts() != nil
 }
 
 func newRequestID() (string, error) {

@@ -124,11 +124,11 @@ func (server *Server) serveConnection(ctx context.Context, connection net.Conn) 
 	if err := readMessage(connection, request); err != nil {
 		return
 	}
-	if request.GetSubmitJob() != nil {
+	if isLongOperation(request) {
 		_ = connection.SetDeadline(time.Now().Add(submitConnectionTimeout))
 	}
 	requestTimeout := connectionTimeout
-	if request.GetSubmitJob() != nil {
+	if isLongOperation(request) {
 		requestTimeout = submitConnectionTimeout
 	}
 	requestContext, cancel := context.WithTimeout(ctx, requestTimeout)

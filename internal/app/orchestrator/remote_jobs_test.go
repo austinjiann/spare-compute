@@ -5,10 +5,12 @@ import (
 	"context"
 	"errors"
 	"net/netip"
+	"path/filepath"
 	"testing"
 	"time"
 
 	computehopv1 "github.com/austinjiann/spare-compute/gen/go/computehop/v1"
+	"github.com/austinjiann/spare-compute/internal/artifact"
 	"github.com/austinjiann/spare-compute/internal/device"
 	"github.com/austinjiann/spare-compute/internal/job"
 	"github.com/austinjiann/spare-compute/internal/placement"
@@ -249,6 +251,118 @@ func TestRemoteJobServiceTransfersOnlyMissingSnapshotChunks(t *testing.T) {
 	}
 }
 
+func TestRemoteJobServiceDownloadsOnlyMissingArtifactChunksAndRestores(t *testing.T) {
+	peer := activeWorkerPeer(t, 23, "Render PC")
+	contents := []byte("rendered output")
+	digest := snapshot.Sum(contents)
+	manifest := snapshot.Manifest{
+		Version: snapshot.ManifestVersion,
+		Files: []snapshot.File{{
+			Path: "dist/render.png", Mode: 0o644, Size: int64(len(contents)),
+			Chunks: []snapshot.Chunk{{Digest: digest, Size: uint32(len(contents))}},
+		}},
+		TotalBytes: int64(len(contents)),
+	}
+	manifestMessage, err := mapper.ManifestToRemoteProto(manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := queuedJobForTest()
+	want.State = job.StateSucceeded
+	want.Spec.Outputs = []string{"dist/render.png"}
+	jobMessage, err := mapper.JobToRemoteProto(want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	placements := newRemotePlacementStub()
+	if err := placements.Create(context.Background(), placement.Placement{
+		JobID: want.ID, WorkerID: peer.DeviceID, PlacedAt: want.CreatedAt,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	cached := false
+	downloads := 0
+	restores := 0
+	destination := filepath.Join(t.TempDir(), "results")
+	service, err := NewRemoteJobService(RemoteDependencies{
+		Nearby: stubDeviceController{}, Trust: remoteTrustStub{peers: []trust.Peer{peer}},
+		Placements: placements,
+		Dialer: remoteDialerFunc(func(context.Context, device.NearbyDevice, trust.Peer) (remoteprotocol.Caller, error) {
+			return nil, errors.New("no LAN path")
+		}),
+		Remote: pairedRemoteDialerFunc(func(context.Context, trust.Peer) (remoteprotocol.Caller, error) {
+			return &remoteCallerStub{call: func(
+				_ context.Context,
+				request *computehopv1.RemoteRequest,
+			) (*computehopv1.RemoteResponse, error) {
+				switch request.GetOperation().(type) {
+				case *computehopv1.RemoteRequest_GetJobArtifacts:
+					return &computehopv1.RemoteResponse{Result: &computehopv1.RemoteResponse_GetJobArtifacts{
+						GetJobArtifacts: &computehopv1.GetJobArtifactsResponse{
+							Job: jobMessage, Artifacts: manifestMessage,
+							CollectedAtUnixNano: time.Unix(1_900_000_000, 0).UnixNano(),
+						},
+					}}, nil
+				case *computehopv1.RemoteRequest_GetArtifactChunk:
+					downloads++
+					if request.GetGetArtifactChunk().GetDigest() != string(digest) {
+						t.Fatalf("chunk request = %#v", request.GetGetArtifactChunk())
+					}
+					return &computehopv1.RemoteResponse{Result: &computehopv1.RemoteResponse_GetArtifactChunk{
+						GetArtifactChunk: &computehopv1.GetArtifactChunkResponse{
+							Digest: string(digest), Data: contents,
+						},
+					}}, nil
+				default:
+					t.Fatalf("unexpected request = %#v", request)
+					return nil, nil
+				}
+			}}, nil
+		}),
+		ArtifactContent: artifactContentStub{
+			missing: func(_ context.Context, digests []snapshot.Digest) ([]snapshot.Digest, error) {
+				if len(digests) != 1 || digests[0] != digest {
+					t.Fatalf("digests = %#v", digests)
+				}
+				if cached {
+					return nil, nil
+				}
+				return []snapshot.Digest{digest}, nil
+			},
+			put: func(_ context.Context, got snapshot.Digest, data []byte) error {
+				if got != digest || !bytes.Equal(data, contents) {
+					t.Fatalf("Put(%s, %q)", got, data)
+				}
+				cached = true
+				return nil
+			},
+		},
+		Artifacts: artifactRestorerStub{restore: func(
+			_ context.Context,
+			bundle artifact.Bundle,
+			gotDestination string,
+		) (artifact.RestoreResult, error) {
+			restores++
+			if bundle.JobID != want.ID || gotDestination != destination {
+				t.Fatalf("Restore(%s, %q)", bundle.JobID, gotDestination)
+			}
+			return artifact.RestoreResult{Destination: destination, Restored: []string{"dist/render.png"}}, nil
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for attempt := 0; attempt < 2; attempt++ {
+		result, err := service.FetchArtifacts(context.Background(), "", want.ID, destination)
+		if err != nil || len(result.Restored) != 1 {
+			t.Fatalf("FetchArtifacts(%d) = %#v, %v", attempt, result, err)
+		}
+	}
+	if downloads != 1 || restores != 2 {
+		t.Fatalf("downloads = %d, restores = %d", downloads, restores)
+	}
+}
+
 func TestRemoteJobServiceRejectsRevokedRememberedWorker(t *testing.T) {
 	peer := activeWorkerPeer(t, 10, "Revoked PC")
 	revokedAt := peer.UpdatedAt.Add(time.Minute)
@@ -340,6 +454,34 @@ func (stub projectSnapshotterStub) Build(context.Context, string) (snapshot.Resu
 
 type snapshotContentStub struct {
 	contents map[snapshot.Digest][]byte
+}
+
+type artifactContentStub struct {
+	missing func(context.Context, []snapshot.Digest) ([]snapshot.Digest, error)
+	put     func(context.Context, snapshot.Digest, []byte) error
+}
+
+func (stub artifactContentStub) Missing(
+	ctx context.Context,
+	digests []snapshot.Digest,
+) ([]snapshot.Digest, error) {
+	return stub.missing(ctx, digests)
+}
+
+func (stub artifactContentStub) Put(ctx context.Context, digest snapshot.Digest, data []byte) error {
+	return stub.put(ctx, digest, data)
+}
+
+type artifactRestorerStub struct {
+	restore func(context.Context, artifact.Bundle, string) (artifact.RestoreResult, error)
+}
+
+func (stub artifactRestorerStub) Restore(
+	ctx context.Context,
+	bundle artifact.Bundle,
+	destination string,
+) (artifact.RestoreResult, error) {
+	return stub.restore(ctx, bundle, destination)
 }
 
 func (stub snapshotContentStub) Read(_ context.Context, digest snapshot.Digest) ([]byte, error) {

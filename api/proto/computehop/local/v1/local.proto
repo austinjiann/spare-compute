@@ -24,6 +24,7 @@ message Request {
     RejectPairingRequest reject_pairing = 20;
     ListTrustedDevicesRequest list_trusted_devices = 21;
     UnpairDeviceRequest unpair_device = 22;
+    FetchArtifactsRequest fetch_artifacts = 23;
   }
 }
 
@@ -47,6 +48,7 @@ message Response {
     RejectPairingResponse reject_pairing = 20;
     ListTrustedDevicesResponse list_trusted_devices = 21;
     UnpairDeviceResponse unpair_device = 22;
+    FetchArtifactsResponse fetch_artifacts = 23;
   }
 }
 
@@ -167,6 +169,18 @@ message UnpairDeviceResponse {
   TrustedDevice device = 1;
 }
 
+message FetchArtifactsRequest {
+  string job_id = 1;
+  string device_selector = 2;
+  string destination = 3;
+}
+
+message FetchArtifactsResponse {
+  string destination = 1;
+  uint32 restored_file_count = 2;
+  uint32 conflict_file_count = 3;
+}
+
 message Pairing {
   string id = 1;
   string peer_device_id = 2;
@@ -222,6 +236,7 @@ message JobSpec {
   map<string, string> environment = 4;
   Executor executor = 5;
   string container_image = 6;
+  repeated string outputs = 7;
 }
 
 message Job {

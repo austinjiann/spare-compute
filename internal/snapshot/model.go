@@ -12,7 +12,8 @@ import (
 	"path"
 	"sort"
 	"strings"
-	"unicode/utf8"
+
+	"github.com/austinjiann/spare-compute/internal/portablepath"
 )
 
 const (
@@ -24,7 +25,7 @@ const (
 	MaximumChunkBytes               = 512 << 10
 	MaximumFiles                    = 25_000
 	MaximumChunks                   = 250_000
-	MaximumPathBytes                = 4_096
+	MaximumPathBytes                = portablepath.MaximumBytes
 	MaximumSnapshotBytes     int64  = 100 << 30
 	MaximumManifestBytes            = 800 << 10
 	MaximumWireManifestBytes        = 900 << 10
@@ -102,7 +103,7 @@ func (manifest Manifest) Validate() error {
 			return fmt.Errorf("%w: file paths are not strictly sorted", ErrInvalidManifest)
 		}
 		previous = file.Path
-		portable := strings.ToLower(file.Path)
+		portable := portablepath.Key(file.Path)
 		if _, exists := portablePaths[portable]; exists {
 			return fmt.Errorf("%w: path collision for %q", ErrInvalidManifest, file.Path)
 		}
@@ -223,34 +224,8 @@ func (manifest Manifest) Clone() Manifest {
 
 // ValidatePath accepts only normalized portable relative file paths.
 func ValidatePath(value string) error {
-	if value == "" || len(value) > MaximumPathBytes || !utf8.ValidString(value) ||
-		strings.ContainsAny(value, "\\\x00<>:\"|?*") ||
-		strings.HasPrefix(value, "/") || path.Clean(value) != value || value == "." || value == ".." ||
-		strings.HasPrefix(value, "../") {
+	if portablepath.Validate(value) != nil {
 		return ErrUnsafePath
 	}
-	for _, segment := range strings.Split(value, "/") {
-		if segment == "" || segment == "." || segment == ".." ||
-			strings.HasSuffix(segment, ".") || strings.HasSuffix(segment, " ") ||
-			windowsReservedName(segment) {
-			return ErrUnsafePath
-		}
-		for _, character := range segment {
-			if character < 0x20 {
-				return ErrUnsafePath
-			}
-		}
-	}
 	return nil
-}
-
-func windowsReservedName(segment string) bool {
-	base := strings.ToUpper(strings.SplitN(segment, ".", 2)[0])
-	if base == "CON" || base == "PRN" || base == "AUX" || base == "NUL" {
-		return true
-	}
-	if len(base) == 4 && (strings.HasPrefix(base, "COM") || strings.HasPrefix(base, "LPT")) {
-		return base[3] >= '1' && base[3] <= '9'
-	}
-	return false
 }

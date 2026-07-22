@@ -50,6 +50,7 @@ func SpecToProto(spec job.Spec) (*localv1.JobSpec, error) {
 		Environment:      cloneMap(spec.Environment),
 		Executor:         executor,
 		ContainerImage:   spec.ContainerImage,
+		Outputs:          append([]string(nil), spec.Outputs...),
 	}, nil
 }
 
@@ -69,6 +70,7 @@ func SpecFromProto(message *localv1.JobSpec) (job.Spec, error) {
 		Environment:      cloneMap(message.GetEnvironment()),
 		Executor:         executor,
 		ContainerImage:   message.GetContainerImage(),
+		Outputs:          append([]string(nil), message.GetOutputs()...),
 	}
 	if err := spec.Validate(); err != nil {
 		return job.Spec{}, err

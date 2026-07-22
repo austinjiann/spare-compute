@@ -29,6 +29,11 @@ struct RunJobSection: View {
                     }
                 }
             }
+            TextField(
+                "Outputs to return, comma-separated (for example: dist, report.json)",
+                text: $model.outputsInput
+            )
+            .textFieldStyle(.roundedBorder)
             HStack {
                 Text("Quotes group arguments; no shell expansion is performed.")
                     .font(.caption2)

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"text/tabwriter"
@@ -58,6 +59,9 @@ func newRootCommand(dependencies dependencies) *cobra.Command {
 	root.AddCommand(newUnpairCommand(dependencies.stdout, clientForCommand))
 	root.AddCommand(newRunCommand(dependencies.stdout, dependencies.getwd, clientForCommand))
 	root.AddCommand(newJobsCommand(dependencies.stdout, clientForCommand))
+	root.AddCommand(newArtifactsCommand(
+		dependencies.stdout, dependencies.stderr, dependencies.getwd, clientForCommand,
+	))
 	root.AddCommand(newCancelCommand(dependencies.stdout, clientForCommand))
 	root.AddCommand(newLogsCommand(dependencies.stdout, dependencies.stderr, clientForCommand))
 	return root
@@ -541,6 +545,7 @@ func newRunCommand(
 ) *cobra.Command {
 	var deviceSelector string
 	var workingDirectory string
+	var outputs []string
 	command := &cobra.Command{
 		Use:   "run [--on device] <program> [args...]",
 		Short: "Submit a background command",
@@ -559,6 +564,7 @@ func newRunCommand(
 				Arguments:        arguments[1:],
 				WorkingDirectory: targetDirectory,
 				Executor:         job.ExecutorNative,
+				Outputs:          outputs,
 			})
 			if err != nil {
 				return err
@@ -591,7 +597,12 @@ func newRunCommand(
 			if err != nil {
 				return err
 			}
-			_, err = fmt.Fprintf(stdout, "Follow it: computehop logs --follow %s\n", value.ID)
+			if _, err = fmt.Fprintf(stdout, "Follow it: computehop logs --follow %s\n", value.ID); err != nil {
+				return err
+			}
+			if len(outputs) > 0 {
+				_, err = fmt.Fprintf(stdout, "Get outputs after it succeeds: computehop artifacts %s\n", value.ID)
+			}
 			return err
 		},
 	}
@@ -604,6 +615,83 @@ func newRunCommand(
 		"",
 		"local project directory to snapshot (defaults to the current directory)",
 	)
+	command.Flags().StringArrayVarP(
+		&outputs,
+		"output",
+		"o",
+		nil,
+		"relative output file or directory to return (repeatable)",
+	)
+	return command
+}
+
+func newArtifactsCommand(
+	stdout io.Writer,
+	stderr io.Writer,
+	getwd func() (string, error),
+	clientForCommand func() (caller, error),
+) *cobra.Command {
+	var destination string
+	var deviceSelector string
+	command := &cobra.Command{
+		Use:     "artifacts <job-id>",
+		Aliases: []string{"fetch", "download"},
+		Short:   "Download a completed job's declared outputs",
+		Args:    cobra.ExactArgs(1),
+		RunE: func(command *cobra.Command, arguments []string) error {
+			id, err := job.ParseID(arguments[0])
+			if err != nil {
+				return err
+			}
+			target := destination
+			if target == "" {
+				workingDirectory, err := getwd()
+				if err != nil {
+					return fmt.Errorf("resolve output directory: %w", err)
+				}
+				target = filepath.Join(workingDirectory, ".computehop-results", string(id))
+			} else if !filepath.IsAbs(target) {
+				target, err = filepath.Abs(target)
+				if err != nil {
+					return fmt.Errorf("resolve output directory: %w", err)
+				}
+			}
+			client, err := clientForCommand()
+			if err != nil {
+				return err
+			}
+			response, err := client.Call(command.Context(), &localv1.Request{
+				Operation: &localv1.Request_FetchArtifacts{FetchArtifacts: &localv1.FetchArtifactsRequest{
+					JobId: string(id), DeviceSelector: deviceSelector, Destination: target,
+				}},
+			})
+			if err != nil {
+				return err
+			}
+			result := response.GetFetchArtifacts()
+			if result == nil || result.GetDestination() == "" {
+				return fmt.Errorf("%w: missing artifact result", ErrInvalidDaemonResponse)
+			}
+			if _, err := fmt.Fprintf(
+				stdout, "Restored %d output file(s) to %s\n",
+				result.GetRestoredFileCount(), result.GetDestination(),
+			); err != nil {
+				return err
+			}
+			if result.GetConflictFileCount() > 0 {
+				if _, err := fmt.Fprintf(
+					stderr,
+					"Kept existing files unchanged; %d incoming conflict(s) are under %s\n",
+					result.GetConflictFileCount(), filepath.Join(result.GetDestination(), ".computehop-conflicts"),
+				); err != nil {
+					return err
+				}
+			}
+			return nil
+		},
+	}
+	command.Flags().StringVarP(&destination, "to", "t", "", "destination directory (defaults to .computehop-results/<job-id>)")
+	addDeviceSelectorFlags(command, &deviceSelector)
 	return command
 }
 

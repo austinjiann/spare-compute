@@ -27,6 +27,7 @@ const jobColumns = `
 	environment_json,
 	executor,
 	container_image,
+	outputs_json,
 	state,
 	created_at_ns,
 	updated_at_ns,
@@ -51,7 +52,7 @@ func (repository *JobRepository) Create(ctx context.Context, value job.Job) erro
 		return fmt.Errorf("%w: new repository job must be in %s state", job.ErrInvalidJob, job.StateCreated)
 	}
 
-	arguments, environment, err := encodeSpecCollections(value.Spec)
+	arguments, environment, outputs, err := encodeSpecCollections(value.Spec)
 	if err != nil {
 		return err
 	}
@@ -66,13 +67,14 @@ func (repository *JobRepository) Create(ctx context.Context, value job.Job) erro
 			environment_json,
 			executor,
 			container_image,
+			outputs_json,
 			state,
 			created_at_ns,
 			updated_at_ns,
 			failure_code,
 			failure_message,
 			failure_retryable
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`,
 		value.ID,
 		value.Spec.Executable,
@@ -81,6 +83,7 @@ func (repository *JobRepository) Create(ctx context.Context, value job.Job) erro
 		environment,
 		value.Spec.Executor,
 		value.Spec.ContainerImage,
+		outputs,
 		value.State,
 		value.CreatedAt.UTC().UnixNano(),
 		value.UpdatedAt.UTC().UnixNano(),
@@ -289,6 +292,7 @@ func scanJob(scanner rowScanner) (job.Job, error) {
 		environmentJSON  string
 		executor         string
 		containerImage   string
+		outputsJSON      string
 		state            string
 		createdAtNS      int64
 		updatedAtNS      int64
@@ -305,6 +309,7 @@ func scanJob(scanner rowScanner) (job.Job, error) {
 		&environmentJSON,
 		&executor,
 		&containerImage,
+		&outputsJSON,
 		&state,
 		&createdAtNS,
 		&updatedAtNS,
@@ -332,6 +337,10 @@ func scanJob(scanner rowScanner) (job.Job, error) {
 	if err := json.Unmarshal([]byte(environmentJSON), &environment); err != nil {
 		return job.Job{}, fmt.Errorf("decode job environment: %w", err)
 	}
+	var outputs []string
+	if err := json.Unmarshal([]byte(outputsJSON), &outputs); err != nil {
+		return job.Job{}, fmt.Errorf("decode job outputs: %w", err)
+	}
 
 	failure, err := decodeFailure(failureCode, failureMessage, failureRetryable)
 	if err != nil {
@@ -347,6 +356,7 @@ func scanJob(scanner rowScanner) (job.Job, error) {
 			Environment:      environment,
 			Executor:         job.Executor(executor),
 			ContainerImage:   containerImage,
+			Outputs:          outputs,
 		},
 		State:     parsedState,
 		CreatedAt: time.Unix(0, createdAtNS).UTC(),
@@ -359,16 +369,20 @@ func scanJob(scanner rowScanner) (job.Job, error) {
 	return value, nil
 }
 
-func encodeSpecCollections(spec job.Spec) (string, string, error) {
+func encodeSpecCollections(spec job.Spec) (string, string, string, error) {
 	arguments, err := json.Marshal(spec.Arguments)
 	if err != nil {
-		return "", "", fmt.Errorf("encode job arguments: %w", err)
+		return "", "", "", fmt.Errorf("encode job arguments: %w", err)
 	}
 	environment, err := json.Marshal(spec.Environment)
 	if err != nil {
-		return "", "", fmt.Errorf("encode job environment: %w", err)
+		return "", "", "", fmt.Errorf("encode job environment: %w", err)
 	}
-	return string(arguments), string(environment), nil
+	outputs, err := json.Marshal(spec.Outputs)
+	if err != nil {
+		return "", "", "", fmt.Errorf("encode job outputs: %w", err)
+	}
+	return string(arguments), string(environment), string(outputs), nil
 }
 
 func encodeFailure(failure *job.Failure) (any, any, any) {

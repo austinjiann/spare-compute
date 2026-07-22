@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -118,6 +119,71 @@ func TestRunCommandDefaultsRemoteProjectToCurrentDirectory(t *testing.T) {
 	command.SetArgs([]string{"run", "--on", "Gaming PC", "go", "test", "./..."})
 	if err := command.Execute(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestRunCommandDeclaresOutputsAndPrintsFetchHint(t *testing.T) {
+	value := cliJobForTest(job.StateQueued)
+	value.Spec.Outputs = []string{"dist", "report.json"}
+	message, err := mapper.JobToProto(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return t.TempDir(), nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+				if got := request.GetSubmitJob().GetSpec().GetOutputs(); strings.Join(got, ",") != "dist,report.json" {
+					t.Fatalf("outputs = %#v", got)
+				}
+				return &localv1.Response{Result: &localv1.Response_SubmitJob{
+					SubmitJob: &localv1.SubmitJobResponse{Job: message},
+				}}, nil
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"run", "-o", "dist", "--output", "report.json", "go", "build", "./..."})
+	if err := command.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stdout.String(), "Get outputs after it succeeds: computehop artifacts "+string(value.ID)) {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+}
+
+func TestArtifactsCommandUsesSafeDefaultDestinationAndReportsConflicts(t *testing.T) {
+	value := cliJobForTest(job.StateSucceeded)
+	workingDirectory := t.TempDir()
+	wantDestination := filepath.Join(workingDirectory, ".computehop-results", string(value.ID))
+	var stdout, stderr bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &stderr, getwd: func() (string, error) { return workingDirectory, nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+				fetch := request.GetFetchArtifacts()
+				if fetch.GetJobId() != string(value.ID) || fetch.GetDestination() != wantDestination ||
+					fetch.GetDeviceSelector() != "" {
+					t.Fatalf("fetch = %#v", fetch)
+				}
+				return &localv1.Response{Result: &localv1.Response_FetchArtifacts{
+					FetchArtifacts: &localv1.FetchArtifactsResponse{
+						Destination:       wantDestination,
+						RestoredFileCount: 1,
+						ConflictFileCount: 1,
+					},
+				}}, nil
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"artifacts", string(value.ID)})
+	if err := command.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stdout.String(), "Restored 1 output file(s) to "+wantDestination) ||
+		!strings.Contains(stderr.String(), "Kept existing files unchanged") ||
+		!strings.Contains(stderr.String(), ".computehop-conflicts") {
+		t.Fatalf("stdout = %q; stderr = %q", stdout.String(), stderr.String())
 	}
 }
 

@@ -91,7 +91,7 @@ private final class ContinuationGate<Value: Sendable>: @unchecked Sendable {
 }
 
 actor LocalDaemonClient {
-    static let protocolVersion: UInt32 = 3
+    static let protocolVersion: UInt32 = 4
 
     private let socketURL: URL
     private let tokenURL: URL
@@ -142,6 +142,7 @@ actor LocalDaemonClient {
         executable: String,
         arguments: [String],
         workingDirectory: String,
+        outputs: [String] = [],
         deviceSelector: String,
         target: String
     ) async throws -> JobSummary {
@@ -150,6 +151,7 @@ actor LocalDaemonClient {
         spec.arguments = arguments
         spec.workingDirectory = workingDirectory
         spec.executor = .native
+        spec.outputs = outputs
 
         var operation = Computehop_Local_V1_SubmitJobRequest()
         operation.spec = spec
@@ -159,6 +161,28 @@ actor LocalDaemonClient {
             throw LocalDaemonError.invalidResponse("missing submitted job")
         }
         return JobSummary(result.job, target: target)
+    }
+
+    func fetchArtifacts(
+        id: String,
+        destination: String,
+        deviceSelector: String = ""
+    ) async throws -> ArtifactRestoreSummary {
+        var operation = Computehop_Local_V1_FetchArtifactsRequest()
+        operation.jobID = id
+        operation.destination = destination
+        operation.deviceSelector = deviceSelector
+        let response = try await call(.fetchArtifacts(operation))
+        guard case .fetchArtifacts(let result)? = response.result,
+            !result.destination.isEmpty
+        else {
+            throw LocalDaemonError.invalidResponse("missing artifact result")
+        }
+        return ArtifactRestoreSummary(
+            destination: result.destination,
+            restoredFileCount: result.restoredFileCount,
+            conflictFileCount: result.conflictFileCount
+        )
     }
 
     func readJobLogs(

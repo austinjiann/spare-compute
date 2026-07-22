@@ -25,11 +25,13 @@ final class AppModel {
     var actionInProgress: String?
     var commandInput = ""
     var workingDirectory = ""
+    var outputsInput = ""
     var runTargetID = ""
     var selectedJobID: String?
     var selectedJobLogs = ""
     var selectedJobLogsTruncated = false
     var isLoadingLogs = false
+    var artifactMessage: String?
 
     init(client: LocalDaemonClient = LocalDaemonClient()) {
         self.client = client
@@ -119,6 +121,9 @@ final class AppModel {
             }
             let targetName = targetDevice?.name ?? "This Mac"
             let directory = workingDirectory.trimmingCharacters(in: .whitespacesAndNewlines)
+            let outputs = outputsInput.split(separator: ",", omittingEmptySubsequences: true)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
             let effectiveDirectory = runTargetID.isEmpty && directory.isEmpty
                 ? FileManager.default.homeDirectoryForCurrentUser.path
                 : directory
@@ -126,6 +131,7 @@ final class AppModel {
                 executable: executable,
                 arguments: Array(arguments.dropFirst()),
                 workingDirectory: effectiveDirectory,
+                outputs: outputs,
                 deviceSelector: targetDevice?.id ?? "",
                 target: targetName
             )
@@ -139,6 +145,24 @@ final class AppModel {
             selectedJobLogsTruncated = false
             nextLogSequence = 0
             commandInput = ""
+            outputsInput = ""
+        }
+    }
+
+    func fetchArtifacts(for job: JobSummary, destination: String) async {
+        await perform("artifacts-\(job.id)") {
+            let result = try await client.fetchArtifacts(
+                id: job.id,
+                destination: destination,
+                deviceSelector: job.target == "This Mac" ? "" : job.target
+            )
+            if result.conflictFileCount == 0 {
+                artifactMessage =
+                    "Restored \(result.restoredFileCount) output file(s) to \(result.destination)."
+            } else {
+                artifactMessage =
+                    "Restored outputs to \(result.destination). Kept existing files and saved \(result.conflictFileCount) conflict(s) under .computehop-conflicts."
+            }
         }
     }
 

@@ -5,12 +5,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	localv1 "github.com/austinjiann/spare-compute/gen/go/computehop/local/v1"
 	"github.com/austinjiann/spare-compute/internal/app/worker"
+	"github.com/austinjiann/spare-compute/internal/artifact"
 	"github.com/austinjiann/spare-compute/internal/connectivity/remoteconn"
 	"github.com/austinjiann/spare-compute/internal/device"
 	"github.com/austinjiann/spare-compute/internal/job"
@@ -18,11 +20,23 @@ import (
 )
 
 type stubJobController struct {
-	submit func(context.Context, job.Spec) (job.Job, error)
-	get    func(context.Context, job.ID) (job.Job, error)
-	list   func(context.Context, job.ListOptions) ([]job.Job, error)
-	cancel func(context.Context, job.ID) (job.Job, error)
-	logs   func(context.Context, job.ID, uint64, int) (worker.JobLogs, error)
+	submit  func(context.Context, job.Spec) (job.Job, error)
+	get     func(context.Context, job.ID) (job.Job, error)
+	list    func(context.Context, job.ListOptions) ([]job.Job, error)
+	cancel  func(context.Context, job.ID) (job.Job, error)
+	logs    func(context.Context, job.ID, uint64, int) (worker.JobLogs, error)
+	restore func(context.Context, job.ID, string) (artifact.RestoreResult, error)
+}
+
+func (stub stubJobController) RestoreArtifacts(
+	ctx context.Context,
+	id job.ID,
+	destination string,
+) (artifact.RestoreResult, error) {
+	if stub.restore == nil {
+		return artifact.RestoreResult{}, worker.ErrArtifactsDisabled
+	}
+	return stub.restore(ctx, id, destination)
 }
 
 func (stub stubJobController) Submit(ctx context.Context, spec job.Spec) (job.Job, error) {
@@ -242,6 +256,64 @@ func TestLocalHandlerKeepsKnownJobOperationsLocal(t *testing.T) {
 	}
 }
 
+func TestLocalHandlerRestoresKnownJobArtifactsLocally(t *testing.T) {
+	want := queuedJobForTest()
+	want.State = job.StateSucceeded
+	destination := filepath.Join(t.TempDir(), "computehop-results")
+	controller := stubJobController{
+		get: func(context.Context, job.ID) (job.Job, error) { return want, nil },
+		restore: func(_ context.Context, id job.ID, gotDestination string) (artifact.RestoreResult, error) {
+			if id != want.ID || gotDestination != destination {
+				t.Fatalf("RestoreArtifacts(%s, %q)", id, gotDestination)
+			}
+			return artifact.RestoreResult{Destination: destination, Restored: []string{"dist/app"}}, nil
+		},
+	}
+	handler := newHandlerForTest(t, controller)
+	response := handler.Handle(context.Background(), &localv1.Request{
+		Operation: &localv1.Request_FetchArtifacts{FetchArtifacts: &localv1.FetchArtifactsRequest{
+			JobId: string(want.ID), Destination: destination,
+		}},
+	})
+	result := response.GetFetchArtifacts()
+	if response.GetError() != nil || result.GetDestination() != destination ||
+		result.GetRestoredFileCount() != 1 || result.GetConflictFileCount() != 0 {
+		t.Fatalf("response = %#v", response)
+	}
+}
+
+func TestLocalHandlerFetchesRememberedRemoteJobArtifacts(t *testing.T) {
+	want := queuedJobForTest()
+	destination := filepath.Join(t.TempDir(), "computehop-remote-results")
+	remote := stubPairedJobController{fetch: func(
+		_ context.Context,
+		selector string,
+		id job.ID,
+		gotDestination string,
+	) (artifact.RestoreResult, error) {
+		if selector != "Gaming PC" || id != want.ID || gotDestination != destination {
+			t.Fatalf("FetchArtifacts(%q, %s, %q)", selector, id, gotDestination)
+		}
+		return artifact.RestoreResult{Destination: destination, Conflicts: []string{
+			".computehop-conflicts/7a338fa3-7ba4-4c54-bf59-da1161f6b76f/dist/app",
+		}}, nil
+	}}
+	handler, err := NewLocalHandler(
+		stubJobController{}, remote, stubDeviceController{}, stubPairingController{}, "test-version",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := handler.Handle(context.Background(), &localv1.Request{
+		Operation: &localv1.Request_FetchArtifacts{FetchArtifacts: &localv1.FetchArtifactsRequest{
+			JobId: string(want.ID), DeviceSelector: "Gaming PC", Destination: destination,
+		}},
+	})
+	if response.GetError() != nil || response.GetFetchArtifacts().GetConflictFileCount() != 1 {
+		t.Fatalf("response = %#v", response)
+	}
+}
+
 func TestLocalHandlerBeginsPairingThroughDedicatedController(t *testing.T) {
 	value := pairingForHandlerTest(t)
 	handler, err := NewLocalHandler(
@@ -340,6 +412,19 @@ type stubPairedJobController struct {
 	get    func(context.Context, string, job.ID) (job.Job, error)
 	cancel func(context.Context, string, job.ID) (job.Job, error)
 	logs   func(context.Context, string, job.ID, uint64, int) (worker.JobLogs, error)
+	fetch  func(context.Context, string, job.ID, string) (artifact.RestoreResult, error)
+}
+
+func (stub stubPairedJobController) FetchArtifacts(
+	ctx context.Context,
+	selector string,
+	id job.ID,
+	destination string,
+) (artifact.RestoreResult, error) {
+	if stub.fetch == nil {
+		return artifact.RestoreResult{}, worker.ErrArtifactsDisabled
+	}
+	return stub.fetch(ctx, selector, id, destination)
 }
 
 func (stub stubPairedJobController) Submit(

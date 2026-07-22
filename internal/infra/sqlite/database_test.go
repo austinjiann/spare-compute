@@ -50,8 +50,8 @@ func TestOpenConfiguresAndMigratesDatabase(t *testing.T) {
 	if err := database.sql.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&migrationCount); err != nil {
 		t.Fatalf("count migrations: %v", err)
 	}
-	if migrationCount != 5 {
-		t.Fatalf("migration count = %d, want 5", migrationCount)
+	if migrationCount != 6 {
+		t.Fatalf("migration count = %d, want 6", migrationCount)
 	}
 
 	if runtime.GOOS != "windows" {
@@ -86,8 +86,8 @@ func TestOpenCanReapplyMigrations(t *testing.T) {
 	if err := second.sql.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&count); err != nil {
 		t.Fatalf("count migrations: %v", err)
 	}
-	if count != 5 {
-		t.Fatalf("migration count after reopen = %d, want 5", count)
+	if count != 6 {
+		t.Fatalf("migration count after reopen = %d, want 6", count)
 	}
 }
 

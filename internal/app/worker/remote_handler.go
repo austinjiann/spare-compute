@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	computehopv1 "github.com/austinjiann/spare-compute/gen/go/computehop/v1"
+	"github.com/austinjiann/spare-compute/internal/artifact"
 	"github.com/austinjiann/spare-compute/internal/execution"
 	"github.com/austinjiann/spare-compute/internal/job"
 	joblogging "github.com/austinjiann/spare-compute/internal/logging"
@@ -32,6 +33,12 @@ type RemoteSnapshotController interface {
 	MissingChunks(context.Context, []snapshot.Digest) ([]snapshot.Digest, error)
 	PutChunk(context.Context, snapshot.Digest, []byte) error
 	SubmitSnapshot(context.Context, job.Spec, snapshot.Manifest, string) (job.Job, error)
+}
+
+// RemoteArtifactController exposes only completed declared outputs and their referenced chunks.
+type RemoteArtifactController interface {
+	ReadArtifacts(context.Context, job.ID) (JobArtifacts, error)
+	ReadArtifactChunk(context.Context, job.ID, snapshot.Digest) ([]byte, error)
 }
 
 // RemoteHandler maps authenticated network requests to the durable worker job service.
@@ -68,12 +75,82 @@ func (handler *RemoteHandler) Handle(
 		return handler.checkSnapshot(ctx, operation.CheckSnapshot)
 	case *computehopv1.RemoteRequest_PutChunk:
 		return handler.putChunk(ctx, operation.PutChunk)
+	case *computehopv1.RemoteRequest_GetJobArtifacts:
+		return handler.getJobArtifacts(ctx, operation.GetJobArtifacts)
+	case *computehopv1.RemoteRequest_GetArtifactChunk:
+		return handler.getArtifactChunk(ctx, operation.GetArtifactChunk)
 	default:
 		return remoteFailure(
 			computehopv1.RemoteErrorCode_REMOTE_ERROR_CODE_INVALID_ARGUMENT,
 			"unsupported remote operation",
 		)
 	}
+}
+
+func (handler *RemoteHandler) getJobArtifacts(
+	ctx context.Context,
+	request *computehopv1.GetJobArtifactsRequest,
+) *computehopv1.RemoteResponse {
+	controller, ok := handler.jobs.(RemoteArtifactController)
+	if !ok {
+		return remoteErrorResponse(ErrArtifactsDisabled)
+	}
+	if request == nil {
+		return remoteFailure(computehopv1.RemoteErrorCode_REMOTE_ERROR_CODE_INVALID_ARGUMENT, "artifact request is required")
+	}
+	id, err := job.ParseID(request.GetJobId())
+	if err != nil {
+		return remoteErrorResponse(err)
+	}
+	result, err := controller.ReadArtifacts(ctx, id)
+	if err != nil {
+		return remoteErrorResponse(err)
+	}
+	jobMessage, err := mapper.JobToRemoteProto(result.Job)
+	if err != nil {
+		return remoteErrorResponse(err)
+	}
+	manifest, err := mapper.ManifestToRemoteProto(result.Bundle.Manifest)
+	if err != nil {
+		return remoteErrorResponse(err)
+	}
+	return &computehopv1.RemoteResponse{Result: &computehopv1.RemoteResponse_GetJobArtifacts{
+		GetJobArtifacts: &computehopv1.GetJobArtifactsResponse{
+			Job: jobMessage, Artifacts: manifest,
+			CollectedAtUnixNano: result.Bundle.CollectedAt.UTC().UnixNano(),
+		},
+	}}
+}
+
+func (handler *RemoteHandler) getArtifactChunk(
+	ctx context.Context,
+	request *computehopv1.GetArtifactChunkRequest,
+) *computehopv1.RemoteResponse {
+	controller, ok := handler.jobs.(RemoteArtifactController)
+	if !ok {
+		return remoteErrorResponse(ErrArtifactsDisabled)
+	}
+	if request == nil {
+		return remoteFailure(computehopv1.RemoteErrorCode_REMOTE_ERROR_CODE_INVALID_ARGUMENT, "artifact chunk request is required")
+	}
+	id, err := job.ParseID(request.GetJobId())
+	if err != nil {
+		return remoteErrorResponse(err)
+	}
+	digest, err := snapshot.ParseDigest(request.GetDigest())
+	if err != nil {
+		return remoteErrorResponse(err)
+	}
+	contents, err := controller.ReadArtifactChunk(ctx, id, digest)
+	if err != nil {
+		return remoteErrorResponse(err)
+	}
+	if len(contents) == 0 || len(contents) > snapshot.MaximumChunkBytes || snapshot.Sum(contents) != digest {
+		return remoteErrorResponse(snapshot.ErrInvalidDigest)
+	}
+	return &computehopv1.RemoteResponse{Result: &computehopv1.RemoteResponse_GetArtifactChunk{
+		GetArtifactChunk: &computehopv1.GetArtifactChunkResponse{Digest: string(digest), Data: contents},
+	}}
 }
 
 func (handler *RemoteHandler) submit(
@@ -307,7 +384,7 @@ func remoteErrorResponse(err error) *computehopv1.RemoteResponse {
 		code = computehopv1.RemoteErrorCode_REMOTE_ERROR_CODE_INVALID_ARGUMENT
 		message = err.Error()
 	case errors.Is(err, job.ErrNotFound), errors.Is(err, joblogging.ErrNotFound),
-		errors.Is(err, execution.ErrNotFound):
+		errors.Is(err, execution.ErrNotFound), errors.Is(err, artifact.ErrNotFound):
 		code = computehopv1.RemoteErrorCode_REMOTE_ERROR_CODE_NOT_FOUND
 		message = err.Error()
 	case errors.Is(err, job.ErrConflict), errors.Is(err, execution.ErrNotClaimable),
@@ -318,6 +395,9 @@ func remoteErrorResponse(err error) *computehopv1.RemoteResponse {
 		code = computehopv1.RemoteErrorCode_REMOTE_ERROR_CODE_JOB_TERMINAL
 		message = err.Error()
 	case errors.Is(err, ErrSnapshotsDisabled), errors.Is(err, ErrSnapshotIncomplete):
+		code = computehopv1.RemoteErrorCode_REMOTE_ERROR_CODE_CONFLICT
+		message = err.Error()
+	case errors.Is(err, ErrArtifactsDisabled), errors.Is(err, ErrArtifactsNotReady):
 		code = computehopv1.RemoteErrorCode_REMOTE_ERROR_CODE_CONFLICT
 		message = err.Error()
 	}
