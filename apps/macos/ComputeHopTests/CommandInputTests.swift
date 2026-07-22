@@ -12,6 +12,24 @@ func commandInputSupportsEmptyQuotedArgument() throws {
     #expect(try CommandInput.parse("printf ''") == ["printf", ""])
 }
 
+@Test
+func commandInputFormatsShellCommandWithSafeQuoting() {
+    let command = CommandInput.shellCommand([
+        "computehop",
+        "run",
+        "--on",
+        "Gaming PC",
+        "-o",
+        "build output/app",
+        "--",
+        "echo",
+        "it's ready",
+        "",
+    ])
+
+    #expect(command == "computehop run --on 'Gaming PC' -o 'build output/app' -- echo 'it'\"'\"'s ready' ''")
+}
+
 @Test(arguments: [
     ("", CommandInputError.empty),
     ("echo \\", CommandInputError.trailingEscape),

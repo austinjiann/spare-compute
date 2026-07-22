@@ -27,6 +27,18 @@ func runDisabledReasonExplainsEmptyCommand() {
 
 @Test
 @MainActor
+func runDisabledReasonExplainsInvalidCommandInput() {
+    let model = AppModel(client: RecordingDaemonClient())
+    model.daemon = daemonSummary()
+    model.commandInput = "echo \"unfinished"
+
+    #expect(!model.canSubmitCommand)
+    #expect(model.runDisabledReason == "The command has an unclosed double quote.")
+    #expect(model.runCommandCopyValue == nil)
+}
+
+@Test
+@MainActor
 func runDisabledReasonExplainsMissingRemoteProjectFolder() {
     let worker = runTargetDevice(id: "worker-id", name: "Gaming PC")
     let model = AppModel(client: RecordingDaemonClient(devices: [worker]))
@@ -127,6 +139,61 @@ func submitRemoteCommandCanSkipProjectUpload() async {
     #expect(await client.lastSubmittedOutputs() == [])
     #expect(model.jobs.first?.target == "Auto worker")
     #expect(model.lastError == nil)
+}
+
+@Test
+@MainActor
+func runCommandCopyValueFormatsLocalCommand() {
+    let model = AppModel(client: RecordingDaemonClient())
+    model.daemon = daemonSummary()
+    model.commandInput = "echo 'hello world'"
+    model.workingDirectory = "/Users/austin/My Project"
+    model.outputsInput = "dist/app, report.json"
+
+    #expect(model.runCommandCopyValue == "computehop run -C '/Users/austin/My Project' -o dist/app -o report.json echo 'hello world'")
+}
+
+@Test
+@MainActor
+func runCommandCopyValueFormatsRemoteUtilityCommand() {
+    let worker = runTargetDevice(id: "worker-id", name: "Gaming PC")
+    let model = AppModel(client: RecordingDaemonClient(devices: [worker]))
+    model.daemon = daemonSummary()
+    model.devices = [worker]
+    model.runTargetID = AppModel.automaticWorkerTargetID
+    model.remoteRunWithoutProject = true
+    model.commandInput = "hostname"
+    model.workingDirectory = "/Users/austin/project"
+    model.outputsInput = "ignored.txt"
+
+    #expect(model.runCommandCopyValue == "computehop run --on auto --no-project hostname")
+}
+
+@Test
+@MainActor
+func runCommandCopyValueUsesSeparatorWhenProgramArgumentsLookLikeFlags() {
+    let worker = runTargetDevice(id: "worker-id", name: "Gaming PC")
+    let model = AppModel(client: RecordingDaemonClient(devices: [worker]))
+    model.daemon = daemonSummary()
+    model.devices = [worker]
+    model.runTargetID = worker.id
+    model.commandInput = "cargo build --release"
+    model.workingDirectory = "/Users/austin/project"
+
+    #expect(model.runCommandCopyValue == "computehop run --on 'Gaming PC' -C /Users/austin/project -- cargo build --release")
+}
+
+@Test
+@MainActor
+func copyRunCommandCopiesCurrentCLICommand() {
+    let model = AppModel(client: RecordingDaemonClient())
+    let clipboard = RecordingClipboard()
+    model.daemon = daemonSummary()
+    model.commandInput = "hostname"
+
+    model.copyRunCommand(to: clipboard)
+
+    #expect(clipboard.value == "computehop run hostname")
 }
 
 @Test

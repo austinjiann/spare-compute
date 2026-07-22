@@ -136,6 +136,11 @@ final class AppModel {
         if commandInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return "Enter a command to run."
         }
+        do {
+            _ = try CommandInput.parse(commandInput)
+        } catch {
+            return error.localizedDescription
+        }
         if isAutomaticRunTargetSelected && !canRunAutomatically {
             return automaticWorkerSelectionError().localizedDescription
         }
@@ -156,6 +161,32 @@ final class AppModel {
 
     var runHelpText: String {
         runDisabledReason ?? "Run this command on the selected target."
+    }
+
+    var runCommandCopyValue: String? {
+        guard canSubmitCommand, let arguments = try? CommandInput.parse(commandInput) else {
+            return nil
+        }
+        var command = ["computehop", "run"]
+        if let selector = runTargetCLISelector() {
+            command.append(contentsOf: ["--on", selector])
+        }
+        if isNoProjectRemoteRunSelected {
+            command.append("--no-project")
+        } else {
+            let directory = workingDirectory.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !directory.isEmpty {
+                command.append(contentsOf: ["-C", directory])
+            }
+            for output in declaredOutputs() {
+                command.append(contentsOf: ["-o", output])
+            }
+        }
+        if arguments.contains(where: { $0.hasPrefix("-") }) {
+            command.append("--")
+        }
+        command.append(contentsOf: arguments)
+        return CommandInput.shellCommand(command)
     }
 
     var isRemoteRunTargetSelected: Bool { !runTargetID.isEmpty }
@@ -185,6 +216,11 @@ final class AppModel {
     func copySelectedJobLogsCommand(to clipboard: ClipboardWriting) {
         guard let selectedJobLogsCommand else { return }
         clipboard.write(selectedJobLogsCommand)
+    }
+
+    func copyRunCommand(to clipboard: ClipboardWriting) {
+        guard let runCommandCopyValue else { return }
+        clipboard.write(runCommandCopyValue)
     }
 
     func refreshLoop() async {
@@ -295,9 +331,7 @@ final class AppModel {
             let targetName = automaticTarget ? "Auto worker" : targetDevice?.name ?? "This Mac"
             let directory = workingDirectory.trimmingCharacters(in: .whitespacesAndNewlines)
             let noProjectRemoteRun = isNoProjectRemoteRunSelected
-            let outputs = noProjectRemoteRun ? [] : outputsInput.split(separator: ",", omittingEmptySubsequences: true)
-                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                .filter { !$0.isEmpty }
+            let outputs = noProjectRemoteRun ? [] : declaredOutputs()
             let effectiveDirectory: String
             if noProjectRemoteRun {
                 effectiveDirectory = ""
@@ -434,6 +468,24 @@ final class AppModel {
 
     private func automaticWorkerSelectionError() -> AppActionError {
         runnableDevices.isEmpty ? .noRunnableWorker : .automaticWorkerAmbiguous
+    }
+
+    private func runTargetCLISelector() -> String? {
+        if isAutomaticRunTargetSelected {
+            return Self.automaticWorkerTargetID
+        }
+        guard !runTargetID.isEmpty else { return nil }
+        guard let device = runnableDevices.first(where: { $0.id == runTargetID }) else {
+            return runTargetID
+        }
+        let matchingNameCount = runnableDevices.filter { $0.name == device.name }.count
+        return matchingNameCount == 1 ? device.name : device.id
+    }
+
+    private func declaredOutputs() -> [String] {
+        outputsInput.split(separator: ",", omittingEmptySubsequences: true)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
     }
 
     private func perform(_ action: String, operation: () async throws -> Void) async {

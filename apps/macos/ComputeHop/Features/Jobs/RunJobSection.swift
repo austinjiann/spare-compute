@@ -1,6 +1,13 @@
 import AppKit
 import SwiftUI
 
+private struct RunJobClipboardWriter: ClipboardWriting {
+    func write(_ value: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(value, forType: .string)
+    }
+}
+
 struct RunJobSection: View {
     @Bindable var model: AppModel
 
@@ -82,6 +89,12 @@ struct RunJobSection: View {
                     model.actionInProgress != nil
                 )
                 .help(model.smokeTestHelpText)
+                if model.runCommandCopyValue != nil {
+                    Button("Copy CLI") {
+                        model.copyRunCommand(to: RunJobClipboardWriter())
+                    }
+                    .help("Copy the equivalent Terminal command.")
+                }
                 Button("Run") {
                     Task { await model.submitCommand() }
                 }

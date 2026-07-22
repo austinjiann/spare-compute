@@ -102,4 +102,17 @@ enum CommandInput {
         }
         return arguments
     }
+
+    static func shellCommand(_ arguments: [String]) -> String {
+        arguments.map(shellArgument).joined(separator: " ")
+    }
+
+    private static func shellArgument(_ value: String) -> String {
+        guard !value.isEmpty else { return "''" }
+        let safeCharacters = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_./:@%+=,")
+        if value.unicodeScalars.allSatisfy({ safeCharacters.contains($0) }) {
+            return value
+        }
+        return "'" + value.replacingOccurrences(of: "'", with: "'\"'\"'") + "'"
+    }
 }
