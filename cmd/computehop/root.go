@@ -1254,14 +1254,14 @@ func printWaitingConnectPairings(stdout io.Writer, pairings []trust.Pairing) err
 		return err
 	}
 	writer := tabwriter.NewWriter(stdout, 0, 4, 2, ' ', 0)
-	if _, err := fmt.Fprintln(writer, "ID\tDEVICE\tCODE\tLOCAL\tREMOTE\tEXPIRES"); err != nil {
+	if _, err := fmt.Fprintln(writer, "ID\tDEVICE\tCODE\tTHIS DEVICE\tOTHER DEVICE\tEXPIRES"); err != nil {
 		return err
 	}
 	for _, value := range pairings {
 		if _, err := fmt.Fprintf(
 			writer, "%s\t%s\t%s\t%s\t%s\t%s\n",
 			value.ID.Short(), value.PeerName, value.Verification,
-			yesNo(value.LocalConfirmed), yesNo(value.RemoteConfirmed),
+			confirmationStatus(value.LocalConfirmed), confirmationStatus(value.RemoteConfirmed),
 			value.ExpiresAt.Format(time.RFC3339),
 		); err != nil {
 			return err
@@ -1292,6 +1292,13 @@ func printWaitingConnectPairings(stdout io.Writer, pairings []trust.Pairing) err
 	}
 	_, err := fmt.Fprintln(stdout, "- If one code does not match, reject it with: computehop connect reject <id>")
 	return err
+}
+
+func confirmationStatus(confirmed bool) string {
+	if confirmed {
+		return "confirmed"
+	}
+	return "not yet"
 }
 
 func newPairDecisionCommand(

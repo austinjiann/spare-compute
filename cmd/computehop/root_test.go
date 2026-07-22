@@ -2540,9 +2540,12 @@ func TestConnectCommandWithoutDeviceShowsWaitingPairingBeforeDevices(t *testing.
 	}
 	for _, want := range []string{
 		"Connection request waiting",
+		"THIS DEVICE",
+		"OTHER DEVICE",
 		value.ID.Short(),
 		value.PeerName,
 		string(value.Verification),
+		"not yet",
 		"Compare the exact code on both devices",
 		"computehop connect confirm",
 		"computehop connect reject",
