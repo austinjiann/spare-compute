@@ -18,7 +18,10 @@ struct PairingSection: View {
                         Text(pairing.verificationCode)
                             .font(.system(.body, design: .monospaced, weight: .semibold))
                             .textSelection(.enabled)
-                        Text("Confirm only if this exact code appears on both devices.")
+                        Text(pairing.confirmationStatusText)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        Text(pairing.instructionText)
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                         HStack {

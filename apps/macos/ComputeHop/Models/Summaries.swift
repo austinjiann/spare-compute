@@ -268,6 +268,8 @@ struct PairingSummary: Identifiable, Sendable {
     let peerName: String
     let verificationCode: String
     let state: String
+    let localConfirmed: Bool
+    let remoteConfirmed: Bool
     let needsLocalConfirmation: Bool
 
     init(_ value: Computehop_Local_V1_Pairing) {
@@ -275,8 +277,31 @@ struct PairingSummary: Identifiable, Sendable {
         peerName = value.peerName
         verificationCode = value.verificationCode
         state = pairingStateLabel(value.state)
-        needsLocalConfirmation = value.state == .waiting && !value.localConfirmed
+        localConfirmed = value.localConfirmed
+        remoteConfirmed = value.remoteConfirmed
+        needsLocalConfirmation = value.state == .waiting && !localConfirmed
     }
+
+    var confirmationStatusText: String {
+        "This device: \(confirmationLabel(localConfirmed)) · Other device: \(confirmationLabel(remoteConfirmed))"
+    }
+
+    var instructionText: String {
+        if needsLocalConfirmation && remoteConfirmed {
+            return "The other device already confirmed. Click Codes Match here only if this exact code matches."
+        }
+        if needsLocalConfirmation {
+            return "Confirm only if this exact code appears on both devices."
+        }
+        if state == "Waiting" {
+            return "This device is confirmed. Finish on the other device to complete the connection."
+        }
+        return "Connection state: \(state)"
+    }
+}
+
+private func confirmationLabel(_ confirmed: Bool) -> String {
+    confirmed ? "confirmed" : "not yet"
 }
 
 private func roleLabel(_ role: Computehop_Local_V1_DeviceRole) -> String {
