@@ -840,6 +840,68 @@ func TestJobsCommandPrintsDurableJobs(t *testing.T) {
 	}
 }
 
+func TestJobsCommandEmptyLocalHistoryPrintsNextSteps(t *testing.T) {
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+				if request.GetListJobs().GetDeviceSelector() != "" {
+					t.Fatalf("device selector = %q", request.GetListJobs().GetDeviceSelector())
+				}
+				return &localv1.Response{Result: &localv1.Response_ListJobs{
+					ListJobs: &localv1.ListJobsResponse{},
+				}}, nil
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"jobs"})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	for _, want := range []string{
+		"No jobs.",
+		"Next:",
+		"computehop run hostname",
+		"computehop smoke",
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
+		}
+	}
+}
+
+func TestJobsCommandEmptyWorkerHistoryPrintsTargetedNextSteps(t *testing.T) {
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+				if request.GetListJobs().GetDeviceSelector() != "Gaming PC" {
+					t.Fatalf("device selector = %q", request.GetListJobs().GetDeviceSelector())
+				}
+				return &localv1.Response{Result: &localv1.Response_ListJobs{
+					ListJobs: &localv1.ListJobsResponse{},
+				}}, nil
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"jobs", "--on", "Gaming PC"})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	for _, want := range []string{
+		"No jobs for Gaming PC.",
+		"Next:",
+		"computehop smoke --on 'Gaming PC'",
+		"computehop run --on 'Gaming PC' --no-project hostname",
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
+		}
+	}
+}
+
 func TestDevicesCommandPrintsNearbyDevicesAsNotConnected(t *testing.T) {
 	presenceID, err := device.NewPresenceID(bytes.NewReader(make([]byte, 16)))
 	if err != nil {

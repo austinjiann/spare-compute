@@ -2178,8 +2178,7 @@ computehop jobs --on "Gaming PC" --limit 25`),
 				return fmt.Errorf("%w: missing job list result", ErrInvalidDaemonResponse)
 			}
 			if len(result.GetJobs()) == 0 {
-				_, err = fmt.Fprintln(stdout, "No jobs.")
-				return err
+				return printNoJobs(stdout, deviceSelector)
 			}
 
 			writer := tabwriter.NewWriter(stdout, 0, 4, 2, ' ', 0)
@@ -2210,6 +2209,37 @@ computehop jobs --on "Gaming PC" --limit 25`),
 	command.Flags().Uint32Var(&limit, "limit", 100, "maximum jobs to return")
 	addDeviceSelectorFlags(command, &deviceSelector)
 	return command
+}
+
+func printNoJobs(stdout io.Writer, deviceSelector string) error {
+	selector := strings.TrimSpace(deviceSelector)
+	if selector == "" {
+		for _, line := range []string{
+			"No jobs.",
+			"",
+			"Next:",
+			"- Run a local test job: computehop run hostname",
+			"- Test a connected worker: computehop smoke",
+		} {
+			if _, err := fmt.Fprintln(stdout, line); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	selectorArg := shellArg(selector)
+	for _, line := range []string{
+		"No jobs for " + deviceSelectorDisplay(selector) + ".",
+		"",
+		"Next:",
+		"- Run a worker smoke test: computehop smoke --on " + selectorArg,
+		"- Submit a remote utility job: computehop run --on " + selectorArg + " --no-project hostname",
+	} {
+		if _, err := fmt.Fprintln(stdout, line); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func newCancelCommand(

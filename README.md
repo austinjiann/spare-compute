@@ -198,8 +198,10 @@ submitted remote job ID to the pinned worker identity. That mapping lets
 `logs` and `cancel` reconnect without `--on`, including after an orchestrator
 daemon restart. `--on` remains an explicit override and is still required to
 browse a worker's complete history with `jobs`; job lists are not aggregated
-yet. `--on auto` is a first scheduler step: it selects the only active paired
-worker, or asks you to choose when there are none or multiple. The older
+yet. Empty local or selected-worker job lists print the next smoke-test or run
+command instead of stopping at `No jobs.`. `--on auto` is a first scheduler
+step: it selects the only active paired worker, or asks you to choose when
+there are none or multiple. The older
 `--device` spelling remains a hidden compatibility alias. Jobs
 submitted by an older build have no placement record and still require an
 explicit selector.
