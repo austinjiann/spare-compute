@@ -119,7 +119,8 @@ firewall, bootstrap, install, TURN credential, and smoke-test checklist for the
 one-VPS stack.
 Pass `--connectivity-domain`, `--turn-domain`, `--email`, and `--public-ip` to
 print the checklist with your actual VPS values instead of the example values.
-`doctor` is the quickest manual smoke-check: it is
+The first-run and doctor guidance prefers the packaged macOS worker installer
+and labels raw `go run` daemon commands as development-only. `doctor` is the quickest manual smoke-check: it is
 safe to run before the daemon is up, prints exact start/install commands when
 ComputeHop is not running, and otherwise verifies daemon reachability, LAN
 discovery, paired-device counts, reachable workers, and nearby unpaired devices

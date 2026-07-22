@@ -373,8 +373,9 @@ func printSetupGuide(stdout io.Writer) error {
 		"2. Check this computer:",
 		"   computehop doctor",
 		"",
-		"3. Start ComputeHop on another computer on the same LAN:",
-		"   go run ./cmd/computehopd --role worker --device-name \"Gaming PC\"",
+		"3. Install a worker on another Mac on the same LAN:",
+		"   ./packaging/macos/install.sh --role worker --device-name \"Gaming PC\"",
+		"   # Development-only alternative: go run ./cmd/computehopd --role worker --device-name \"Gaming PC\"",
 		"",
 		"4. Connect devices:",
 		"   computehop connect",
@@ -1141,7 +1142,13 @@ func printDoctorDevices(stdout io.Writer, result *localv1.ListDevicesResponse) e
 	default:
 		if _, err := fmt.Fprintln(
 			stdout,
-			"- Start ComputeHop on another computer on the same LAN: go run ./cmd/computehopd --role worker --device-name \"Gaming PC\"",
+			"- Install a worker on another Mac on the same LAN: ./packaging/macos/install.sh --role worker --device-name \"Gaming PC\"",
+		); err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintln(
+			stdout,
+			"- Development-only alternative: go run ./cmd/computehopd --role worker --device-name \"Gaming PC\"",
 		); err != nil {
 			return err
 		}

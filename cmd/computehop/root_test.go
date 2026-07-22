@@ -984,6 +984,63 @@ func TestDoctorCommandSuggestsRemoteSmokeTestForConnectedWorker(t *testing.T) {
 	}
 }
 
+func TestDoctorCommandPrefersInstallerForMissingWorkers(t *testing.T) {
+	identity, err := device.GenerateIdentity(bytes.NewReader(bytes.Repeat([]byte{31}, 64)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var calls int
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+				calls++
+				switch calls {
+				case 1:
+					if request.GetPing() == nil {
+						t.Fatalf("first request = %#v", request)
+					}
+					return &localv1.Response{Result: &localv1.Response_Ping{
+						Ping: &localv1.PingResponse{
+							DaemonVersion: "dev",
+							DeviceId:      string(identity.ID()),
+							DeviceName:    "Austin MacBook 1",
+							Role:          localv1.DeviceRole_DEVICE_ROLE_ORCHESTRATOR,
+						},
+					}}, nil
+				case 2:
+					if request.GetListDevices() == nil {
+						t.Fatalf("second request = %#v", request)
+					}
+					return &localv1.Response{Result: &localv1.Response_ListDevices{
+						ListDevices: &localv1.ListDevicesResponse{
+							DiscoveryState: localv1.DiscoveryState_DISCOVERY_STATE_AVAILABLE,
+						},
+					}}, nil
+				default:
+					t.Fatalf("unexpected call %d", calls)
+					return nil, nil
+				}
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"doctor"})
+	if err := command.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"Install a worker on another Mac",
+		"./packaging/macos/install.sh --role worker --device-name \"Gaming PC\"",
+		"Development-only alternative: go run ./cmd/computehopd --role worker",
+		"Then run: computehop devices",
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
+		}
+	}
+}
+
 func TestDoctorCommandSuggestsPairingNearbyWorker(t *testing.T) {
 	presenceID, err := device.NewPresenceID(bytes.NewReader(bytes.Repeat([]byte{18}, 16)))
 	if err != nil {
@@ -1116,6 +1173,8 @@ func TestSetupCommandPrintsFirstRunChecklistWithoutDaemon(t *testing.T) {
 		"ComputeHop setup",
 		"make install-macos",
 		"computehop doctor",
+		"./packaging/macos/install.sh --role worker --device-name \"Gaming PC\"",
+		"Development-only alternative: go run ./cmd/computehopd --role worker",
 		"computehop connect auto",
 		"computehop connect <device>",
 		"computehop run --on auto hostname",
