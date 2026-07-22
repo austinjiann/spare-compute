@@ -2055,6 +2055,7 @@ func TestSetupVPSCommandPrintsDeploymentChecklistWithoutDaemon(t *testing.T) {
 		"connect.example.com -> 203.0.113.10",
 		"turn.example.com -> 203.0.113.10",
 		"Allow TCP 80/443, UDP 443, TCP/UDP 3478, UDP 49160-49200",
+		"ssh root@203.0.113.10",
 		"sudo ./deploy/vps/bootstrap-ubuntu.sh",
 		"./deploy/vps/init.sh --connectivity-domain connect.example.com",
 		"docker compose --project-directory deploy/vps up -d --build",

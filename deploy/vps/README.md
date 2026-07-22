@@ -49,6 +49,9 @@ At the provider firewall, allow inbound TCP 22 from your own IP, TCP 80 and
 the VPS and run the included Ubuntu bootstrap once:
 
 ```bash
+ssh root@203.0.113.10
+git clone https://github.com/austinjiann/spare-compute.git
+cd spare-compute
 sudo ./deploy/vps/bootstrap-ubuntu.sh
 ```
 
