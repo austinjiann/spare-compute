@@ -558,12 +558,32 @@ func newPairDecisionCommand(
 				return fmt.Errorf("%w: %v", ErrInvalidDaemonResponse, err)
 			}
 			if confirmed {
-				_, err = fmt.Fprintf(stdout, "Confirmed %s locally; state: %s.\n", value.PeerName, value.State)
-			} else {
-				_, err = fmt.Fprintf(stdout, "Rejected pairing with %s.\n", value.PeerName)
+				return printConfirmationResult(stdout, command, value)
 			}
+			_, err = fmt.Fprintf(stdout, "Rejected pairing with %s.\n", value.PeerName)
 			return err
 		},
+	}
+}
+
+func printConfirmationResult(stdout io.Writer, command *cobra.Command, value trust.Pairing) error {
+	if command.Parent() == nil || command.Parent().Name() != "connect" {
+		_, err := fmt.Fprintf(stdout, "Confirmed %s locally; state: %s.\n", value.PeerName, value.State)
+		return err
+	}
+	switch value.State {
+	case trust.PairingPaired:
+		_, err := fmt.Fprintf(stdout, "Connected to %s.\n", value.PeerName)
+		return err
+	case trust.PairingWaiting:
+		if _, err := fmt.Fprintf(stdout, "Confirmed %s on this device.\n", value.PeerName); err != nil {
+			return err
+		}
+		_, err := fmt.Fprintf(stdout, "Finish on the other device with: %s confirm\n", command.Parent().CommandPath())
+		return err
+	default:
+		_, err := fmt.Fprintf(stdout, "Confirmed %s on this device; state: %s.\n", value.PeerName, value.State)
+		return err
 	}
 }
 

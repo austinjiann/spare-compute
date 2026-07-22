@@ -184,8 +184,9 @@ macOS defaults to the `orchestrator` role; Linux and Windows default to
 connection starts from the orchestrator with `computehop connect <device>`.
 Both local CLIs then show the same connection-bound verification code. Compare
 it exactly and run `computehop connect confirm` on both machines; the CLI infers
-the request when only one is actionable and asks for an ID only if there is
-ambiguity. A worker stores at most one active orchestrator pin, while the
+the request when only one is actionable, tells you when the other machine still
+needs confirmation, and asks for an ID only if there is ambiguity. A worker
+stores at most one active orchestrator pin, while the
 orchestrator may store multiple workers. `computehop unpair` durably revokes the
 selected local pin; connecting again is explicit. Remote job connections use a
 separate protocol on the same QUIC listener, pin both endpoint identities, and

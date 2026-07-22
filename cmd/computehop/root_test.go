@@ -1124,7 +1124,55 @@ func TestConnectConfirmInfersTheOnlyActionableRequest(t *testing.T) {
 	if err := command.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	if got := stdout.String(); got != "Confirmed Gaming PC locally; state: waiting.\n" {
+	want := "Confirmed Gaming PC on this device.\nFinish on the other device with: computehop connect confirm\n"
+	if got := stdout.String(); got != want {
+		t.Fatalf("stdout = %q", got)
+	}
+}
+
+func TestConnectConfirmPrintsConnectedWhenBothDevicesConfirmed(t *testing.T) {
+	value := cliPairingForTest(t)
+	waiting, err := mapper.PairingToProto(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pairedValue := value
+	pairedValue.LocalConfirmed = true
+	pairedValue.RemoteConfirmed = true
+	pairedValue.State = trust.PairingPaired
+	paired, err := mapper.PairingToProto(pairedValue)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var calls int
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+				calls++
+				switch calls {
+				case 1:
+					return &localv1.Response{Result: &localv1.Response_ListPairings{
+						ListPairings: &localv1.ListPairingsResponse{Pairings: []*localv1.Pairing{waiting}},
+					}}, nil
+				case 2:
+					return &localv1.Response{Result: &localv1.Response_ConfirmPairing{
+						ConfirmPairing: &localv1.ConfirmPairingResponse{Pairing: paired},
+					}}, nil
+				default:
+					t.Fatalf("unexpected call %d", calls)
+					return nil, nil
+				}
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"connect", "confirm"})
+	if err := command.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if got := stdout.String(); got != "Connected to Gaming PC.\n" {
 		t.Fatalf("stdout = %q", got)
 	}
 }
