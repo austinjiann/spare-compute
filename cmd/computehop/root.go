@@ -94,6 +94,10 @@ connected, not connected, or revoked. AVAILABILITY and PATH explain whether a
 connected device is currently reachable over LAN, direct internet/STUN, TURN
 relay, or LAN only.
 
+After the table, devices prints the next command to try for the current state:
+install a worker, connect a nearby worker, choose a run target, smoke-test a
+connected worker, or fix offline connectivity.
+
 Use this before connecting, disconnecting, or choosing a run target.`),
 		Example: strings.TrimSpace(`computehop devices
 computehop connect nearby
@@ -121,7 +125,7 @@ computehop disconnect "Gaming PC"`),
 						return err
 					}
 					if len(result.GetTrustedDevices()) == 0 {
-						return nil
+						return printDevicesNextStep(stdout, devicesNextStepSummary{})
 					}
 				}
 			case localv1.DiscoveryState_DISCOVERY_STATE_UNAVAILABLE:
@@ -137,8 +141,10 @@ computehop disconnect "Gaming PC"`),
 				return fmt.Errorf("%w: invalid discovery state", ErrInvalidDaemonResponse)
 			}
 			if len(result.GetDevices()) == 0 && len(result.GetTrustedDevices()) == 0 {
-				_, err = fmt.Fprintln(stdout, "No connected or nearby devices.")
-				return err
+				if _, err = fmt.Fprintln(stdout, "No connected or nearby devices."); err != nil {
+					return err
+				}
+				return printDevicesNextStep(stdout, devicesNextStepSummary{})
 			}
 
 			trustedPeers := make([]trust.Peer, 0, len(result.GetTrustedDevices()))
@@ -177,6 +183,7 @@ computehop disconnect "Gaming PC"`),
 				return err
 			}
 			matchedNearby := make(map[int]bool)
+			nextStep := devicesNextStepSummary{hasDevices: len(result.GetDevices()) > 0 || len(result.GetTrustedDevices()) > 0}
 			for _, peer := range trustedPeers {
 				availability := "offline"
 				path := "—"
@@ -217,6 +224,7 @@ computehop disconnect "Gaming PC"`),
 						updatedAt = time.Unix(0, message.GetConnectivityUpdatedAtUnixNano()).UTC()
 					}
 				}
+				nextStep.addTrustedPeer(peer, availability, path)
 				if _, err := fmt.Fprintf(
 					writer, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 					peer.Name, peer.DeviceID.Short(), trustStateLabel(peer.State), peer.Role, availability, path, address,
@@ -229,6 +237,7 @@ computehop disconnect "Gaming PC"`),
 				if matchedNearby[index] {
 					continue
 				}
+				nextStep.addNearbyDevice(nearby)
 				if _, err := fmt.Fprintf(
 					writer,
 					"%s\t%s\tnot connected\t%s\t%s\tLAN\t%s\t%s\n",
@@ -238,8 +247,117 @@ computehop disconnect "Gaming PC"`),
 					return err
 				}
 			}
-			return writer.Flush()
+			if err := writer.Flush(); err != nil {
+				return err
+			}
+			return printDevicesNextStep(stdout, nextStep)
 		},
+	}
+}
+
+type devicesNextStepSummary struct {
+	hasDevices             bool
+	pairableWorkers        int
+	reachableWorkers       int
+	connectingWorkers      int
+	offlineWorkers         int
+	lanOnlyOfflineWorkers  int
+	revokedWorkerRecords   int
+	nonWorkerDeviceRecords int
+}
+
+func (summary *devicesNextStepSummary) addTrustedPeer(peer trust.Peer, availability string, path string) {
+	if peer.Role != device.RoleWorker {
+		summary.nonWorkerDeviceRecords++
+		return
+	}
+	switch peer.State {
+	case trust.StateActive:
+		switch availability {
+		case "nearby", "remote":
+			summary.reachableWorkers++
+		case "connecting":
+			summary.connectingWorkers++
+		default:
+			summary.offlineWorkers++
+			if path == "LAN only" {
+				summary.lanOnlyOfflineWorkers++
+			}
+		}
+	case trust.StateRevoked:
+		summary.revokedWorkerRecords++
+	}
+}
+
+func (summary *devicesNextStepSummary) addNearbyDevice(nearby nearbyDeviceView) {
+	if nearby.role == string(device.RoleWorker) {
+		summary.pairableWorkers++
+		return
+	}
+	summary.nonWorkerDeviceRecords++
+}
+
+func printDevicesNextStep(stdout io.Writer, summary devicesNextStepSummary) error {
+	lines := devicesNextStepLines(summary)
+	if len(lines) == 0 {
+		return nil
+	}
+	if _, err := fmt.Fprintln(stdout); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(stdout, "Next:"); err != nil {
+		return err
+	}
+	for _, line := range lines {
+		if _, err := fmt.Fprintf(stdout, "- %s\n", line); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func devicesNextStepLines(summary devicesNextStepSummary) []string {
+	switch {
+	case summary.reachableWorkers == 1:
+		return []string{
+			"Run a worker smoke test: computehop smoke",
+			"Run a command on the worker: computehop run --on auto hostname",
+		}
+	case summary.reachableWorkers > 1:
+		return []string{
+			"Choose a worker for a smoke test: computehop smoke --on <device>",
+			"Choose a worker for a command: computehop run --on <device> hostname",
+		}
+	case summary.pairableWorkers == 1:
+		return []string{
+			"Connect the nearby worker: computehop connect nearby",
+			"Confirm on both devices: computehop connect confirm",
+		}
+	case summary.pairableWorkers > 1:
+		return []string{
+			"Choose a worker to connect: computehop connect <device>",
+			"Use the NAME or IDENTIFIER from the table, then run: computehop connect confirm",
+		}
+	case summary.lanOnlyOfflineWorkers > 0:
+		return []string{
+			"Put LAN-only workers on the same LAN, or reinstall them with VPS connectivity after the VPS is ready.",
+			"VPS worker template: computehop setup worker --device-name 'Gaming PC' --connectivity-domain connect.example.com --turn-domain turn.example.com",
+		}
+	case summary.connectingWorkers > 0:
+		return []string{
+			"Wait for remote connectivity to finish, then run: computehop smoke",
+			"Refresh this list: computehop devices",
+		}
+	case summary.offlineWorkers > 0 || summary.revokedWorkerRecords > 0 || summary.hasDevices:
+		return []string{
+			"Start ComputeHop on the worker, put both devices on the same LAN, or check VPS connectivity.",
+			"Look for setup issues: computehop doctor",
+		}
+	default:
+		return []string{
+			"Install a worker on another Mac: computehop setup worker --device-name 'Gaming PC'",
+			"Then connect it from this Mac: computehop connect nearby",
+		}
 	}
 }
 

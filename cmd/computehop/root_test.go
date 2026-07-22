@@ -875,7 +875,10 @@ func TestDevicesCommandPrintsNearbyDevicesAsNotConnected(t *testing.T) {
 	if err := command.Execute(); err != nil {
 		t.Fatalf("Execute() error = %v", err)
 	}
-	for _, want := range []string{"Gaming PC", presenceID.Short(), "not connected", "worker", "192.0.2.20 (discovery only)", "2026-07-19T12:00:00Z"} {
+	for _, want := range []string{
+		"Gaming PC", presenceID.Short(), "not connected", "worker", "192.0.2.20 (discovery only)", "2026-07-19T12:00:00Z",
+		"Next:", "computehop connect nearby", "computehop connect confirm",
+	} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
 		}
@@ -908,11 +911,68 @@ func TestDevicesCommandPrintsConnectedAndNearbyEmptyState(t *testing.T) {
 	if err := command.Execute(); err != nil {
 		t.Fatalf("Execute() error = %v", err)
 	}
-	if got, want := strings.TrimSpace(stdout.String()), "No connected or nearby devices."; got != want {
-		t.Fatalf("stdout = %q, want %q", got, want)
+	for _, want := range []string{
+		"No connected or nearby devices.",
+		"Next:",
+		"computehop setup worker --device-name 'Gaming PC'",
+		"computehop connect nearby",
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
+		}
 	}
 	if stderr.Len() != 0 {
 		t.Fatalf("stderr = %q", stderr.String())
+	}
+}
+
+func TestDevicesCommandSuggestsExplicitConnectForMultipleNearbyWorkers(t *testing.T) {
+	firstPresence, err := device.NewPresenceID(bytes.NewReader(bytes.Repeat([]byte{30}, 16)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondPresence, err := device.NewPresenceID(bytes.NewReader(bytes.Repeat([]byte{31}, 16)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := time.Date(2026, time.July, 19, 12, 5, 0, 0, time.UTC)
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout,
+		stderr: &bytes.Buffer{},
+		getwd:  func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(context.Context, *localv1.Request) (*localv1.Response, error) {
+				return &localv1.Response{Result: &localv1.Response_ListDevices{
+					ListDevices: &localv1.ListDevicesResponse{
+						DiscoveryState: localv1.DiscoveryState_DISCOVERY_STATE_AVAILABLE,
+						Devices: []*localv1.NearbyDevice{
+							{
+								PresenceId: string(firstPresence), Name: "Gaming PC",
+								Role: localv1.DeviceRole_DEVICE_ROLE_WORKER, Addresses: []string{"192.0.2.20"},
+								LastSeenAtUnixNano: seen.UnixNano(),
+								TrustState:         localv1.DeviceTrustState_DEVICE_TRUST_STATE_UNPAIRED,
+							},
+							{
+								PresenceId: string(secondPresence), Name: "Mini PC",
+								Role: localv1.DeviceRole_DEVICE_ROLE_WORKER, Addresses: []string{"192.0.2.21"},
+								LastSeenAtUnixNano: seen.Add(time.Second).UnixNano(),
+								TrustState:         localv1.DeviceTrustState_DEVICE_TRUST_STATE_UNPAIRED,
+							},
+						},
+					},
+				}}, nil
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"devices"})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	for _, want := range []string{"Gaming PC", "Mini PC", "Next:", "computehop connect <device>", "NAME or IDENTIFIER"} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
+		}
 	}
 }
 
@@ -967,7 +1027,7 @@ func TestDevicesCommandCombinesOneTrustedPeerWithItsNearbyPresence(t *testing.T)
 	if strings.Count(output, "Gaming PC") != 1 {
 		t.Fatalf("stdout contains duplicate device rows: %q", output)
 	}
-	for _, want := range []string{identity.ID().Short(), "connected", "nearby", "192.0.2.20:47823"} {
+	for _, want := range []string{identity.ID().Short(), "connected", "nearby", "192.0.2.20:47823", "Next:", "computehop smoke", "computehop run --on auto hostname"} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("stdout %q does not contain %q", output, want)
 		}
@@ -1092,7 +1152,7 @@ func TestDevicesCommandShowsRemotePathForOfflineLANPeer(t *testing.T) {
 	if err := command.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"Remote PC", "remote", "direct (STUN)", "2026-07-22T07:00:00Z"} {
+	for _, want := range []string{"Remote PC", "remote", "direct (STUN)", "2026-07-22T07:00:00Z", "computehop smoke"} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
 		}
@@ -1137,7 +1197,7 @@ func TestDevicesCommandShowsLANOnlyForDisabledRemoteConnectivity(t *testing.T) {
 	if err := command.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"LAN Worker", "offline", "LAN only"} {
+	for _, want := range []string{"LAN Worker", "offline", "LAN only", "same LAN", "computehop setup worker --device-name 'Gaming PC' --connectivity-domain connect.example.com --turn-domain turn.example.com"} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
 		}
@@ -2062,6 +2122,7 @@ func TestCoreCommandHelpShowsFriendlyExamplesWithoutDaemon(t *testing.T) {
 				"List devices ComputeHop knows about.",
 				"CONNECTION column",
 				"LAN only",
+				"prints the next command to try",
 				"computehop connect nearby",
 				"computehop disconnect \"Gaming PC\"",
 			},
