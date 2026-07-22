@@ -180,10 +180,20 @@ fi
 if launchctl print "$launch_domain/$service_label" >/dev/null 2>&1; then
     service_was_loaded=true
     launchctl bootout "$launch_domain/$service_label"
-elif "$built_cli" status >/dev/null 2>&1; then
-    echo "A manually started computehopd is already running." >&2
-    echo "Stop it with Ctrl-C, then run this installer again." >&2
-    exit 1
+else
+    status_output=$("$built_cli" status 2>&1) && {
+        echo "A manually started computehopd is already running." >&2
+        echo "Stop it with Ctrl-C, then run this installer again." >&2
+        exit 1
+    }
+    case "$status_output" in
+        *"ComputeHop daemon does not match this CLI"*)
+            echo "A manually started computehopd from another build is already running." >&2
+            echo "Stop its terminal with Ctrl-C, or run make uninstall-macos if it came from the development app." >&2
+            echo "Then run this installer again." >&2
+            exit 1
+            ;;
+    esac
 fi
 
 expected_cli_target="$app_target/Contents/Resources/bin/computehop"

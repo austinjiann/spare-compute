@@ -70,13 +70,13 @@ then starts at login in the selected role and writes diagnostics to
 `~/Library/Logs/ComputeHop/daemon.log`. Before bootstrapping launchd, the
 installer validates the rewritten launch-agent label, daemon path, selected
 role, log paths, and working directory. If a manually started daemon is already
-using the ComputeHop socket or UDP port, the installer asks you to stop it
-instead of killing it. After installation, the script prints role-specific next
-steps: orchestrator installs get `doctor`, `connect nearby`, and smoke-test
-commands; worker installs tell you what to run on the orchestrator and how to
-confirm the pairing locally. Pass `--lan-only` when you want the launch agent
-to ignore hosted rendezvous, ICE, and TURN settings and use same-LAN discovery
-only.
+using the ComputeHop socket or UDP port, including a daemon from a different
+development build, the installer asks you to stop it instead of killing it.
+After installation, the script prints role-specific next steps: orchestrator
+installs get `doctor`, `connect nearby`, and smoke-test commands; worker
+installs tell you what to run on the orchestrator and how to confirm the pairing
+locally. Pass `--lan-only` when you want the launch agent to ignore hosted
+rendezvous, ICE, and TURN settings and use same-LAN discovery only.
 
 The current daemon integration attempts LAN first, then a direct ICE path using
 the configured rendezvous and STUN services unless installed with `--lan-only`.
