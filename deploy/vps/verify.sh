@@ -24,4 +24,5 @@ docker compose exec -T coturn turnutils_stunclient -p 3478 127.0.0.1
 docker compose exec -T coturn /bin/sh -c \
   'exec turnutils_uclient -p 3478 -W "$(tr -d "\r\n" < /run/secrets/turn_shared_secret)" -v -y 127.0.0.1'
 printf 'Local STUN and authenticated TURN allocation passed.\n'
+printf 'Generate client TURN credentials with ./turn-credentials.sh when you are ready to test relay fallback.\n'
 printf 'Test from another network and force a relayed ComputeHop session before launch.\n'

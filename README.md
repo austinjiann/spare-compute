@@ -21,7 +21,7 @@ TURN. A bounded Pion ICE path layer now gathers and selects direct or relayed
 UDP candidates and exchanges versioned descriptions through encrypted
 rendezvous presence. Daemons can now supervise active pair records and run the
 existing identity-pinned QUIC control protocol over a selected path; job
-routing prefers LAN and falls back to a ready direct ICE path. Remote jobs now
+routing prefers LAN and falls back to a ready direct or relayed ICE path. Remote jobs now
 snapshot the local project, transfer only content chunks missing from the
 worker, and execute from a fresh worker-owned workspace. Repeating an unchanged
 job reuses the verified worker cache. Jobs can declare output files or folders;
@@ -31,10 +31,11 @@ The verified content cache is persistent, SQLite-indexed, LRU-evicted, and
 bounded to 20GiB by default. Active transfers, running jobs, and output chunks
 that have not yet been successfully restored and acknowledged are protected
 from eviction. Output download and restore progress is stored durably and shown
-through job summaries in the CLI and menu-bar app. Automated local end-to-end
-coverage passes, while physical unrelated-network validation is still open.
-Public TURN relay traffic remains gated on entitlement-backed, quota-limited
-credential issuance.
+through job summaries in the CLI and menu-bar app. Operator-provisioned
+short-lived TURN credentials are available for single-owner forced-relay
+testing. Automated local end-to-end coverage passes, while physical
+unrelated-network validation is still open. Public TURN relay traffic remains
+gated on entitlement-backed, quota-limited credential issuance.
 
 See [`docs/PLAN.md`](docs/PLAN.md) for the product, architecture, security,
 execution, deployment, and launch plan.
@@ -114,7 +115,8 @@ go run ./cmd/computehop --state-dir "$computehop_state_dir" outputs <job-id>
 device name, role, and short device ID when available. `setup` prints the
 first-run local, connection, smoke-test, and one-VPS commands without requiring
 the daemon to be running; `setup vps` expands that into a concrete buy, DNS,
-firewall, bootstrap, install, and smoke-test checklist for the one-VPS stack.
+firewall, bootstrap, install, TURN credential, and smoke-test checklist for the
+one-VPS stack.
 Pass `--connectivity-domain`, `--turn-domain`, `--email`, and `--public-ip` to
 print the checklist with your actual VPS values instead of the example values.
 `doctor` is the quickest manual smoke-check: it is
@@ -226,6 +228,9 @@ boundary. See [`deploy/vps/README.md`](deploy/vps/README.md) for the one-VPS
 staging setup to use after purchasing a host. After DNS is pointed at the VPS,
 `deploy/vps/init.sh` writes the local `.env` file and generates the server-only
 TURN shared secret from the chosen domains, operations email, and public IPv4.
+`deploy/vps/turn-credentials.sh` keeps that shared secret on the VPS and prints
+short-lived TURN username/password installer commands for single-owner
+forced-relay testing.
 
 To build a real local macOS app bundle containing the menu app, CLI, and daemon:
 
@@ -237,8 +242,9 @@ open dist/macos/ComputeHop.app
 After stopping any daemon started manually with `go run`, `make install-macos`
 installs the orchestrator bundle for the current user and configures the daemon
 to start at login. The installer also accepts `--role worker`, `--device-name`,
-`--cache-size`, `--connectivity-url`, and `--stun-server` for a named worker,
-cache tuning, or the one-VPS direct-connectivity setup. This developer package
-is ad-hoc signed, not notarized, and is not yet a
+`--cache-size`, `--connectivity-url`, `--stun-server`, `--turn-server`,
+`--turn-username`, and `--turn-password` for a named worker, cache tuning,
+direct connectivity, or operator-provisioned TURN relay fallback. This developer
+package is ad-hoc signed, not notarized, and is not yet a
 public release artifact. See [`packaging/macos/README.md`](packaging/macos/README.md)
 for install and uninstall behavior.

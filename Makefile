@@ -32,7 +32,7 @@ race:
 	go test -race ./...
 
 deploy-check:
-	sh -n deploy/vps/bootstrap-ubuntu.sh deploy/vps/coturn-entrypoint.sh deploy/vps/init.sh deploy/vps/verify.sh
+	sh -n deploy/vps/bootstrap-ubuntu.sh deploy/vps/coturn-entrypoint.sh deploy/vps/init.sh deploy/vps/turn-credentials.sh deploy/vps/verify.sh
 	@deploy_vps_tmp="$$(mktemp -d)"; \
 	trap 'rm -rf "$$deploy_vps_tmp"' EXIT; \
 	deploy/vps/init.sh --target-dir "$$deploy_vps_tmp" \
@@ -42,7 +42,14 @@ deploy-check:
 		--public-ip 203.0.113.10 >/dev/null; \
 	grep -q '^CONNECTIVITY_DOMAIN=connect.example.com$$' "$$deploy_vps_tmp/.env"; \
 	grep -q '^TURN_REALM=turn.example.com$$' "$$deploy_vps_tmp/.env"; \
-	test "$$(tr -d '\r\n' < "$$deploy_vps_tmp/secrets/turn_shared_secret" | wc -c | tr -d ' ')" -eq 64
+	test "$$(tr -d '\r\n' < "$$deploy_vps_tmp/secrets/turn_shared_secret" | wc -c | tr -d ' ')" -eq 64; \
+	turn_output="$$(deploy/vps/turn-credentials.sh \
+		--env-file "$$deploy_vps_tmp/.env" \
+		--secret-file "$$deploy_vps_tmp/secrets/turn_shared_secret" \
+		--ttl-hours 1 \
+		--label deploycheck)"; \
+	printf '%s\n' "$$turn_output" | grep -Eq '^Username: [0-9]+:deploycheck$$'; \
+	printf '%s\n' "$$turn_output" | grep -q -- 'turn:turn.example.com:3478?transport=udp'
 	cd deploy/vps && TURN_SECRET_FILE=/dev/null docker compose --env-file .env.example config --quiet
 
 macos-package: macos-package-check

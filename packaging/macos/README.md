@@ -42,6 +42,14 @@ orchestrator and every worker by reinstalling with the same endpoint values:
   --stun-server stun:turn.example.com:3478
 ```
 
+For forced-relay testing with the one-VPS stack, generate short-lived TURN
+credentials on the VPS and use the printed installer commands:
+
+```bash
+cd deploy/vps
+./turn-credentials.sh
+```
+
 Use `--role worker` on worker Macs. Reinstalling preserves the state directory,
 pairings, and job history. Pair devices once on the same LAN before separating
 their networks; old pairings created before connectivity-secret support must be

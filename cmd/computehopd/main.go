@@ -50,6 +50,9 @@ type options struct {
 	role            string
 	connectivityURL string
 	stunServers     stringValues
+	turnServers     stringValues
+	turnUsername    string
+	turnPassword    string
 	cacheBytes      int64
 }
 
@@ -277,9 +280,6 @@ func runWithDependencies(
 	}
 	var remoteManager *remoteconn.Manager
 	if parsed.connectivityURL != "" {
-		if len(parsed.stunServers) == 0 {
-			return errors.New("--connectivity-url requires at least one --stun-server")
-		}
 		concreteEndpoint, ok := pairingEndpoint.(*quictransport.Endpoint)
 		if !ok {
 			return errors.New("initialize remote connectivity: endpoint does not support selected packet paths")
@@ -288,9 +288,14 @@ func runWithDependencies(
 		if err != nil {
 			return fmt.Errorf("initialize rendezvous client: %w", err)
 		}
-		iceServers := make([]icepath.Server, 0, len(parsed.stunServers))
+		iceServers := make([]icepath.Server, 0, len(parsed.stunServers)+len(parsed.turnServers))
 		for _, uri := range parsed.stunServers {
 			iceServers = append(iceServers, icepath.Server{URI: uri})
+		}
+		for _, uri := range parsed.turnServers {
+			iceServers = append(iceServers, icepath.Server{
+				URI: uri, Username: parsed.turnUsername, Password: parsed.turnPassword,
+			})
 		}
 		remoteManager, err = remoteconn.NewManager(remoteconn.Config{
 			LocalRole: localRole, Trust: database.Trust(), Client: client,
@@ -477,6 +482,13 @@ func parseOptions(arguments []string, stderr io.Writer) (options, error) {
 		"STUN URI used for direct internet paths; may be repeated",
 	)
 	flags.Var(
+		&parsed.turnServers,
+		"turn-server",
+		"TURN URI used for relay fallback; may be repeated",
+	)
+	flags.StringVar(&parsed.turnUsername, "turn-username", "", "TURN username for all configured TURN servers")
+	flags.StringVar(&parsed.turnPassword, "turn-password", "", "TURN password for all configured TURN servers")
+	flags.Var(
 		&byteSizeValue{target: &parsed.cacheBytes},
 		"cache-size",
 		"maximum verified content cache size (for example 20GiB or 512MB)",
@@ -490,8 +502,15 @@ func parseOptions(arguments []string, stderr io.Writer) (options, error) {
 	if parsed.runnerJob != "" && (parsed.checkOnly || parsed.showVersion) {
 		return options{}, errors.New("--runner-job cannot be combined with --check or --version")
 	}
-	if (parsed.connectivityURL == "") != (len(parsed.stunServers) == 0) {
-		return options{}, errors.New("--connectivity-url and --stun-server must be supplied together")
+	serverCount := len(parsed.stunServers) + len(parsed.turnServers)
+	if (parsed.connectivityURL == "") != (serverCount == 0) {
+		return options{}, errors.New("--connectivity-url and at least one --stun-server or --turn-server must be supplied together")
+	}
+	if len(parsed.turnServers) > 0 && (parsed.turnUsername == "" || parsed.turnPassword == "") {
+		return options{}, errors.New("--turn-server requires --turn-username and --turn-password")
+	}
+	if len(parsed.turnServers) == 0 && (parsed.turnUsername != "" || parsed.turnPassword != "") {
+		return options{}, errors.New("--turn-username and --turn-password require --turn-server")
 	}
 	if err := contentcache.ValidateMaximumBytes(parsed.cacheBytes); err != nil {
 		return options{}, fmt.Errorf("--cache-size: %w", err)

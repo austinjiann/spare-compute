@@ -6,11 +6,15 @@ device_role=orchestrator
 device_name=""
 connectivity_url=""
 stun_server=""
+turn_server=""
+turn_username=""
+turn_password=""
 cache_size=""
 usage() {
     echo "Usage: packaging/macos/install.sh [--no-open] [--role orchestrator|worker]" >&2
     echo "       [--device-name NAME] [--cache-size SIZE]" >&2
     echo "       [--connectivity-url HTTPS_URL --stun-server STUN_URI]" >&2
+    echo "       [--turn-server TURN_URI --turn-username USER --turn-password PASSWORD]" >&2
 }
 while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -38,6 +42,21 @@ while [ "$#" -gt 0 ]; do
             stun_server=$2
             shift 2
             ;;
+        --turn-server)
+            [ "$#" -ge 2 ] || { usage; exit 1; }
+            turn_server=$2
+            shift 2
+            ;;
+        --turn-username)
+            [ "$#" -ge 2 ] || { usage; exit 1; }
+            turn_username=$2
+            shift 2
+            ;;
+        --turn-password)
+            [ "$#" -ge 2 ] || { usage; exit 1; }
+            turn_password=$2
+            shift 2
+            ;;
         --cache-size)
             [ "$#" -ge 2 ] || { usage; exit 1; }
             cache_size=$2
@@ -54,9 +73,17 @@ case "$device_role" in
     orchestrator|worker) ;;
     *) echo "--role must be orchestrator or worker." >&2; exit 1 ;;
 esac
-if { [ -n "$connectivity_url" ] && [ -z "$stun_server" ]; } || \
-    { [ -z "$connectivity_url" ] && [ -n "$stun_server" ]; }; then
-    echo "--connectivity-url and --stun-server must be supplied together." >&2
+if { [ -n "$connectivity_url" ] && [ -z "$stun_server" ] && [ -z "$turn_server" ]; } || \
+    { [ -z "$connectivity_url" ] && { [ -n "$stun_server" ] || [ -n "$turn_server" ]; }; }; then
+    echo "--connectivity-url and at least one --stun-server or --turn-server must be supplied together." >&2
+    exit 1
+fi
+if [ -n "$turn_server" ] && { [ -z "$turn_username" ] || [ -z "$turn_password" ]; }; then
+    echo "--turn-server requires --turn-username and --turn-password." >&2
+    exit 1
+fi
+if [ -z "$turn_server" ] && { [ -n "$turn_username" ] || [ -n "$turn_password" ]; }; then
+    echo "--turn-username and --turn-password require --turn-server." >&2
     exit 1
 fi
 if [ -n "$connectivity_url" ]; then
@@ -64,10 +91,18 @@ if [ -n "$connectivity_url" ]; then
         https://?*) ;;
         *) echo "--connectivity-url must be an HTTPS URL." >&2; exit 1 ;;
     esac
-    case "$stun_server" in
-        stun:*|stuns:*) ;;
-        *) echo "--stun-server must begin with stun: or stuns:." >&2; exit 1 ;;
-    esac
+    if [ -n "$stun_server" ]; then
+        case "$stun_server" in
+            stun:*|stuns:*) ;;
+            *) echo "--stun-server must begin with stun: or stuns:." >&2; exit 1 ;;
+        esac
+    fi
+    if [ -n "$turn_server" ]; then
+        case "$turn_server" in
+            turn:*|turns:*) ;;
+            *) echo "--turn-server must begin with turn: or turns:." >&2; exit 1 ;;
+        esac
+    fi
 fi
 if [ "$(uname -s)" != "Darwin" ]; then
     echo "The macOS installer must run on macOS." >&2
@@ -159,8 +194,18 @@ fi
 if [ -n "$connectivity_url" ]; then
     /usr/bin/plutil -insert ProgramArguments -string "--connectivity-url" -append "$launch_agent_target"
     /usr/bin/plutil -insert ProgramArguments -string "$connectivity_url" -append "$launch_agent_target"
-    /usr/bin/plutil -insert ProgramArguments -string "--stun-server" -append "$launch_agent_target"
-    /usr/bin/plutil -insert ProgramArguments -string "$stun_server" -append "$launch_agent_target"
+    if [ -n "$stun_server" ]; then
+        /usr/bin/plutil -insert ProgramArguments -string "--stun-server" -append "$launch_agent_target"
+        /usr/bin/plutil -insert ProgramArguments -string "$stun_server" -append "$launch_agent_target"
+    fi
+    if [ -n "$turn_server" ]; then
+        /usr/bin/plutil -insert ProgramArguments -string "--turn-server" -append "$launch_agent_target"
+        /usr/bin/plutil -insert ProgramArguments -string "$turn_server" -append "$launch_agent_target"
+        /usr/bin/plutil -insert ProgramArguments -string "--turn-username" -append "$launch_agent_target"
+        /usr/bin/plutil -insert ProgramArguments -string "$turn_username" -append "$launch_agent_target"
+        /usr/bin/plutil -insert ProgramArguments -string "--turn-password" -append "$launch_agent_target"
+        /usr/bin/plutil -insert ProgramArguments -string "$turn_password" -append "$launch_agent_target"
+    fi
 fi
 if [ -n "$cache_size" ]; then
     /usr/bin/plutil -insert ProgramArguments -string "--cache-size" -append "$launch_agent_target"
@@ -195,6 +240,9 @@ echo "Installed ComputeHop in $app_target"
 echo "The $device_role daemon now starts automatically when you log in."
 if [ -n "$connectivity_url" ]; then
     echo "Direct remote connectivity is enabled through $connectivity_url"
+    if [ -n "$turn_server" ]; then
+        echo "TURN relay fallback is configured through $turn_server"
+    fi
 fi
 echo "CLI: $cli_target"
 cli_command="computehop"

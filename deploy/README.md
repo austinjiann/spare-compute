@@ -9,4 +9,5 @@ contain production credentials or device-private state.
 - `vps/` runs the staging rendezvous, HTTPS edge, STUN, and authenticated TURN
   relay together on one small provider-neutral Linux VPS, with an initializer
   that writes the local `.env` and server-only TURN shared secret after the host
-  is purchased.
+  is purchased, plus a helper that derives short-lived operator-provisioned TURN
+  username/password credentials for single-owner relay testing.

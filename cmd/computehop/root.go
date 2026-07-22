@@ -381,6 +381,7 @@ func printSetupGuide(stdout io.Writer) error {
 		"   " + vpsDefaults.initCommand(),
 		"   docker compose up -d --build",
 		"   ./verify.sh",
+		"   ./turn-credentials.sh",
 	}
 	for _, line := range lines {
 		if _, err := fmt.Fprintln(stdout, line); err != nil {
@@ -419,18 +420,20 @@ func printVPSSetupGuide(stdout io.Writer, options vpsSetupOptions) error {
 		"   docker compose config --quiet",
 		"   docker compose up -d --build",
 		"   ./verify.sh",
+		"   ./turn-credentials.sh",
 		"",
 		"On each Mac after pairing once on the LAN:",
 		"   " + options.orchestratorInstallCommand(),
 		"   " + options.workerInstallCommand(),
+		"   # For forced relay testing, use the installer commands printed by ./turn-credentials.sh with --turn-server, --turn-username, and --turn-password.",
 		"",
 		"Smoke test:",
 		"   computehop devices",
 		"   computehop run --on auto hostname",
 		"",
 		"Boundary:",
-		"- This enables rendezvous and direct ICE/STUN paths.",
-		"- Shared TURN relay use still needs short-lived credential issuance and quotas before launch.",
+		"- This enables rendezvous, direct ICE/STUN paths, and operator-provisioned TURN relay testing.",
+		"- Public production relay still needs server-verifiable entitlement and quota enforcement before launch.",
 	}
 	for _, line := range lines {
 		if _, err := fmt.Fprintln(stdout, line); err != nil {

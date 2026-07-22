@@ -101,28 +101,46 @@ computehopd \
   --stun-server stun:turn.example.com:3478
 ```
 
+This enables rendezvous and direct ICE/STUN path selection. For forced-relay
+testing, generate short-lived TURN credentials on the VPS:
+
+```bash
+./turn-credentials.sh
+```
+
+The script reads `.env` plus `secrets/turn_shared_secret`, derives coturn REST
+username/password credentials without printing or copying the shared secret, and
+prints exact macOS installer commands with:
+
+```text
+--turn-server turn:turn.example.com:3478?transport=udp
+--turn-username <expiring-user>
+--turn-password <derived-password>
+```
+
+Reinstall both paired devices with those printed commands, then move one device
+to another network. Use short TTLs for testing and regenerate credentials when
+they expire.
+
 Move one device to another network and run `computehop devices` on the
 orchestrator. A working NAT traversal path appears as `remote` with `direct` or
-`direct (STUN)`. Verify the full path with:
+`direct (STUN)`; relay fallback appears as `relay (TURN)`. Verify the full path
+with:
 
 ```bash
 computehop run --on "Gaming PC" /bin/hostname
 ```
 
-This exercises direct ICE only. Do not copy the coturn shared secret to a
-client to force relay mode.
-
+Do not copy the coturn shared secret to a client to force relay mode.
 `verify.sh` performs an authenticated TURN allocation locally without copying
-the shared secret off the VPS. A production client must receive short-lived
-TURN credentials rather than that shared secret. Issuance is intentionally not
-implemented yet: an anonymous pair route proves that two peers share a secret,
-but anyone can create a new route and therefore it cannot authorize consumption
-of a paid public relay. Before shared staging or production, add a
-server-verifiable, expiring, revocable entitlement with quotas. A single-owner
-self-hosted deployment may instead use operator-provisioned credentials. A
-successful health endpoint and STUN response still do not prove the public
-relay path works, so a
-forced-relay ComputeHop test from another network remains a launch gate.
+the shared secret off the VPS. Operator-provisioned credentials are acceptable
+for a single-owner staging host, but they are not a production entitlement
+system: anyone with a still-valid credential can consume relay bandwidth until
+the credential expires. Before shared staging or production, add a
+server-verifiable, expiring, revocable entitlement with quotas. A successful
+health endpoint and STUN response still do not prove the public relay path
+works, so a forced-relay ComputeHop test from another network remains a launch
+gate.
 
 ## Update and rollback
 
@@ -158,5 +176,7 @@ active pair records, exchanges versioned pair-encrypted ICE descriptions,
 selects a path, and runs the existing identity-pinned QUIC control protocol over
 it. Job routing prefers LAN and falls back to a ready direct internet path.
 Automated and local end-to-end tests pass, but physical unrelated-network
-validation still remains. The hosted service does not issue TURN credentials,
-so relay fallback is not yet enabled for shared staging or production.
+validation still remains. The VPS can generate operator-provisioned TURN
+credentials for single-owner relay testing; shared staging and production still
+need server-verifiable entitlement and quota enforcement before relay fallback
+can be exposed broadly.

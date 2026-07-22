@@ -1047,6 +1047,7 @@ func TestSetupCommandPrintsFirstRunChecklistWithoutDaemon(t *testing.T) {
 		"cd deploy/vps",
 		"./init.sh --connectivity-domain connect.example.com",
 		"./verify.sh",
+		"./turn-credentials.sh",
 	} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
@@ -1077,9 +1078,12 @@ func TestSetupVPSCommandPrintsDeploymentChecklistWithoutDaemon(t *testing.T) {
 		"sudo ./deploy/vps/bootstrap-ubuntu.sh",
 		"./init.sh --connectivity-domain connect.example.com",
 		"docker compose up -d --build",
+		"./turn-credentials.sh",
 		"./packaging/macos/install.sh --role worker",
+		"--turn-server",
 		"computehop run --on auto hostname",
-		"Shared TURN relay use still needs short-lived credential issuance",
+		"operator-provisioned TURN relay testing",
+		"Public production relay still needs server-verifiable entitlement",
 	} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
@@ -1112,6 +1116,7 @@ func TestSetupVPSCommandInterpolatesProvidedValuesWithoutDaemon(t *testing.T) {
 		"./init.sh --connectivity-domain connect.computehop.dev --turn-domain turn.computehop.dev --email ops@computehop.dev --public-ip 198.51.100.25",
 		"--connectivity-url https://connect.computehop.dev",
 		"--stun-server stun:turn.computehop.dev:3478",
+		"./turn-credentials.sh",
 	} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)

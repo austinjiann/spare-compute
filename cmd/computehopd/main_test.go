@@ -410,11 +410,16 @@ func TestParseOptionsAcceptsFriendlyRemoteConnectivityFlags(t *testing.T) {
 		"--connectivity-url", "https://connect.example.com",
 		"--stun-server", "stun:turn-a.example.com:3478",
 		"--stun-server", "stun:turn-b.example.com:3478",
+		"--turn-server", "turn:turn.example.com:3478?transport=udp",
+		"--turn-username", "1800000000:computehop",
+		"--turn-password", "secret",
 	}, &bytes.Buffer{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if parsed.connectivityURL != "https://connect.example.com" || len(parsed.stunServers) != 2 {
+	if parsed.connectivityURL != "https://connect.example.com" || len(parsed.stunServers) != 2 ||
+		len(parsed.turnServers) != 1 || parsed.turnUsername != "1800000000:computehop" ||
+		parsed.turnPassword != "secret" {
 		t.Fatalf("parsed = %#v", parsed)
 	}
 }
@@ -443,12 +448,31 @@ func TestParseOptionsRejectsPartialRemoteConnectivityFlags(t *testing.T) {
 		t.Fatal("standalone --stun-server was accepted")
 	}
 	if _, err := parseOptions(
+		[]string{"--turn-server", "turn:turn.example.com:3478"}, &bytes.Buffer{},
+	); err == nil {
+		t.Fatal("standalone --turn-server was accepted")
+	}
+	if _, err := parseOptions(
 		[]string{"--connectivity-url", "https://connect.example.com"}, &bytes.Buffer{},
 	); err == nil {
 		t.Fatal("standalone --connectivity-url was accepted")
 	}
 	if _, err := parseOptions([]string{"--stun-server", ""}, &bytes.Buffer{}); err == nil {
 		t.Fatal("empty --stun-server was accepted")
+	}
+	if _, err := parseOptions([]string{
+		"--connectivity-url", "https://connect.example.com",
+		"--turn-server", "turn:turn.example.com:3478",
+	}, &bytes.Buffer{}); err == nil {
+		t.Fatal("TURN server without credentials was accepted")
+	}
+	if _, err := parseOptions([]string{
+		"--connectivity-url", "https://connect.example.com",
+		"--stun-server", "stun:turn.example.com:3478",
+		"--turn-username", "1800000000:computehop",
+		"--turn-password", "secret",
+	}, &bytes.Buffer{}); err == nil {
+		t.Fatal("TURN credentials without TURN server were accepted")
 	}
 }
 
