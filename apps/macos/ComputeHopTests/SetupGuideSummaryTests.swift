@@ -148,6 +148,25 @@ func setupGuidePointsAtWorkerSetupWhenNoWorkerExists() {
 }
 
 @Test
+func setupGuideUsesConfiguredWorkerSetupDefaults() {
+    let guide = SetupGuideSummary.make(
+        isConnected: true,
+        devices: [],
+        pairings: [],
+        runnableDevices: [],
+        workerDeviceName: "Studio Mini",
+        workerCacheSize: "80GiB"
+    )
+
+    #expect(guide?.command == "computehop setup worker --device-name 'Studio Mini' --cache-size 80GiB")
+    #expect(guide?.commands.map(\.value) == [
+        "computehop setup worker --device-name 'Studio Mini' --cache-size 80GiB",
+        "computehop setup worker --device-name 'Studio Mini' --cache-size 80GiB --lan-only",
+        "computehop setup worker --device-name 'Studio Mini' --cache-size 80GiB --connectivity-domain connect.example.com --turn-domain turn.example.com",
+    ])
+}
+
+@Test
 func setupGuideShellQuotesWorkerNamesInCommands() {
     let worker = DeviceSummary(
         id: "quoted-worker",

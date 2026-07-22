@@ -66,6 +66,16 @@ final class AppModel {
             settingsStore.setJobCompletionNotificationsEnabled(jobCompletionNotificationsEnabled)
         }
     }
+    var workerSetupDeviceName: String {
+        didSet {
+            settingsStore.setWorkerSetupDeviceName(workerSetupDeviceName)
+        }
+    }
+    var workerSetupCacheSize: String {
+        didSet {
+            settingsStore.setWorkerSetupCacheSize(workerSetupCacheSize)
+        }
+    }
 
     init(
         client: LocalDaemonClientProtocol = LocalDaemonClient(),
@@ -76,6 +86,8 @@ final class AppModel {
         self.notifier = notifier
         self.settingsStore = settingsStore
         jobCompletionNotificationsEnabled = settingsStore.jobCompletionNotificationsEnabled
+        workerSetupDeviceName = settingsStore.workerSetupDeviceName
+        workerSetupCacheSize = settingsStore.workerSetupCacheSize
     }
 
     var daemonVersion: String? { daemon?.version }
@@ -232,7 +244,9 @@ final class AppModel {
             isConnected: isConnected,
             devices: devices,
             pairings: pairings,
-            runnableDevices: runnableDevices
+            runnableDevices: runnableDevices,
+            workerDeviceName: workerSetupDeviceName,
+            workerCacheSize: workerSetupCacheSize
         )
     }
 

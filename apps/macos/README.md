@@ -21,7 +21,8 @@ no-stdout/stderr placeholders for running and finished jobs, a copyable
 `computehop logs --follow <job-id>` handoff for terminal debugging,
 job-completion notifications for observed running jobs, cancellation, declared
 output paths, empty-jobs hints, a persisted notification setting, copyable
-diagnostic commands for setup/connect troubleshooting, and
+diagnostic commands for setup/connect troubleshooting, configurable worker setup
+defaults for generated install commands, and
 conflict-safe artifact restoration through a native destination picker. Output
 retrieval errors explain not-ready, missing, and undeclared outputs instead of
 showing raw daemon messages. When Run is disabled, the menu explains whether

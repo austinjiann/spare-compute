@@ -223,7 +223,9 @@ struct SetupGuideSummary: Sendable {
         isConnected: Bool,
         devices: [DeviceSummary],
         pairings: [PairingSummary],
-        runnableDevices: [DeviceSummary]
+        runnableDevices: [DeviceSummary],
+        workerDeviceName: String = "Gaming PC",
+        workerCacheSize: String = ""
     ) -> SetupGuideSummary? {
         if !isConnected {
             return SetupGuideSummary(
@@ -267,7 +269,14 @@ struct SetupGuideSummary: Sendable {
             let commands = remoteDisabled
                 ? [
                     SetupGuideCommand(label: "Check devices", value: "computehop devices"),
-                    SetupGuideCommand(label: "VPS worker setup", value: workerSetupCommand(deviceName: offlineWorkerName, vpsTemplate: true)),
+                    SetupGuideCommand(
+                        label: "VPS worker setup",
+                        value: workerSetupCommand(
+                            deviceName: offlineWorkerName,
+                            cacheSize: workerCacheSize,
+                            vpsTemplate: true
+                        )
+                    ),
                 ]
                 : [SetupGuideCommand(label: "Check devices", value: "computehop devices")]
             return SetupGuideSummary(
@@ -284,15 +293,23 @@ struct SetupGuideSummary: Sendable {
             commands: [
                 SetupGuideCommand(
                     label: "Worker install",
-                    value: workerSetupCommand(deviceName: "Gaming PC")
+                    value: workerSetupCommand(deviceName: workerDeviceName, cacheSize: workerCacheSize)
                 ),
                 SetupGuideCommand(
                     label: "LAN-only worker",
-                    value: workerSetupCommand(deviceName: "Gaming PC", lanOnly: true)
+                    value: workerSetupCommand(
+                        deviceName: workerDeviceName,
+                        cacheSize: workerCacheSize,
+                        lanOnly: true
+                    )
                 ),
                 SetupGuideCommand(
                     label: "VPS worker template",
-                    value: workerSetupCommand(deviceName: "Gaming PC", vpsTemplate: true)
+                    value: workerSetupCommand(
+                        deviceName: workerDeviceName,
+                        cacheSize: workerCacheSize,
+                        vpsTemplate: true
+                    )
                 ),
             ]
         )
@@ -300,16 +317,22 @@ struct SetupGuideSummary: Sendable {
 
     private static func workerSetupCommand(
         deviceName: String,
+        cacheSize: String = "",
         lanOnly: Bool = false,
         vpsTemplate: Bool = false
     ) -> String {
+        let trimmedDeviceName = deviceName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedCacheSize = cacheSize.trimmingCharacters(in: .whitespacesAndNewlines)
         var parts = [
             "computehop",
             "setup",
             "worker",
             "--device-name",
-            shellArgument(deviceName),
+            shellArgument(trimmedDeviceName.isEmpty ? "Gaming PC" : trimmedDeviceName),
         ]
+        if !trimmedCacheSize.isEmpty {
+            parts.append(contentsOf: ["--cache-size", shellArgument(trimmedCacheSize)])
+        }
         if lanOnly {
             parts.append("--lan-only")
         }

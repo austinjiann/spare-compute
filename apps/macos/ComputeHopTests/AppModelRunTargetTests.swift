@@ -318,6 +318,32 @@ func notificationSettingLoadsAndPersistsThroughStore() {
 
 @Test
 @MainActor
+func setupDefaultsLoadPersistAndUpdateSetupGuide() {
+    let store = RecordingSettingsStore(
+        workerSetupDeviceName: "Studio Mini",
+        workerSetupCacheSize: "80GiB"
+    )
+    let model = AppModel(
+        client: RecordingDaemonClient(),
+        notifier: RecordingJobCompletionNotifier(),
+        settingsStore: store
+    )
+    model.daemon = daemonSummary()
+
+    #expect(model.workerSetupDeviceName == "Studio Mini")
+    #expect(model.workerSetupCacheSize == "80GiB")
+    #expect(model.setupGuide?.command == "computehop setup worker --device-name 'Studio Mini' --cache-size 80GiB")
+
+    model.workerSetupDeviceName = "Render Box"
+    model.workerSetupCacheSize = "120GiB"
+
+    #expect(store.savedWorkerNames == ["Render Box"])
+    #expect(store.savedCacheSizes == ["120GiB"])
+    #expect(model.setupGuide?.command == "computehop setup worker --device-name 'Render Box' --cache-size 120GiB")
+}
+
+@Test
+@MainActor
 func submitLocalCommandIgnoresStaleNoProjectToggle() async {
     let client = RecordingDaemonClient(devices: [])
     let model = AppModel(client: client)
@@ -661,15 +687,35 @@ private final class RecordingJobCompletionNotifier: JobCompletionNotifying {
 @MainActor
 private final class RecordingSettingsStore: AppSettingsStoring {
     var jobCompletionNotificationsEnabled: Bool
+    var workerSetupDeviceName: String
+    var workerSetupCacheSize: String
     var savedNotificationValues: [Bool] = []
+    var savedWorkerNames: [String] = []
+    var savedCacheSizes: [String] = []
 
-    init(jobCompletionNotificationsEnabled: Bool = true) {
+    init(
+        jobCompletionNotificationsEnabled: Bool = true,
+        workerSetupDeviceName: String = "Gaming PC",
+        workerSetupCacheSize: String = ""
+    ) {
         self.jobCompletionNotificationsEnabled = jobCompletionNotificationsEnabled
+        self.workerSetupDeviceName = workerSetupDeviceName
+        self.workerSetupCacheSize = workerSetupCacheSize
     }
 
     func setJobCompletionNotificationsEnabled(_ enabled: Bool) {
         jobCompletionNotificationsEnabled = enabled
         savedNotificationValues.append(enabled)
+    }
+
+    func setWorkerSetupDeviceName(_ value: String) {
+        workerSetupDeviceName = value
+        savedWorkerNames.append(value)
+    }
+
+    func setWorkerSetupCacheSize(_ value: String) {
+        workerSetupCacheSize = value
+        savedCacheSizes.append(value)
     }
 }
 

@@ -20,6 +20,18 @@ struct SettingsSection: View {
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Worker setup defaults")
+                    .font(.caption.weight(.semibold))
+                TextField("Worker name, for example: Gaming PC", text: $model.workerSetupDeviceName)
+                    .textFieldStyle(.roundedBorder)
+                TextField("Cache size, for example: 40GiB (optional)", text: $model.workerSetupCacheSize)
+                    .textFieldStyle(.roundedBorder)
+                Text("These values update the setup commands shown when no worker is connected.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Troubleshooting")
