@@ -38,10 +38,34 @@ func submitCommandUsesAutomaticWorkerSelector() async {
     #expect(model.lastError == nil)
 }
 
+@Test
+@MainActor
+func connectUsesPresenceIDInsteadOfDisplayName() async {
+    let nearby = DeviceSummary(
+        id: "ephemeral-presence-id",
+        name: "Gaming PC",
+        role: "Worker",
+        trust: "Unpaired",
+        availability: .nearby,
+        path: "LAN",
+        address: "192.0.2.20:47823",
+        canPair: true
+    )
+    let client = RecordingDaemonClient(devices: [nearby])
+    let model = AppModel(client: client)
+    model.devices = [nearby]
+
+    await model.connect(nearby)
+
+    #expect(await client.lastPairingSelector() == "ephemeral-presence-id")
+    #expect(model.lastError == nil)
+}
+
 private actor RecordingDaemonClient: LocalDaemonClientProtocol {
     private let devices: [DeviceSummary]
     private var submittedSelector: String?
     private var submittedWorkingDirectory: String?
+    private var pairingSelector: String?
     private let submittedID = "7a338fa3-7ba4-4c54-bf59-da1161f6b76f"
 
     init(devices: [DeviceSummary] = []) {
@@ -51,6 +75,8 @@ private actor RecordingDaemonClient: LocalDaemonClientProtocol {
     func lastSubmittedSelector() -> String? { submittedSelector }
 
     func lastSubmittedWorkingDirectory() -> String? { submittedWorkingDirectory }
+
+    func lastPairingSelector() -> String? { pairingSelector }
 
     func ping() async throws -> LocalDaemonSummary { daemonSummary() }
 
@@ -101,7 +127,8 @@ private actor RecordingDaemonClient: LocalDaemonClientProtocol {
     func listPairings() async throws -> [PairingSummary] { [] }
 
     func beginPairing(device selector: String) async throws -> PairingSummary {
-        PairingSummary(Computehop_Local_V1_Pairing())
+        pairingSelector = selector
+        return PairingSummary(Computehop_Local_V1_Pairing())
     }
 
     func confirmPairing(id: String) async throws {}

@@ -76,3 +76,23 @@ func deviceSummaryMakesConnectedRemoteWorkerRunnable() {
     #expect(summaries[0].path == "Direct via STUN")
     #expect(summaries[0].address == nil)
 }
+
+@Test
+func deviceSummaryUsesPresenceIDForUnpairedNearbyDevices() {
+    var nearby = Computehop_Local_V1_NearbyDevice()
+    nearby.presenceID = "ephemeral-presence-id"
+    nearby.name = "Gaming PC"
+    nearby.role = .worker
+    nearby.endpointReady = true
+    nearby.addresses = ["192.0.2.20"]
+    nearby.port = 47_823
+
+    var response = Computehop_Local_V1_ListDevicesResponse()
+    response.devices = [nearby]
+
+    let summaries = DeviceSummary.make(from: response)
+    #expect(summaries.count == 1)
+    #expect(summaries[0].id == "ephemeral-presence-id")
+    #expect(summaries[0].name == "Gaming PC")
+    #expect(summaries[0].canPair)
+}

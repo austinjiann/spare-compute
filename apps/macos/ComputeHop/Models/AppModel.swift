@@ -109,7 +109,7 @@ final class AppModel {
 
     func connect(_ device: DeviceSummary) async {
         await perform("connect-\(device.id)") {
-            _ = try await client.beginPairing(device: device.name)
+            _ = try await client.beginPairing(device: device.id)
         }
     }
 
