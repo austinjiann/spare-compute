@@ -56,7 +56,9 @@ sudo ./deploy/vps/bootstrap-ubuntu.sh
 ```
 
 The bootstrap installs Docker from Docker's official apt repository and mirrors
-those ports in UFW. Review it before running it on a non-disposable host.
+those ports in UFW. It refuses non-Ubuntu hosts with explicit guidance and
+prints the DNS, init, Compose, verify, and `computehop setup vps` commands to
+run next. Review it before running it on a non-disposable host.
 
 ## Configure and start
 

@@ -32,7 +32,14 @@ race:
 	go test -race ./...
 
 deploy-check:
-	sh -n deploy/vps/bootstrap-ubuntu.sh deploy/vps/coturn-entrypoint.sh deploy/vps/init.sh deploy/vps/turn-credentials.sh deploy/vps/verify.sh
+	@for script in \
+		deploy/vps/bootstrap-ubuntu.sh \
+		deploy/vps/coturn-entrypoint.sh \
+		deploy/vps/init.sh \
+		deploy/vps/turn-credentials.sh \
+		deploy/vps/verify.sh; do \
+		sh -n "$$script"; \
+	done
 	@deploy_vps_tmp="$$(mktemp -d)"; \
 	trap 'rm -rf "$$deploy_vps_tmp"' EXIT; \
 	deploy/vps/init.sh --target-dir "$$deploy_vps_tmp" \
@@ -57,7 +64,13 @@ macos-package: macos-package-check
 	packaging/macos/build.sh
 
 macos-package-check:
-	sh -n packaging/macos/build.sh packaging/macos/install.sh packaging/macos/uninstall.sh packaging/macos/verify.sh
+	@for script in \
+		packaging/macos/build.sh \
+		packaging/macos/install.sh \
+		packaging/macos/uninstall.sh \
+		packaging/macos/verify.sh; do \
+		sh -n "$$script"; \
+	done
 	plutil -lint packaging/macos/Info.plist packaging/macos/com.computehop.daemon.plist
 
 install-macos:
