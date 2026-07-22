@@ -22,10 +22,11 @@ Last updated: 2026-07-22.
 | Explicit remote execution | Complete | Submit to a selected paired LAN worker, observe durable state and logs, and cancel remotely. |
 | Durable remote job routing | Complete | Remember the pinned worker that accepted each remote job so job-specific operations reconnect by ID without another device selector. |
 | Hosted rendezvous foundation | Complete | Derive rotating anonymous pair credentials and exchange bounded, route-bound, end-to-end encrypted, expiring presence and signaling payloads through a standalone service and HTTPS client. |
+| Direct ICE path foundation | Complete | Gather bounded UDP candidates with Pion ICE, select orchestrator/worker paths, report host/server-reflexive/relay routing without secrets, and carry QUIC over the selected packet connection. Daemon supervision and rendezvous signaling remain. |
 | One-VPS staging deployment | In progress | Provider-neutral Compose stack, Caddy HTTPS edge, authenticated coturn relay, bounded ports/quotas, secrets, firewall bootstrap, health checks, and rollback runbook are ready; buying the VPS and forced-relay validation remain. |
 | CLI and physical Mac validation | In progress | Friendlier `--on` and no-`--` command syntax, inferred pairing confirmation, and merged trusted/nearby presentation are implemented; physical macOS-to-macOS discovery, pairing, execution, restart recovery, logs, and cancellation passed. Windows/Linux remain. |
 | macOS menu-bar foundation | In progress | SwiftUI `MenuBarExtra`, generated SwiftProtobuf v3 models, authenticated Unix-socket IPC, device/pairing controls, native job submission, reconnectable output, and cancellation build and pass real Swift-to-Go ping and job tests; an ad-hoc app bundle and per-user launchd installer are ready for development. |
-| Cross-network paths and later launch slices | Not started | Daemon rendezvous clients, ICE/STUN/TURN path selection, project snapshots, artifacts, scheduling, adapters, production packaging, and release operations. |
+| Cross-network paths and later launch slices | In progress | Daemon rendezvous supervision and encrypted candidate signaling remain before direct cross-network execution works. TURN credential issuance also requires a hosted entitlement boundary. Project snapshots, artifacts, scheduling, adapters, production packaging, and release operations follow. |
 
 “Complete” here means implemented with automated coverage and merged to `main`.
 Physical multi-machine validation remains required by the launch acceptance

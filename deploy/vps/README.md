@@ -77,9 +77,15 @@ turnutils_stunclient -p 3478 turn.example.com
 ```
 
 `verify.sh` performs an authenticated TURN allocation locally without copying
-the shared secret off the VPS. The production client will receive short-lived
-TURN credentials rather than that shared secret. A successful health endpoint
-and STUN response still do not prove the public relay path works, so a
+the shared secret off the VPS. A production client must receive short-lived
+TURN credentials rather than that shared secret. Issuance is intentionally not
+implemented yet: an anonymous pair route proves that two peers share a secret,
+but anyone can create a new route and therefore it cannot authorize consumption
+of a paid public relay. Before shared staging or production, add a
+server-verifiable, expiring, revocable entitlement with quotas. A single-owner
+self-hosted deployment may instead use operator-provisioned credentials. A
+successful health endpoint and STUN response still do not prove the public
+relay path works, so a
 forced-relay ComputeHop test from another network remains a launch gate.
 
 ## Update and rollback
@@ -111,7 +117,9 @@ docker compose up -d --force-recreate coturn
 
 ## Current boundary
 
-This stack makes the public services deployable, but the daemon does not yet
-publish presence to rendezvous, gather ICE candidates, or select TURN paths.
-LAN execution remains the working path until that client-side connectivity
-slice is implemented and physically tested.
+This stack makes the public services deployable. The runtime has a tested ICE
+path primitive that can gather candidates, select a direct or relay path, and
+carry QUIC. The daemon does not yet supervise it or exchange its encrypted
+descriptions through rendezvous, and the hosted service does not issue TURN
+credentials. LAN execution remains the working path until those client and
+service slices are implemented and physically tested.
