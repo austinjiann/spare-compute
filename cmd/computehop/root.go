@@ -293,12 +293,15 @@ func newSetupCommand(stdout io.Writer) *cobra.Command {
 		},
 	}
 	command.AddCommand(newSetupMacCommand(stdout))
+	command.AddCommand(newSetupMacRoleCommand(stdout, device.RoleOrchestrator))
+	command.AddCommand(newSetupMacRoleCommand(stdout, device.RoleWorker))
 	command.AddCommand(newSetupVPSCommand(stdout))
 	return command
 }
 
 func newSetupMacCommand(stdout io.Writer) *cobra.Command {
-	options := macSetupOptions{role: string(device.RoleOrchestrator)}
+	options := defaultMacSetupOptions(string(device.RoleOrchestrator), "computehop", "setup", "mac")
+	options.includeRoleInCustomize = true
 	command := &cobra.Command{
 		Use:   "mac",
 		Short: "Print the macOS app and daemon install checklist",
@@ -311,10 +314,24 @@ func newSetupMacCommand(stdout io.Writer) *cobra.Command {
 		},
 	}
 	command.Flags().StringVar(&options.role, "role", options.role, "mac role: orchestrator or worker")
-	command.Flags().StringVar(&options.deviceName, "device-name", "", "human-readable device name")
-	command.Flags().StringVar(&options.cacheSize, "cache-size", "", "verified content cache limit, for example 40GiB")
-	command.Flags().StringVar(&options.connectivityDomain, "connectivity-domain", "", "public HTTPS domain from the one-VPS setup")
-	command.Flags().StringVar(&options.turnDomain, "turn-domain", "", "public STUN/TURN domain from the one-VPS setup")
+	addMacSetupFlags(command, &options)
+	return command
+}
+
+func newSetupMacRoleCommand(stdout io.Writer, role device.Role) *cobra.Command {
+	options := defaultMacSetupOptions(string(role), "computehop", "setup", string(role))
+	command := &cobra.Command{
+		Use:   string(role),
+		Short: "Print the macOS " + string(role) + " install checklist",
+		Args:  cobra.NoArgs,
+		RunE: func(*cobra.Command, []string) error {
+			if err := options.validate(); err != nil {
+				return err
+			}
+			return printMacSetupGuide(stdout, options)
+		},
+	}
+	addMacSetupFlags(command, &options)
 	return command
 }
 
@@ -335,6 +352,13 @@ func newSetupVPSCommand(stdout io.Writer) *cobra.Command {
 	return command
 }
 
+func addMacSetupFlags(command *cobra.Command, options *macSetupOptions) {
+	command.Flags().StringVar(&options.deviceName, "device-name", "", "human-readable device name")
+	command.Flags().StringVar(&options.cacheSize, "cache-size", "", "verified content cache limit, for example 40GiB")
+	command.Flags().StringVar(&options.connectivityDomain, "connectivity-domain", "", "public HTTPS domain from the one-VPS setup")
+	command.Flags().StringVar(&options.turnDomain, "turn-domain", "", "public STUN/TURN domain from the one-VPS setup")
+}
+
 type vpsSetupOptions struct {
 	connectivityDomain string
 	turnDomain         string
@@ -343,11 +367,20 @@ type vpsSetupOptions struct {
 }
 
 type macSetupOptions struct {
-	role               string
-	deviceName         string
-	cacheSize          string
-	connectivityDomain string
-	turnDomain         string
+	role                   string
+	deviceName             string
+	cacheSize              string
+	connectivityDomain     string
+	turnDomain             string
+	customizeBase          []string
+	includeRoleInCustomize bool
+}
+
+func defaultMacSetupOptions(role string, customizeBase ...string) macSetupOptions {
+	return macSetupOptions{
+		role:          role,
+		customizeBase: append([]string(nil), customizeBase...),
+	}
 }
 
 func (options macSetupOptions) validate() error {
@@ -454,7 +487,13 @@ func (options macSetupOptions) customizeCommand() string {
 	if deviceName == "" && role == string(device.RoleWorker) {
 		deviceName = "Gaming PC"
 	}
-	parts := []string{"computehop", "setup", "mac", "--role", role}
+	parts := append([]string(nil), options.customizeBase...)
+	if len(parts) == 0 {
+		parts = []string{"computehop", "setup", "mac"}
+	}
+	if options.includeRoleInCustomize {
+		parts = append(parts, "--role", role)
+	}
 	if deviceName != "" {
 		parts = append(parts, "--device-name", deviceName)
 	}
@@ -473,6 +512,13 @@ func (options macSetupOptions) customizeCommand() string {
 		escaped[index] = shellArg(part)
 	}
 	return strings.Join(escaped, " ")
+}
+
+func (options macSetupOptions) vpsReminderCommand() string {
+	withVPS := options
+	withVPS.connectivityDomain = "connect.example.com"
+	withVPS.turnDomain = "turn.example.com"
+	return withVPS.customizeCommand()
 }
 
 func defaultVPSSetupOptions() vpsSetupOptions {
@@ -526,14 +572,15 @@ func printSetupGuide(stdout io.Writer) error {
 		"ComputeHop setup",
 		"",
 		"1. Print the exact macOS install command for this computer:",
-		"   computehop setup mac",
-		"   computehop setup mac --role worker --device-name \"Gaming PC\"",
+		"   computehop setup orchestrator",
+		"   computehop setup worker --device-name \"Gaming PC\"",
+		"   # Advanced equivalent: computehop setup mac --role worker --device-name \"Gaming PC\"",
 		"",
 		"2. Check this computer:",
 		"   computehop doctor",
 		"",
 		"3. Install a worker on another Mac on the same LAN:",
-		"   computehop setup mac --role worker --device-name \"Gaming PC\"",
+		"   computehop setup worker --device-name \"Gaming PC\"",
 		"   # Development-only alternative: go run ./cmd/computehopd --role worker --device-name \"Gaming PC\"",
 		"",
 		"4. Connect devices:",
@@ -600,7 +647,7 @@ func printMacSetupGuide(stdout io.Writer, options macSetupOptions) error {
 		lines = append(lines,
 			"",
 			"After buying the VPS, rerun with:",
-			"   computehop setup mac --role "+shellArg(strings.TrimSpace(options.role))+" --connectivity-domain connect.example.com --turn-domain turn.example.com",
+			"   "+options.vpsReminderCommand(),
 		)
 	}
 	for _, line := range lines {

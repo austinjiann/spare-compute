@@ -1403,8 +1403,9 @@ func TestSetupCommandPrintsFirstRunChecklistWithoutDaemon(t *testing.T) {
 	}
 	for _, want := range []string{
 		"ComputeHop setup",
-		"computehop setup mac",
-		"computehop setup mac --role worker --device-name \"Gaming PC\"",
+		"computehop setup orchestrator",
+		"computehop setup worker --device-name \"Gaming PC\"",
+		"Advanced equivalent: computehop setup mac --role worker --device-name \"Gaming PC\"",
 		"computehop doctor",
 		"Development-only alternative: go run ./cmd/computehopd --role worker",
 		"computehop connect auto",
@@ -1414,6 +1415,31 @@ func TestSetupCommandPrintsFirstRunChecklistWithoutDaemon(t *testing.T) {
 		"./init.sh --connectivity-domain connect.example.com",
 		"./verify.sh",
 		"./turn-credentials.sh",
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
+		}
+	}
+}
+
+func TestSetupHelpShowsRoleAliasesMacAndVPS(t *testing.T) {
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			t.Fatal("setup help should not require a daemon client")
+			return nil, nil
+		},
+	})
+	command.SetArgs([]string{"setup", "--help"})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	for _, want := range []string{
+		"orchestrator",
+		"worker",
+		"mac",
+		"vps",
 	} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
@@ -1471,6 +1497,59 @@ func TestSetupMacCommandPrintsWorkerInstallWithoutDaemon(t *testing.T) {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
 		}
+	}
+}
+
+func TestSetupRoleAliasesPrintInstallWithoutDaemon(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want []string
+	}{
+		{
+			name: "orchestrator",
+			args: []string{
+				"setup", "orchestrator",
+				"--connectivity-domain", "connect.computehop.dev",
+				"--turn-domain", "turn.computehop.dev",
+			},
+			want: []string{
+				"computehop setup orchestrator --connectivity-domain connect.computehop.dev --turn-domain turn.computehop.dev",
+				"./packaging/macos/install.sh --role orchestrator --connectivity-url https://connect.computehop.dev --stun-server stun:turn.computehop.dev:3478",
+				"computehop smoke",
+			},
+		},
+		{
+			name: "worker",
+			args: []string{"setup", "worker", "--device-name", "Austin Gaming PC", "--cache-size", "40GiB"},
+			want: []string{
+				"computehop setup worker --device-name 'Austin Gaming PC' --cache-size 40GiB",
+				"./packaging/macos/install.sh --role worker --device-name 'Austin Gaming PC' --cache-size 40GiB",
+				"Confirm on this worker",
+				"computehop setup worker --device-name 'Austin Gaming PC' --cache-size 40GiB --connectivity-domain connect.example.com --turn-domain turn.example.com",
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var stdout bytes.Buffer
+			command := newRootCommand(dependencies{
+				stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+				newClient: func(string) (caller, error) {
+					t.Fatal("setup role alias should not require a daemon client")
+					return nil, nil
+				},
+			})
+			command.SetArgs(test.args)
+			if err := command.Execute(); err != nil {
+				t.Fatalf("Execute() error = %v", err)
+			}
+			for _, want := range test.want {
+				if !strings.Contains(stdout.String(), want) {
+					t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
+				}
+			}
+		})
 	}
 }
 
