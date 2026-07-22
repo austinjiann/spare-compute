@@ -12,7 +12,7 @@ enum AppActionError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .nearbyWorkerAmbiguous:
-            return "Connect automatically works only when exactly one nearby worker is available. Refresh and choose one manually."
+            return "Connect Nearby Worker works only when exactly one nearby worker is available. Refresh and choose one from Devices."
         case .targetUnavailable:
             return "That worker is no longer nearby. Refresh and choose an available device."
         }

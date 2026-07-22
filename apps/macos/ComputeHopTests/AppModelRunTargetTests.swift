@@ -154,7 +154,7 @@ func connectNearbyWorkerRefusesAmbiguousNearbyWorkers() async {
     await model.connectNearbyWorker()
 
     #expect(await client.lastPairingSelector() == nil)
-    #expect(model.lastError == "Connect automatically works only when exactly one nearby worker is available. Refresh and choose one manually.")
+	#expect(model.lastError == "Connect Nearby Worker works only when exactly one nearby worker is available. Refresh and choose one from Devices.")
 }
 
 @Test
