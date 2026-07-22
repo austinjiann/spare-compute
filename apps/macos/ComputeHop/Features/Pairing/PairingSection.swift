@@ -10,7 +10,7 @@ struct PairingSection: View {
     var body: some View {
         if !activePairings.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Pairing")
+                Text("Connect Device")
                     .font(.headline)
                 ForEach(activePairings) { pairing in
                     VStack(alignment: .leading, spacing: 6) {
@@ -31,7 +31,7 @@ struct PairingSection: View {
                                 }
                                 .buttonStyle(.borderedProminent)
                             } else {
-                                Text("Waiting for the other device")
+                                Text("Waiting for the other device to confirm")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }

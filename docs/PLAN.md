@@ -26,7 +26,7 @@ Last updated: 2026-07-22.
 | Supervised direct internet control | In progress | Daemons reconcile active pair records, retry encrypted rendezvous/ICE negotiation, run the identity-pinned control protocol over selected paths, prefer LAN for jobs, and expose path state to CLI/Swift. Automated end-to-end and race coverage pass; physical unrelated-network and network-change validation remain. |
 | One-VPS staging deployment | In progress | Provider-neutral Compose stack, Caddy HTTPS edge, authenticated coturn relay, bounded ports/quotas, secrets, firewall bootstrap, health checks, and rollback runbook are ready; buying the VPS and forced-relay validation remain. |
 | CLI and physical Mac validation | In progress | Friendlier `--on` and no-`--` command syntax, `run --follow/--wait/--get`, `connect` as the guided pairing entry point, inferred pairing confirmation, first-run `doctor`, local daemon identity in status output, and merged trusted/nearby presentation are implemented; physical macOS-to-macOS discovery, pairing, execution, restart recovery, logs, and cancellation passed. Windows/Linux remain. |
-| macOS menu-bar foundation | In progress | SwiftUI `MenuBarExtra`, generated SwiftProtobuf models, authenticated Unix-socket IPC, device/pairing controls, native job submission, output declarations and retrieval, reconnectable logs, and cancellation build and pass Swift tests; an ad-hoc app bundle and per-user launchd installer are ready for development. |
+| macOS menu-bar foundation | In progress | SwiftUI `MenuBarExtra`, generated SwiftProtobuf models, authenticated Unix-socket IPC, local daemon identity, device/connect controls, native job submission, output declarations and retrieval, reconnectable logs, and cancellation build and pass Swift tests; an ad-hoc app bundle and per-user launchd installer are ready for development. |
 | Project snapshots, incremental transfer, and declared artifacts | In progress | Remote runs resolve a local project root, create bounded content-defined snapshots, upload only missing verified chunks, and execute in isolated workspaces. Workers durably collect exact declared files/directories before success; orchestrators fetch only missing verified chunks and restore without overwrites or symlink traversal. Transfer peers negotiate bounded identity/zstd chunk encoding while preserving decoded-content hashes. The persistent verified content cache is SQLite-indexed, LRU-evicted, quota-bound, and protects active jobs plus unacknowledged artifact chunks. Artifact download/restore progress is durable and visible in CLI/Swift job summaries. Automated LAN/supervised-path reuse and artifact coverage pass; full ignore conformance, automatic restoration, secrets, upload progress, and physical cross-platform validation remain. |
 | Later launch slices | In progress | Direct internet control still needs physical unrelated-network and reconnect validation, and TURN credential issuance requires a hosted entitlement boundary. Scheduling, adapters, production packaging, and release operations follow. |
 
@@ -998,11 +998,11 @@ secret itself. The UI must warn about that limitation.
 
 - Connection path shown as `Local`, `Direct remote`, `Relayed`, or `Offline`.
 - A LAN-only privacy control that disables rendezvous and relay use.
-- Discovered and paired devices.
+- Discovered and connected devices.
 - Online, offline, paused, draining, and incompatible states.
 - CPU, memory, disk, battery, thermal, and supported GPU information.
 - Available executors, tools, services, and compatibility warnings.
-- Pair, revoke, pause, resume, and policy controls.
+- Connect, revoke, pause, resume, and policy controls.
 
 #### Jobs
 
@@ -1013,7 +1013,7 @@ secret itself. The UI must warn about that limitation.
 
 #### Notifications
 
-- Pairing requests.
+- Connection requests with two-sided verification codes.
 - Job completion and failure.
 - Artifact conflicts.
 - Worker incompatibility or required setup.
@@ -1022,7 +1022,7 @@ secret itself. The UI must warn about that limitation.
 ### AirDrop-like qualities
 
 - Nearby devices appear automatically.
-- Pairing is deliberate but performed only once per device identity.
+- Connecting is deliberate but performed only once per device identity.
 - Trusted workers reconnect without prompts.
 - Commands use device names, never addresses.
 - Automatic placement is the default, while explicit selection remains easy.
@@ -1373,20 +1373,21 @@ preflight rather than after a large transfer.
 
 **Implementation status:** the SwiftUI menu-bar foundation now builds from the
 root Swift package, uses generated SwiftProtobuf models, authenticates to local
-IPC protocol v3, and presents daemon health, devices, pairing confirmation,
-native job submission to the Mac or a paired available worker, local project
-folder selection for incremental remote transfer, recent jobs,
-reconnectable output, and cancellation. Unit tests cover framing and safe
-command parsing; a real Swift client has successfully pinged the Go daemon,
-submitted a durable native job, and read its output. Artifacts, notifications,
-and settings remain. A host-architecture developer app bundle now includes the
-menu app, CLI, and daemon; a guarded per-user installer configures an
+IPC protocol v6, and presents daemon health with local identity, devices,
+connection confirmation, native job submission to the Mac or a paired available
+worker, local project folder selection for incremental remote transfer, recent
+jobs, reconnectable output, artifact restoration, and cancellation. Unit tests
+cover framing, ping identity mapping, and safe command parsing; a real Swift
+client has successfully pinged the Go daemon, submitted a durable native job,
+and read its output. Notifications and settings remain. A host-architecture
+developer app bundle now includes the menu app, CLI, and daemon; a guarded
+per-user installer configures an
 unprivileged launch agent and preserves durable state on uninstall. Developer
 ID signing, notarization, universal release binaries, upgrade handling, and
 clean-machine tests remain.
 
 - Connect the SwiftUI menu-bar app to the stable local IPC contract.
-- Add device discovery, pairing confirmation, trust and revocation, connection
+- Add device discovery, connection confirmation, trust and revocation, connection
   path, policies, job submission, logs, cancellation, history, artifacts,
   notifications, diagnostics, and cache controls.
 - Keep the app presentation-only so restarting it cannot interrupt the daemon,

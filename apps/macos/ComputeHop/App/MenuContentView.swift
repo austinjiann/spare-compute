@@ -10,9 +10,21 @@ struct MenuContentView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("ComputeHop")
                         .font(.headline)
-                    Text(model.isConnected ? "Daemon \(model.daemonVersion ?? "")" : "Daemon offline")
-                        .font(.caption)
-                        .foregroundStyle(model.isConnected ? Color.secondary : Color.red)
+                    if let daemon = model.daemon {
+                        Text(daemon.daemonText)
+                            .font(.caption)
+                            .foregroundStyle(Color.secondary)
+                        if let identity = daemon.identityText {
+                            Text("This Mac: \(identity)")
+                                .font(.caption2)
+                                .foregroundStyle(Color.secondary)
+                                .lineLimit(1)
+                        }
+                    } else {
+                        Text("Daemon offline")
+                            .font(.caption)
+                            .foregroundStyle(Color.red)
+                    }
                 }
                 Spacer()
                 Button {

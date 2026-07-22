@@ -10,8 +10,8 @@ func localDaemonPingWhenIntegrationStateIsConfigured() async throws {
     let client = LocalDaemonClient(
         stateDirectory: URL(fileURLWithPath: stateDirectory, isDirectory: true)
     )
-    let version = try await client.ping()
-    #expect(!version.isEmpty)
+    let daemon = try await client.ping()
+    #expect(!daemon.version.isEmpty)
 }
 
 @Test

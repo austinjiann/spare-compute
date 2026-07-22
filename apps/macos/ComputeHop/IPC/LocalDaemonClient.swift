@@ -102,12 +102,12 @@ actor LocalDaemonClient {
         tokenURL = stateDirectory.appendingPathComponent("local-ipc.token")
     }
 
-    func ping() async throws -> String {
+    func ping() async throws -> LocalDaemonSummary {
         let response = try await call(.ping(Computehop_Local_V1_PingRequest()))
         guard case .ping(let ping)? = response.result else {
             throw LocalDaemonError.invalidResponse("missing ping result")
         }
-        return ping.daemonVersion
+        return LocalDaemonSummary(ping)
     }
 
     func listDevices() async throws -> [DeviceSummary] {

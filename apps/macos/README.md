@@ -4,16 +4,17 @@ The macOS application is a presentation-only SwiftUI menu-bar client. Durable
 jobs, discovery, trust, and remote sessions stay in the Go daemon, so closing
 the menu does not stop work.
 
-The current menu supports daemon health, nearby and paired devices, two-sided
-pairing confirmation, native job submission to this Mac or a paired available
-worker, recent jobs, reconnectable output, cancellation, declared output paths,
-and conflict-safe artifact restoration through a native destination picker. The command field
-splits quotes and escapes into literal arguments but never invokes a shell or
-performs shell expansion. Local jobs default to the user's home directory. For
-a remote job, choose a project folder on this Mac; the daemon incrementally
-snapshots it and executes from an isolated worker workspace. Output declarations
-are comma-separated portable paths relative to that workspace; the Outputs
-button appears after a job with declared outputs succeeds.
+The current menu supports daemon health with local Mac identity, nearby and
+connected devices, two-sided connect confirmation, native job submission to this
+Mac or a paired available worker, recent jobs, reconnectable output,
+cancellation, declared output paths, and conflict-safe artifact restoration
+through a native destination picker. The command field splits quotes and escapes
+into literal arguments but never invokes a shell or performs shell expansion.
+Local jobs default to the user's home directory. For a remote job, choose a
+project folder on this Mac; the daemon incrementally snapshots it and executes
+from an isolated worker workspace. Output declarations are comma-separated
+portable paths relative to that workspace; the Outputs button appears after a
+job with declared outputs succeeds.
 
 For development, start the daemon in one terminal and the menu-bar app in
 another:

@@ -8,7 +8,7 @@ struct DevicesSection: View {
             Text("Devices")
                 .font(.headline)
             if model.devices.isEmpty {
-                Text("No nearby or paired devices")
+                Text("No nearby or connected devices")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
@@ -19,14 +19,14 @@ struct DevicesSection: View {
                             .foregroundStyle(availabilityColor(device.availability))
                         VStack(alignment: .leading, spacing: 1) {
                             Text(device.name)
-                            Text("\(device.role) · \(device.trust) · \(device.shortID)")
+                            Text("\(device.role) · \(device.trustDisplay) · \(device.shortID)")
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
                         Spacer()
                         if device.canPair {
-                            Button("Pair") {
-                                Task { await model.pair(device) }
+                            Button("Connect") {
+                                Task { await model.connect(device) }
                             }
                             .disabled(model.actionInProgress != nil)
                         } else {

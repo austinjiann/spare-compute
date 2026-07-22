@@ -16,7 +16,7 @@ final class AppModel {
     private var trackedRemoteJobs: [String: String] = [:]
     private var nextLogSequence: UInt64 = 0
 
-    var daemonVersion: String?
+    var daemon: LocalDaemonSummary?
     var devices: [DeviceSummary] = []
     var jobs: [JobSummary] = []
     var pairings: [PairingSummary] = []
@@ -37,7 +37,8 @@ final class AppModel {
         self.client = client
     }
 
-    var isConnected: Bool { daemonVersion != nil }
+    var daemonVersion: String? { daemon?.version }
+    var isConnected: Bool { daemon != nil }
 
     var runnableDevices: [DeviceSummary] {
         devices.filter {
@@ -59,12 +60,12 @@ final class AppModel {
         isRefreshing = true
         defer { isRefreshing = false }
         do {
-            async let version = client.ping()
+            async let daemon = client.ping()
             async let newDevices = client.listDevices()
             async let newJobs = client.listJobs()
             async let newPairings = client.listPairings()
-            let snapshot = try await (version, newDevices, newJobs, newPairings)
-            daemonVersion = snapshot.0
+            let snapshot = try await (daemon, newDevices, newJobs, newPairings)
+            self.daemon = snapshot.0
             devices = snapshot.1
             var refreshedJobs = snapshot.2
             for (id, target) in trackedRemoteJobs where !refreshedJobs.contains(where: { $0.id == id }) {
@@ -82,13 +83,13 @@ final class AppModel {
                 await refreshSelectedLogs()
             }
         } catch {
-            daemonVersion = nil
+            daemon = nil
             lastError = error.localizedDescription
         }
     }
 
-    func pair(_ device: DeviceSummary) async {
-        await perform("pair-\(device.id)") {
+    func connect(_ device: DeviceSummary) async {
+        await perform("connect-\(device.id)") {
             _ = try await client.beginPairing(device: device.name)
         }
     }

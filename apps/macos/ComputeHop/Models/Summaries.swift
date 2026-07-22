@@ -1,6 +1,37 @@
 import Foundation
 import ComputeHopProtocol
 
+struct LocalDaemonSummary: Sendable {
+    let version: String
+    let deviceID: String?
+    let deviceName: String?
+    let role: String?
+
+    init(_ value: Computehop_Local_V1_PingResponse) {
+        version = value.daemonVersion
+        deviceID = value.deviceID.isEmpty ? nil : value.deviceID
+        deviceName = value.deviceName.isEmpty ? nil : value.deviceName
+        let label = roleLabel(value.role)
+        role = label == "Unknown" ? nil : label
+    }
+
+    var daemonText: String {
+        version.isEmpty ? "Daemon running" : "Daemon \(version)"
+    }
+
+    var shortID: String? {
+        guard let deviceID else { return nil }
+        return String(deviceID.prefix(8))
+    }
+
+    var identityText: String? {
+        guard let deviceName else { return nil }
+        return ([deviceName, role, shortID] as [String?])
+            .compactMap { $0 }
+            .joined(separator: " · ")
+    }
+}
+
 struct DeviceSummary: Identifiable, Sendable {
     enum Availability: String, Sendable {
         case nearby = "Nearby"
@@ -19,6 +50,13 @@ struct DeviceSummary: Identifiable, Sendable {
     let canPair: Bool
 
     var shortID: String { String(id.prefix(8)) }
+    var trustDisplay: String {
+        switch trust {
+        case "Paired": return "Connected"
+        case "Unpaired": return "Not connected"
+        default: return trust
+        }
+    }
 
     static func make(from response: Computehop_Local_V1_ListDevicesResponse) -> [DeviceSummary] {
         let activeCounts = Dictionary(grouping: response.trustedDevices.filter {
