@@ -1351,6 +1351,8 @@ func TestSetupVPSCommandPrintsDeploymentChecklistWithoutDaemon(t *testing.T) {
 		"ComputeHop one-VPS setup",
 		"computehop setup vps --connectivity-domain connect.example.com",
 		"Ubuntu 24.04 LTS VPS",
+		"Budget about $5-10/month",
+		"confirm included transfer and IPv4 pricing",
 		"connect.example.com -> 203.0.113.10",
 		"turn.example.com -> 203.0.113.10",
 		"Allow TCP 80/443, UDP 443, TCP/UDP 3478, UDP 49160-49200",

@@ -23,6 +23,20 @@ address, and at least 1 TiB monthly transfer. Put it near the initial testers.
 TURN egress is the variable cost, so enable provider bandwidth alerts before
 inviting users.
 
+Budget roughly $5-10/month for the smallest useful VPS before bandwidth
+overage, plus the domain name if you do not already own one. Current entry
+plans are in this range across common providers, but bundled transfer and IPv4
+pricing vary by provider. As planning examples checked on 2026-07-22:
+DigitalOcean Droplets start at $4/month with included transfer starting at 500
+GiB/month, Akamai/Linode's Nanode 1 GB is $5/month with 1 TB transfer, and
+Hetzner cost-optimized cloud servers are around €6/month with public IPv4
+priced separately. Treat those as planning numbers only; check the provider's
+live pricing before purchasing:
+
+- <https://www.digitalocean.com/pricing/droplets>
+- <https://www.akamai.com/cloud/pricing/north-america>
+- <https://www.hetzner.com/cloud/cost-optimized>
+
 Create two DNS A records pointing at the VPS:
 
 ```text

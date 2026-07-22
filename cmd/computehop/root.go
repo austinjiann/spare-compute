@@ -415,6 +415,7 @@ func printVPSSetupGuide(stdout io.Writer, options vpsSetupOptions) error {
 		"- Ubuntu 24.04 LTS VPS",
 		"- 1 shared vCPU, 1 GiB RAM, static public IPv4",
 		"- At least 1 TiB monthly transfer and provider bandwidth alerts",
+		"- Budget about $5-10/month for the VPS before bandwidth overage; confirm included transfer and IPv4 pricing before buying",
 		"",
 		"DNS:",
 		"- " + options.connectivityDomain + " -> " + options.publicIP,
