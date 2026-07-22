@@ -40,6 +40,69 @@ func submitCommandUsesAutomaticWorkerSelector() async {
 
 @Test
 @MainActor
+func submitSmokeTestUsesAutoWorkerWithoutProjectSnapshot() async {
+    let worker = runTargetDevice(id: "worker-id", name: "Gaming PC")
+    let client = RecordingDaemonClient(devices: [worker])
+    let model = AppModel(client: client)
+    model.daemon = daemonSummary()
+    model.devices = [worker]
+
+    #expect(model.canSubmitSmokeTest)
+
+    await model.submitSmokeTest()
+
+    #expect(await client.lastSubmittedExecutable() == "hostname")
+    #expect(await client.lastSubmittedArguments() == [])
+    #expect(await client.lastSubmittedSelector() == "auto")
+    #expect(await client.lastSubmittedWorkingDirectory() == "")
+    #expect(await client.lastSubmittedOutputs() == [])
+    #expect(model.jobs.first?.target == "Auto worker")
+    #expect(model.selectedJobID == model.jobs.first?.id)
+    #expect(model.lastError == nil)
+}
+
+@Test
+@MainActor
+func submitSmokeTestUsesSelectedWorkerWhenMultipleWorkersExist() async {
+    let first = runTargetDevice(id: "first-worker-id", name: "Gaming PC")
+    let second = runTargetDevice(id: "second-worker-id", name: "Mini PC")
+    let client = RecordingDaemonClient(devices: [first, second])
+    let model = AppModel(client: client)
+    model.daemon = daemonSummary()
+    model.devices = [first, second]
+    model.runTargetID = second.id
+
+    #expect(model.canSubmitSmokeTest)
+
+    await model.submitSmokeTest()
+
+    #expect(await client.lastSubmittedExecutable() == "hostname")
+    #expect(await client.lastSubmittedSelector() == second.id)
+    #expect(await client.lastSubmittedWorkingDirectory() == "")
+    #expect(model.jobs.first?.target == "Mini PC")
+    #expect(model.lastError == nil)
+}
+
+@Test
+@MainActor
+func submitSmokeTestRefusesAmbiguousWorkersWithoutSelection() async {
+    let first = runTargetDevice(id: "first-worker-id", name: "Gaming PC")
+    let second = runTargetDevice(id: "second-worker-id", name: "Mini PC")
+    let client = RecordingDaemonClient(devices: [first, second])
+    let model = AppModel(client: client)
+    model.daemon = daemonSummary()
+    model.devices = [first, second]
+
+    #expect(!model.canSubmitSmokeTest)
+
+    await model.submitSmokeTest()
+
+    #expect(await client.lastSubmittedExecutable() == nil)
+    #expect(model.lastError == "That worker is no longer nearby. Refresh and choose an available device.")
+}
+
+@Test
+@MainActor
 func connectUsesPresenceIDInsteadOfDisplayName() async {
     let nearby = DeviceSummary(
         id: "ephemeral-presence-id",
@@ -96,8 +159,11 @@ func connectNearbyWorkerRefusesAmbiguousNearbyWorkers() async {
 
 private actor RecordingDaemonClient: LocalDaemonClientProtocol {
     private let devices: [DeviceSummary]
+    private var submittedExecutable: String?
+    private var submittedArguments: [String]?
     private var submittedSelector: String?
     private var submittedWorkingDirectory: String?
+    private var submittedOutputs: [String]?
     private var pairingSelector: String?
     private let submittedID = "7a338fa3-7ba4-4c54-bf59-da1161f6b76f"
 
@@ -105,9 +171,15 @@ private actor RecordingDaemonClient: LocalDaemonClientProtocol {
         self.devices = devices
     }
 
+    func lastSubmittedExecutable() -> String? { submittedExecutable }
+
+    func lastSubmittedArguments() -> [String]? { submittedArguments }
+
     func lastSubmittedSelector() -> String? { submittedSelector }
 
     func lastSubmittedWorkingDirectory() -> String? { submittedWorkingDirectory }
+
+    func lastSubmittedOutputs() -> [String]? { submittedOutputs }
 
     func lastPairingSelector() -> String? { pairingSelector }
 
@@ -129,8 +201,11 @@ private actor RecordingDaemonClient: LocalDaemonClientProtocol {
         deviceSelector: String,
         target: String
     ) async throws -> JobSummary {
+        submittedExecutable = executable
+        submittedArguments = arguments
         submittedSelector = deviceSelector
         submittedWorkingDirectory = workingDirectory
+        submittedOutputs = outputs
         return jobSummary(
             id: submittedID,
             executable: executable,

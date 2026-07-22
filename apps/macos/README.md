@@ -9,7 +9,8 @@ next-step guidance with a one-click Connect Nearby Worker action when exactly
 one unpaired worker is visible, nearby and connected devices, two-sided connect
 confirmation, stale restart duplicate suppression for trusted nearby devices,
 native job submission to this Mac, Auto worker when exactly one
-worker is runnable, or a paired available worker, recent jobs, reconnectable
+worker is runnable, or a paired available worker, a Smoke Test button that runs
+`hostname` remotely without uploading a project, recent jobs, reconnectable
 output, cancellation, declared output paths, and
 conflict-safe artifact restoration through a native destination picker. The
 command field splits quotes and escapes into literal arguments but never invokes

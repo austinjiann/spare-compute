@@ -64,6 +64,8 @@ final class AppModel {
 
     var canConnectNearbyWorker: Bool { pairableWorkers.count == 1 }
 
+    var canSubmitSmokeTest: Bool { smokeTestTarget() != nil }
+
     var isRemoteRunTargetSelected: Bool { !runTargetID.isEmpty }
 
     var isAutomaticRunTargetSelected: Bool { runTargetID == Self.automaticWorkerTargetID }
@@ -196,6 +198,29 @@ final class AppModel {
         }
     }
 
+    func submitSmokeTest() async {
+        await perform("smoke-test") {
+            guard let target = smokeTestTarget() else {
+                throw AppActionError.targetUnavailable
+            }
+            let submitted = try await client.submitJob(
+                executable: "hostname",
+                arguments: [],
+                workingDirectory: "",
+                outputs: [],
+                deviceSelector: target.selector,
+                target: target.name
+            )
+            trackedRemoteJobs[submitted.id] = target.name
+            jobs.removeAll { $0.id == submitted.id }
+            jobs.insert(submitted, at: 0)
+            selectedJobID = submitted.id
+            selectedJobLogs = ""
+            selectedJobLogsTruncated = false
+            nextLogSequence = 0
+        }
+    }
+
     func fetchArtifacts(for job: JobSummary, destination: String) async {
         await perform("artifacts-\(job.id)") {
             let result = try await client.fetchArtifacts(
@@ -266,6 +291,17 @@ final class AppModel {
         guard selectedJobLogs.count > maximumCharacters else { return }
         selectedJobLogs = String(selectedJobLogs.suffix(maximumCharacters))
         selectedJobLogsTruncated = true
+    }
+
+    private func smokeTestTarget() -> (selector: String, name: String)? {
+        if isAutomaticRunTargetSelected || runTargetID.isEmpty {
+            guard canRunAutomatically else { return nil }
+            return (Self.automaticWorkerTargetID, "Auto worker")
+        }
+        guard let device = runnableDevices.first(where: { $0.id == runTargetID }) else {
+            return nil
+        }
+        return (device.id, device.name)
     }
 
     private func perform(_ action: String, operation: () async throws -> Void) async {

@@ -42,6 +42,15 @@ struct RunJobSection: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                 Spacer()
+                Button("Smoke Test") {
+                    Task { await model.submitSmokeTest() }
+                }
+                .disabled(
+                    !model.isConnected ||
+                    !model.canSubmitSmokeTest ||
+                    model.actionInProgress != nil
+                )
+                .help("Run hostname on a worker without uploading a project")
                 Button("Run") {
                     Task { await model.submitCommand() }
                 }
