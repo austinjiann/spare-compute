@@ -183,6 +183,57 @@ public nonisolated struct Computehop_Connectivity_V1_Presence: Sendable {
   public init() {}
 }
 
+/// EndpointPresencePayload is the versioned plaintext inside encrypted presence.
+/// The hosted service must never receive or decode this message.
+public nonisolated struct Computehop_Connectivity_V1_EndpointPresencePayload: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  public var protocolVersion: UInt32 = 0
+
+  public var generation: UInt64 = 0
+
+  public var sessionID: Data = Data()
+
+  public var createdAtUnixNano: Int64 = 0
+
+  public var expiresAtUnixNano: Int64 = 0
+
+  public var ice: Computehop_Connectivity_V1_ICEPathDescription {
+    get {_ice ?? Computehop_Connectivity_V1_ICEPathDescription()}
+    set {_ice = newValue}
+  }
+  /// Returns true if `ice` has been explicitly set.
+  public var hasIce: Bool {self._ice != nil}
+  /// Clears the value of `ice`. Subsequent reads from it will return its default value.
+  public mutating func clearIce() {self._ice = nil}
+
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  public init() {}
+
+  fileprivate var _ice: Computehop_Connectivity_V1_ICEPathDescription? = nil
+}
+
+/// ICEPathDescription contains the short-lived credentials and bounded,
+/// non-trickle candidate set for one ICE connection attempt.
+public nonisolated struct Computehop_Connectivity_V1_ICEPathDescription: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  public var usernameFragment: String = String()
+
+  public var password: String = String()
+
+  public var candidates: [String] = []
+
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  public init() {}
+}
+
 /// SendSignalRequest queues one bounded, end-to-end encrypted signaling frame
 /// for the other endpoint in this pair route.
 public nonisolated struct Computehop_Connectivity_V1_SendSignalRequest: Sendable {
@@ -421,6 +472,105 @@ nonisolated extension Computehop_Connectivity_V1_Presence: SwiftProtobuf.Message
     if lhs.generation != rhs.generation {return false}
     if lhs.encryptedPayload != rhs.encryptedPayload {return false}
     if lhs.expiresAtUnixNano != rhs.expiresAtUnixNano {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Computehop_Connectivity_V1_EndpointPresencePayload: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = _protobuf_package + ".EndpointPresencePayload"
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}protocol_version\0\u{1}generation\0\u{3}session_id\0\u{3}created_at_unix_nano\0\u{3}expires_at_unix_nano\0\u{1}ice\0")
+
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularUInt32Field(value: &self.protocolVersion) }()
+      case 2: try { try decoder.decodeSingularUInt64Field(value: &self.generation) }()
+      case 3: try { try decoder.decodeSingularBytesField(value: &self.sessionID) }()
+      case 4: try { try decoder.decodeSingularInt64Field(value: &self.createdAtUnixNano) }()
+      case 5: try { try decoder.decodeSingularInt64Field(value: &self.expiresAtUnixNano) }()
+      case 6: try { try decoder.decodeSingularMessageField(value: &self._ice) }()
+      default: break
+      }
+    }
+  }
+
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    // The use of inline closures is to circumvent an issue where the compiler
+    // allocates stack space for every if/case branch local when no optimizations
+    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+    // https://github.com/apple/swift-protobuf/issues/1182
+    if self.protocolVersion != 0 {
+      try visitor.visitSingularUInt32Field(value: self.protocolVersion, fieldNumber: 1)
+    }
+    if self.generation != 0 {
+      try visitor.visitSingularUInt64Field(value: self.generation, fieldNumber: 2)
+    }
+    if !self.sessionID.isEmpty {
+      try visitor.visitSingularBytesField(value: self.sessionID, fieldNumber: 3)
+    }
+    if self.createdAtUnixNano != 0 {
+      try visitor.visitSingularInt64Field(value: self.createdAtUnixNano, fieldNumber: 4)
+    }
+    if self.expiresAtUnixNano != 0 {
+      try visitor.visitSingularInt64Field(value: self.expiresAtUnixNano, fieldNumber: 5)
+    }
+    try { if let v = self._ice {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 6)
+    } }()
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  public static func ==(lhs: Computehop_Connectivity_V1_EndpointPresencePayload, rhs: Computehop_Connectivity_V1_EndpointPresencePayload) -> Bool {
+    if lhs.protocolVersion != rhs.protocolVersion {return false}
+    if lhs.generation != rhs.generation {return false}
+    if lhs.sessionID != rhs.sessionID {return false}
+    if lhs.createdAtUnixNano != rhs.createdAtUnixNano {return false}
+    if lhs.expiresAtUnixNano != rhs.expiresAtUnixNano {return false}
+    if lhs._ice != rhs._ice {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Computehop_Connectivity_V1_ICEPathDescription: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = _protobuf_package + ".ICEPathDescription"
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}username_fragment\0\u{1}password\0\u{1}candidates\0")
+
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.usernameFragment) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.password) }()
+      case 3: try { try decoder.decodeRepeatedStringField(value: &self.candidates) }()
+      default: break
+      }
+    }
+  }
+
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.usernameFragment.isEmpty {
+      try visitor.visitSingularStringField(value: self.usernameFragment, fieldNumber: 1)
+    }
+    if !self.password.isEmpty {
+      try visitor.visitSingularStringField(value: self.password, fieldNumber: 2)
+    }
+    if !self.candidates.isEmpty {
+      try visitor.visitRepeatedStringField(value: self.candidates, fieldNumber: 3)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  public static func ==(lhs: Computehop_Connectivity_V1_ICEPathDescription, rhs: Computehop_Connectivity_V1_ICEPathDescription) -> Bool {
+    if lhs.usernameFragment != rhs.usernameFragment {return false}
+    if lhs.password != rhs.password {return false}
+    if lhs.candidates != rhs.candidates {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

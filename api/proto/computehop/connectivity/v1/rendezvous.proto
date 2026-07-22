@@ -26,6 +26,25 @@ message Presence {
   int64 expires_at_unix_nano = 4;
 }
 
+// EndpointPresencePayload is the versioned plaintext inside encrypted presence.
+// The hosted service must never receive or decode this message.
+message EndpointPresencePayload {
+  uint32 protocol_version = 1;
+  uint64 generation = 2;
+  bytes session_id = 3;
+  int64 created_at_unix_nano = 4;
+  int64 expires_at_unix_nano = 5;
+  ICEPathDescription ice = 6;
+}
+
+// ICEPathDescription contains the short-lived credentials and bounded,
+// non-trickle candidate set for one ICE connection attempt.
+message ICEPathDescription {
+  string username_fragment = 1;
+  string password = 2;
+  repeated string candidates = 3;
+}
+
 // SendSignalRequest queues one bounded, end-to-end encrypted signaling frame
 // for the other endpoint in this pair route.
 message SendSignalRequest {

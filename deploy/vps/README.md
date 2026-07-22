@@ -119,7 +119,8 @@ docker compose up -d --force-recreate coturn
 
 This stack makes the public services deployable. The runtime has a tested ICE
 path primitive that can gather candidates, select a direct or relay path, and
-carry QUIC. The daemon does not yet supervise it or exchange its encrypted
-descriptions through rendezvous, and the hosted service does not issue TURN
-credentials. LAN execution remains the working path until those client and
+carry QUIC. It also has a versioned, pair-encrypted presence document and a
+tested rendezvous exchange for real ICE descriptions. The daemon does not yet
+supervise that lifecycle, and the hosted service does not issue TURN
+credentials. LAN execution remains the working path until those daemon and
 service slices are implemented and physically tested.

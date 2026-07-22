@@ -18,9 +18,10 @@ local IPC and presents device, pairing, native job submission, reconnectable
 output, and cancellation controls. A provider-neutral
 one-VPS stack packages rendezvous, automatic HTTPS, STUN, and authenticated
 TURN. A bounded Pion ICE path layer now gathers and selects direct or relayed
-UDP candidates and has been proven to carry QUIC, but it is not yet supervised
-by either daemon. Automatic cross-network connection and relay traffic are not
-wired up, so actual jobs remain LAN-only.
+UDP candidates, exchanges versioned descriptions through encrypted rendezvous
+presence, and has been proven to carry QUIC. It is not yet supervised by either
+daemon. Automatic cross-network connection and relay traffic are not wired up,
+so actual jobs remain LAN-only.
 
 See [`docs/PLAN.md`](docs/PLAN.md) for the product, architecture, security,
 execution, deployment, and launch plan.

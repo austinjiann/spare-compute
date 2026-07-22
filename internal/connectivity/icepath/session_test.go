@@ -3,7 +3,9 @@ package icepath_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
+	"strings"
 	"testing"
 	"time"
 
@@ -93,6 +95,12 @@ func TestDescriptionValidationRejectsUnboundedOrNonUDPInput(t *testing.T) {
 	if err := valid.Validate(); err != nil {
 		t.Fatal(err)
 	}
+	largeCandidates := repeatedCandidates(64)
+	if err := (icepath.Description{
+		Ufrag: valid.Ufrag, Password: valid.Password, Candidates: largeCandidates[:1],
+	}).Validate(); err != nil {
+		t.Fatalf("individual large candidate should be valid: %v", err)
+	}
 	tests := []icepath.Description{
 		{},
 		{Ufrag: valid.Ufrag, Password: valid.Password, Candidates: []string{"invalid"}},
@@ -102,12 +110,24 @@ func TestDescriptionValidationRejectsUnboundedOrNonUDPInput(t *testing.T) {
 		{Ufrag: valid.Ufrag, Password: valid.Password, Candidates: []string{
 			valid.Candidates[0], valid.Candidates[0],
 		}},
+		{Ufrag: valid.Ufrag, Password: valid.Password, Candidates: largeCandidates},
 	}
 	for index, description := range tests {
 		if err := description.Validate(); !errors.Is(err, icepath.ErrInvalidDescription) {
 			t.Fatalf("case %d error = %v", index, err)
 		}
 	}
+}
+
+func repeatedCandidates(count int) []string {
+	candidates := make([]string, 0, count)
+	for index := range count {
+		candidates = append(candidates, fmt.Sprintf(
+			"%d 1 udp 2130706431 192.0.2.1 %d typ host test-extension %s%d",
+			index+1, 5000+index, strings.Repeat("a", 320), index,
+		))
+	}
+	return candidates
 }
 
 func TestRelayOnlyRequiresAuthenticatedTURNServer(t *testing.T) {

@@ -21,6 +21,7 @@ import (
 const (
 	maximumCandidates      = 64
 	maximumCandidateLength = 2048
+	maximumCandidateBytes  = 20 << 10
 	minimumUfragLength     = 4
 	maximumUfragLength     = 256
 	minimumPasswordLength  = 22
@@ -75,8 +76,13 @@ func (description Description) Validate() error {
 		return ErrInvalidDescription
 	}
 	seen := make(map[string]struct{}, len(description.Candidates))
+	totalBytes := 0
 	for _, encoded := range description.Candidates {
 		if len(encoded) == 0 || len(encoded) > maximumCandidateLength {
+			return ErrInvalidDescription
+		}
+		totalBytes += len(encoded)
+		if totalBytes > maximumCandidateBytes {
 			return ErrInvalidDescription
 		}
 		if _, exists := seen[encoded]; exists {
@@ -293,6 +299,14 @@ func (session *Session) onCandidate(candidate ice.Candidate) {
 	if len(encoded) == 0 || len(encoded) > maximumCandidateLength ||
 		candidate.Component() != ice.ComponentRTP || !candidate.NetworkType().IsUDP() {
 		session.gatherErr = ErrInvalidDescription
+		return
+	}
+	totalBytes := len(encoded)
+	for _, existing := range session.candidates {
+		totalBytes += len(existing)
+	}
+	if totalBytes > maximumCandidateBytes {
+		session.gatherErr = fmt.Errorf("%w: candidate description exceeds %d bytes", ErrInvalidDescription, maximumCandidateBytes)
 		return
 	}
 	session.candidates = append(session.candidates, encoded)
