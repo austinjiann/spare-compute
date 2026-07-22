@@ -72,7 +72,7 @@ struct JobsSection: View {
                         .buttonStyle(.plain)
                     }
                     ScrollView {
-                        Text(model.selectedJobLogs.isEmpty ? "No output yet" : model.selectedJobLogs)
+                        Text(model.selectedJobLogs.isEmpty ? model.selectedJobLogsPlaceholder : model.selectedJobLogs)
                             .font(.system(.caption, design: .monospaced))
                             .foregroundStyle(model.selectedJobLogs.isEmpty ? .secondary : .primary)
                             .textSelection(.enabled)

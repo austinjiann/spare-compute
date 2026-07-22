@@ -106,6 +106,19 @@ final class AppModel {
         return "Run a command on This Mac, or connect a nearby worker to enable Smoke Test."
     }
 
+    var selectedJobLogsPlaceholder: String {
+        guard let selectedJobID else {
+            return "No output selected."
+        }
+        guard let job = jobs.first(where: { $0.id == selectedJobID }) else {
+            return "No output loaded yet. Refresh jobs, then open logs again."
+        }
+        if job.terminal {
+            return "No stdout or stderr was captured for \(job.shortID). Some successful commands do not print output."
+        }
+        return "No output captured yet for \(job.shortID). The job may still be starting or may not have written stdout/stderr."
+    }
+
     var canSubmitCommand: Bool { runDisabledReason == nil }
 
     var runDisabledReason: String? {

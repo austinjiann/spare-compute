@@ -196,6 +196,36 @@ func emptyJobsHelpPointsAtConnectWhenNoWorkerIsRunnable() {
 
 @Test
 @MainActor
+func selectedJobLogsPlaceholderExplainsTerminalJobWithNoOutput() {
+    let model = AppModel(client: RecordingDaemonClient())
+    let job = jobSummary(
+        id: "7a338fa3-7ba4-4c54-bf59-da1161f6b76f",
+        target: "Gaming PC",
+        state: .succeeded
+    )
+    model.jobs = [job]
+    model.selectedJobID = job.id
+
+    #expect(model.selectedJobLogsPlaceholder == "No stdout or stderr was captured for 7a338fa3. Some successful commands do not print output.")
+}
+
+@Test
+@MainActor
+func selectedJobLogsPlaceholderExplainsRunningJobWithNoOutputYet() {
+    let model = AppModel(client: RecordingDaemonClient())
+    let job = jobSummary(
+        id: "7a338fa3-7ba4-4c54-bf59-da1161f6b76f",
+        target: "Gaming PC",
+        state: .running
+    )
+    model.jobs = [job]
+    model.selectedJobID = job.id
+
+    #expect(model.selectedJobLogsPlaceholder == "No output captured yet for 7a338fa3. The job may still be starting or may not have written stdout/stderr.")
+}
+
+@Test
+@MainActor
 func submitSmokeTestUsesSelectedWorkerWhenMultipleWorkersExist() async {
     let first = runTargetDevice(id: "first-worker-id", name: "Gaming PC")
     let second = runTargetDevice(id: "second-worker-id", name: "Mini PC")
@@ -538,7 +568,8 @@ private func jobSummary(
     executable: String = "hostname",
     arguments: [String] = [],
     outputs: [String] = [],
-    target: String
+    target: String,
+    state: Computehop_Local_V1_JobState = .queued
 ) -> JobSummary {
     var spec = Computehop_Local_V1_JobSpec()
     spec.executable = executable
@@ -549,7 +580,7 @@ private func jobSummary(
     var value = Computehop_Local_V1_Job()
     value.id = id
     value.spec = spec
-    value.state = .queued
+    value.state = state
     value.updatedAtUnixNano = 1_700_000_000_000_000_000
     return JobSummary(value, target: target)
 }
