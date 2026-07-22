@@ -840,7 +840,7 @@ func TestJobsCommandPrintsDurableJobs(t *testing.T) {
 	}
 }
 
-func TestDevicesCommandPrintsNearbyDevicesAsUnpaired(t *testing.T) {
+func TestDevicesCommandPrintsNearbyDevicesAsNotConnected(t *testing.T) {
 	presenceID, err := device.NewPresenceID(bytes.NewReader(make([]byte, 16)))
 	if err != nil {
 		t.Fatal(err)
@@ -875,7 +875,7 @@ func TestDevicesCommandPrintsNearbyDevicesAsUnpaired(t *testing.T) {
 	if err := command.Execute(); err != nil {
 		t.Fatalf("Execute() error = %v", err)
 	}
-	for _, want := range []string{"Gaming PC", presenceID.Short(), "unpaired", "worker", "192.0.2.20 (discovery only)", "2026-07-19T12:00:00Z"} {
+	for _, want := range []string{"Gaming PC", presenceID.Short(), "not connected", "worker", "192.0.2.20 (discovery only)", "2026-07-19T12:00:00Z"} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
 		}
@@ -936,7 +936,7 @@ func TestDevicesCommandCombinesOneTrustedPeerWithItsNearbyPresence(t *testing.T)
 	if strings.Count(output, "Gaming PC") != 1 {
 		t.Fatalf("stdout contains duplicate device rows: %q", output)
 	}
-	for _, want := range []string{identity.ID().Short(), "active", "nearby", "192.0.2.20:47823"} {
+	for _, want := range []string{identity.ID().Short(), "connected", "nearby", "192.0.2.20:47823"} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("stdout %q does not contain %q", output, want)
 		}
@@ -1009,12 +1009,12 @@ func TestDevicesCommandCollapsesDuplicateNearbyRowsForSingleActivePeer(t *testin
 	if strings.Count(output, "Gaming PC") != 1 {
 		t.Fatalf("stdout contains duplicate device rows: %q", output)
 	}
-	for _, want := range []string{identity.ID().Short(), "active", "nearby", "LAN", "2 LAN records"} {
+	for _, want := range []string{identity.ID().Short(), "connected", "nearby", "LAN", "2 LAN records"} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("stdout %q does not contain %q", output, want)
 		}
 	}
-	for _, unwanted := range []string{firstPresence.Short(), secondPresence.Short(), "unpaired"} {
+	for _, unwanted := range []string{firstPresence.Short(), secondPresence.Short(), "not connected"} {
 		if strings.Contains(output, unwanted) {
 			t.Fatalf("stdout contains suppressed duplicate %q: %q", unwanted, output)
 		}
@@ -1110,6 +1110,94 @@ func TestDevicesCommandShowsLANOnlyForDisabledRemoteConnectivity(t *testing.T) {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
 		}
+	}
+}
+
+func TestDisconnectCommandRevokesSelectedDevice(t *testing.T) {
+	identity, err := device.GenerateIdentity(bytes.NewReader(bytes.Repeat([]byte{20}, 64)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pairID, err := trust.NewPairID(bytes.NewReader(bytes.Repeat([]byte{21}, 16)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	revokedAt := time.Date(2026, time.July, 22, 8, 1, 0, 0, time.UTC)
+	trusted, err := mapper.TrustedPeerToProto(trust.Peer{
+		PairID: pairID, DeviceID: identity.ID(), PublicKey: identity.PublicKey(),
+		Name: "Gaming PC", Role: device.RoleWorker, State: trust.StateRevoked,
+		PairedAt:  time.Date(2026, time.July, 22, 8, 0, 0, 0, time.UTC),
+		UpdatedAt: revokedAt, RevokedAt: &revokedAt,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+				if got := request.GetUnpairDevice().GetDeviceSelector(); got != "Gaming PC" {
+					t.Fatalf("device selector = %q", got)
+				}
+				return &localv1.Response{Result: &localv1.Response_UnpairDevice{
+					UnpairDevice: &localv1.UnpairDeviceResponse{Device: trusted},
+				}}, nil
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"disconnect", "Gaming PC"})
+	if err := command.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"Disconnected Gaming PC", identity.ID().Short(), "computehop connect nearby"} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
+		}
+	}
+}
+
+func TestUnpairAliasRemainsCompatible(t *testing.T) {
+	identity, err := device.GenerateIdentity(bytes.NewReader(bytes.Repeat([]byte{22}, 64)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pairID, err := trust.NewPairID(bytes.NewReader(bytes.Repeat([]byte{23}, 16)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	revokedAt := time.Date(2026, time.July, 22, 8, 1, 0, 0, time.UTC)
+	trusted, err := mapper.TrustedPeerToProto(trust.Peer{
+		PairID: pairID, DeviceID: identity.ID(), PublicKey: identity.PublicKey(),
+		Name: "Mini PC", Role: device.RoleWorker, State: trust.StateRevoked,
+		PairedAt:  time.Date(2026, time.July, 22, 8, 0, 0, 0, time.UTC),
+		UpdatedAt: revokedAt, RevokedAt: &revokedAt,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+				if got := request.GetUnpairDevice().GetDeviceSelector(); got != "Mini PC" {
+					t.Fatalf("device selector = %q", got)
+				}
+				return &localv1.Response{Result: &localv1.Response_UnpairDevice{
+					UnpairDevice: &localv1.UnpairDeviceResponse{Device: trusted},
+				}}, nil
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"unpair", "Mini PC"})
+	if err := command.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stdout.String(), "Disconnected Mini PC") {
+		t.Fatalf("stdout %q does not contain disconnect output", stdout.String())
 	}
 }
 
@@ -1919,12 +2007,13 @@ func TestRootHelpShowsSetupAndConnectButHidesLegacyPair(t *testing.T) {
 		t.Fatalf("Execute() error = %v", err)
 	}
 	output := stdout.String()
-	for _, want := range []string{"setup", "connect", "smoke"} {
+	for _, want := range []string{"setup", "connect", "disconnect", "smoke"} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("help %q does not contain %q", output, want)
 		}
 	}
-	if strings.Contains(output, "pair [device]") || strings.Contains(output, "\n  pair ") {
+	if strings.Contains(output, "pair [device]") || strings.Contains(output, "\n  pair ") ||
+		strings.Contains(output, "unpair") {
 		t.Fatalf("help exposes legacy pair command: %q", output)
 	}
 }
@@ -1943,6 +2032,16 @@ func TestCoreCommandHelpShowsFriendlyExamplesWithoutDaemon(t *testing.T) {
 				"computehop connect nearby",
 				"computehop connect confirm",
 				"nearby unpaired worker",
+			},
+		},
+		{
+			name: "disconnect",
+			args: []string{"disconnect", "--help"},
+			want: []string{
+				"disconnect <device>",
+				"Disconnect revokes this computer's saved trust",
+				"computehop devices",
+				"computehop disconnect \"Gaming PC\"",
 			},
 		},
 		{

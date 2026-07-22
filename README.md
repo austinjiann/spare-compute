@@ -108,7 +108,7 @@ go run ./cmd/computehop --state-dir "$computehop_state_dir" connect
 go run ./cmd/computehop --state-dir "$computehop_state_dir" connect nearby
 go run ./cmd/computehop --state-dir "$computehop_state_dir" connect <device-name-or-session>
 go run ./cmd/computehop --state-dir "$computehop_state_dir" connect confirm
-go run ./cmd/computehop --state-dir "$computehop_state_dir" unpair <device-name-or-id>
+go run ./cmd/computehop --state-dir "$computehop_state_dir" disconnect <device-name-or-id>
 go run ./cmd/computehop --state-dir "$computehop_state_dir" run echo hello
 go run ./cmd/computehop --state-dir "$computehop_state_dir" jobs
 go run ./cmd/computehop --state-dir "$computehop_state_dir" logs --follow <job-id>
@@ -139,7 +139,7 @@ before printing the next command to run for the current state. When no worker is
 visible yet, that next command is `computehop setup worker --device-name
 "Gaming PC"`. `devices` merges
 trusted peers with matching LAN presence and collapses duplicate same-name LAN
-records for a single active peer so stale daemon restarts do not look like
+records for a single connected peer so stale daemon restarts do not look like
 extra unpaired computers. `connect` is the
 friendlier pairing entry point: run it with no arguments for the next connection
 step, `connect nearby` to start trust setup only when exactly one nearby
@@ -223,9 +223,10 @@ connection-bound verification code. Compare it exactly and run
 `computehop connect confirm` on both machines; the CLI infers
 the request when only one is actionable, tells you when the other machine still
 needs confirmation, and asks for an ID only if there is ambiguity. A worker
-stores at most one active orchestrator pin, while the
-orchestrator may store multiple workers. `computehop unpair` durably revokes the
-selected local pin; connecting again is explicit. Remote job connections use a
+stores at most one connected orchestrator pin, while the
+orchestrator may store multiple workers. `computehop disconnect` durably revokes the
+selected local pin; connecting again is explicit. `computehop unpair` remains a
+compatibility alias. Remote job connections use a
 separate protocol on the same QUIC listener, pin both endpoint identities, and
 re-check worker-side trust for every operation so revocation takes effect
 without waiting for a restart. The older `pair` command remains callable for

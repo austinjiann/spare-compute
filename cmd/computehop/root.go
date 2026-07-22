@@ -66,7 +66,7 @@ func newRootCommand(dependencies dependencies) *cobra.Command {
 	root.AddCommand(newDevicesCommand(dependencies.stdout, dependencies.stderr, clientForCommand))
 	root.AddCommand(newConnectCommand(dependencies.stdout, clientForCommand))
 	root.AddCommand(newPairCommand(dependencies.stdout, clientForCommand))
-	root.AddCommand(newUnpairCommand(dependencies.stdout, clientForCommand))
+	root.AddCommand(newDisconnectCommand(dependencies.stdout, clientForCommand))
 	root.AddCommand(newRunCommand(dependencies.stdout, dependencies.getwd, clientForCommand))
 	root.AddCommand(newSmokeCommand(dependencies.stdout, dependencies.stderr, clientForCommand))
 	root.AddCommand(newJobsCommand(dependencies.stdout, clientForCommand))
@@ -161,7 +161,7 @@ func newDevicesCommand(
 			}
 
 			writer := tabwriter.NewWriter(stdout, 0, 4, 2, ' ', 0)
-			if _, err := fmt.Fprintln(writer, "NAME\tIDENTIFIER\tTRUST\tROLE\tAVAILABILITY\tPATH\tADDRESS\tUPDATED"); err != nil {
+			if _, err := fmt.Fprintln(writer, "NAME\tIDENTIFIER\tCONNECTION\tROLE\tAVAILABILITY\tPATH\tADDRESS\tUPDATED"); err != nil {
 				return err
 			}
 			matchedNearby := make(map[int]bool)
@@ -207,7 +207,7 @@ func newDevicesCommand(
 				}
 				if _, err := fmt.Fprintf(
 					writer, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-					peer.Name, peer.DeviceID.Short(), peer.State, peer.Role, availability, path, address,
+					peer.Name, peer.DeviceID.Short(), trustStateLabel(peer.State), peer.Role, availability, path, address,
 					updatedAt.Format(time.RFC3339),
 				); err != nil {
 					return err
@@ -219,7 +219,7 @@ func newDevicesCommand(
 				}
 				if _, err := fmt.Fprintf(
 					writer,
-					"%s\t%s\tunpaired\t%s\t%s\tLAN\t%s\t%s\n",
+					"%s\t%s\tnot connected\t%s\t%s\tLAN\t%s\t%s\n",
 					nearby.name, nearby.presenceID.Short(), nearby.role, nearby.availability,
 					nearby.address, nearby.lastSeen.Format(time.RFC3339),
 				); err != nil {
@@ -241,6 +241,17 @@ func remotePathLabel(kind string) string {
 		return "relay (TURN)"
 	default:
 		return "internet"
+	}
+}
+
+func trustStateLabel(state trust.State) string {
+	switch state {
+	case trust.StateActive:
+		return "connected"
+	case trust.StateRevoked:
+		return "revoked"
+	default:
+		return string(state)
 	}
 }
 
@@ -1186,14 +1197,22 @@ func inferPairingSelector(command *cobra.Command, client caller, confirmed bool)
 	)
 }
 
-func newUnpairCommand(
+func newDisconnectCommand(
 	stdout io.Writer,
 	clientForCommand func() (caller, error),
 ) *cobra.Command {
 	return &cobra.Command{
-		Use:   "unpair <device>",
-		Short: "Revoke a paired device's pinned identity",
-		Args:  cobra.ExactArgs(1),
+		Use:     "disconnect <device>",
+		Aliases: []string{"unpair"},
+		Short:   "Disconnect a paired device",
+		Long: strings.TrimSpace(`Disconnect revokes this computer's saved trust for a paired device.
+
+Use the device name or short device ID from computehop devices. To use that
+computer again later, connect it again on the LAN and compare the verification
+code on both devices.`),
+		Example: strings.TrimSpace(`computehop disconnect "Gaming PC"
+computehop disconnect abc12345`),
+		Args: cobra.ExactArgs(1),
 		RunE: func(command *cobra.Command, arguments []string) error {
 			client, err := clientForCommand()
 			if err != nil {
@@ -1214,7 +1233,7 @@ func newUnpairCommand(
 			if err != nil {
 				return fmt.Errorf("%w: %v", ErrInvalidDaemonResponse, err)
 			}
-			_, err = fmt.Fprintf(stdout, "Revoked %s (%s). Pair it again to restore trust.\n", peer.Name, peer.DeviceID.Short())
+			_, err = fmt.Fprintf(stdout, "Disconnected %s (%s). Run 'computehop connect nearby' when it is nearby to connect again.\n", peer.Name, peer.DeviceID.Short())
 			return err
 		},
 	}
