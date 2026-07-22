@@ -16,7 +16,9 @@ native job submission to this Mac, Auto worker when exactly one
 worker is runnable, or a paired available worker, a Smoke Test button that runs
 `hostname` remotely without uploading a project, recent jobs, reconnectable
 output, cancellation, declared output paths, empty-jobs hints, and
-conflict-safe artifact restoration through a native destination picker. The
+conflict-safe artifact restoration through a native destination picker. Output
+retrieval errors explain not-ready, missing, and undeclared outputs instead of
+showing raw daemon messages. The
 command field splits quotes and escapes into literal arguments but never invokes
 a shell or performs shell expansion. Local jobs default to the user's home
 directory. For a remote job, choose a project folder on this Mac; the daemon

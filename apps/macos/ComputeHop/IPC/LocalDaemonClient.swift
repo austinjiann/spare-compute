@@ -41,7 +41,7 @@ enum LocalDaemonError: LocalizedError, Sendable {
     case invalidCapabilityToken(String)
     case invalidFrame(String)
     case invalidResponse(String)
-    case remote(String)
+    case remote(Computehop_Local_V1_ErrorCode, String)
     case transport(String)
 
     var errorDescription: String? {
@@ -56,7 +56,7 @@ enum LocalDaemonError: LocalizedError, Sendable {
             return "The local daemon sent an invalid frame: \(detail)"
         case .invalidResponse(let detail):
             return "The local daemon sent an invalid response: \(detail)"
-        case .remote(let message):
+        case .remote(_, let message):
             return message
         case .transport(let detail):
             return "Could not reach the local ComputeHop daemon: \(detail)"
@@ -207,7 +207,12 @@ actor LocalDaemonClient: LocalDaemonClientProtocol {
         operation.jobID = id
         operation.destination = destination
         operation.deviceSelector = deviceSelector
-        let response = try await call(.fetchArtifacts(operation))
+        let response: Computehop_Local_V1_Response
+        do {
+            response = try await call(.fetchArtifacts(operation))
+        } catch {
+            throw Self.artifactFetchError(id: id, error: error)
+        }
         guard case .fetchArtifacts(let result)? = response.result,
             !result.destination.isEmpty
         else {
@@ -218,6 +223,48 @@ actor LocalDaemonClient: LocalDaemonClientProtocol {
             restoredFileCount: result.restoredFileCount,
             conflictFileCount: result.conflictFileCount
         )
+    }
+
+    static func artifactFetchError(id: String, error: Error) -> Error {
+        guard case LocalDaemonError.remote(let code, let message) = error else {
+            return error
+        }
+        let lowercased = message.lowercased()
+        if code == .conflict && lowercased.contains("job artifacts are not ready") {
+            if lowercased.contains(" is succeeded") {
+                return LocalDaemonError.remote(
+                    code,
+                    "No declared outputs are available for \(id). Rerun the job with -o/--output for each file or directory you want returned."
+                )
+            }
+            if lowercased.contains(" is failed")
+                || lowercased.contains(" is cancelled")
+                || lowercased.contains(" is rejected")
+                || lowercased.contains(" is lost")
+            {
+                return LocalDaemonError.remote(
+                    code,
+                    "Outputs are not available for \(id) because the job ended before producing declared outputs."
+                )
+            }
+            return LocalDaemonError.remote(
+                code,
+                "Outputs for \(id) are not ready yet. Wait for the job to succeed, then fetch outputs again."
+            )
+        }
+        if code == .notFound && lowercased.contains("artifacts") {
+            return LocalDaemonError.remote(
+                code,
+                "Outputs were not found for \(id). Check the job ID/worker and make sure the job was submitted with -o/--output."
+            )
+        }
+        if code == .conflict && lowercased.contains("artifacts are not configured") {
+            return LocalDaemonError.remote(
+                code,
+                "Output retrieval is not enabled on this daemon or worker. Restart ComputeHop from this checkout, then run computehop doctor."
+            )
+        }
+        return error
     }
 
     func readJobLogs(
@@ -327,7 +374,7 @@ actor LocalDaemonClient: LocalDaemonClientProtocol {
             throw LocalDaemonError.incompatibleDaemon("Daemon replied to the wrong request.")
         }
         if response.hasError {
-            throw LocalDaemonError.remote(response.error.message)
+            throw LocalDaemonError.remote(response.error.code, response.error.message)
         }
         return response
     }
