@@ -145,6 +145,54 @@ struct DeviceSummary: Identifiable, Sendable {
     }
 }
 
+struct SetupGuideSummary: Sendable {
+    let title: String
+    let detail: String
+    let command: String?
+
+    static func make(
+        isConnected: Bool,
+        devices: [DeviceSummary],
+        pairings: [PairingSummary],
+        runnableDevices: [DeviceSummary]
+    ) -> SetupGuideSummary? {
+        if !isConnected {
+            return SetupGuideSummary(
+                title: "Start ComputeHop",
+                detail: "The menu bar cannot reach the background daemon yet. Start it, then refresh.",
+                command: "computehop doctor"
+            )
+        }
+        if pairings.contains(where: { $0.state == "Waiting" }) {
+            return nil
+        }
+        if let nearby = devices.first(where: { $0.canPair }) {
+            return SetupGuideSummary(
+                title: "Connect \(nearby.name)",
+                detail: "Click Connect beside \(nearby.name), compare the code on both devices, then confirm.",
+                command: nil
+            )
+        }
+        if !runnableDevices.isEmpty {
+            return nil
+        }
+        if devices.contains(where: {
+            $0.role == "Worker" && $0.trust == "Paired" && $0.availability == .offline
+        }) {
+            return SetupGuideSummary(
+                title: "Worker offline",
+                detail: "A trusted worker exists but is not reachable. Start ComputeHop on that computer or put both devices on the same LAN.",
+                command: "computehop devices"
+            )
+        }
+        return SetupGuideSummary(
+            title: "Add another computer",
+            detail: "Start ComputeHop as a worker on another computer on this LAN. It will appear here automatically.",
+            command: "computehop doctor"
+        )
+    }
+}
+
 struct JobSummary: Identifiable, Sendable {
     let id: String
     let command: String

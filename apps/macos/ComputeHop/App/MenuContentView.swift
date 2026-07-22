@@ -45,6 +45,7 @@ struct MenuContentView: View {
             }
 
             Divider()
+            SetupGuideSection(model: model)
             PairingSection(model: model)
             DevicesSection(model: model)
             Divider()

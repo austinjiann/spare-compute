@@ -46,6 +46,15 @@ final class AppModel {
         }
     }
 
+    var setupGuide: SetupGuideSummary? {
+        SetupGuideSummary.make(
+            isConnected: isConnected,
+            devices: devices,
+            pairings: pairings,
+            runnableDevices: runnableDevices
+        )
+    }
+
     func refreshLoop() async {
         await refresh()
         while !Task.isCancelled {
