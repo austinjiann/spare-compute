@@ -1204,8 +1204,9 @@ after a daemon restart.
 
 ### Step 2: LAN discovery, trust, and explicit remote execution
 
-**Implementation status:** discovery, pairing, first-run `doctor`, local daemon
-identity in status output, `connect` as the guided pairing entry point,
+**Implementation status:** discovery, pairing, first-run `doctor` with
+daemon-not-running setup guidance, local daemon identity in status output,
+`connect` as the guided pairing entry point,
 explicit `run`, `run --follow/--wait/--get`, `jobs`, `logs`, and `cancel`
 routing through identity-pinned QUIC, and durable remote job placement are
 implemented. Remote runs now transfer an immutable project

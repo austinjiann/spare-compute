@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -819,25 +820,65 @@ func TestDoctorCommandSuggestsPairingNearbyWorker(t *testing.T) {
 	}
 }
 
-func TestDoctorCommandPrintsDaemonRecoveryBeforeConnectionError(t *testing.T) {
+func TestDoctorCommandPrintsStartAdviceWhenDaemonIsNotRunning(t *testing.T) {
 	var stdout bytes.Buffer
 	command := newRootCommand(dependencies{
 		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
 		newClient: func(string) (caller, error) {
-			return nil, errors.New("daemon down")
+			return nil, fmt.Errorf("%w: daemon down", ErrDaemonNotRunning)
 		},
 	})
 	command.SetArgs([]string{"doctor"})
-	if err := command.Execute(); err == nil || !strings.Contains(err.Error(), "daemon down") {
+	if err := command.Execute(); err != nil {
 		t.Fatalf("Execute() error = %v", err)
 	}
 	for _, want := range []string{
-		"Daemon: not reachable",
+		"Daemon: not running",
+		"open -a ComputeHop",
+		"make install-macos",
 		"go run ./cmd/computehopd --role orchestrator --device-name \"This Mac\"",
+		"computehop doctor",
 	} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
 		}
+	}
+}
+
+func TestDoctorCommandReturnsUnexpectedClientError(t *testing.T) {
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			return nil, errors.New("permission denied")
+		},
+	})
+	command.SetArgs([]string{"doctor"})
+	if err := command.Execute(); err == nil || !strings.Contains(err.Error(), "permission denied") {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+}
+
+func TestDoctorCommandPrintsStartAdviceWhenPingCannotReachDaemon(t *testing.T) {
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(context.Context, *localv1.Request) (*localv1.Response, error) {
+				return nil, fmt.Errorf("%w: socket closed", ErrDaemonNotRunning)
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"doctor"})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if !strings.Contains(stdout.String(), "Daemon: not running") ||
+		!strings.Contains(stdout.String(), "computehop doctor") {
+		t.Fatalf("stdout = %q", stdout.String())
 	}
 }
 

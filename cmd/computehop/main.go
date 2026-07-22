@@ -40,7 +40,8 @@ func (value localDaemonCaller) Call(ctx context.Context, request *localv1.Reques
 		return nil, err
 	}
 	return nil, fmt.Errorf(
-		"cannot reach the local ComputeHop daemon; open the ComputeHop app or start it with 'go run ./cmd/computehopd': %w",
+		"%w; run 'computehop doctor' for setup help: %v",
+		ErrDaemonNotRunning,
 		err,
 	)
 }
@@ -75,7 +76,10 @@ func daemonClient(stateDir string) (caller, error) {
 	token, err := permissions.LoadCapabilityToken(tokenPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return nil, errors.New("ComputeHop is not running; open the ComputeHop app or start it with 'go run ./cmd/computehopd'")
+			return nil, fmt.Errorf(
+				"%w; run 'computehop doctor' for setup help",
+				ErrDaemonNotRunning,
+			)
 		}
 		return nil, fmt.Errorf("load local daemon credentials: %w", err)
 	}

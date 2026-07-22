@@ -21,7 +21,10 @@ import (
 	"github.com/austinjiann/spare-compute/internal/trust"
 )
 
-var ErrInvalidDaemonResponse = errors.New("invalid response from computehopd")
+var (
+	ErrDaemonNotRunning      = errors.New("ComputeHop daemon is not running")
+	ErrInvalidDaemonResponse = errors.New("invalid response from computehopd")
+)
 
 type nearbyDeviceView struct {
 	presenceID   device.PresenceID
@@ -611,24 +614,15 @@ func newDoctorCommand(
 		RunE: func(command *cobra.Command, _ []string) error {
 			client, err := clientForCommand()
 			if err != nil {
-				if _, writeErr := fmt.Fprintln(stdout, "Daemon: not reachable"); writeErr != nil {
-					return writeErr
-				}
-				if _, writeErr := fmt.Fprintln(stdout, "\nNext:"); writeErr != nil {
-					return writeErr
-				}
-				if _, writeErr := fmt.Fprintln(
-					stdout,
-					"- Open the ComputeHop app, or run: go run ./cmd/computehopd --role orchestrator --device-name \"This Mac\"",
-				); writeErr != nil {
-					return writeErr
-				}
-				return err
+				return printDaemonStartAdvice(stdout, err)
 			}
 			response, err := client.Call(command.Context(), &localv1.Request{
 				Operation: &localv1.Request_Ping{Ping: &localv1.PingRequest{}},
 			})
 			if err != nil {
+				if errors.Is(err, ErrDaemonNotRunning) {
+					return printDaemonStartAdvice(stdout, err)
+				}
 				return err
 			}
 			ping := response.GetPing()
@@ -655,6 +649,26 @@ func newDoctorCommand(
 			return printDoctorDevices(stdout, result)
 		},
 	}
+}
+
+func printDaemonStartAdvice(stdout io.Writer, err error) error {
+	if !errors.Is(err, ErrDaemonNotRunning) {
+		return err
+	}
+	for _, line := range []string{
+		"Daemon: not running",
+		"",
+		"Next:",
+		"- If the app is installed: open -a ComputeHop",
+		"- If you are developing from this repo: go run ./cmd/computehopd --role orchestrator --device-name \"This Mac\"",
+		"- To install the menu-bar app and launch-at-login daemon: make install-macos",
+		"- Then run: computehop doctor",
+	} {
+		if _, writeErr := fmt.Fprintln(stdout, line); writeErr != nil {
+			return writeErr
+		}
+	}
+	return nil
 }
 
 func printPingDeviceLine(stdout io.Writer, ping *localv1.PingResponse) error {
