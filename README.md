@@ -102,6 +102,7 @@ go run ./cmd/computehop --state-dir "$computehop_state_dir" jobs
 go run ./cmd/computehop --state-dir "$computehop_state_dir" logs --follow <job-id>
 go run ./cmd/computehop --state-dir "$computehop_state_dir" cancel <job-id>
 go run ./cmd/computehop --state-dir "$computehop_state_dir" run -o result.txt sh -c 'printf done > result.txt'
+go run ./cmd/computehop --state-dir "$computehop_state_dir" run -o result.txt --follow --get sh -c 'printf done > result.txt'
 go run ./cmd/computehop --state-dir "$computehop_state_dir" artifacts <job-id>
 ```
 
@@ -119,17 +120,22 @@ go run ./cmd/computehop --state-dir "$computehop_state_dir" run --on "Gaming PC"
 go run ./cmd/computehop --state-dir "$computehop_state_dir" run --on "Gaming PC" cargo build --release
 go run ./cmd/computehop --state-dir "$computehop_state_dir" run --on "Gaming PC" -C /local/project cargo test
 go run ./cmd/computehop --state-dir "$computehop_state_dir" run --on "Gaming PC" -o target/release/my-app cargo build --release
+go run ./cmd/computehop --state-dir "$computehop_state_dir" run --on "Gaming PC" -o target/release/my-app --follow --get cargo build --release
 go run ./cmd/computehop --state-dir "$computehop_state_dir" jobs --on "Gaming PC"
 go run ./cmd/computehop --state-dir "$computehop_state_dir" logs --follow <job-id>
 go run ./cmd/computehop --state-dir "$computehop_state_dir" cancel <job-id>
 go run ./cmd/computehop --state-dir "$computehop_state_dir" artifacts <job-id>
 ```
 
-Repeat `-o`/`--output` for each relative file or directory to return. After the
-job succeeds, `computehop artifacts <job-id>` infers its worker and restores to
-`.computehop-results/<job-id>` by default; use `--to <directory>` to choose a
-different destination. Existing files are never overwritten. Incoming
-conflicts are retained beneath `.computehop-conflicts` in the destination.
+Repeat `-o`/`--output` for each relative file or directory to return. Add
+`--follow` to stream logs from `run`, `--wait` to block until completion without
+streaming logs, and `--get`/`--fetch` to download declared outputs after a
+successful job. `--get` implies waiting; use `--to <directory>` to choose the
+restore destination. You can still fetch later with
+`computehop artifacts <job-id>`, which infers its worker and restores to
+`.computehop-results/<job-id>` by default. Existing files are never overwritten.
+Incoming conflicts are retained beneath `.computehop-conflicts` in the
+destination.
 While outputs are being fetched or restored, `computehop jobs`, remote job
 refreshes, and the menu-bar job list show durable byte-level progress for the
 current download or restore phase.

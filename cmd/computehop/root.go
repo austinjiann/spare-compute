@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -799,11 +800,21 @@ func newRunCommand(
 	var deviceSelector string
 	var workingDirectory string
 	var outputs []string
+	var follow bool
+	var wait bool
+	var fetchOutputs bool
+	var artifactDestination string
 	command := &cobra.Command{
 		Use:   "run [--on device] <program> [args...]",
 		Short: "Submit a background command",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(command *cobra.Command, arguments []string) error {
+			if artifactDestination != "" && !fetchOutputs {
+				return errors.New("--to requires --get")
+			}
+			if fetchOutputs && len(outputs) == 0 {
+				return errors.New("--get requires at least one declared output with -o/--output")
+			}
 			targetDirectory := workingDirectory
 			if targetDirectory == "" {
 				var err error
@@ -850,13 +861,45 @@ func newRunCommand(
 			if err != nil {
 				return err
 			}
-			if _, err = fmt.Fprintf(stdout, "Follow it: computehop logs --follow %s\n", value.ID); err != nil {
+			shouldWait := wait || follow || fetchOutputs
+			if !shouldWait {
+				if _, err = fmt.Fprintf(stdout, "Follow it: computehop logs --follow %s\n", value.ID); err != nil {
+					return err
+				}
+				if len(outputs) > 0 {
+					_, err = fmt.Fprintf(stdout, "Get outputs after it succeeds: computehop artifacts %s\n", value.ID)
+				}
 				return err
 			}
-			if len(outputs) > 0 {
-				_, err = fmt.Fprintf(stdout, "Get outputs after it succeeds: computehop artifacts %s\n", value.ID)
+
+			if follow {
+				value, err = streamJobLogs(
+					command.Context(), stdout, command.ErrOrStderr(), client, value.ID, deviceSelector, true,
+				)
+			} else {
+				if _, err = fmt.Fprintf(stdout, "Waiting for %s to finish...\n", value.ID); err != nil {
+					return err
+				}
+				value, err = waitForJob(command.Context(), client, value.ID, deviceSelector)
 			}
-			return err
+			if err != nil {
+				return err
+			}
+			if _, err = fmt.Fprintf(stdout, "Job %s %s\n", value.ID, value.State); err != nil {
+				return err
+			}
+			if value.State != job.StateSucceeded {
+				return fmt.Errorf("job %s ended as %s", value.ID, value.State)
+			}
+			if !fetchOutputs {
+				if len(outputs) > 0 {
+					_, err = fmt.Fprintf(stdout, "Get outputs: computehop artifacts %s\n", value.ID)
+				}
+				return err
+			}
+			return fetchArtifacts(
+				command.Context(), stdout, command.ErrOrStderr(), getwd, client, value.ID, deviceSelector, artifactDestination,
+			)
 		},
 	}
 	command.Flags().SetInterspersed(false)
@@ -874,6 +917,17 @@ func newRunCommand(
 		"o",
 		nil,
 		"relative output file or directory to return (repeatable)",
+	)
+	command.Flags().BoolVarP(&follow, "follow", "f", false, "stream logs until the job finishes")
+	command.Flags().BoolVar(&wait, "wait", false, "wait until the job finishes without streaming logs")
+	command.Flags().BoolVar(&fetchOutputs, "get", false, "after success, download declared outputs")
+	command.Flags().BoolVar(&fetchOutputs, "fetch", false, "alias for --get")
+	command.Flags().StringVarP(
+		&artifactDestination,
+		"to",
+		"t",
+		"",
+		"output destination when used with --get (defaults to .computehop-results/<job-id>)",
 	)
 	return command
 }
@@ -896,56 +950,82 @@ func newArtifactsCommand(
 			if err != nil {
 				return err
 			}
-			target := destination
-			if target == "" {
-				workingDirectory, err := getwd()
-				if err != nil {
-					return fmt.Errorf("resolve output directory: %w", err)
-				}
-				target = filepath.Join(workingDirectory, ".computehop-results", string(id))
-			} else if !filepath.IsAbs(target) {
-				target, err = filepath.Abs(target)
-				if err != nil {
-					return fmt.Errorf("resolve output directory: %w", err)
-				}
-			}
 			client, err := clientForCommand()
 			if err != nil {
 				return err
 			}
-			response, err := client.Call(command.Context(), &localv1.Request{
-				Operation: &localv1.Request_FetchArtifacts{FetchArtifacts: &localv1.FetchArtifactsRequest{
-					JobId: string(id), DeviceSelector: deviceSelector, Destination: target,
-				}},
-			})
-			if err != nil {
-				return err
-			}
-			result := response.GetFetchArtifacts()
-			if result == nil || result.GetDestination() == "" {
-				return fmt.Errorf("%w: missing artifact result", ErrInvalidDaemonResponse)
-			}
-			if _, err := fmt.Fprintf(
-				stdout, "Restored %d output file(s) to %s\n",
-				result.GetRestoredFileCount(), result.GetDestination(),
-			); err != nil {
-				return err
-			}
-			if result.GetConflictFileCount() > 0 {
-				if _, err := fmt.Fprintf(
-					stderr,
-					"Kept existing files unchanged; %d incoming conflict(s) are under %s\n",
-					result.GetConflictFileCount(), filepath.Join(result.GetDestination(), ".computehop-conflicts"),
-				); err != nil {
-					return err
-				}
-			}
-			return nil
+			return fetchArtifacts(command.Context(), stdout, stderr, getwd, client, id, deviceSelector, destination)
 		},
 	}
 	command.Flags().StringVarP(&destination, "to", "t", "", "destination directory (defaults to .computehop-results/<job-id>)")
 	addDeviceSelectorFlags(command, &deviceSelector)
 	return command
+}
+
+func fetchArtifacts(
+	ctx context.Context,
+	stdout io.Writer,
+	stderr io.Writer,
+	getwd func() (string, error),
+	client caller,
+	id job.ID,
+	deviceSelector string,
+	destination string,
+) error {
+	target, err := resolveArtifactDestination(getwd, id, destination)
+	if err != nil {
+		return err
+	}
+	response, err := client.Call(ctx, &localv1.Request{
+		Operation: &localv1.Request_FetchArtifacts{FetchArtifacts: &localv1.FetchArtifactsRequest{
+			JobId: string(id), DeviceSelector: deviceSelector, Destination: target,
+		}},
+	})
+	if err != nil {
+		return err
+	}
+	result := response.GetFetchArtifacts()
+	if result == nil || result.GetDestination() == "" {
+		return fmt.Errorf("%w: missing artifact result", ErrInvalidDaemonResponse)
+	}
+	if _, err := fmt.Fprintf(
+		stdout, "Restored %d output file(s) to %s\n",
+		result.GetRestoredFileCount(), result.GetDestination(),
+	); err != nil {
+		return err
+	}
+	if result.GetConflictFileCount() > 0 {
+		if _, err := fmt.Fprintf(
+			stderr,
+			"Kept existing files unchanged; %d incoming conflict(s) are under %s\n",
+			result.GetConflictFileCount(), filepath.Join(result.GetDestination(), ".computehop-conflicts"),
+		); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func resolveArtifactDestination(
+	getwd func() (string, error),
+	id job.ID,
+	destination string,
+) (string, error) {
+	if destination == "" {
+		workingDirectory, err := getwd()
+		if err != nil {
+			return "", fmt.Errorf("resolve output directory: %w", err)
+		}
+		return filepath.Join(workingDirectory, ".computehop-results", string(id)), nil
+	}
+	if filepath.IsAbs(destination) {
+		return destination, nil
+	}
+	target, err := filepath.Abs(destination)
+	if err != nil {
+		return "", fmt.Errorf("resolve output directory: %w", err)
+	}
+	return target, nil
 }
 
 func newJobsCommand(
@@ -1076,66 +1156,111 @@ func newLogsCommand(
 			if err != nil {
 				return err
 			}
-			var after uint64
-			for {
-				response, err := client.Call(command.Context(), &localv1.Request{
-					Operation: &localv1.Request_ReadJobLogs{ReadJobLogs: &localv1.ReadJobLogsRequest{
-						JobId:          string(id),
-						AfterSequence:  after,
-						Limit:          32,
-						DeviceSelector: deviceSelector,
-					}},
-				})
-				if err != nil {
-					return err
-				}
-				result := response.GetReadJobLogs()
-				if result == nil {
-					return fmt.Errorf("%w: missing job logs result", ErrInvalidDaemonResponse)
-				}
-				for _, record := range result.GetRecords() {
-					if record.GetSequence() <= after {
-						return fmt.Errorf("%w: job log sequence did not advance", ErrInvalidDaemonResponse)
-					}
-					var destination io.Writer
-					switch record.GetStream() {
-					case localv1.JobLogStream_JOB_LOG_STREAM_STDOUT:
-						destination = stdout
-					case localv1.JobLogStream_JOB_LOG_STREAM_STDERR:
-						destination = stderr
-					default:
-						return fmt.Errorf("%w: invalid job log stream", ErrInvalidDaemonResponse)
-					}
-					if _, err := destination.Write(record.GetData()); err != nil {
-						return err
-					}
-					after = record.GetSequence()
-				}
-				if result.GetHasMore() {
-					continue
-				}
-				value, err := mapper.JobFromProto(result.GetJob())
-				if err != nil {
-					return fmt.Errorf("%w: %v", ErrInvalidDaemonResponse, err)
-				}
-				if !follow || value.State.Terminal() {
-					return nil
-				}
-				timer := time.NewTimer(250 * time.Millisecond)
-				select {
-				case <-command.Context().Done():
-					if !timer.Stop() {
-						<-timer.C
-					}
-					return command.Context().Err()
-				case <-timer.C:
-				}
-			}
+			_, err = streamJobLogs(command.Context(), stdout, stderr, client, id, deviceSelector, follow)
+			return err
 		},
 	}
 	command.Flags().BoolVarP(&follow, "follow", "f", false, "wait for new output until the job finishes")
 	addDeviceSelectorFlags(command, &deviceSelector)
 	return command
+}
+
+func streamJobLogs(
+	ctx context.Context,
+	stdout io.Writer,
+	stderr io.Writer,
+	client caller,
+	id job.ID,
+	deviceSelector string,
+	follow bool,
+) (job.Job, error) {
+	var after uint64
+	for {
+		response, err := client.Call(ctx, &localv1.Request{
+			Operation: &localv1.Request_ReadJobLogs{ReadJobLogs: &localv1.ReadJobLogsRequest{
+				JobId:          string(id),
+				AfterSequence:  after,
+				Limit:          32,
+				DeviceSelector: deviceSelector,
+			}},
+		})
+		if err != nil {
+			return job.Job{}, err
+		}
+		result := response.GetReadJobLogs()
+		if result == nil {
+			return job.Job{}, fmt.Errorf("%w: missing job logs result", ErrInvalidDaemonResponse)
+		}
+		for _, record := range result.GetRecords() {
+			if record.GetSequence() <= after {
+				return job.Job{}, fmt.Errorf("%w: job log sequence did not advance", ErrInvalidDaemonResponse)
+			}
+			var destination io.Writer
+			switch record.GetStream() {
+			case localv1.JobLogStream_JOB_LOG_STREAM_STDOUT:
+				destination = stdout
+			case localv1.JobLogStream_JOB_LOG_STREAM_STDERR:
+				destination = stderr
+			default:
+				return job.Job{}, fmt.Errorf("%w: invalid job log stream", ErrInvalidDaemonResponse)
+			}
+			if _, err := destination.Write(record.GetData()); err != nil {
+				return job.Job{}, err
+			}
+			after = record.GetSequence()
+		}
+		if result.GetHasMore() {
+			continue
+		}
+		value, err := mapper.JobFromProto(result.GetJob())
+		if err != nil {
+			return job.Job{}, fmt.Errorf("%w: %v", ErrInvalidDaemonResponse, err)
+		}
+		if !follow || value.State.Terminal() {
+			return value, nil
+		}
+		if err := waitForNextPoll(ctx); err != nil {
+			return job.Job{}, err
+		}
+	}
+}
+
+func waitForJob(ctx context.Context, client caller, id job.ID, deviceSelector string) (job.Job, error) {
+	for {
+		response, err := client.Call(ctx, &localv1.Request{
+			Operation: &localv1.Request_GetJob{GetJob: &localv1.GetJobRequest{
+				JobId: string(id), DeviceSelector: deviceSelector,
+			}},
+		})
+		if err != nil {
+			return job.Job{}, err
+		}
+		result := response.GetGetJob()
+		if result == nil {
+			return job.Job{}, fmt.Errorf("%w: missing job result", ErrInvalidDaemonResponse)
+		}
+		value, err := mapper.JobFromProto(result.GetJob())
+		if err != nil {
+			return job.Job{}, fmt.Errorf("%w: %v", ErrInvalidDaemonResponse, err)
+		}
+		if value.State.Terminal() {
+			return value, nil
+		}
+		if err := waitForNextPoll(ctx); err != nil {
+			return job.Job{}, err
+		}
+	}
+}
+
+func waitForNextPoll(ctx context.Context) error {
+	timer := time.NewTimer(250 * time.Millisecond)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 func formatJobProgress(progress *job.Progress) string {

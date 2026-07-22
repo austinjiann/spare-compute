@@ -153,6 +153,238 @@ func TestRunCommandDeclaresOutputsAndPrintsFetchHint(t *testing.T) {
 	}
 }
 
+func TestRunCommandFollowsAndFetchesDeclaredOutputs(t *testing.T) {
+	value := cliJobForTest(job.StateQueued)
+	value.Spec.Outputs = []string{"dist/result.txt"}
+	submitted, err := mapper.JobToProto(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	succeeded := value
+	succeeded.State = job.StateSucceeded
+	succeededMessage, err := mapper.JobToProto(succeeded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	destination := filepath.Join(t.TempDir(), "outputs")
+	var calls int
+	var stdout, stderr bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &stderr, getwd: func() (string, error) { return "/project", nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+				calls++
+				switch calls {
+				case 1:
+					submit := request.GetSubmitJob()
+					if submit.GetDeviceSelector() != "Gaming PC" ||
+						strings.Join(submit.GetSpec().GetOutputs(), ",") != "dist/result.txt" {
+						t.Fatalf("submit = %#v", submit)
+					}
+					return &localv1.Response{Result: &localv1.Response_SubmitJob{
+						SubmitJob: &localv1.SubmitJobResponse{Job: submitted},
+					}}, nil
+				case 2:
+					read := request.GetReadJobLogs()
+					if read.GetJobId() != string(value.ID) || read.GetDeviceSelector() != "Gaming PC" {
+						t.Fatalf("read logs = %#v", read)
+					}
+					return &localv1.Response{Result: &localv1.Response_ReadJobLogs{
+						ReadJobLogs: &localv1.ReadJobLogsResponse{
+							Job: succeededMessage,
+							Records: []*localv1.JobLogRecord{
+								{
+									Sequence: 1,
+									Stream:   localv1.JobLogStream_JOB_LOG_STREAM_STDOUT,
+									Data:     []byte("built\n"),
+								},
+							},
+						},
+					}}, nil
+				case 3:
+					fetch := request.GetFetchArtifacts()
+					if fetch.GetJobId() != string(value.ID) ||
+						fetch.GetDeviceSelector() != "Gaming PC" ||
+						fetch.GetDestination() != destination {
+						t.Fatalf("fetch = %#v", fetch)
+					}
+					return &localv1.Response{Result: &localv1.Response_FetchArtifacts{
+						FetchArtifacts: &localv1.FetchArtifactsResponse{
+							Destination:       destination,
+							RestoredFileCount: 1,
+						},
+					}}, nil
+				default:
+					t.Fatalf("unexpected call %d", calls)
+					return nil, nil
+				}
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{
+		"run", "--on", "Gaming PC", "-o", "dist/result.txt", "--follow", "--get", "--to", destination, "go", "build",
+	})
+	if err := command.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	output := stdout.String()
+	for _, want := range []string{
+		"Submitted " + string(value.ID) + " to Gaming PC (queued)",
+		"built\n",
+		"Job " + string(value.ID) + " succeeded",
+		"Restored 1 output file(s) to " + destination,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("stdout %q does not contain %q", output, want)
+		}
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q", stderr.String())
+	}
+}
+
+func TestRunCommandGetWaitsAndFetchesDeclaredOutputs(t *testing.T) {
+	value := cliJobForTest(job.StateQueued)
+	value.Spec.Outputs = []string{"dist/result.txt"}
+	submitted, err := mapper.JobToProto(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	succeeded := value
+	succeeded.State = job.StateSucceeded
+	succeededMessage, err := mapper.JobToProto(succeeded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	workingDirectory := t.TempDir()
+	wantDestination := filepath.Join(workingDirectory, ".computehop-results", string(value.ID))
+	var calls int
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return workingDirectory, nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+				calls++
+				switch calls {
+				case 1:
+					return &localv1.Response{Result: &localv1.Response_SubmitJob{
+						SubmitJob: &localv1.SubmitJobResponse{Job: submitted},
+					}}, nil
+				case 2:
+					get := request.GetGetJob()
+					if get.GetJobId() != string(value.ID) || get.GetDeviceSelector() != "" {
+						t.Fatalf("get job = %#v", get)
+					}
+					return &localv1.Response{Result: &localv1.Response_GetJob{
+						GetJob: &localv1.GetJobResponse{Job: succeededMessage},
+					}}, nil
+				case 3:
+					fetch := request.GetFetchArtifacts()
+					if fetch.GetDestination() != wantDestination {
+						t.Fatalf("fetch destination = %q, want %q", fetch.GetDestination(), wantDestination)
+					}
+					return &localv1.Response{Result: &localv1.Response_FetchArtifacts{
+						FetchArtifacts: &localv1.FetchArtifactsResponse{
+							Destination:       wantDestination,
+							RestoredFileCount: 1,
+						},
+					}}, nil
+				default:
+					t.Fatalf("unexpected call %d", calls)
+					return nil, nil
+				}
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"run", "-o", "dist/result.txt", "--get", "go", "build"})
+	if err := command.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"Waiting for " + string(value.ID) + " to finish...",
+		"Job " + string(value.ID) + " succeeded",
+		"Restored 1 output file(s) to " + wantDestination,
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
+		}
+	}
+}
+
+func TestRunCommandGetRequiresDeclaredOutputs(t *testing.T) {
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout,
+		stderr: &bytes.Buffer{},
+		getwd:  func() (string, error) { return "/project", nil },
+		newClient: func(string) (caller, error) {
+			t.Fatal("client should not be created for invalid --get usage")
+			return nil, nil
+		},
+	})
+	command.SetArgs([]string{"run", "--get", "go", "build"})
+	if err := command.Execute(); err == nil || !strings.Contains(err.Error(), "--get requires") {
+		t.Fatalf("Execute() error = %v", err)
+	}
+}
+
+func TestRunCommandToRequiresGet(t *testing.T) {
+	command := newRootCommand(dependencies{
+		stdout: &bytes.Buffer{},
+		stderr: &bytes.Buffer{},
+		getwd:  func() (string, error) { return "/project", nil },
+		newClient: func(string) (caller, error) {
+			t.Fatal("client should not be created for invalid --to usage")
+			return nil, nil
+		},
+	})
+	command.SetArgs([]string{"run", "-o", "dist/result.txt", "--to", "out", "go", "build"})
+	if err := command.Execute(); err == nil || !strings.Contains(err.Error(), "--to requires --get") {
+		t.Fatalf("Execute() error = %v", err)
+	}
+}
+
+func TestRunCommandWaitReturnsTerminalFailure(t *testing.T) {
+	value := cliJobForTest(job.StateQueued)
+	submitted, err := mapper.JobToProto(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	failed := value
+	failed.State = job.StateFailed
+	failed.Failure = &job.Failure{Code: "exit", Message: "exit status 1"}
+	failedMessage, err := mapper.JobToProto(failed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var calls int
+	command := newRootCommand(dependencies{
+		stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "/project", nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+				calls++
+				switch calls {
+				case 1:
+					return &localv1.Response{Result: &localv1.Response_SubmitJob{
+						SubmitJob: &localv1.SubmitJobResponse{Job: submitted},
+					}}, nil
+				case 2:
+					return &localv1.Response{Result: &localv1.Response_GetJob{
+						GetJob: &localv1.GetJobResponse{Job: failedMessage},
+					}}, nil
+				default:
+					t.Fatalf("unexpected call %d", calls)
+					return nil, nil
+				}
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"run", "--wait", "false"})
+	if err := command.Execute(); err == nil || !strings.Contains(err.Error(), "ended as failed") {
+		t.Fatalf("Execute() error = %v", err)
+	}
+}
+
 func TestArtifactsCommandUsesSafeDefaultDestinationAndReportsConflicts(t *testing.T) {
 	value := cliJobForTest(job.StateSucceeded)
 	workingDirectory := t.TempDir()
