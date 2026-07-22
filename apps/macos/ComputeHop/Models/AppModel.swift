@@ -45,6 +45,7 @@ final class AppModel {
     var workingDirectory = ""
     var outputsInput = ""
     var runTargetID = ""
+    var remoteRunWithoutProject = false
     var selectedJobID: String?
     var selectedJobLogs = ""
     var selectedJobLogsTruncated = false
@@ -93,6 +94,8 @@ final class AppModel {
     }
 
     var isRemoteRunTargetSelected: Bool { !runTargetID.isEmpty }
+
+    var isNoProjectRemoteRunSelected: Bool { isRemoteRunTargetSelected && remoteRunWithoutProject }
 
     var isAutomaticRunTargetSelected: Bool { runTargetID == Self.automaticWorkerTargetID }
 
@@ -145,8 +148,10 @@ final class AppModel {
             pairings = snapshot.3
             if isAutomaticRunTargetSelected && !canRunAutomatically {
                 runTargetID = ""
+                remoteRunWithoutProject = false
             } else if !isAutomaticRunTargetSelected && !runTargetID.isEmpty && !runnableDevices.contains(where: { $0.id == runTargetID }) {
                 runTargetID = ""
+                remoteRunWithoutProject = false
             }
             lastError = nil
             if selectedJobID != nil {
@@ -190,6 +195,7 @@ final class AppModel {
             _ = try await client.unpairDevice(id: device.id)
             if runTargetID == device.id {
                 runTargetID = ""
+                remoteRunWithoutProject = false
             }
         }
     }
@@ -214,12 +220,18 @@ final class AppModel {
             }
             let targetName = automaticTarget ? "Auto worker" : targetDevice?.name ?? "This Mac"
             let directory = workingDirectory.trimmingCharacters(in: .whitespacesAndNewlines)
-            let outputs = outputsInput.split(separator: ",", omittingEmptySubsequences: true)
+            let noProjectRemoteRun = isNoProjectRemoteRunSelected
+            let outputs = noProjectRemoteRun ? [] : outputsInput.split(separator: ",", omittingEmptySubsequences: true)
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                 .filter { !$0.isEmpty }
-            let effectiveDirectory = !isRemoteRunTargetSelected && directory.isEmpty
-                ? FileManager.default.homeDirectoryForCurrentUser.path
-                : directory
+            let effectiveDirectory: String
+            if noProjectRemoteRun {
+                effectiveDirectory = ""
+            } else if !isRemoteRunTargetSelected && directory.isEmpty {
+                effectiveDirectory = FileManager.default.homeDirectoryForCurrentUser.path
+            } else {
+                effectiveDirectory = directory
+            }
             let submitted = try await client.submitJob(
                 executable: executable,
                 arguments: Array(arguments.dropFirst()),

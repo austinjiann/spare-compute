@@ -22,21 +22,40 @@ struct RunJobSection: View {
                     }
                 }
                 TextField(
-                    model.isRemoteRunTargetSelected ? "Project folder on this Mac" : "Working directory (home by default)",
+                    model.isNoProjectRemoteRunSelected
+                        ? "No project will be uploaded"
+                        : model.isRemoteRunTargetSelected
+                            ? "Project folder on this Mac"
+                            : "Working directory (home by default)",
                     text: $model.workingDirectory
                 )
                 .textFieldStyle(.roundedBorder)
+                .disabled(model.isNoProjectRemoteRunSelected)
                 if model.isRemoteRunTargetSelected {
                     Button("Choose…") {
                         chooseProjectFolder()
                     }
+                    .disabled(model.isNoProjectRemoteRunSelected)
+                }
+            }
+            if model.isRemoteRunTargetSelected {
+                Toggle("Skip project upload for utility command", isOn: $model.remoteRunWithoutProject)
+                    .font(.caption)
+                if model.isNoProjectRemoteRunSelected {
+                    Text("Runs without local files and cannot return declared outputs.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             TextField(
-                "Outputs to return, comma-separated (for example: dist, report.json)",
+                model.isNoProjectRemoteRunSelected
+                    ? "Outputs disabled for no-project runs"
+                    : "Outputs to return, comma-separated (for example: dist, report.json)",
                 text: $model.outputsInput
             )
             .textFieldStyle(.roundedBorder)
+            .disabled(model.isNoProjectRemoteRunSelected)
             if let smokeTestDisabledReason = model.smokeTestDisabledReason {
                 Text(smokeTestDisabledReason)
                     .font(.caption2)
@@ -64,7 +83,7 @@ struct RunJobSection: View {
                 .disabled(
                     !model.isConnected ||
                     model.commandInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-                    (model.isRemoteRunTargetSelected && model.workingDirectory.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) ||
+                    (model.isRemoteRunTargetSelected && !model.isNoProjectRemoteRunSelected && model.workingDirectory.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) ||
                     model.actionInProgress != nil
                 )
             }

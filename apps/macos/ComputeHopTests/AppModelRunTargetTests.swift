@@ -40,6 +40,49 @@ func submitCommandUsesAutomaticWorkerSelector() async {
 
 @Test
 @MainActor
+func submitRemoteCommandCanSkipProjectUpload() async {
+    let worker = runTargetDevice(id: "worker-id", name: "Gaming PC")
+    let client = RecordingDaemonClient(devices: [worker])
+    let model = AppModel(client: client)
+    model.daemon = daemonSummary()
+    model.devices = [worker]
+    model.runTargetID = AppModel.automaticWorkerTargetID
+    model.remoteRunWithoutProject = true
+    model.commandInput = "hostname"
+    model.workingDirectory = "/Users/austin/project"
+    model.outputsInput = "result.txt"
+
+    await model.submitCommand()
+
+    #expect(await client.lastSubmittedSelector() == "auto")
+    #expect(await client.lastSubmittedWorkingDirectory() == "")
+    #expect(await client.lastSubmittedOutputs() == [])
+    #expect(model.jobs.first?.target == "Auto worker")
+    #expect(model.lastError == nil)
+}
+
+@Test
+@MainActor
+func submitLocalCommandIgnoresStaleNoProjectToggle() async {
+    let client = RecordingDaemonClient(devices: [])
+    let model = AppModel(client: client)
+    model.daemon = daemonSummary()
+    model.remoteRunWithoutProject = true
+    model.commandInput = "hostname"
+    model.outputsInput = "result.txt"
+
+    #expect(!model.isNoProjectRemoteRunSelected)
+
+    await model.submitCommand()
+
+    #expect(await client.lastSubmittedSelector() == "")
+    #expect(await client.lastSubmittedWorkingDirectory() == FileManager.default.homeDirectoryForCurrentUser.path)
+    #expect(await client.lastSubmittedOutputs() == ["result.txt"])
+    #expect(model.lastError == nil)
+}
+
+@Test
+@MainActor
 func submitSmokeTestUsesAutoWorkerWithoutProjectSnapshot() async {
     let worker = runTargetDevice(id: "worker-id", name: "Gaming PC")
     let client = RecordingDaemonClient(devices: [worker])
@@ -203,11 +246,13 @@ func disconnectUsesDurableDeviceIDAndClearsSelectedRunTarget() async {
     let model = AppModel(client: client)
     model.devices = [worker]
     model.runTargetID = worker.id
+    model.remoteRunWithoutProject = true
 
     await model.disconnect(worker)
 
     #expect(await client.lastUnpairedSelector() == "durable-worker-id")
     #expect(model.runTargetID.isEmpty)
+    #expect(!model.remoteRunWithoutProject)
     #expect(model.lastError == nil)
 }
 
