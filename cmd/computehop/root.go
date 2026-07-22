@@ -660,8 +660,17 @@ func defaultVPSSetupOptions() vpsSetupOptions {
 }
 
 func (options vpsSetupOptions) initCommand() string {
+	return options.initCommandWithExecutable("./init.sh")
+}
+
+func (options vpsSetupOptions) rootInitCommand() string {
+	return options.initCommandWithExecutable("./deploy/vps/init.sh")
+}
+
+func (options vpsSetupOptions) initCommandWithExecutable(executable string) string {
 	return fmt.Sprintf(
-		"./init.sh --connectivity-domain %s --turn-domain %s --email %s --public-ip %s",
+		"%s --connectivity-domain %s --turn-domain %s --email %s --public-ip %s",
+		executable,
 		shellArg(options.connectivityDomain),
 		shellArg(options.turnDomain),
 		shellArg(options.email),
@@ -742,12 +751,12 @@ func printSetupGuide(stdout io.Writer) error {
 		"",
 		"After buying the VPS:",
 		"   computehop setup vps",
-		"   cd deploy/vps",
-		"   sudo ./bootstrap-ubuntu.sh",
-		"   " + vpsDefaults.initCommand(),
-		"   docker compose up -d --build",
-		"   ./verify.sh",
-		"   ./turn-credentials.sh",
+		"   sudo ./deploy/vps/bootstrap-ubuntu.sh",
+		"   " + vpsDefaults.rootInitCommand(),
+		"   docker compose --project-directory deploy/vps config --quiet",
+		"   docker compose --project-directory deploy/vps up -d --build",
+		"   ./deploy/vps/verify.sh",
+		"   ./deploy/vps/turn-credentials.sh",
 	}
 	for _, line := range lines {
 		if _, err := fmt.Fprintln(stdout, line); err != nil {
@@ -831,12 +840,11 @@ func printVPSSetupGuide(stdout io.Writer, options vpsSetupOptions) error {
 		"   git clone https://github.com/austinjiann/spare-compute.git",
 		"   cd spare-compute",
 		"   sudo ./deploy/vps/bootstrap-ubuntu.sh",
-		"   cd deploy/vps",
-		"   " + options.initCommand(),
-		"   docker compose config --quiet",
-		"   docker compose up -d --build",
-		"   ./verify.sh",
-		"   ./turn-credentials.sh",
+		"   " + options.rootInitCommand(),
+		"   docker compose --project-directory deploy/vps config --quiet",
+		"   docker compose --project-directory deploy/vps up -d --build",
+		"   ./deploy/vps/verify.sh",
+		"   ./deploy/vps/turn-credentials.sh",
 		"",
 		"On each Mac after pairing once on the LAN, print the exact installer command:",
 		"   " + options.orchestratorSetupCommand(),
@@ -845,7 +853,7 @@ func printVPSSetupGuide(stdout io.Writer, options vpsSetupOptions) error {
 		"Direct installer equivalents:",
 		"   " + options.orchestratorInstallCommand(),
 		"   " + options.workerInstallCommand(),
-		"   # For forced relay testing, use the setup or installer commands printed by ./turn-credentials.sh with --turn-server, --turn-username, and --turn-password.",
+		"   # For forced relay testing, use the setup or installer commands printed by ./deploy/vps/turn-credentials.sh with --turn-server, --turn-username, and --turn-password.",
 		"",
 		"Smoke test:",
 		"   computehop devices",

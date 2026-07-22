@@ -57,22 +57,21 @@ those ports in UFW. Review it before running it on a non-disposable host.
 
 ## Configure and start
 
-From `deploy/vps`:
+From the repository root:
 
 ```bash
-./init.sh \
+./deploy/vps/init.sh \
   --connectivity-domain connect.example.com \
   --turn-domain turn.example.com \
   --email admin@example.com \
   --public-ip 203.0.113.10
-docker compose config --quiet
-docker compose up -d --build
-docker compose ps
+docker compose --project-directory deploy/vps config --quiet
+docker compose --project-directory deploy/vps up -d --build
+docker compose --project-directory deploy/vps ps
 ```
 
-The helper scripts resolve their own directory, so they also work from the
-repository root as `./deploy/vps/verify.sh` and
-`./deploy/vps/turn-credentials.sh`.
+The helper scripts resolve their own directory, so they also work after
+`cd deploy/vps` as `./verify.sh` and `./turn-credentials.sh`.
 
 Use real domains, an operations email, and the VPS's public IPv4 in `.env`.
 `TURN_RELAY_IP` normally equals that public address. If `ip -4 addr` does not
@@ -86,8 +85,8 @@ HTTPS certificate after DNS and ports 80/443 are working.
 Verify the deployment from the VPS:
 
 ```bash
-./verify.sh
-docker compose logs --tail=100 rendezvous caddy coturn
+./deploy/vps/verify.sh
+docker compose --project-directory deploy/vps logs --tail=100 rendezvous caddy coturn
 ```
 
 Then verify from a machine on another network:
@@ -127,7 +126,7 @@ This enables rendezvous and direct ICE/STUN path selection. For forced-relay
 testing, generate short-lived TURN credentials on the VPS:
 
 ```bash
-./turn-credentials.sh
+./deploy/vps/turn-credentials.sh
 ```
 
 The script reads `.env` plus `secrets/turn_shared_secret`, derives coturn REST
@@ -171,15 +170,16 @@ Deploy only a tested commit from `main`:
 
 ```bash
 git pull --ff-only
-docker compose build --pull rendezvous
-docker compose up -d
-./verify.sh
+docker compose --project-directory deploy/vps build --pull rendezvous
+docker compose --project-directory deploy/vps up -d
+./deploy/vps/verify.sh
 ```
 
 Before an update, record `git rev-parse HEAD`. To roll back, check out that
-known-good commit and run `docker compose up -d --build` again. Caddy's named
-volumes preserve certificates; rendezvous presence safely repopulates after a
-restart.
+known-good commit and run
+`docker compose --project-directory deploy/vps up -d --build` again. Caddy's
+named volumes preserve certificates; rendezvous presence safely repopulates
+after a restart.
 
 Rotate the TURN secret after suspected exposure by replacing the secret file
 atomically and recreating coturn. Existing short-lived TURN credentials stop
@@ -187,9 +187,9 @@ working after the restart:
 
 ```bash
 umask 077
-openssl rand -hex 32 > secrets/turn_shared_secret.next
-mv secrets/turn_shared_secret.next secrets/turn_shared_secret
-docker compose up -d --force-recreate coturn
+openssl rand -hex 32 > deploy/vps/secrets/turn_shared_secret.next
+mv deploy/vps/secrets/turn_shared_secret.next deploy/vps/secrets/turn_shared_secret
+docker compose --project-directory deploy/vps up -d --force-recreate coturn
 ```
 
 ## Current boundary

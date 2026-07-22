@@ -1575,10 +1575,10 @@ func TestSetupCommandPrintsFirstRunChecklistWithoutDaemon(t *testing.T) {
 		"computehop connect nearby",
 		"computehop connect <device>",
 		"computehop smoke",
-		"cd deploy/vps",
-		"./init.sh --connectivity-domain connect.example.com",
-		"./verify.sh",
-		"./turn-credentials.sh",
+		"./deploy/vps/init.sh --connectivity-domain connect.example.com",
+		"docker compose --project-directory deploy/vps up -d --build",
+		"./deploy/vps/verify.sh",
+		"./deploy/vps/turn-credentials.sh",
 	} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
@@ -1969,9 +1969,9 @@ func TestSetupVPSCommandPrintsDeploymentChecklistWithoutDaemon(t *testing.T) {
 		"turn.example.com -> 203.0.113.10",
 		"Allow TCP 80/443, UDP 443, TCP/UDP 3478, UDP 49160-49200",
 		"sudo ./deploy/vps/bootstrap-ubuntu.sh",
-		"./init.sh --connectivity-domain connect.example.com",
-		"docker compose up -d --build",
-		"./turn-credentials.sh",
+		"./deploy/vps/init.sh --connectivity-domain connect.example.com",
+		"docker compose --project-directory deploy/vps up -d --build",
+		"./deploy/vps/turn-credentials.sh",
 		"computehop setup orchestrator --connectivity-domain connect.example.com --turn-domain turn.example.com",
 		"computehop setup worker --device-name 'Gaming PC' --connectivity-domain connect.example.com --turn-domain turn.example.com",
 		"./packaging/macos/install.sh --role worker",
@@ -2008,12 +2008,12 @@ func TestSetupVPSCommandInterpolatesProvidedValuesWithoutDaemon(t *testing.T) {
 	for _, want := range []string{
 		"connect.computehop.dev -> 198.51.100.25",
 		"turn.computehop.dev -> 198.51.100.25",
-		"./init.sh --connectivity-domain connect.computehop.dev --turn-domain turn.computehop.dev --email ops@computehop.dev --public-ip 198.51.100.25",
+		"./deploy/vps/init.sh --connectivity-domain connect.computehop.dev --turn-domain turn.computehop.dev --email ops@computehop.dev --public-ip 198.51.100.25",
 		"computehop setup orchestrator --connectivity-domain connect.computehop.dev --turn-domain turn.computehop.dev",
 		"computehop setup worker --device-name 'Gaming PC' --connectivity-domain connect.computehop.dev --turn-domain turn.computehop.dev",
 		"--connectivity-url https://connect.computehop.dev",
 		"--stun-server stun:turn.computehop.dev:3478",
-		"./turn-credentials.sh",
+		"./deploy/vps/turn-credentials.sh",
 	} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
