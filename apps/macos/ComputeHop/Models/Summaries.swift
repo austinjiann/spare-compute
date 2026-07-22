@@ -245,9 +245,9 @@ struct SetupGuideSummary: Sendable {
             )
         }
         return SetupGuideSummary(
-            title: "Add another computer",
-            detail: "Start ComputeHop as a worker on another computer on this LAN. It will appear here automatically.",
-            command: "computehop doctor"
+            title: "Add a worker",
+            detail: "Install ComputeHop as a worker on another computer on this LAN. It will appear here automatically.",
+            command: "computehop setup worker --device-name \"Gaming PC\""
         )
     }
 }

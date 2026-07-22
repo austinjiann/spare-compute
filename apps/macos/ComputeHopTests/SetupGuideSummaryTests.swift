@@ -99,6 +99,19 @@ func setupGuideExplainsOfflineTrustedWorker() {
 }
 
 @Test
+func setupGuidePointsAtWorkerSetupWhenNoWorkerExists() {
+    let guide = SetupGuideSummary.make(
+        isConnected: true,
+        devices: [],
+        pairings: [],
+        runnableDevices: []
+    )
+
+    #expect(guide?.title == "Add a worker")
+    #expect(guide?.command == "computehop setup worker --device-name \"Gaming PC\"")
+}
+
+@Test
 func setupGuideIsHiddenWhenWorkerCanRunJobs() {
     let worker = deviceSummary(
         name: "Gaming PC",
