@@ -67,7 +67,9 @@ disconnected and connected again.
 The installer places the app in `~/Applications`, adds a safe CLI symlink at
 `~/.local/bin/computehop`, and loads an unprivileged launch agent. The daemon
 then starts at login in the selected role and writes diagnostics to
-`~/Library/Logs/ComputeHop/daemon.log`. If a manually started daemon is already
+`~/Library/Logs/ComputeHop/daemon.log`. Before bootstrapping launchd, the
+installer validates the rewritten launch-agent label, daemon path, selected
+role, log paths, and working directory. If a manually started daemon is already
 using the ComputeHop socket or UDP port, the installer asks you to stop it
 instead of killing it. After installation, the script prints role-specific next
 steps: orchestrator installs get `doctor`, `connect nearby`, and smoke-test

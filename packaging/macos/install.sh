@@ -149,6 +149,18 @@ launch_agents_dir="$HOME/Library/LaunchAgents"
 launch_agent_target="$launch_agents_dir/$service_label.plist"
 log_dir="$HOME/Library/Logs/ComputeHop"
 
+check_plist_value() {
+    plist_path=$1
+    key_path=$2
+    expected_value=$3
+    actual_value=$(/usr/libexec/PlistBuddy -c "Print :$key_path" "$plist_path" 2>/dev/null || true)
+    if [ "$actual_value" != "$expected_value" ]; then
+        echo "Unexpected $key_path in $plist_path: $actual_value" >&2
+        echo "Expected: $expected_value" >&2
+        exit 1
+    fi
+}
+
 if [ -e "$app_target" ] || [ -L "$app_target" ]; then
     existing_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' \
         "$app_target/Contents/Info.plist" 2>/dev/null || true)
@@ -175,6 +187,7 @@ elif "$built_cli" status >/dev/null 2>&1; then
 fi
 
 expected_cli_target="$app_target/Contents/Resources/bin/computehop"
+expected_daemon_target="$app_target/Contents/Resources/bin/computehopd"
 if [ -e "$cli_target" ] || [ -L "$cli_target" ]; then
     existing_cli_target=$(readlink "$cli_target" 2>/dev/null || true)
     if [ "$existing_cli_target" != "$expected_cli_target" ]; then
@@ -194,7 +207,7 @@ ln -sfn "$expected_cli_target" "$cli_target"
 cp "$script_dir/com.computehop.daemon.plist" "$launch_agent_target"
 /usr/bin/plutil -remove ProgramArguments.0 "$launch_agent_target"
 /usr/bin/plutil -insert ProgramArguments.0 -string \
-    "$app_target/Contents/Resources/bin/computehopd" "$launch_agent_target"
+    "$expected_daemon_target" "$launch_agent_target"
 /usr/bin/plutil -remove ProgramArguments.2 "$launch_agent_target"
 /usr/bin/plutil -insert ProgramArguments.2 -string "$device_role" "$launch_agent_target"
 if [ -n "$device_name" ]; then
@@ -229,6 +242,13 @@ fi
 /usr/libexec/PlistBuddy -c "Set :WorkingDirectory $HOME" "$launch_agent_target"
 chmod 0644 "$launch_agent_target"
 plutil -lint "$launch_agent_target" >/dev/null
+check_plist_value "$launch_agent_target" Label "$service_label"
+check_plist_value "$launch_agent_target" ProgramArguments:0 "$expected_daemon_target"
+check_plist_value "$launch_agent_target" ProgramArguments:1 "--role"
+check_plist_value "$launch_agent_target" ProgramArguments:2 "$device_role"
+check_plist_value "$launch_agent_target" StandardErrorPath "$log_dir/daemon.log"
+check_plist_value "$launch_agent_target" StandardOutPath "$log_dir/daemon.log"
+check_plist_value "$launch_agent_target" WorkingDirectory "$HOME"
 
 launchctl bootstrap "$launch_domain" "$launch_agent_target"
 launchctl kickstart -k "$launch_domain/$service_label"
