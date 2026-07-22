@@ -12,6 +12,10 @@ make macos-package
 open dist/macos/ComputeHop.app
 ```
 
+The bundle verifier checks the Swift app, embedded CLI and daemon binaries,
+ad-hoc signature, version commands, and the launch-agent template that the
+installer rewrites for the selected role.
+
 Install it for the current user:
 
 ```bash

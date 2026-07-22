@@ -12,17 +12,27 @@ if [ -z "$app_bundle" ] || [ ! -d "$app_bundle" ]; then
     exit 1
 fi
 
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+launch_agent_template="$script_dir/com.computehop.daemon.plist"
 info_plist="$app_bundle/Contents/Info.plist"
 app_executable="$app_bundle/Contents/MacOS/ComputeHop"
 cli_executable="$app_bundle/Contents/Resources/bin/computehop"
 daemon_executable="$app_bundle/Contents/Resources/bin/computehopd"
 
+check_plist_value() {
+    plist_path=$1
+    key_path=$2
+    expected_value=$3
+    actual_value=$(/usr/libexec/PlistBuddy -c "Print :$key_path" "$plist_path" 2>/dev/null || true)
+    if [ "$actual_value" != "$expected_value" ]; then
+        echo "Unexpected $key_path in $plist_path: $actual_value" >&2
+        echo "Expected: $expected_value" >&2
+        exit 1
+    fi
+}
+
 plutil -lint "$info_plist" >/dev/null
-bundle_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$info_plist")
-if [ "$bundle_id" != "com.computehop.app" ]; then
-    echo "Unexpected bundle identifier: $bundle_id" >&2
-    exit 1
-fi
+check_plist_value "$info_plist" CFBundleIdentifier "com.computehop.app"
 for executable in "$app_executable" "$cli_executable" "$daemon_executable"; do
     if [ ! -x "$executable" ]; then
         echo "Bundle executable is missing: $executable" >&2
@@ -30,7 +40,19 @@ for executable in "$app_executable" "$cli_executable" "$daemon_executable"; do
     fi
 done
 
+plutil -lint "$launch_agent_template" >/dev/null
+check_plist_value "$launch_agent_template" Label "com.computehop.daemon"
+check_plist_value "$launch_agent_template" ProgramArguments:0 "DAEMON_PATH"
+check_plist_value "$launch_agent_template" ProgramArguments:1 "--role"
+check_plist_value "$launch_agent_template" ProgramArguments:2 "orchestrator"
+check_plist_value "$launch_agent_template" KeepAlive "true"
+check_plist_value "$launch_agent_template" ProcessType "Background"
+check_plist_value "$launch_agent_template" RunAtLoad "true"
+check_plist_value "$launch_agent_template" StandardErrorPath "STDERR_PATH"
+check_plist_value "$launch_agent_template" StandardOutPath "STDOUT_PATH"
+check_plist_value "$launch_agent_template" WorkingDirectory "WORKING_DIRECTORY"
+
 codesign --verify --deep --strict "$app_bundle"
 "$cli_executable" version >/dev/null
 "$daemon_executable" --version >/dev/null
-echo "Verified $app_bundle"
+echo "Verified $app_bundle and launch agent template"
