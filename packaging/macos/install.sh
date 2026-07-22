@@ -10,8 +10,9 @@ turn_server=""
 turn_username=""
 turn_password=""
 cache_size=""
+lan_only=false
 usage() {
-    echo "Usage: packaging/macos/install.sh [--no-open] [--role orchestrator|worker]" >&2
+    echo "Usage: packaging/macos/install.sh [--no-open] [--role orchestrator|worker] [--lan-only]" >&2
     echo "       [--device-name NAME] [--cache-size SIZE]" >&2
     echo "       [--connectivity-url HTTPS_URL --stun-server STUN_URI]" >&2
     echo "       [--turn-server TURN_URI --turn-username USER --turn-password PASSWORD]" >&2
@@ -63,6 +64,10 @@ while [ "$#" -gt 0 ]; do
             [ -n "$cache_size" ] || { echo "--cache-size must not be empty." >&2; exit 1; }
             shift 2
             ;;
+        --lan-only)
+            lan_only=true
+            shift
+            ;;
         *)
             usage
             exit 1
@@ -73,6 +78,11 @@ case "$device_role" in
     orchestrator|worker) ;;
     *) echo "--role must be orchestrator or worker." >&2; exit 1 ;;
 esac
+if [ "$lan_only" = true ] && { [ -n "$connectivity_url" ] || [ -n "$stun_server" ] || \
+    [ -n "$turn_server" ] || [ -n "$turn_username" ] || [ -n "$turn_password" ]; }; then
+    echo "--lan-only cannot be combined with remote connectivity flags." >&2
+    exit 1
+fi
 if { [ -n "$connectivity_url" ] && [ -z "$stun_server" ] && [ -z "$turn_server" ]; } || \
     { [ -z "$connectivity_url" ] && { [ -n "$stun_server" ] || [ -n "$turn_server" ]; }; }; then
     echo "--connectivity-url and at least one --stun-server or --turn-server must be supplied together." >&2
@@ -207,6 +217,9 @@ if [ -n "$connectivity_url" ]; then
         /usr/bin/plutil -insert ProgramArguments -string "$turn_password" -append "$launch_agent_target"
     fi
 fi
+if [ "$lan_only" = true ]; then
+    /usr/bin/plutil -insert ProgramArguments -string "--lan-only" -append "$launch_agent_target"
+fi
 if [ -n "$cache_size" ]; then
     /usr/bin/plutil -insert ProgramArguments -string "--cache-size" -append "$launch_agent_target"
     /usr/bin/plutil -insert ProgramArguments -string "$cache_size" -append "$launch_agent_target"
@@ -243,6 +256,8 @@ if [ -n "$connectivity_url" ]; then
     if [ -n "$turn_server" ]; then
         echo "TURN relay fallback is configured through $turn_server"
     fi
+elif [ "$lan_only" = true ]; then
+    echo "Remote connectivity is disabled; this install uses same-LAN discovery only."
 fi
 echo "CLI: $cli_target"
 cli_command="computehop"

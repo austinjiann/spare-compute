@@ -97,6 +97,7 @@ go run ./cmd/computehop --state-dir "$computehop_state_dir" setup orchestrator
 go run ./cmd/computehop --state-dir "$computehop_state_dir" setup worker --device-name "Gaming PC"
 go run ./cmd/computehop --state-dir "$computehop_state_dir" setup mac
 go run ./cmd/computehop --state-dir "$computehop_state_dir" setup mac --role worker --device-name "Gaming PC"
+go run ./cmd/computehop --state-dir "$computehop_state_dir" setup mac --role worker --device-name "Gaming PC" --lan-only
 go run ./cmd/computehop --state-dir "$computehop_state_dir" setup mac --role orchestrator --connectivity-domain connect.example.com --turn-domain turn.example.com
 go run ./cmd/computehop --state-dir "$computehop_state_dir" setup worker --device-name "Gaming PC" --connectivity-domain connect.example.com --turn-domain turn.example.com --turn-server 'turn:turn.example.com:3478?transport=udp' --turn-username 1800000000:computehop --turn-password secret
 go run ./cmd/computehop --state-dir "$computehop_state_dir" setup vps
@@ -123,8 +124,8 @@ first-run local, connection, smoke-test, and one-VPS commands without requiring
 the daemon to be running; `setup orchestrator` and `setup worker` are friendly
 role shortcuts for exact macOS install commands, while `setup mac` exposes the
 same role selection as a flag for scripting; these guides include optional cache
-sizing, optional VPS endpoint flags, and short-lived TURN relay credentials
-printed by the VPS. `setup vps` expands the hosted side into a concrete buy,
+sizing, explicit LAN-only installs, optional VPS endpoint flags, and short-lived
+TURN relay credentials printed by the VPS. `setup vps` expands the hosted side into a concrete buy,
 DNS, firewall, bootstrap, install, TURN credential, and smoke-test checklist for
 the one-VPS stack.
 Pass `--connectivity-domain`, `--turn-domain`, `--email`, and `--public-ip` to
@@ -268,9 +269,10 @@ open dist/macos/ComputeHop.app
 After stopping any daemon started manually with `go run`, `make install-macos`
 installs the orchestrator bundle for the current user and configures the daemon
 to start at login. The installer also accepts `--role worker`, `--device-name`,
-`--cache-size`, `--connectivity-url`, `--stun-server`, `--turn-server`,
-`--turn-username`, and `--turn-password` for a named worker, cache tuning,
-direct connectivity, or operator-provisioned TURN relay fallback. This developer
-package is ad-hoc signed, not notarized, and is not yet a
-public release artifact. See [`packaging/macos/README.md`](packaging/macos/README.md)
-for install and uninstall behavior.
+`--cache-size`, `--lan-only`, `--connectivity-url`, `--stun-server`,
+`--turn-server`, `--turn-username`, and `--turn-password` for a named worker,
+cache tuning, explicit same-LAN-only operation, direct connectivity, or
+operator-provisioned TURN relay fallback. This developer package is ad-hoc
+signed, not notarized, and is not yet a public release artifact. See
+[`packaging/macos/README.md`](packaging/macos/README.md) for install and
+uninstall behavior.

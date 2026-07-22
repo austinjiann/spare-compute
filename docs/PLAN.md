@@ -23,7 +23,7 @@ Last updated: 2026-07-22.
 | Durable remote job routing | Complete | Remember the pinned worker that accepted each remote job so job-specific operations reconnect by ID without another device selector. |
 | Hosted rendezvous foundation | Complete | Derive rotating anonymous pair credentials and exchange bounded, route-bound, end-to-end encrypted, expiring presence and signaling payloads through a standalone service and HTTPS client. |
 | Direct ICE path and signaling foundation | Complete | Gather bounded UDP candidates with Pion ICE, exchange versioned descriptions through pair-encrypted rendezvous presence, select orchestrator/worker paths, report routing without secrets, and carry QUIC over the selected packet connection. |
-| Supervised direct internet control | In progress | Daemons reconcile active pair records, retry encrypted rendezvous/ICE negotiation, run the identity-pinned control protocol over selected paths, prefer LAN for jobs, and expose path state to CLI/Swift. Automated end-to-end and race coverage pass; physical unrelated-network and network-change validation remain. |
+| Supervised direct internet control | In progress | Daemons reconcile active pair records, retry encrypted rendezvous/ICE negotiation, run the identity-pinned control protocol over selected paths, prefer LAN for jobs, expose path state to CLI/Swift, and support explicit LAN-only daemon/install setup controls. Automated end-to-end and race coverage pass; physical unrelated-network and network-change validation remain. |
 | One-VPS staging deployment | In progress | Provider-neutral Compose stack, Caddy HTTPS edge, authenticated coturn relay, bounded ports/quotas, generated local env/secrets, operator-provisioned short-lived TURN credentials for single-owner relay testing, firewall bootstrap, health checks, rollback runbook, and daemon-free, flag-customizable `computehop setup vps` checklist with initial cost guidance are ready; buying the VPS and forced-relay validation remain. |
 | CLI and physical Mac validation | In progress | Friendlier `--on`, `--on auto` for the single active worker, safe `connect nearby` for the single nearby unpaired worker with `connect auto` compatibility, and no-`--` command syntax, daemon-free `setup`, role shortcuts `setup orchestrator`/`setup worker`, role-aware `setup mac`, setup-helper support for short-lived TURN relay credentials, and `setup vps`, installer-first worker setup guidance, one-command `smoke`, remote `--no-project` utility runs, pre-submit remote project preparation feedback, actionable auto and explicit worker-selection errors, example-rich help for `setup`/`connect`/`run`/`outputs`/`smoke`, `run --follow/--wait/--get`, `connect` as the guided pairing entry point, inferred and actionable pairing confirmation, first-run `doctor` guidance that points at the exact orchestrator/worker setup commands, duplicate-daemon startup guidance, local daemon identity in status output, hidden legacy `pair` help, merged trusted/nearby presentation, and stale duplicate LAN-presence suppression are implemented; physical macOS-to-macOS discovery, pairing, execution, restart recovery, logs, and cancellation passed. Windows/Linux remain. |
 | macOS menu-bar foundation | In progress | SwiftUI `MenuBarExtra`, generated SwiftProtobuf models, authenticated Unix-socket IPC, local daemon identity, first-run next-step guidance that shows and copies the worker setup command, one-click safe nearby-worker connection, device/connect controls that pair by discovered identifiers instead of display names, explicit local/other-device pairing confirmation status, local trust revocation for paired devices, stale duplicate LAN-presence suppression for trusted devices, native job submission with This Mac, Auto worker, explicit worker targets, a no-project remote Smoke Test action, output declarations and retrieval, reconnectable logs, cancellation, and role-specific installer handoff commands build and pass Swift/package checks; an ad-hoc app bundle and per-user launchd installer are ready for development. |
@@ -545,6 +545,7 @@ computehop setup orchestrator
 computehop setup worker --device-name <name>
 computehop setup mac
 computehop setup mac --role worker --device-name <name>
+computehop setup mac --role worker --device-name <name> --lan-only
 computehop setup mac --role orchestrator --connectivity-domain <domain> --turn-domain <domain>
 computehop setup vps
 computehop setup vps --connectivity-domain <domain> --turn-domain <domain> --email <email> --public-ip <ip>
@@ -1286,10 +1287,12 @@ tested, but the live VPS has not been purchased. Daemons now reconcile active
 pair records, retry encrypted presence exchange and ICE selection, run the
 existing identity-pinned QUIC control protocol over ready paths, and make those
 paths available after LAN attempts fail. CLI and Swift surfaces report
-connecting, remote, and selected-path state. Automated end-to-end tests cover
-the full rendezvous-to-authenticated-control lifecycle, but physical
-unrelated-network and network-change testing remain. Existing pairings without
-connectivity material must be explicitly re-paired before remote testing.
+connecting, remote, disabled, and selected-path state, while daemon, setup, and
+macOS installer controls support an explicit LAN-only mode that refuses remote
+connectivity flags. Automated end-to-end tests cover the full
+rendezvous-to-authenticated-control lifecycle, but physical unrelated-network
+and network-change testing remain. Existing pairings without connectivity
+material must be explicitly re-paired before remote testing.
 
 An anonymous pair route proves possession of a peer-created secret, not a
 customer entitlement to consume paid relay bandwidth: anyone can create a new
@@ -1309,7 +1312,7 @@ while this service boundary is being built.
 - Run the same pinned, mutually authenticated application session over every
   path so the relay never becomes the trust boundary.
 - Add path visibility, reconnect after network changes, credential expiry,
-  relay quotas, large-transfer confirmation, and LAN-only mode.
+  relay quotas, and large-transfer confirmation.
 
 **Checkpoint:** Devices paired on a LAN can later execute, observe, reconnect,
 and cancel from unrelated networks. Forced TURN tests prove that job content is

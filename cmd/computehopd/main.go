@@ -48,6 +48,7 @@ type options struct {
 	runnerJob       string
 	deviceName      string
 	role            string
+	lanOnly         bool
 	connectivityURL string
 	stunServers     stringValues
 	turnServers     stringValues
@@ -395,6 +396,7 @@ func runWithDependencies(
 		"device", deviceName,
 		"device_id", localIdentity.ID().Short(),
 		"role", localRole,
+		"lan_only", parsed.lanOnly,
 		"remote_connectivity", remoteManager != nil,
 		"cache_limit_bytes", parsed.cacheBytes,
 		"version", version,
@@ -470,6 +472,12 @@ func parseOptions(arguments []string, stderr io.Writer) (options, error) {
 	flags.StringVar(&parsed.runnerJob, "runner-job", "", "run one internally dispatched job")
 	flags.StringVar(&parsed.deviceName, "device-name", "", "human-readable LAN device name")
 	flags.StringVar(&parsed.role, "role", "", "device role: orchestrator or worker")
+	flags.BoolVar(
+		&parsed.lanOnly,
+		"lan-only",
+		false,
+		"disable hosted rendezvous, ICE, and TURN; use same-LAN discovery only",
+	)
 	flags.StringVar(
 		&parsed.connectivityURL,
 		"connectivity-url",
@@ -503,6 +511,9 @@ func parseOptions(arguments []string, stderr io.Writer) (options, error) {
 		return options{}, errors.New("--runner-job cannot be combined with --check or --version")
 	}
 	serverCount := len(parsed.stunServers) + len(parsed.turnServers)
+	if parsed.lanOnly && (parsed.connectivityURL != "" || serverCount > 0 || parsed.turnUsername != "" || parsed.turnPassword != "") {
+		return options{}, errors.New("--lan-only cannot be combined with remote connectivity flags")
+	}
 	if (parsed.connectivityURL == "") != (serverCount == 0) {
 		return options{}, errors.New("--connectivity-url and at least one --stun-server or --turn-server must be supplied together")
 	}

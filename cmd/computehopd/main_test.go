@@ -424,6 +424,17 @@ func TestParseOptionsAcceptsFriendlyRemoteConnectivityFlags(t *testing.T) {
 	}
 }
 
+func TestParseOptionsAcceptsExplicitLANOnlyMode(t *testing.T) {
+	parsed, err := parseOptions([]string{"--lan-only"}, &bytes.Buffer{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !parsed.lanOnly || parsed.connectivityURL != "" || len(parsed.stunServers) != 0 ||
+		len(parsed.turnServers) != 0 {
+		t.Fatalf("parsed = %#v", parsed)
+	}
+}
+
 func TestParseOptionsUsesAndValidatesFriendlyCacheSize(t *testing.T) {
 	defaults, err := parseOptions(nil, &bytes.Buffer{})
 	if err != nil {
@@ -473,6 +484,13 @@ func TestParseOptionsRejectsPartialRemoteConnectivityFlags(t *testing.T) {
 		"--turn-password", "secret",
 	}, &bytes.Buffer{}); err == nil {
 		t.Fatal("TURN credentials without TURN server were accepted")
+	}
+	if _, err := parseOptions([]string{
+		"--lan-only",
+		"--connectivity-url", "https://connect.example.com",
+		"--stun-server", "stun:turn.example.com:3478",
+	}, &bytes.Buffer{}); err == nil {
+		t.Fatal("--lan-only with remote connectivity flags was accepted")
 	}
 }
 

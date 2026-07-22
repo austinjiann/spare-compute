@@ -294,6 +294,7 @@ want the exact commands for another Mac or the one-VPS staging stack.`),
 		Example: strings.TrimSpace(`computehop setup
 computehop setup orchestrator
 computehop setup worker --device-name "Gaming PC"
+computehop setup worker --device-name "Gaming PC" --lan-only
 computehop setup vps --connectivity-domain connect.example.com --turn-domain turn.example.com --email admin@example.com --public-ip 203.0.113.10
 computehop setup worker --device-name "Gaming PC" --connectivity-domain connect.example.com --turn-domain turn.example.com --turn-server "turn:turn.example.com:3478?transport=udp" --turn-username "1800000000:computehop" --turn-password "secret"`),
 		Args: cobra.NoArgs,
@@ -320,6 +321,7 @@ This is the flag-based form of setup orchestrator and setup worker. It is useful
 for scripts or generated setup instructions.`),
 		Example: strings.TrimSpace(`computehop setup mac
 computehop setup mac --role worker --device-name "Gaming PC" --cache-size 40GiB
+computehop setup mac --role worker --device-name "Gaming PC" --lan-only
 computehop setup mac --role orchestrator --connectivity-domain connect.example.com --turn-domain turn.example.com
 computehop setup mac --role worker --device-name "Gaming PC" --connectivity-domain connect.example.com --turn-domain turn.example.com --turn-server "turn:turn.example.com:3478?transport=udp" --turn-username "1800000000:computehop" --turn-password "secret"`),
 		Args: cobra.NoArgs,
@@ -363,11 +365,13 @@ func setupRoleExample(role device.Role) string {
 	case device.RoleWorker:
 		return strings.TrimSpace(`computehop setup worker --device-name "Gaming PC"
 computehop setup worker --device-name "Gaming PC" --cache-size 40GiB
+computehop setup worker --device-name "Gaming PC" --lan-only
 computehop setup worker --device-name "Gaming PC" --connectivity-domain connect.example.com --turn-domain turn.example.com
 computehop setup worker --device-name "Gaming PC" --connectivity-domain connect.example.com --turn-domain turn.example.com --turn-server "turn:turn.example.com:3478?transport=udp" --turn-username "1800000000:computehop" --turn-password "secret"`)
 	default:
 		return strings.TrimSpace(`computehop setup orchestrator
 computehop setup orchestrator --cache-size 40GiB
+computehop setup orchestrator --lan-only
 computehop setup orchestrator --connectivity-domain connect.example.com --turn-domain turn.example.com`)
 	}
 }
@@ -404,6 +408,7 @@ func addMacSetupFlags(command *cobra.Command, options *macSetupOptions) {
 	command.Flags().StringVar(&options.turnServer, "turn-server", "", "TURN relay URI printed by deploy/vps/turn-credentials.sh")
 	command.Flags().StringVar(&options.turnUsername, "turn-username", "", "short-lived TURN username printed by deploy/vps/turn-credentials.sh")
 	command.Flags().StringVar(&options.turnPassword, "turn-password", "", "short-lived TURN password printed by deploy/vps/turn-credentials.sh")
+	command.Flags().BoolVar(&options.lanOnly, "lan-only", false, "install without hosted rendezvous, ICE, or TURN")
 }
 
 type vpsSetupOptions struct {
@@ -417,6 +422,7 @@ type macSetupOptions struct {
 	role                   string
 	deviceName             string
 	cacheSize              string
+	lanOnly                bool
 	connectivityDomain     string
 	turnDomain             string
 	turnServer             string
@@ -444,6 +450,9 @@ func (options macSetupOptions) validate() error {
 	turnServer := strings.TrimSpace(options.turnServer)
 	turnUsername := strings.TrimSpace(options.turnUsername)
 	turnPassword := strings.TrimSpace(options.turnPassword)
+	if options.lanOnly && (connectivityDomain != "" || turnDomain != "" || turnServer != "" || turnUsername != "" || turnPassword != "") {
+		return errors.New("--lan-only cannot be combined with VPS, STUN, or TURN flags")
+	}
 	if connectivityDomain == "" && (turnDomain != "" || turnServer != "" || turnUsername != "" || turnPassword != "") {
 		return errors.New("--connectivity-domain is required when configuring STUN or TURN")
 	}
@@ -519,6 +528,7 @@ func (options macSetupOptions) installCommand() string {
 	deviceName := strings.TrimSpace(options.deviceName)
 	if role == string(device.RoleOrchestrator) && deviceName == "" &&
 		strings.TrimSpace(options.cacheSize) == "" &&
+		!options.lanOnly &&
 		strings.TrimSpace(options.connectivityDomain) == "" {
 		return "make install-macos"
 	}
@@ -530,6 +540,9 @@ func (options macSetupOptions) installCommand() string {
 	}
 	if strings.TrimSpace(options.cacheSize) != "" {
 		parts = append(parts, "--cache-size", options.cacheSize)
+	}
+	if options.lanOnly {
+		parts = append(parts, "--lan-only")
 	}
 	if strings.TrimSpace(options.connectivityDomain) != "" {
 		parts = append(
@@ -577,6 +590,9 @@ func (options macSetupOptions) customizeCommand() string {
 	if strings.TrimSpace(options.cacheSize) != "" {
 		parts = append(parts, "--cache-size", options.cacheSize)
 	}
+	if options.lanOnly {
+		parts = append(parts, "--lan-only")
+	}
 	if strings.TrimSpace(options.connectivityDomain) != "" {
 		parts = append(
 			parts,
@@ -603,6 +619,7 @@ func (options macSetupOptions) customizeCommand() string {
 
 func (options macSetupOptions) vpsReminderCommand() string {
 	withVPS := options
+	withVPS.lanOnly = false
 	withVPS.connectivityDomain = "connect.example.com"
 	withVPS.turnDomain = "turn.example.com"
 	return withVPS.customizeCommand()

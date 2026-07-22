@@ -1438,6 +1438,7 @@ func TestSetupHelpShowsRoleAliasesMacAndVPS(t *testing.T) {
 	for _, want := range []string{
 		"Print first-run commands without requiring the ComputeHop daemon",
 		"computehop setup worker --device-name \"Gaming PC\"",
+		"computehop setup worker --device-name \"Gaming PC\" --lan-only",
 		"computehop setup vps --connectivity-domain connect.example.com",
 		"orchestrator",
 		"worker",
@@ -1461,6 +1462,7 @@ func TestSetupSubcommandHelpShowsExamplesWithoutDaemon(t *testing.T) {
 			args: []string{"setup", "orchestrator", "--help"},
 			want: []string{
 				"Print the exact macOS installer command for an orchestrator Mac",
+				"computehop setup orchestrator --lan-only",
 				"computehop setup orchestrator --connectivity-domain connect.example.com",
 			},
 		},
@@ -1470,6 +1472,7 @@ func TestSetupSubcommandHelpShowsExamplesWithoutDaemon(t *testing.T) {
 			want: []string{
 				"Print the exact macOS installer command for a worker Mac",
 				"computehop setup worker --device-name \"Gaming PC\" --cache-size 40GiB",
+				"computehop setup worker --device-name \"Gaming PC\" --lan-only",
 				"--turn-server \"turn:turn.example.com:3478?transport=udp\"",
 			},
 		},
@@ -1479,6 +1482,7 @@ func TestSetupSubcommandHelpShowsExamplesWithoutDaemon(t *testing.T) {
 			want: []string{
 				"flag-based form of setup orchestrator and setup worker",
 				"computehop setup mac --role worker --device-name \"Gaming PC\" --cache-size 40GiB",
+				"computehop setup mac --role worker --device-name \"Gaming PC\" --lan-only",
 				"--turn-username \"1800000000:computehop\"",
 			},
 		},
@@ -1597,6 +1601,15 @@ func TestSetupRoleAliasesPrintInstallWithoutDaemon(t *testing.T) {
 				"computehop setup worker --device-name 'Austin Gaming PC' --cache-size 40GiB --connectivity-domain connect.example.com --turn-domain turn.example.com",
 			},
 		},
+		{
+			name: "orchestrator lan only",
+			args: []string{"setup", "orchestrator", "--lan-only"},
+			want: []string{
+				"computehop setup orchestrator --lan-only",
+				"./packaging/macos/install.sh --role orchestrator --lan-only",
+				"computehop setup orchestrator --connectivity-domain connect.example.com --turn-domain turn.example.com",
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -1713,6 +1726,59 @@ func TestSetupMacCommandRejectsInvalidOptionsBeforeDaemon(t *testing.T) {
 				t.Fatalf("Execute() error = %v, want %q", err, test.want)
 			}
 		})
+	}
+}
+
+func TestSetupMacCommandInterpolatesLANOnlyWithoutDaemon(t *testing.T) {
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			t.Fatal("setup mac should not require a daemon client")
+			return nil, nil
+		},
+	})
+	command.SetArgs([]string{
+		"setup", "mac",
+		"--role", "worker",
+		"--device-name", "Gaming PC",
+		"--lan-only",
+	})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	for _, want := range []string{
+		"computehop setup mac --role worker --device-name 'Gaming PC' --lan-only",
+		"./packaging/macos/install.sh --role worker --device-name 'Gaming PC' --lan-only",
+		"computehop setup mac --role worker --device-name 'Gaming PC' --connectivity-domain connect.example.com --turn-domain turn.example.com",
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
+		}
+	}
+}
+
+func TestSetupMacCommandRejectsLANOnlyWithConnectivity(t *testing.T) {
+	command := newRootCommand(dependencies{
+		stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			t.Fatal("setup mac should not require a daemon client")
+			return nil, nil
+		},
+	})
+	command.SetArgs([]string{
+		"setup", "mac",
+		"--role", "orchestrator",
+		"--lan-only",
+		"--connectivity-domain", "connect.computehop.dev",
+		"--turn-domain", "turn.computehop.dev",
+	})
+	err := command.Execute()
+	if err == nil {
+		t.Fatal("Execute() error = nil")
+	}
+	if !strings.Contains(err.Error(), "--lan-only cannot be combined") {
+		t.Fatalf("error = %v", err)
 	}
 }
 
