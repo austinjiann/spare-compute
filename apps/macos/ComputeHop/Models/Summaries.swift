@@ -115,6 +115,7 @@ struct JobSummary: Identifiable, Sendable {
     let updatedAt: Date
     let target: String
     let outputs: [String]
+    let progressText: String?
 
     init(_ value: Computehop_Local_V1_Job, target: String = "This Mac") {
         id = value.id
@@ -124,6 +125,7 @@ struct JobSummary: Identifiable, Sendable {
         updatedAt = Date(timeIntervalSince1970: Double(value.updatedAtUnixNano) / 1_000_000_000)
         self.target = target
         outputs = value.spec.outputs
+        progressText = value.hasProgress ? jobProgressLabel(value.progress) : nil
     }
 
     var shortID: String { String(id.prefix(8)) }
@@ -196,6 +198,38 @@ private func jobStateLabel(_ state: Computehop_Local_V1_JobState) -> String {
     case .lost: return "Lost"
     default: return "Unknown"
     }
+}
+
+private func jobProgressLabel(_ progress: Computehop_Local_V1_JobProgress) -> String {
+    let percent = progress.totalBytes > 0
+        ? Int(progress.completedBytes * 100 / progress.totalBytes)
+        : 0
+    return "\(jobProgressPhaseLabel(progress.phase)) \(percent)% (\(byteCount(progress.completedBytes))/\(byteCount(progress.totalBytes)))"
+}
+
+private func jobProgressPhaseLabel(_ phase: Computehop_Local_V1_JobProgressPhase) -> String {
+    switch phase {
+    case .snapshot: return "Snapshot"
+    case .upload: return "Upload"
+    case .download: return "Download"
+    case .restore: return "Restore"
+    case .collect: return "Collect"
+    default: return "Progress"
+    }
+}
+
+private func byteCount(_ value: Int64) -> String {
+    let units: [(String, Int64)] = [
+        ("GiB", 1 << 30),
+        ("MiB", 1 << 20),
+        ("KiB", 1 << 10),
+    ]
+    for (suffix, bytes) in units where value >= bytes {
+        let whole = value / bytes
+        let tenth = value % bytes * 10 / bytes
+        return tenth == 0 ? "\(whole)\(suffix)" : "\(whole).\(tenth)\(suffix)"
+    }
+    return "\(value)B"
 }
 
 private func pairingStateLabel(_ state: Computehop_Local_V1_PairingState) -> String {

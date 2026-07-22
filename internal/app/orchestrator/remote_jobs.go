@@ -72,6 +72,7 @@ type RemoteDependencies struct {
 	Nearby          DeviceController
 	Trust           trust.Repository
 	Placements      placement.Repository
+	Progress        job.ProgressRepository
 	Dialer          RemoteDialer
 	Remote          PairedRemoteDialer
 	Snapshots       ProjectSnapshotter
@@ -86,6 +87,7 @@ type RemoteJobService struct {
 	nearby          DeviceController
 	trust           trust.Repository
 	placements      placement.Repository
+	progress        job.ProgressRepository
 	dialer          RemoteDialer
 	remote          PairedRemoteDialer
 	snapshots       ProjectSnapshotter
@@ -106,7 +108,8 @@ func NewRemoteJobService(dependencies RemoteDependencies) (*RemoteJobService, er
 	}
 	return &RemoteJobService{
 		nearby: dependencies.Nearby, trust: dependencies.Trust,
-		placements: dependencies.Placements, dialer: dependencies.Dialer,
+		placements: dependencies.Placements, progress: dependencies.Progress,
+		dialer:    dependencies.Dialer,
 		remote:    dependencies.Remote,
 		snapshots: dependencies.Snapshots, content: dependencies.Content,
 		artifactContent: dependencies.ArtifactContent, artifacts: dependencies.Artifacts,
@@ -166,6 +169,11 @@ func (service *RemoteJobService) FetchArtifacts(
 	if err != nil {
 		return artifact.RestoreResult{}, err
 	}
+	totalBytes := manifestUniqueBytes(manifest)
+	completedBytes := totalBytes - digestBytes(manifest, missing)
+	if err := service.setProgress(ctx, id, job.ProgressDownload, completedBytes, totalBytes); err != nil {
+		return artifact.RestoreResult{}, err
+	}
 	acceptedEncodings, err := mapper.ChunkEncodingsToRemoteProto(transfer.SupportedChunkEncodings())
 	if err != nil {
 		return artifact.RestoreResult{}, err
@@ -196,9 +204,20 @@ func (service *RemoteJobService) FetchArtifacts(
 		if err := service.artifactContent.Put(ctx, digest, contents); err != nil {
 			return artifact.RestoreResult{}, err
 		}
+		completedBytes += digestBytes(manifest, []snapshot.Digest{digest})
+		if err := service.setProgress(ctx, id, job.ProgressDownload, completedBytes, totalBytes); err != nil {
+			return artifact.RestoreResult{}, err
+		}
+	}
+	restoreBytes := max(manifest.TotalBytes, 1)
+	if err := service.setProgress(ctx, id, job.ProgressRestore, 0, restoreBytes); err != nil {
+		return artifact.RestoreResult{}, err
 	}
 	restored, err := service.artifacts.Restore(ctx, bundle, destination)
 	if err != nil {
+		return artifact.RestoreResult{}, err
+	}
+	if err := service.setProgress(ctx, id, job.ProgressRestore, restoreBytes, restoreBytes); err != nil {
 		return artifact.RestoreResult{}, err
 	}
 	response, err = caller.Call(ctx, &computehopv1.RemoteRequest{
@@ -211,6 +230,11 @@ func (service *RemoteJobService) FetchArtifacts(
 	}
 	if response.GetAcknowledgeJobArtifacts().GetJobId() != string(id) {
 		return artifact.RestoreResult{}, remoteprotocol.ErrInvalidMessage
+	}
+	if service.progress != nil {
+		if err := service.progress.ClearProgress(ctx, id); err != nil {
+			return artifact.RestoreResult{}, err
+		}
 	}
 	return restored, nil
 }
@@ -429,7 +453,11 @@ func (service *RemoteJobService) Get(
 	if result == nil {
 		return job.Job{}, remoteprotocol.ErrInvalidMessage
 	}
-	return mapper.JobFromRemoteProto(result.GetJob())
+	value, err := mapper.JobFromRemoteProto(result.GetJob())
+	if err != nil {
+		return job.Job{}, err
+	}
+	return service.withLocalProgress(ctx, value)
 }
 
 func (service *RemoteJobService) List(
@@ -463,6 +491,10 @@ func (service *RemoteJobService) List(
 		if err != nil {
 			return nil, err
 		}
+		values[index], err = service.withLocalProgress(ctx, values[index])
+		if err != nil {
+			return nil, err
+		}
 	}
 	return values, nil
 }
@@ -486,7 +518,11 @@ func (service *RemoteJobService) Cancel(
 	if result == nil {
 		return job.Job{}, remoteprotocol.ErrInvalidMessage
 	}
-	return mapper.JobFromRemoteProto(result.GetJob())
+	value, err := mapper.JobFromRemoteProto(result.GetJob())
+	if err != nil {
+		return job.Job{}, err
+	}
+	return service.withLocalProgress(ctx, value)
 }
 
 func (service *RemoteJobService) ReadLogs(
@@ -519,6 +555,10 @@ func (service *RemoteJobService) ReadLogs(
 	if err != nil {
 		return worker.JobLogs{}, err
 	}
+	value, err = service.withLocalProgress(ctx, value)
+	if err != nil {
+		return worker.JobLogs{}, err
+	}
 	records, err := mapper.LogRecordsFromRemoteProto(result.GetRecords())
 	if err != nil {
 		return worker.JobLogs{}, err
@@ -529,6 +569,73 @@ func (service *RemoteJobService) ReadLogs(
 	return worker.JobLogs{
 		Job: value, Page: joblogging.Page{Records: records, HasMore: result.GetHasMore()},
 	}, nil
+}
+
+func (service *RemoteJobService) setProgress(
+	ctx context.Context,
+	id job.ID,
+	phase job.ProgressPhase,
+	completedBytes int64,
+	totalBytes int64,
+) error {
+	if service.progress == nil || totalBytes <= 0 {
+		return nil
+	}
+	return service.progress.SetProgress(ctx, id, job.Progress{
+		Phase: phase, CompletedBytes: completedBytes, TotalBytes: totalBytes,
+		UpdatedAt: time.Now().UTC(),
+	})
+}
+
+func (service *RemoteJobService) withLocalProgress(ctx context.Context, value job.Job) (job.Job, error) {
+	if service.progress == nil {
+		return value, nil
+	}
+	progress, err := service.progress.GetProgress(ctx, value.ID)
+	if err != nil {
+		return job.Job{}, err
+	}
+	if progress != nil {
+		value.Progress = progress
+	}
+	return value, nil
+}
+
+func manifestUniqueBytes(manifest snapshot.Manifest) int64 {
+	total := int64(0)
+	seen := make(map[snapshot.Digest]struct{})
+	for _, file := range manifest.Files {
+		for _, chunk := range file.Chunks {
+			if _, exists := seen[chunk.Digest]; exists {
+				continue
+			}
+			seen[chunk.Digest] = struct{}{}
+			total += int64(chunk.Size)
+		}
+	}
+	return total
+}
+
+func digestBytes(manifest snapshot.Manifest, digests []snapshot.Digest) int64 {
+	want := make(map[snapshot.Digest]struct{}, len(digests))
+	for _, digest := range digests {
+		want[digest] = struct{}{}
+	}
+	total := int64(0)
+	seen := make(map[snapshot.Digest]struct{}, len(want))
+	for _, file := range manifest.Files {
+		for _, chunk := range file.Chunks {
+			if _, ok := want[chunk.Digest]; !ok {
+				continue
+			}
+			if _, exists := seen[chunk.Digest]; exists {
+				continue
+			}
+			seen[chunk.Digest] = struct{}{}
+			total += int64(chunk.Size)
+		}
+	}
+	return total
 }
 
 func (service *RemoteJobService) call(

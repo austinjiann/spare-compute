@@ -176,7 +176,40 @@ func (service *JobService) RestoreArtifacts(
 	if err != nil {
 		return artifact.RestoreResult{}, err
 	}
-	return service.artifacts.Restore(ctx, result.Bundle, destination)
+	restoreBytes := max(result.Bundle.Manifest.TotalBytes, 1)
+	if err := service.setProgress(ctx, id, job.ProgressRestore, 0, restoreBytes); err != nil {
+		return artifact.RestoreResult{}, err
+	}
+	restored, err := service.artifacts.Restore(ctx, result.Bundle, destination)
+	if err != nil {
+		return artifact.RestoreResult{}, err
+	}
+	if err := service.setProgress(ctx, id, job.ProgressRestore, restoreBytes, restoreBytes); err != nil {
+		return artifact.RestoreResult{}, err
+	}
+	if progress, ok := service.jobs.(job.ProgressRepository); ok {
+		if err := progress.ClearProgress(ctx, id); err != nil {
+			return artifact.RestoreResult{}, err
+		}
+	}
+	return restored, nil
+}
+
+func (service *JobService) setProgress(
+	ctx context.Context,
+	id job.ID,
+	phase job.ProgressPhase,
+	completedBytes int64,
+	totalBytes int64,
+) error {
+	progress, ok := service.jobs.(job.ProgressRepository)
+	if !ok || totalBytes <= 0 {
+		return nil
+	}
+	return progress.SetProgress(ctx, id, job.Progress{
+		Phase: phase, CompletedBytes: completedBytes, TotalBytes: totalBytes,
+		UpdatedAt: service.now().UTC(),
+	})
 }
 
 // Submit validates and durably accepts a job into the worker queue.

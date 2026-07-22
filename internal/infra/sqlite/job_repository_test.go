@@ -198,6 +198,54 @@ func TestJobRepositoryPersistsStructuredFailure(t *testing.T) {
 	}
 }
 
+func TestJobRepositoryPersistsProgressAndAllowsRemoteOnlyProgress(t *testing.T) {
+	ctx := context.Background()
+	database := openTestDatabase(t)
+	repository := database.Jobs()
+	current := newTestJob(t, 1, testTime(1))
+	if err := repository.Create(ctx, current); err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	progress := job.Progress{
+		Phase: job.ProgressDownload, CompletedBytes: 512, TotalBytes: 1024,
+		UpdatedAt: testTime(2),
+	}
+	if err := repository.SetProgress(ctx, current.ID, progress); err != nil {
+		t.Fatalf("SetProgress() error = %v", err)
+	}
+	loaded, err := repository.Get(ctx, current.ID)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if loaded.Progress == nil || *loaded.Progress != progress {
+		t.Fatalf("loaded progress = %#v, want %#v", loaded.Progress, progress)
+	}
+	listed, err := repository.List(ctx, job.ListOptions{Limit: 10})
+	if err != nil || len(listed) != 1 || listed[0].Progress == nil ||
+		*listed[0].Progress != progress {
+		t.Fatalf("List() = %#v, %v", listed, err)
+	}
+	if err := repository.ClearProgress(ctx, current.ID); err != nil {
+		t.Fatalf("ClearProgress() error = %v", err)
+	}
+	cleared, err := repository.Get(ctx, current.ID)
+	if err != nil {
+		t.Fatalf("Get(cleared) error = %v", err)
+	}
+	if cleared.Progress != nil {
+		t.Fatalf("cleared progress = %#v", cleared.Progress)
+	}
+
+	remoteID := job.ID("23f9d7e2-51c3-47df-a439-70415818d38a")
+	if err := repository.SetProgress(ctx, remoteID, progress); err != nil {
+		t.Fatalf("SetProgress(remote) error = %v", err)
+	}
+	remoteProgress, err := repository.GetProgress(ctx, remoteID)
+	if err != nil || remoteProgress == nil || *remoteProgress != progress {
+		t.Fatalf("GetProgress(remote) = %#v, %v", remoteProgress, err)
+	}
+}
+
 func TestJobRepositoryListsNewestAndFiltersState(t *testing.T) {
 	ctx := context.Background()
 	repository := openTestDatabase(t).Jobs()

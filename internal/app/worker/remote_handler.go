@@ -461,7 +461,8 @@ func remoteErrorResponse(err error) *computehopv1.RemoteResponse {
 	switch {
 	case errors.Is(err, job.ErrInvalidID), errors.Is(err, job.ErrInvalidSpec),
 		errors.Is(err, job.ErrInvalidJob), errors.Is(err, job.ErrInvalidState),
-		errors.Is(err, job.ErrInvalidTransition), errors.Is(err, joblogging.ErrInvalidPage),
+		errors.Is(err, job.ErrInvalidTransition), errors.Is(err, job.ErrInvalidProgress),
+		errors.Is(err, joblogging.ErrInvalidPage),
 		errors.Is(err, joblogging.ErrInvalidRecord), errors.Is(err, snapshot.ErrInvalidDigest),
 		errors.Is(err, snapshot.ErrInvalidManifest), errors.Is(err, snapshot.ErrUnsafePath),
 		errors.Is(err, transfer.ErrInvalidChunk), errors.Is(err, transfer.ErrUnsupportedEncoding):

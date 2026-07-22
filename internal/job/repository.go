@@ -27,3 +27,12 @@ type Repository interface {
 	List(context.Context, ListOptions) ([]Job, error)
 	ApplyTransition(context.Context, Transition) (Job, error)
 }
+
+// ProgressRepository stores the latest durable progress independently of job
+// ownership. Remote orchestrators may know progress for a worker-owned job
+// without owning the worker's full durable job row.
+type ProgressRepository interface {
+	SetProgress(context.Context, ID, Progress) error
+	GetProgress(context.Context, ID) (*Progress, error)
+	ClearProgress(context.Context, ID) error
+}

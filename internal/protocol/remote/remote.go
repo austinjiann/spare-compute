@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	ProtocolVersion       uint32 = 5
+	ProtocolVersion       uint32 = 6
 	maximumFrameBytes            = 1 << 20
 	defaultCallTimeout           = 15 * time.Second
 	preflightCallTimeout         = time.Minute

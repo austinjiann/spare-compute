@@ -301,10 +301,11 @@ func TestRemoteJobServiceDownloadsOnlyMissingArtifactChunksAndRestores(t *testin
 	downloads := 0
 	restores := 0
 	acknowledgments := 0
+	progress := newRemoteProgressStub()
 	destination := filepath.Join(t.TempDir(), "results")
 	service, err := NewRemoteJobService(RemoteDependencies{
 		Nearby: stubDeviceController{}, Trust: remoteTrustStub{peers: []trust.Peer{peer}},
-		Placements: placements,
+		Placements: placements, Progress: progress,
 		Dialer: remoteDialerFunc(func(context.Context, device.NearbyDevice, trust.Peer) (remoteprotocol.Caller, error) {
 			return nil, errors.New("no LAN path")
 		}),
@@ -389,6 +390,59 @@ func TestRemoteJobServiceDownloadsOnlyMissingArtifactChunksAndRestores(t *testin
 	}
 	if downloads != 1 || restores != 2 || acknowledgments != 2 {
 		t.Fatalf("downloads = %d, restores = %d, acknowledgments = %d", downloads, restores, acknowledgments)
+	}
+	if !progress.saw(job.ProgressDownload) || !progress.saw(job.ProgressRestore) || progress.clears != 2 {
+		t.Fatalf("progress history = %#v, clears = %d", progress.history, progress.clears)
+	}
+}
+
+func TestRemoteJobServiceOverlaysLocalTransferProgress(t *testing.T) {
+	peer := activeWorkerPeer(t, 24, "Render PC")
+	want := queuedJobForTest()
+	message, err := mapper.JobToRemoteProto(want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	placements := newRemotePlacementStub()
+	if err := placements.Create(context.Background(), placement.Placement{
+		JobID: want.ID, WorkerID: peer.DeviceID, PlacedAt: want.CreatedAt,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	progress := newRemoteProgressStub()
+	if err := progress.SetProgress(context.Background(), want.ID, job.Progress{
+		Phase: job.ProgressDownload, CompletedBytes: 10, TotalBytes: 20,
+		UpdatedAt: want.UpdatedAt.Add(time.Second),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewRemoteJobService(RemoteDependencies{
+		Nearby: stubDeviceController{}, Trust: remoteTrustStub{peers: []trust.Peer{peer}},
+		Placements: placements, Progress: progress,
+		Dialer: remoteDialerFunc(func(context.Context, device.NearbyDevice, trust.Peer) (remoteprotocol.Caller, error) {
+			return nil, errors.New("no LAN path")
+		}),
+		Remote: pairedRemoteDialerFunc(func(context.Context, trust.Peer) (remoteprotocol.Caller, error) {
+			return &remoteCallerStub{call: func(
+				context.Context,
+				*computehopv1.RemoteRequest,
+			) (*computehopv1.RemoteResponse, error) {
+				return &computehopv1.RemoteResponse{Result: &computehopv1.RemoteResponse_GetJob{
+					GetJob: &computehopv1.GetJobResponse{Job: message},
+				}}, nil
+			}}, nil
+		}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := service.Get(context.Background(), "", want.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Progress == nil || got.Progress.Phase != job.ProgressDownload ||
+		got.Progress.CompletedBytes != 10 || got.Progress.TotalBytes != 20 {
+		t.Fatalf("progress = %#v", got.Progress)
 	}
 }
 
@@ -581,6 +635,51 @@ func (stub *remotePlacementStub) Get(_ context.Context, id job.ID) (placement.Pl
 		return placement.Placement{}, placement.ErrNotFound
 	}
 	return value, nil
+}
+
+type remoteProgressStub struct {
+	values  map[job.ID]job.Progress
+	history []job.Progress
+	clears  int
+}
+
+func newRemoteProgressStub() *remoteProgressStub {
+	return &remoteProgressStub{values: make(map[job.ID]job.Progress)}
+}
+
+func (stub *remoteProgressStub) SetProgress(_ context.Context, id job.ID, progress job.Progress) error {
+	if !id.Valid() {
+		return job.ErrInvalidID
+	}
+	if err := progress.Validate(); err != nil {
+		return err
+	}
+	stub.values[id] = progress
+	stub.history = append(stub.history, progress)
+	return nil
+}
+
+func (stub *remoteProgressStub) GetProgress(_ context.Context, id job.ID) (*job.Progress, error) {
+	progress, ok := stub.values[id]
+	if !ok {
+		return nil, nil
+	}
+	return &progress, nil
+}
+
+func (stub *remoteProgressStub) ClearProgress(_ context.Context, id job.ID) error {
+	delete(stub.values, id)
+	stub.clears++
+	return nil
+}
+
+func (stub *remoteProgressStub) saw(phase job.ProgressPhase) bool {
+	for _, progress := range stub.history {
+		if progress.Phase == phase {
+			return true
+		}
+	}
+	return false
 }
 
 func activeWorkerPeer(t *testing.T, seed byte, name string) trust.Peer {

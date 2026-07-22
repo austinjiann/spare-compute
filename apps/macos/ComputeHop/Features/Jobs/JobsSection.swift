@@ -18,7 +18,7 @@ struct JobsSection: View {
                         VStack(alignment: .leading, spacing: 1) {
                             Text(job.command)
                                 .lineLimit(1)
-                            Text("\(job.state) · \(job.target) · \(job.shortID)")
+                            Text(jobDetailLine(job))
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
@@ -96,5 +96,12 @@ struct JobsSection: View {
         if panel.runModal() == .OK, let destination = panel.url {
             Task { await model.fetchArtifacts(for: job, destination: destination.path) }
         }
+    }
+
+    private func jobDetailLine(_ job: JobSummary) -> String {
+        if let progress = job.progressText {
+            return "\(job.state) · \(progress) · \(job.target) · \(job.shortID)"
+        }
+        return "\(job.state) · \(job.target) · \(job.shortID)"
     }
 }

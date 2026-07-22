@@ -27,7 +27,7 @@ Last updated: 2026-07-22.
 | One-VPS staging deployment | In progress | Provider-neutral Compose stack, Caddy HTTPS edge, authenticated coturn relay, bounded ports/quotas, secrets, firewall bootstrap, health checks, and rollback runbook are ready; buying the VPS and forced-relay validation remain. |
 | CLI and physical Mac validation | In progress | Friendlier `--on` and no-`--` command syntax, inferred pairing confirmation, and merged trusted/nearby presentation are implemented; physical macOS-to-macOS discovery, pairing, execution, restart recovery, logs, and cancellation passed. Windows/Linux remain. |
 | macOS menu-bar foundation | In progress | SwiftUI `MenuBarExtra`, generated SwiftProtobuf models, authenticated Unix-socket IPC, device/pairing controls, native job submission, output declarations and retrieval, reconnectable logs, and cancellation build and pass Swift tests; an ad-hoc app bundle and per-user launchd installer are ready for development. |
-| Project snapshots, incremental transfer, and declared artifacts | In progress | Remote runs resolve a local project root, create bounded content-defined snapshots, upload only missing verified chunks, and execute in isolated workspaces. Workers durably collect exact declared files/directories before success; orchestrators fetch only missing verified chunks and restore without overwrites or symlink traversal. Transfer peers negotiate bounded identity/zstd chunk encoding while preserving decoded-content hashes. The persistent verified content cache is SQLite-indexed, LRU-evicted, quota-bound, and protects active jobs plus unacknowledged artifact chunks. Automated LAN/supervised-path reuse and artifact coverage pass; full ignore conformance, automatic restoration, secrets, and physical cross-platform validation remain. |
+| Project snapshots, incremental transfer, and declared artifacts | In progress | Remote runs resolve a local project root, create bounded content-defined snapshots, upload only missing verified chunks, and execute in isolated workspaces. Workers durably collect exact declared files/directories before success; orchestrators fetch only missing verified chunks and restore without overwrites or symlink traversal. Transfer peers negotiate bounded identity/zstd chunk encoding while preserving decoded-content hashes. The persistent verified content cache is SQLite-indexed, LRU-evicted, quota-bound, and protects active jobs plus unacknowledged artifact chunks. Artifact download/restore progress is durable and visible in CLI/Swift job summaries. Automated LAN/supervised-path reuse and artifact coverage pass; full ignore conformance, automatic restoration, secrets, upload progress, and physical cross-platform validation remain. |
 | Later launch slices | In progress | Direct internet control still needs physical unrelated-network and reconnect validation, and TURN credential issuance requires a hosted entitlement boundary. Scheduling, adapters, production packaging, and release operations follow. |
 
 “Complete” here means implemented with automated coverage and merged to `main`.
@@ -1304,10 +1304,13 @@ chunks under later cache pressure. The persistent verified content cache now has
 a configurable quota, LRU pruning, startup reconciliation, snapshot
 reservations, active-use pins, and conservative protection while jobs are
 running or collecting artifacts. CLI aliases and the macOS menu expose retrieval
-after restart by durable job placement. Symlinks and special files are safely
-rejected for now rather than preserved. Durable byte-level transfer progress,
-automatic restoration to submission-time paths, secret delivery, and physical
-Windows/Linux validation remain, so the Step 4 checkpoint is not complete.
+after restart by durable job placement. Artifact download and local restore
+progress is persisted independently of job ownership, so the orchestrator can
+show progress for worker-owned jobs in CLI and Swift job summaries. Symlinks and
+special files are safely rejected for now rather than preserved. Upload progress,
+byte-range resume, automatic restoration to submission-time paths, secret
+delivery, and physical Windows/Linux validation remain, so the Step 4 checkpoint
+is not complete.
 
 - Add project-root resolution, ignore semantics, immutable manifests,
   content-defined chunks, negotiated compression, and a bounded content cache.
@@ -1316,6 +1319,8 @@ Windows/Linux validation remain, so the Step 4 checkpoint is not complete.
 - Enforce a persistent content-cache quota with LRU eviction, startup
   reconciliation, active snapshot reservations, and artifact retention until
   successful restoration is acknowledged.
+- Persist artifact download/restore byte progress and expose it through local
+  and remote job summaries in the CLI and macOS menu bar.
 - Materialize each job into an isolated workspace and never execute directly
   from the cache.
 - Add declared artifacts, staged collection, hash verification, resumable

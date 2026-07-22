@@ -36,3 +36,24 @@ func incompleteJobCannotFetchDeclaredOutputsYet() {
 
     #expect(!JobSummary(value).canFetchOutputs)
 }
+
+@Test
+func jobSummaryFormatsProgress() {
+    var spec = Computehop_Local_V1_JobSpec()
+    spec.executable = "ffmpeg"
+    spec.arguments = ["-i", "input.mov", "output.mp4"]
+    spec.executor = .native
+    var progress = Computehop_Local_V1_JobProgress()
+    progress.phase = .download
+    progress.completedBytes = 512 * 1024
+    progress.totalBytes = 1024 * 1024
+    progress.updatedAtUnixNano = 1
+    var value = Computehop_Local_V1_Job()
+    value.id = "job-id"
+    value.spec = spec
+    value.state = .transferring
+    value.updatedAtUnixNano = 1
+    value.progress = progress
+
+    #expect(JobSummary(value).progressText == "Download 50% (512KiB/1MiB)")
+}

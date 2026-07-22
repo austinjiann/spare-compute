@@ -91,7 +91,7 @@ private final class ContinuationGate<Value: Sendable>: @unchecked Sendable {
 }
 
 actor LocalDaemonClient {
-    static let protocolVersion: UInt32 = 4
+    static let protocolVersion: UInt32 = 5
 
     private let socketURL: URL
     private let tokenURL: URL

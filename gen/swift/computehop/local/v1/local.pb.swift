@@ -149,6 +149,56 @@ public nonisolated enum Computehop_Local_V1_JobState: SwiftProtobuf.Enum, Swift.
 
 }
 
+public nonisolated enum Computehop_Local_V1_JobProgressPhase: SwiftProtobuf.Enum, Swift.CaseIterable {
+  public typealias RawValue = Int
+  case unspecified // = 0
+  case snapshot // = 1
+  case upload // = 2
+  case download // = 3
+  case restore // = 4
+  case collect // = 5
+  case UNRECOGNIZED(Int)
+
+  public init() {
+    self = .unspecified
+  }
+
+  public init?(rawValue: Int) {
+    switch rawValue {
+    case 0: self = .unspecified
+    case 1: self = .snapshot
+    case 2: self = .upload
+    case 3: self = .download
+    case 4: self = .restore
+    case 5: self = .collect
+    default: self = .UNRECOGNIZED(rawValue)
+    }
+  }
+
+  public var rawValue: Int {
+    switch self {
+    case .unspecified: return 0
+    case .snapshot: return 1
+    case .upload: return 2
+    case .download: return 3
+    case .restore: return 4
+    case .collect: return 5
+    case .UNRECOGNIZED(let i): return i
+    }
+  }
+
+  // The compiler won't synthesize support with the UNRECOGNIZED case.
+  public static let allCases: [Computehop_Local_V1_JobProgressPhase] = [
+    .unspecified,
+    .snapshot,
+    .upload,
+    .download,
+    .restore,
+    .collect,
+  ]
+
+}
+
 public nonisolated enum Computehop_Local_V1_ErrorCode: SwiftProtobuf.Enum, Swift.CaseIterable {
   public typealias RawValue = Int
   case unspecified // = 0
@@ -1420,43 +1470,81 @@ public nonisolated struct Computehop_Local_V1_JobSpec: Sendable {
   public init() {}
 }
 
-public nonisolated struct Computehop_Local_V1_Job: Sendable {
+public nonisolated struct Computehop_Local_V1_Job: @unchecked Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
 
-  public var id: String = String()
+  public var id: String {
+    get {_storage._id}
+    set {_uniqueStorage()._id = newValue}
+  }
 
   public var spec: Computehop_Local_V1_JobSpec {
-    get {_spec ?? Computehop_Local_V1_JobSpec()}
-    set {_spec = newValue}
+    get {_storage._spec ?? Computehop_Local_V1_JobSpec()}
+    set {_uniqueStorage()._spec = newValue}
   }
   /// Returns true if `spec` has been explicitly set.
-  public var hasSpec: Bool {self._spec != nil}
+  public var hasSpec: Bool {_storage._spec != nil}
   /// Clears the value of `spec`. Subsequent reads from it will return its default value.
-  public mutating func clearSpec() {self._spec = nil}
+  public mutating func clearSpec() {_uniqueStorage()._spec = nil}
 
-  public var state: Computehop_Local_V1_JobState = .unspecified
+  public var state: Computehop_Local_V1_JobState {
+    get {_storage._state}
+    set {_uniqueStorage()._state = newValue}
+  }
 
-  public var createdAtUnixNano: Int64 = 0
+  public var createdAtUnixNano: Int64 {
+    get {_storage._createdAtUnixNano}
+    set {_uniqueStorage()._createdAtUnixNano = newValue}
+  }
 
-  public var updatedAtUnixNano: Int64 = 0
+  public var updatedAtUnixNano: Int64 {
+    get {_storage._updatedAtUnixNano}
+    set {_uniqueStorage()._updatedAtUnixNano = newValue}
+  }
 
   public var failure: Computehop_Local_V1_Failure {
-    get {_failure ?? Computehop_Local_V1_Failure()}
-    set {_failure = newValue}
+    get {_storage._failure ?? Computehop_Local_V1_Failure()}
+    set {_uniqueStorage()._failure = newValue}
   }
   /// Returns true if `failure` has been explicitly set.
-  public var hasFailure: Bool {self._failure != nil}
+  public var hasFailure: Bool {_storage._failure != nil}
   /// Clears the value of `failure`. Subsequent reads from it will return its default value.
-  public mutating func clearFailure() {self._failure = nil}
+  public mutating func clearFailure() {_uniqueStorage()._failure = nil}
+
+  public var progress: Computehop_Local_V1_JobProgress {
+    get {_storage._progress ?? Computehop_Local_V1_JobProgress()}
+    set {_uniqueStorage()._progress = newValue}
+  }
+  /// Returns true if `progress` has been explicitly set.
+  public var hasProgress: Bool {_storage._progress != nil}
+  /// Clears the value of `progress`. Subsequent reads from it will return its default value.
+  public mutating func clearProgress() {_uniqueStorage()._progress = nil}
 
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
 
-  fileprivate var _spec: Computehop_Local_V1_JobSpec? = nil
-  fileprivate var _failure: Computehop_Local_V1_Failure? = nil
+  fileprivate var _storage = _StorageClass.defaultInstance
+}
+
+public nonisolated struct Computehop_Local_V1_JobProgress: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  public var phase: Computehop_Local_V1_JobProgressPhase = .unspecified
+
+  public var completedBytes: Int64 = 0
+
+  public var totalBytes: Int64 = 0
+
+  public var updatedAtUnixNano: Int64 = 0
+
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  public init() {}
 }
 
 public nonisolated struct Computehop_Local_V1_Failure: Sendable {
@@ -1499,6 +1587,10 @@ nonisolated extension Computehop_Local_V1_Executor: SwiftProtobuf._ProtoNameProv
 
 nonisolated extension Computehop_Local_V1_JobState: SwiftProtobuf._ProtoNameProviding {
   public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0JOB_STATE_UNSPECIFIED\0\u{1}JOB_STATE_CREATED\0\u{1}JOB_STATE_VALIDATING\0\u{1}JOB_STATE_QUEUED\0\u{1}JOB_STATE_SNAPSHOTTING\0\u{1}JOB_STATE_TRANSFERRING\0\u{1}JOB_STATE_STARTING\0\u{1}JOB_STATE_RUNNING\0\u{1}JOB_STATE_COLLECTING\0\u{1}JOB_STATE_RESTORING\0\u{1}JOB_STATE_SUCCEEDED\0\u{1}JOB_STATE_FAILED\0\u{1}JOB_STATE_CANCELLED\0\u{1}JOB_STATE_REJECTED\0\u{1}JOB_STATE_LOST\0")
+}
+
+nonisolated extension Computehop_Local_V1_JobProgressPhase: SwiftProtobuf._ProtoNameProviding {
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0JOB_PROGRESS_PHASE_UNSPECIFIED\0\u{1}JOB_PROGRESS_PHASE_SNAPSHOT\0\u{1}JOB_PROGRESS_PHASE_UPLOAD\0\u{1}JOB_PROGRESS_PHASE_DOWNLOAD\0\u{1}JOB_PROGRESS_PHASE_RESTORE\0\u{1}JOB_PROGRESS_PHASE_COLLECT\0")
 }
 
 nonisolated extension Computehop_Local_V1_ErrorCode: SwiftProtobuf._ProtoNameProviding {
@@ -3446,7 +3538,119 @@ nonisolated extension Computehop_Local_V1_JobSpec: SwiftProtobuf.Message, SwiftP
 
 nonisolated extension Computehop_Local_V1_Job: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".Job"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}spec\0\u{1}state\0\u{3}created_at_unix_nano\0\u{3}updated_at_unix_nano\0\u{1}failure\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}spec\0\u{1}state\0\u{3}created_at_unix_nano\0\u{3}updated_at_unix_nano\0\u{1}failure\0\u{1}progress\0")
+
+  fileprivate class _StorageClass {
+    var _id: String = String()
+    var _spec: Computehop_Local_V1_JobSpec? = nil
+    var _state: Computehop_Local_V1_JobState = .unspecified
+    var _createdAtUnixNano: Int64 = 0
+    var _updatedAtUnixNano: Int64 = 0
+    var _failure: Computehop_Local_V1_Failure? = nil
+    var _progress: Computehop_Local_V1_JobProgress? = nil
+
+      // This property is used as the initial default value for new instances of the type.
+      // The type itself is protecting the reference to its storage via CoW semantics.
+      // This will force a copy to be made of this reference when the first mutation occurs;
+      // hence, it is safe to mark this as `nonisolated(unsafe)`.
+      static nonisolated(unsafe) let defaultInstance = _StorageClass()
+
+    private init() {}
+
+    init(copying source: _StorageClass) {
+      _id = source._id
+      _spec = source._spec
+      _state = source._state
+      _createdAtUnixNano = source._createdAtUnixNano
+      _updatedAtUnixNano = source._updatedAtUnixNano
+      _failure = source._failure
+      _progress = source._progress
+    }
+  }
+
+  fileprivate mutating func _uniqueStorage() -> _StorageClass {
+    if !isKnownUniquelyReferenced(&_storage) {
+      _storage = _StorageClass(copying: _storage)
+    }
+    return _storage
+  }
+
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    _ = _uniqueStorage()
+    try withExtendedLifetime(_storage) { (_storage: _StorageClass) in
+      while let fieldNumber = try decoder.nextFieldNumber() {
+        // The use of inline closures is to circumvent an issue where the compiler
+        // allocates stack space for every case branch when no optimizations are
+        // enabled. https://github.com/apple/swift-protobuf/issues/1034
+        switch fieldNumber {
+        case 1: try { try decoder.decodeSingularStringField(value: &_storage._id) }()
+        case 2: try { try decoder.decodeSingularMessageField(value: &_storage._spec) }()
+        case 3: try { try decoder.decodeSingularEnumField(value: &_storage._state) }()
+        case 4: try { try decoder.decodeSingularInt64Field(value: &_storage._createdAtUnixNano) }()
+        case 5: try { try decoder.decodeSingularInt64Field(value: &_storage._updatedAtUnixNano) }()
+        case 6: try { try decoder.decodeSingularMessageField(value: &_storage._failure) }()
+        case 7: try { try decoder.decodeSingularMessageField(value: &_storage._progress) }()
+        default: break
+        }
+      }
+    }
+  }
+
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    try withExtendedLifetime(_storage) { (_storage: _StorageClass) in
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every if/case branch local when no optimizations
+      // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+      // https://github.com/apple/swift-protobuf/issues/1182
+      if !_storage._id.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._id, fieldNumber: 1)
+      }
+      try { if let v = _storage._spec {
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 2)
+      } }()
+      if _storage._state != .unspecified {
+        try visitor.visitSingularEnumField(value: _storage._state, fieldNumber: 3)
+      }
+      if _storage._createdAtUnixNano != 0 {
+        try visitor.visitSingularInt64Field(value: _storage._createdAtUnixNano, fieldNumber: 4)
+      }
+      if _storage._updatedAtUnixNano != 0 {
+        try visitor.visitSingularInt64Field(value: _storage._updatedAtUnixNano, fieldNumber: 5)
+      }
+      try { if let v = _storage._failure {
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 6)
+      } }()
+      try { if let v = _storage._progress {
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 7)
+      } }()
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  public static func ==(lhs: Computehop_Local_V1_Job, rhs: Computehop_Local_V1_Job) -> Bool {
+    if lhs._storage !== rhs._storage {
+      let storagesAreEqual: Bool = withExtendedLifetime((lhs._storage, rhs._storage)) { (_args: (_StorageClass, _StorageClass)) in
+        let _storage = _args.0
+        let rhs_storage = _args.1
+        if _storage._id != rhs_storage._id {return false}
+        if _storage._spec != rhs_storage._spec {return false}
+        if _storage._state != rhs_storage._state {return false}
+        if _storage._createdAtUnixNano != rhs_storage._createdAtUnixNano {return false}
+        if _storage._updatedAtUnixNano != rhs_storage._updatedAtUnixNano {return false}
+        if _storage._failure != rhs_storage._failure {return false}
+        if _storage._progress != rhs_storage._progress {return false}
+        return true
+      }
+      if !storagesAreEqual {return false}
+    }
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Computehop_Local_V1_JobProgress: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = _protobuf_package + ".JobProgress"
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}phase\0\u{3}completed_bytes\0\u{3}total_bytes\0\u{3}updated_at_unix_nano\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -3454,50 +3658,36 @@ nonisolated extension Computehop_Local_V1_Job: SwiftProtobuf.Message, SwiftProto
       // allocates stack space for every case branch when no optimizations are
       // enabled. https://github.com/apple/swift-protobuf/issues/1034
       switch fieldNumber {
-      case 1: try { try decoder.decodeSingularStringField(value: &self.id) }()
-      case 2: try { try decoder.decodeSingularMessageField(value: &self._spec) }()
-      case 3: try { try decoder.decodeSingularEnumField(value: &self.state) }()
-      case 4: try { try decoder.decodeSingularInt64Field(value: &self.createdAtUnixNano) }()
-      case 5: try { try decoder.decodeSingularInt64Field(value: &self.updatedAtUnixNano) }()
-      case 6: try { try decoder.decodeSingularMessageField(value: &self._failure) }()
+      case 1: try { try decoder.decodeSingularEnumField(value: &self.phase) }()
+      case 2: try { try decoder.decodeSingularInt64Field(value: &self.completedBytes) }()
+      case 3: try { try decoder.decodeSingularInt64Field(value: &self.totalBytes) }()
+      case 4: try { try decoder.decodeSingularInt64Field(value: &self.updatedAtUnixNano) }()
       default: break
       }
     }
   }
 
   public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
-    // The use of inline closures is to circumvent an issue where the compiler
-    // allocates stack space for every if/case branch local when no optimizations
-    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
-    // https://github.com/apple/swift-protobuf/issues/1182
-    if !self.id.isEmpty {
-      try visitor.visitSingularStringField(value: self.id, fieldNumber: 1)
+    if self.phase != .unspecified {
+      try visitor.visitSingularEnumField(value: self.phase, fieldNumber: 1)
     }
-    try { if let v = self._spec {
-      try visitor.visitSingularMessageField(value: v, fieldNumber: 2)
-    } }()
-    if self.state != .unspecified {
-      try visitor.visitSingularEnumField(value: self.state, fieldNumber: 3)
+    if self.completedBytes != 0 {
+      try visitor.visitSingularInt64Field(value: self.completedBytes, fieldNumber: 2)
     }
-    if self.createdAtUnixNano != 0 {
-      try visitor.visitSingularInt64Field(value: self.createdAtUnixNano, fieldNumber: 4)
+    if self.totalBytes != 0 {
+      try visitor.visitSingularInt64Field(value: self.totalBytes, fieldNumber: 3)
     }
     if self.updatedAtUnixNano != 0 {
-      try visitor.visitSingularInt64Field(value: self.updatedAtUnixNano, fieldNumber: 5)
+      try visitor.visitSingularInt64Field(value: self.updatedAtUnixNano, fieldNumber: 4)
     }
-    try { if let v = self._failure {
-      try visitor.visitSingularMessageField(value: v, fieldNumber: 6)
-    } }()
     try unknownFields.traverse(visitor: &visitor)
   }
 
-  public static func ==(lhs: Computehop_Local_V1_Job, rhs: Computehop_Local_V1_Job) -> Bool {
-    if lhs.id != rhs.id {return false}
-    if lhs._spec != rhs._spec {return false}
-    if lhs.state != rhs.state {return false}
-    if lhs.createdAtUnixNano != rhs.createdAtUnixNano {return false}
+  public static func ==(lhs: Computehop_Local_V1_JobProgress, rhs: Computehop_Local_V1_JobProgress) -> Bool {
+    if lhs.phase != rhs.phase {return false}
+    if lhs.completedBytes != rhs.completedBytes {return false}
+    if lhs.totalBytes != rhs.totalBytes {return false}
     if lhs.updatedAtUnixNano != rhs.updatedAtUnixNano {return false}
-    if lhs._failure != rhs._failure {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

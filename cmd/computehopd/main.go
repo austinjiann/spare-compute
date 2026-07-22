@@ -309,7 +309,8 @@ func runWithDependencies(
 	}
 	remoteJobs, err := orchestrator.NewRemoteJobService(orchestrator.RemoteDependencies{
 		Nearby: deviceService, Trust: database.Trust(),
-		Placements: database.Placements(), Dialer: pairingEndpoint, Remote: remoteManager,
+		Placements: database.Placements(), Progress: database.Jobs(),
+		Dialer: pairingEndpoint, Remote: remoteManager,
 		Snapshots: projectSnapshots, Content: contentStore,
 		ArtifactContent: contentStore, Artifacts: artifactManager,
 	})

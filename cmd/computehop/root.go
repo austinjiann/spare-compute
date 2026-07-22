@@ -728,7 +728,7 @@ func newJobsCommand(
 			}
 
 			writer := tabwriter.NewWriter(stdout, 0, 4, 2, ' ', 0)
-			if _, err := fmt.Fprintln(writer, "ID\tSTATE\tCOMMAND\tUPDATED"); err != nil {
+			if _, err := fmt.Fprintln(writer, "ID\tSTATE\tPROGRESS\tCOMMAND\tUPDATED"); err != nil {
 				return err
 			}
 			for _, message := range result.GetJobs() {
@@ -739,9 +739,10 @@ func newJobsCommand(
 				commandText := strings.Join(append([]string{value.Spec.Executable}, value.Spec.Arguments...), " ")
 				if _, err := fmt.Fprintf(
 					writer,
-					"%s\t%s\t%s\t%s\n",
+					"%s\t%s\t%s\t%s\t%s\n",
 					value.ID,
 					value.State,
+					formatJobProgress(value.Progress),
 					commandText,
 					value.UpdatedAt.Format(time.RFC3339),
 				); err != nil {
@@ -882,6 +883,62 @@ func newLogsCommand(
 	command.Flags().BoolVarP(&follow, "follow", "f", false, "wait for new output until the job finishes")
 	addDeviceSelectorFlags(command, &deviceSelector)
 	return command
+}
+
+func formatJobProgress(progress *job.Progress) string {
+	if progress == nil {
+		return "—"
+	}
+	percent := int64(0)
+	if progress.TotalBytes > 0 {
+		percent = progress.CompletedBytes * 100 / progress.TotalBytes
+	}
+	return fmt.Sprintf(
+		"%s %d%% (%s/%s)",
+		progressPhaseLabel(progress.Phase),
+		percent,
+		formatByteCount(progress.CompletedBytes),
+		formatByteCount(progress.TotalBytes),
+	)
+}
+
+func progressPhaseLabel(phase job.ProgressPhase) string {
+	switch phase {
+	case job.ProgressSnapshot:
+		return "snapshot"
+	case job.ProgressUpload:
+		return "upload"
+	case job.ProgressDownload:
+		return "download"
+	case job.ProgressRestore:
+		return "restore"
+	case job.ProgressCollect:
+		return "collect"
+	default:
+		return string(phase)
+	}
+}
+
+func formatByteCount(value int64) string {
+	type unit struct {
+		suffix string
+		bytes  int64
+	}
+	for _, candidate := range []unit{
+		{suffix: "GiB", bytes: 1 << 30},
+		{suffix: "MiB", bytes: 1 << 20},
+		{suffix: "KiB", bytes: 1 << 10},
+	} {
+		if value >= candidate.bytes {
+			whole := value / candidate.bytes
+			tenth := value % candidate.bytes * 10 / candidate.bytes
+			if tenth == 0 {
+				return fmt.Sprintf("%d%s", whole, candidate.suffix)
+			}
+			return fmt.Sprintf("%d.%d%s", whole, tenth, candidate.suffix)
+		}
+	}
+	return fmt.Sprintf("%dB", value)
 }
 
 func addDeviceSelectorFlags(command *cobra.Command, destination *string) {

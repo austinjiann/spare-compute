@@ -189,6 +189,10 @@ func TestArtifactsCommandUsesSafeDefaultDestinationAndReportsConflicts(t *testin
 
 func TestJobsCommandPrintsDurableJobs(t *testing.T) {
 	value := cliJobForTest(job.StateQueued)
+	value.Progress = &job.Progress{
+		Phase: job.ProgressDownload, CompletedBytes: 512 << 10,
+		TotalBytes: 1024 << 10, UpdatedAt: value.UpdatedAt,
+	}
 	message, err := mapper.JobToProto(value)
 	if err != nil {
 		t.Fatal(err)
@@ -217,7 +221,10 @@ func TestJobsCommandPrintsDurableJobs(t *testing.T) {
 		t.Fatalf("Execute() error = %v", err)
 	}
 	output := stdout.String()
-	for _, want := range []string{"ID", string(value.ID), "queued", "echo hello", "2023-11-14T22:13:21Z"} {
+	for _, want := range []string{
+		"ID", "PROGRESS", string(value.ID), "queued", "download 50% (512KiB/1MiB)",
+		"echo hello", "2023-11-14T22:13:21Z",
+	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("stdout %q does not contain %q", output, want)
 		}

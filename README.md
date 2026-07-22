@@ -30,9 +30,11 @@ missing hash-verified chunks into a conflict-safe local results directory.
 The verified content cache is persistent, SQLite-indexed, LRU-evicted, and
 bounded to 20GiB by default. Active transfers, running jobs, and output chunks
 that have not yet been successfully restored and acknowledged are protected
-from eviction. Automated local end-to-end coverage passes, while physical
-unrelated-network validation is still open. Public TURN relay traffic remains
-gated on entitlement-backed, quota-limited credential issuance.
+from eviction. Output download and restore progress is stored durably and shown
+through job summaries in the CLI and menu-bar app. Automated local end-to-end
+coverage passes, while physical unrelated-network validation is still open.
+Public TURN relay traffic remains gated on entitlement-backed, quota-limited
+credential issuance.
 
 See [`docs/PLAN.md`](docs/PLAN.md) for the product, architecture, security,
 execution, deployment, and launch plan.
@@ -121,6 +123,9 @@ job succeeds, `computehop artifacts <job-id>` infers its worker and restores to
 `.computehop-results/<job-id>` by default; use `--to <directory>` to choose a
 different destination. Existing files are never overwritten. Incoming
 conflicts are retained beneath `.computehop-conflicts` in the destination.
+While outputs are being fetched or restored, `computehop jobs`, remote job
+refreshes, and the menu-bar job list show durable byte-level progress for the
+current download or restore phase.
 
 Remote job state, logs, and execution history remain authoritative on the
 selected worker. The orchestrator stores only a durable mapping from each

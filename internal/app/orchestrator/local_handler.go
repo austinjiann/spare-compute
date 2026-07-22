@@ -611,6 +611,7 @@ func errorResponse(err error) *localv1.Response {
 		errors.Is(err, job.ErrInvalidJob),
 		errors.Is(err, job.ErrInvalidState),
 		errors.Is(err, job.ErrInvalidTransition),
+		errors.Is(err, job.ErrInvalidProgress),
 		errors.Is(err, joblogging.ErrInvalidPage),
 		errors.Is(err, joblogging.ErrInvalidRecord),
 		errors.Is(err, trust.ErrInvalidPairID),
