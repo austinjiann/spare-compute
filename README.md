@@ -64,8 +64,10 @@ per-job worker directory. `.gitignore` and `.computehopignore` rules are
 applied; `.git`, `.computehop-results`, symlinks, sockets, devices, traversal,
 and non-portable paths cannot enter a snapshot. Declared outputs use the same
 verified content store and are restored without overwriting existing files or
-following destination symlinks. Cache quotas, transfer compression, automatic placement, and fully validated network-change
-reconnection are later slices. Discovery records never authorize commands: the
+following destination symlinks. Chunk transfers negotiate bounded zstd or
+identity encoding while keeping hashes defined over decoded content. Cache
+quotas, automatic placement, and fully validated network-change reconnection
+are later slices. Discovery records never authorize commands: the
 live QUIC certificate must match the selected active public-key pin.
 
 Pairings created before connectivity-secret support remain valid for LAN use

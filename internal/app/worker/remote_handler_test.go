@@ -13,6 +13,7 @@ import (
 	joblogging "github.com/austinjiann/spare-compute/internal/logging"
 	"github.com/austinjiann/spare-compute/internal/protocol/mapper"
 	"github.com/austinjiann/spare-compute/internal/snapshot"
+	"github.com/austinjiann/spare-compute/internal/transfer"
 )
 
 func TestRemoteHandlerSubmitsValidatedJob(t *testing.T) {
@@ -128,12 +129,15 @@ func TestRemoteHandlerPreflightsUploadsAndSubmitsSnapshot(t *testing.T) {
 			ManifestId: string(manifestID), ChunkDigests: []string{string(digest)},
 		}},
 	})
-	if response.GetError() != nil || len(response.GetCheckSnapshot().GetMissingChunkDigests()) != 1 {
+	if response.GetError() != nil || len(response.GetCheckSnapshot().GetMissingChunkDigests()) != 1 ||
+		len(response.GetCheckSnapshot().GetAcceptedChunkEncodings()) != 2 {
 		t.Fatalf("check response = %#v", response)
 	}
 	response = handler.Handle(context.Background(), &computehopv1.RemoteRequest{
 		Operation: &computehopv1.RemoteRequest_PutChunk{PutChunk: &computehopv1.PutChunkRequest{
 			Digest: string(digest), Data: contents,
+			Encoding:         computehopv1.ChunkEncoding_CHUNK_ENCODING_IDENTITY,
+			UncompressedSize: uint32(len(contents)),
 		}},
 	})
 	if response.GetError() != nil || response.GetPutChunk().GetDigest() != string(digest) {
@@ -150,8 +154,41 @@ func TestRemoteHandlerPreflightsUploadsAndSubmitsSnapshot(t *testing.T) {
 	}
 }
 
+func TestRemoteHandlerRejectsMalformedCompressedChunkBeforeCaching(t *testing.T) {
+	contents := bytes.Repeat([]byte("snapshot input\n"), 8_192)
+	digest := snapshot.Sum(contents)
+	encoded, err := transfer.EncodeChunk(contents, []transfer.ChunkEncoding{transfer.EncodingZstd})
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded.Data = append([]byte(nil), encoded.Data...)
+	encoded.Data[len(encoded.Data)/2] ^= 0xff
+	putCalled := false
+	controller := &remoteSnapshotControllerStub{
+		remoteControllerStub: remoteControllerStub{},
+		put: func(context.Context, snapshot.Digest, []byte) error {
+			putCalled = true
+			return nil
+		},
+	}
+	handler, err := NewRemoteHandler(controller)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := handler.Handle(context.Background(), &computehopv1.RemoteRequest{
+		Operation: &computehopv1.RemoteRequest_PutChunk{PutChunk: &computehopv1.PutChunkRequest{
+			Digest: string(digest), Data: encoded.Data,
+			Encoding:         computehopv1.ChunkEncoding_CHUNK_ENCODING_ZSTD,
+			UncompressedSize: encoded.UncompressedSize,
+		}},
+	})
+	if response.GetError().GetCode() != computehopv1.RemoteErrorCode_REMOTE_ERROR_CODE_INVALID_ARGUMENT || putCalled {
+		t.Fatalf("response = %#v; PutChunk called = %t", response, putCalled)
+	}
+}
+
 func TestRemoteHandlerReturnsCompletedArtifactManifestAndAuthorizedChunk(t *testing.T) {
-	contents := []byte("rendered")
+	contents := bytes.Repeat([]byte("rendered output\n"), 8_192)
 	digest := snapshot.Sum(contents)
 	want := remoteHandlerJob(t)
 	want.State = job.StateSucceeded
@@ -200,9 +237,19 @@ func TestRemoteHandlerReturnsCompletedArtifactManifestAndAuthorizedChunk(t *test
 	response = handler.Handle(context.Background(), &computehopv1.RemoteRequest{
 		Operation: &computehopv1.RemoteRequest_GetArtifactChunk{GetArtifactChunk: &computehopv1.GetArtifactChunkRequest{
 			JobId: string(want.ID), Digest: string(digest),
+			AcceptedEncodings: []computehopv1.ChunkEncoding{
+				computehopv1.ChunkEncoding_CHUNK_ENCODING_ZSTD,
+				computehopv1.ChunkEncoding_CHUNK_ENCODING_IDENTITY,
+			},
 		}},
 	})
-	if response.GetError() != nil || !bytes.Equal(response.GetGetArtifactChunk().GetData(), contents) {
+	chunk := response.GetGetArtifactChunk()
+	encoding, mapErr := mapper.ChunkEncodingFromRemoteProto(chunk.GetEncoding())
+	decoded, decodeErr := transfer.DecodeChunk(transfer.Chunk{
+		Encoding: encoding, Data: chunk.GetData(), UncompressedSize: chunk.GetUncompressedSize(),
+	})
+	if response.GetError() != nil || chunk.GetEncoding() != computehopv1.ChunkEncoding_CHUNK_ENCODING_ZSTD ||
+		mapErr != nil || decodeErr != nil || !bytes.Equal(decoded, contents) {
 		t.Fatalf("chunk response = %#v", response)
 	}
 }

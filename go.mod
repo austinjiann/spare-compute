@@ -5,6 +5,7 @@ go 1.26
 require (
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/grandcat/zeroconf v1.0.0
+	github.com/klauspost/compress v1.19.1
 	github.com/pion/ice/v4 v4.3.0
 	github.com/pion/stun/v3 v3.1.6
 	github.com/quic-go/quic-go v0.60.0

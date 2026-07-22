@@ -12,6 +12,7 @@ import (
 	joblogging "github.com/austinjiann/spare-compute/internal/logging"
 	"github.com/austinjiann/spare-compute/internal/protocol/mapper"
 	"github.com/austinjiann/spare-compute/internal/snapshot"
+	"github.com/austinjiann/spare-compute/internal/transfer"
 )
 
 const (
@@ -141,6 +142,10 @@ func (handler *RemoteHandler) getArtifactChunk(
 	if err != nil {
 		return remoteErrorResponse(err)
 	}
+	accepted, err := mapper.ChunkEncodingsFromRemoteProto(request.GetAcceptedEncodings())
+	if err != nil {
+		return remoteErrorResponse(err)
+	}
 	contents, err := controller.ReadArtifactChunk(ctx, id, digest)
 	if err != nil {
 		return remoteErrorResponse(err)
@@ -148,8 +153,19 @@ func (handler *RemoteHandler) getArtifactChunk(
 	if len(contents) == 0 || len(contents) > snapshot.MaximumChunkBytes || snapshot.Sum(contents) != digest {
 		return remoteErrorResponse(snapshot.ErrInvalidDigest)
 	}
+	encoded, err := transfer.EncodeChunk(contents, accepted)
+	if err != nil {
+		return remoteErrorResponse(err)
+	}
+	encoding, err := mapper.ChunkEncodingToRemoteProto(encoded.Encoding)
+	if err != nil {
+		return remoteErrorResponse(err)
+	}
 	return &computehopv1.RemoteResponse{Result: &computehopv1.RemoteResponse_GetArtifactChunk{
-		GetArtifactChunk: &computehopv1.GetArtifactChunkResponse{Digest: string(digest), Data: contents},
+		GetArtifactChunk: &computehopv1.GetArtifactChunkResponse{
+			Digest: string(digest), Data: encoded.Data,
+			Encoding: encoding, UncompressedSize: encoded.UncompressedSize,
+		},
 	}}
 }
 
@@ -230,8 +246,14 @@ func (handler *RemoteHandler) checkSnapshot(
 	for index, digest := range missing {
 		encoded[index] = string(digest)
 	}
+	accepted, err := mapper.ChunkEncodingsToRemoteProto(transfer.SupportedChunkEncodings())
+	if err != nil {
+		return remoteErrorResponse(err)
+	}
 	return &computehopv1.RemoteResponse{Result: &computehopv1.RemoteResponse_CheckSnapshot{
-		CheckSnapshot: &computehopv1.CheckSnapshotResponse{MissingChunkDigests: encoded},
+		CheckSnapshot: &computehopv1.CheckSnapshotResponse{
+			MissingChunkDigests: encoded, AcceptedChunkEncodings: accepted,
+		},
 	}}
 }
 
@@ -243,17 +265,30 @@ func (handler *RemoteHandler) putChunk(
 	if !ok {
 		return remoteErrorResponse(ErrSnapshotsDisabled)
 	}
-	if request == nil || len(request.GetData()) == 0 || len(request.GetData()) > snapshot.MaximumChunkBytes {
+	if request == nil || len(request.GetData()) == 0 || len(request.GetData()) > transfer.MaximumEncodedChunkBytes {
 		return remoteFailure(
 			computehopv1.RemoteErrorCode_REMOTE_ERROR_CODE_INVALID_ARGUMENT,
-			fmt.Sprintf("snapshot chunk must contain 1 to %d bytes", snapshot.MaximumChunkBytes),
+			fmt.Sprintf("encoded snapshot chunk must contain 1 to %d bytes", transfer.MaximumEncodedChunkBytes),
 		)
 	}
 	digest, err := snapshot.ParseDigest(request.GetDigest())
 	if err != nil {
 		return remoteErrorResponse(err)
 	}
-	if err := controller.PutChunk(ctx, digest, request.GetData()); err != nil {
+	encoding, err := mapper.ChunkEncodingFromRemoteProto(request.GetEncoding())
+	if err != nil {
+		return remoteErrorResponse(err)
+	}
+	contents, err := transfer.DecodeChunk(transfer.Chunk{
+		Encoding: encoding, Data: request.GetData(), UncompressedSize: request.GetUncompressedSize(),
+	})
+	if err != nil {
+		return remoteErrorResponse(err)
+	}
+	if snapshot.Sum(contents) != digest {
+		return remoteErrorResponse(snapshot.ErrInvalidDigest)
+	}
+	if err := controller.PutChunk(ctx, digest, contents); err != nil {
 		return remoteErrorResponse(err)
 	}
 	return &computehopv1.RemoteResponse{Result: &computehopv1.RemoteResponse_PutChunk{
@@ -380,7 +415,8 @@ func remoteErrorResponse(err error) *computehopv1.RemoteResponse {
 		errors.Is(err, job.ErrInvalidJob), errors.Is(err, job.ErrInvalidState),
 		errors.Is(err, job.ErrInvalidTransition), errors.Is(err, joblogging.ErrInvalidPage),
 		errors.Is(err, joblogging.ErrInvalidRecord), errors.Is(err, snapshot.ErrInvalidDigest),
-		errors.Is(err, snapshot.ErrInvalidManifest), errors.Is(err, snapshot.ErrUnsafePath):
+		errors.Is(err, snapshot.ErrInvalidManifest), errors.Is(err, snapshot.ErrUnsafePath),
+		errors.Is(err, transfer.ErrInvalidChunk), errors.Is(err, transfer.ErrUnsupportedEncoding):
 		code = computehopv1.RemoteErrorCode_REMOTE_ERROR_CODE_INVALID_ARGUMENT
 		message = err.Error()
 	case errors.Is(err, job.ErrNotFound), errors.Is(err, joblogging.ErrNotFound),

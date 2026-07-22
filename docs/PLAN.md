@@ -27,7 +27,7 @@ Last updated: 2026-07-22.
 | One-VPS staging deployment | In progress | Provider-neutral Compose stack, Caddy HTTPS edge, authenticated coturn relay, bounded ports/quotas, secrets, firewall bootstrap, health checks, and rollback runbook are ready; buying the VPS and forced-relay validation remain. |
 | CLI and physical Mac validation | In progress | Friendlier `--on` and no-`--` command syntax, inferred pairing confirmation, and merged trusted/nearby presentation are implemented; physical macOS-to-macOS discovery, pairing, execution, restart recovery, logs, and cancellation passed. Windows/Linux remain. |
 | macOS menu-bar foundation | In progress | SwiftUI `MenuBarExtra`, generated SwiftProtobuf models, authenticated Unix-socket IPC, device/pairing controls, native job submission, output declarations and retrieval, reconnectable logs, and cancellation build and pass Swift tests; an ad-hoc app bundle and per-user launchd installer are ready for development. |
-| Project snapshots, incremental transfer, and declared artifacts | In progress | Remote runs resolve a local project root, create bounded content-defined snapshots, upload only missing verified chunks, and execute in isolated workspaces. Workers durably collect exact declared files/directories before success; orchestrators fetch only missing verified chunks and restore without overwrites or symlink traversal. Automated LAN/supervised-path reuse and artifact coverage pass; compression, cache quotas, full ignore conformance, automatic restoration, secrets, and physical cross-platform validation remain. |
+| Project snapshots, incremental transfer, and declared artifacts | In progress | Remote runs resolve a local project root, create bounded content-defined snapshots, upload only missing verified chunks, and execute in isolated workspaces. Workers durably collect exact declared files/directories before success; orchestrators fetch only missing verified chunks and restore without overwrites or symlink traversal. Transfer peers negotiate bounded identity/zstd chunk encoding while preserving decoded-content hashes. Automated LAN/supervised-path reuse and artifact coverage pass; cache quotas, full ignore conformance, automatic restoration, secrets, and physical cross-platform validation remain. |
 | Later launch slices | In progress | Direct internet control still needs physical unrelated-network and reconnect validation, and TURN credential issuance requires a hosted entitlement boundary. Scheduling, adapters, production packaging, and release operations follow. |
 
 “Complete” here means implemented with automated coverage and merged to `main`.
@@ -370,8 +370,8 @@ without forcing large content through unary RPC calls.
   artifacts as files referenced by hash.
 - Use a fixed 256-bit content identity and deterministic FastCDC-style
   content-defined boundaries behind small internal interfaces. The current
-  implementation uses SHA-256; negotiated zstd compression remains a transfer
-  optimization rather than part of snapshot identity.
+  implementation uses SHA-256; negotiated zstd changes only the bounded wire
+  representation and is never part of snapshot identity.
 - Use a dedicated Git-compatible ignore matcher for `.gitignore` and
   `.computehopignore`, backed by conformance fixtures for negation, nesting, and
   platform path differences.
@@ -1285,21 +1285,24 @@ atomically materializes a new owner-only workspace for each accepted job.
 Transfers are resumable at chunk granularity because a retried submission
 preflights the persistent cache again. Real LAN and supervised-path integration
 tests execute from the reconstructed workspace and prove that an unchanged
-second submission uploads no chunks. Jobs may declare up to 64 portable relative
-output files or directories. The worker recursively collects exact declarations
+second submission uploads no chunks. Peers negotiate zstd or identity per
+chunk, fall back to identity when compression saves fewer than 64 bytes, cap
+encoded and decoded sizes, and verify SHA-256 over decoded bytes. Jobs may
+declare up to 64 portable relative output files or directories. The worker
+recursively collects exact declarations
 into an immutable manifest, remains cancellable while collecting, and reports
 success only after durable publication. The orchestrator preflights its local
 content store, downloads and re-verifies only missing chunks, stages a complete
 result, and never overwrites existing files or follows destination symlinks;
 conflicts are preserved under `.computehop-conflicts`. CLI aliases and the macOS
 menu expose retrieval after restart by durable job placement. Symlinks and
-special files are safely rejected for now rather than preserved. Compression
-negotiation, cache quota/LRU policy, durable byte-level transfer progress,
+special files are safely rejected for now rather than preserved. Cache quota/LRU
+policy, durable byte-level transfer progress,
 automatic restoration to submission-time paths, secret delivery, and physical
 Windows/Linux validation remain, so the Step 4 checkpoint is not complete.
 
 - Add project-root resolution, ignore semantics, immutable manifests,
-  content-defined chunks, compression negotiation, and a bounded content cache.
+  content-defined chunks, negotiated compression, and a bounded content cache.
 - Preflight manifests before sending content, request only missing chunks, and
   verify every received chunk by hash.
 - Materialize each job into an isolated workspace and never execute directly

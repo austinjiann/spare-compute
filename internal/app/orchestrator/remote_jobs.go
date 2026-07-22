@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -18,6 +19,7 @@ import (
 	"github.com/austinjiann/spare-compute/internal/protocol/mapper"
 	remoteprotocol "github.com/austinjiann/spare-compute/internal/protocol/remote"
 	"github.com/austinjiann/spare-compute/internal/snapshot"
+	"github.com/austinjiann/spare-compute/internal/transfer"
 	"github.com/austinjiann/spare-compute/internal/trust"
 )
 
@@ -162,21 +164,34 @@ func (service *RemoteJobService) FetchArtifacts(
 	if err != nil {
 		return artifact.RestoreResult{}, err
 	}
+	acceptedEncodings, err := mapper.ChunkEncodingsToRemoteProto(transfer.SupportedChunkEncodings())
+	if err != nil {
+		return artifact.RestoreResult{}, err
+	}
 	for _, digest := range missing {
 		response, err := caller.Call(ctx, &computehopv1.RemoteRequest{
 			Operation: &computehopv1.RemoteRequest_GetArtifactChunk{GetArtifactChunk: &computehopv1.GetArtifactChunkRequest{
-				JobId: string(id), Digest: string(digest),
+				JobId: string(id), Digest: string(digest), AcceptedEncodings: acceptedEncodings,
 			}},
 		})
 		if err != nil {
 			return artifact.RestoreResult{}, fmt.Errorf("download artifact chunk %s: %w", digest, err)
 		}
 		chunk := response.GetGetArtifactChunk()
-		if chunk == nil || chunk.GetDigest() != string(digest) || len(chunk.GetData()) == 0 ||
-			len(chunk.GetData()) > snapshot.MaximumChunkBytes || snapshot.Sum(chunk.GetData()) != digest {
+		if chunk == nil || chunk.GetDigest() != string(digest) {
 			return artifact.RestoreResult{}, remoteprotocol.ErrInvalidMessage
 		}
-		if err := service.artifactContent.Put(ctx, digest, chunk.GetData()); err != nil {
+		encoding, err := mapper.ChunkEncodingFromRemoteProto(chunk.GetEncoding())
+		if err != nil {
+			return artifact.RestoreResult{}, remoteprotocol.ErrInvalidMessage
+		}
+		contents, err := transfer.DecodeChunk(transfer.Chunk{
+			Encoding: encoding, Data: chunk.GetData(), UncompressedSize: chunk.GetUncompressedSize(),
+		})
+		if err != nil || snapshot.Sum(contents) != digest {
+			return artifact.RestoreResult{}, remoteprotocol.ErrInvalidMessage
+		}
+		if err := service.artifactContent.Put(ctx, digest, contents); err != nil {
 			return artifact.RestoreResult{}, err
 		}
 	}
@@ -236,7 +251,7 @@ func (service *RemoteJobService) submitSnapshot(
 		return job.Job{}, err
 	}
 	defer caller.Close()
-	missing, err := service.preflightSnapshot(ctx, caller, manifestID, project.Manifest.Digests())
+	missing, accepted, err := service.preflightSnapshot(ctx, caller, manifestID, project.Manifest.Digests())
 	if err != nil {
 		return job.Job{}, err
 	}
@@ -245,9 +260,18 @@ func (service *RemoteJobService) submitSnapshot(
 		if err != nil {
 			return job.Job{}, fmt.Errorf("read project chunk %s: %w", digest, err)
 		}
+		encoded, err := transfer.EncodeChunk(contents, accepted)
+		if err != nil {
+			return job.Job{}, fmt.Errorf("encode project chunk %s: %w", digest, err)
+		}
+		encoding, err := mapper.ChunkEncodingToRemoteProto(encoded.Encoding)
+		if err != nil {
+			return job.Job{}, err
+		}
 		response, err := caller.Call(ctx, &computehopv1.RemoteRequest{
 			Operation: &computehopv1.RemoteRequest_PutChunk{PutChunk: &computehopv1.PutChunkRequest{
-				Digest: string(digest), Data: contents,
+				Digest: string(digest), Data: encoded.Data,
+				Encoding: encoding, UncompressedSize: encoded.UncompressedSize,
 			}},
 		})
 		if err != nil {
@@ -280,8 +304,9 @@ func (service *RemoteJobService) preflightSnapshot(
 	caller remoteprotocol.Caller,
 	manifestID snapshot.Digest,
 	digests []snapshot.Digest,
-) ([]snapshot.Digest, error) {
+) ([]snapshot.Digest, []transfer.ChunkEncoding, error) {
 	missing := make(map[snapshot.Digest]struct{})
+	var accepted []transfer.ChunkEncoding
 	for offset := 0; offset < len(digests); offset += snapshotPreflightBatch {
 		end := min(offset+snapshotPreflightBatch, len(digests))
 		encoded := make([]string, end-offset)
@@ -296,18 +321,28 @@ func (service *RemoteJobService) preflightSnapshot(
 			}},
 		})
 		if err != nil {
-			return nil, fmt.Errorf("preflight project snapshot: %w", err)
+			return nil, nil, fmt.Errorf("preflight project snapshot: %w", err)
 		}
-		if response.GetCheckSnapshot() == nil {
-			return nil, remoteprotocol.ErrInvalidMessage
+		preflight := response.GetCheckSnapshot()
+		if preflight == nil {
+			return nil, nil, remoteprotocol.ErrInvalidMessage
 		}
-		for _, value := range response.GetCheckSnapshot().GetMissingChunkDigests() {
+		batchAccepted, err := mapper.ChunkEncodingsFromRemoteProto(preflight.GetAcceptedChunkEncodings())
+		if err != nil {
+			return nil, nil, remoteprotocol.ErrInvalidMessage
+		}
+		if accepted == nil {
+			accepted = batchAccepted
+		} else if !slices.Equal(accepted, batchAccepted) {
+			return nil, nil, remoteprotocol.ErrInvalidMessage
+		}
+		for _, value := range preflight.GetMissingChunkDigests() {
 			digest, err := snapshot.ParseDigest(value)
 			if err != nil {
-				return nil, remoteprotocol.ErrInvalidMessage
+				return nil, nil, remoteprotocol.ErrInvalidMessage
 			}
 			if _, ok := allowed[digest]; !ok {
-				return nil, remoteprotocol.ErrInvalidMessage
+				return nil, nil, remoteprotocol.ErrInvalidMessage
 			}
 			missing[digest] = struct{}{}
 		}
@@ -318,7 +353,7 @@ func (service *RemoteJobService) preflightSnapshot(
 			result = append(result, digest)
 		}
 	}
-	return result, nil
+	return result, accepted, nil
 }
 
 func (service *RemoteJobService) acceptSubmitted(

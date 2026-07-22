@@ -25,6 +25,44 @@ fileprivate nonisolated struct _GeneratedWithProtocGenSwiftVersion: SwiftProtobu
   typealias Version = _2
 }
 
+public nonisolated enum Computehop_V1_ChunkEncoding: SwiftProtobuf.Enum, Swift.CaseIterable {
+  public typealias RawValue = Int
+  case unspecified // = 0
+  case identity // = 1
+  case zstd // = 2
+  case UNRECOGNIZED(Int)
+
+  public init() {
+    self = .unspecified
+  }
+
+  public init?(rawValue: Int) {
+    switch rawValue {
+    case 0: self = .unspecified
+    case 1: self = .identity
+    case 2: self = .zstd
+    default: self = .UNRECOGNIZED(rawValue)
+    }
+  }
+
+  public var rawValue: Int {
+    switch self {
+    case .unspecified: return 0
+    case .identity: return 1
+    case .zstd: return 2
+    case .UNRECOGNIZED(let i): return i
+    }
+  }
+
+  // The compiler won't synthesize support with the UNRECOGNIZED case.
+  public static let allCases: [Computehop_V1_ChunkEncoding] = [
+    .unspecified,
+    .identity,
+    .zstd,
+  ]
+
+}
+
 public nonisolated enum Computehop_V1_Executor: SwiftProtobuf.Enum, Swift.CaseIterable {
   public typealias RawValue = Int
   case unspecified // = 0
@@ -524,6 +562,8 @@ public nonisolated struct Computehop_V1_CheckSnapshotResponse: Sendable {
 
   public var missingChunkDigests: [String] = []
 
+  public var acceptedChunkEncodings: [Computehop_V1_ChunkEncoding] = []
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
@@ -537,6 +577,10 @@ public nonisolated struct Computehop_V1_PutChunkRequest: Sendable {
   public var digest: String = String()
 
   public var data: Data = Data()
+
+  public var encoding: Computehop_V1_ChunkEncoding = .unspecified
+
+  public var uncompressedSize: UInt32 = 0
 
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -611,6 +655,8 @@ public nonisolated struct Computehop_V1_GetArtifactChunkRequest: Sendable {
 
   public var digest: String = String()
 
+  public var acceptedEncodings: [Computehop_V1_ChunkEncoding] = []
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
@@ -624,6 +670,10 @@ public nonisolated struct Computehop_V1_GetArtifactChunkResponse: Sendable {
   public var digest: String = String()
 
   public var data: Data = Data()
+
+  public var encoding: Computehop_V1_ChunkEncoding = .unspecified
+
+  public var uncompressedSize: UInt32 = 0
 
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -948,6 +998,10 @@ public nonisolated struct Computehop_V1_RemoteError: Sendable {
 // MARK: - Code below here is support for the SwiftProtobuf runtime.
 
 fileprivate nonisolated let _protobuf_package = "computehop.v1"
+
+nonisolated extension Computehop_V1_ChunkEncoding: SwiftProtobuf._ProtoNameProviding {
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0CHUNK_ENCODING_UNSPECIFIED\0\u{1}CHUNK_ENCODING_IDENTITY\0\u{1}CHUNK_ENCODING_ZSTD\0")
+}
 
 nonisolated extension Computehop_V1_Executor: SwiftProtobuf._ProtoNameProviding {
   public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0EXECUTOR_UNSPECIFIED\0\u{1}EXECUTOR_NATIVE\0\u{1}EXECUTOR_CONTAINER\0")
@@ -1485,7 +1539,7 @@ nonisolated extension Computehop_V1_CheckSnapshotRequest: SwiftProtobuf.Message,
 
 nonisolated extension Computehop_V1_CheckSnapshotResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".CheckSnapshotResponse"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}missing_chunk_digests\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}missing_chunk_digests\0\u{3}accepted_chunk_encodings\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -1494,6 +1548,7 @@ nonisolated extension Computehop_V1_CheckSnapshotResponse: SwiftProtobuf.Message
       // enabled. https://github.com/apple/swift-protobuf/issues/1034
       switch fieldNumber {
       case 1: try { try decoder.decodeRepeatedStringField(value: &self.missingChunkDigests) }()
+      case 2: try { try decoder.decodeRepeatedEnumField(value: &self.acceptedChunkEncodings) }()
       default: break
       }
     }
@@ -1503,11 +1558,15 @@ nonisolated extension Computehop_V1_CheckSnapshotResponse: SwiftProtobuf.Message
     if !self.missingChunkDigests.isEmpty {
       try visitor.visitRepeatedStringField(value: self.missingChunkDigests, fieldNumber: 1)
     }
+    if !self.acceptedChunkEncodings.isEmpty {
+      try visitor.visitPackedEnumField(value: self.acceptedChunkEncodings, fieldNumber: 2)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
   public static func ==(lhs: Computehop_V1_CheckSnapshotResponse, rhs: Computehop_V1_CheckSnapshotResponse) -> Bool {
     if lhs.missingChunkDigests != rhs.missingChunkDigests {return false}
+    if lhs.acceptedChunkEncodings != rhs.acceptedChunkEncodings {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -1515,7 +1574,7 @@ nonisolated extension Computehop_V1_CheckSnapshotResponse: SwiftProtobuf.Message
 
 nonisolated extension Computehop_V1_PutChunkRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".PutChunkRequest"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}digest\0\u{1}data\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}digest\0\u{1}data\0\u{1}encoding\0\u{3}uncompressed_size\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -1525,6 +1584,8 @@ nonisolated extension Computehop_V1_PutChunkRequest: SwiftProtobuf.Message, Swif
       switch fieldNumber {
       case 1: try { try decoder.decodeSingularStringField(value: &self.digest) }()
       case 2: try { try decoder.decodeSingularBytesField(value: &self.data) }()
+      case 3: try { try decoder.decodeSingularEnumField(value: &self.encoding) }()
+      case 4: try { try decoder.decodeSingularUInt32Field(value: &self.uncompressedSize) }()
       default: break
       }
     }
@@ -1537,12 +1598,20 @@ nonisolated extension Computehop_V1_PutChunkRequest: SwiftProtobuf.Message, Swif
     if !self.data.isEmpty {
       try visitor.visitSingularBytesField(value: self.data, fieldNumber: 2)
     }
+    if self.encoding != .unspecified {
+      try visitor.visitSingularEnumField(value: self.encoding, fieldNumber: 3)
+    }
+    if self.uncompressedSize != 0 {
+      try visitor.visitSingularUInt32Field(value: self.uncompressedSize, fieldNumber: 4)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
   public static func ==(lhs: Computehop_V1_PutChunkRequest, rhs: Computehop_V1_PutChunkRequest) -> Bool {
     if lhs.digest != rhs.digest {return false}
     if lhs.data != rhs.data {return false}
+    if lhs.encoding != rhs.encoding {return false}
+    if lhs.uncompressedSize != rhs.uncompressedSize {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -1694,7 +1763,7 @@ nonisolated extension Computehop_V1_GetJobArtifactsResponse: SwiftProtobuf.Messa
 
 nonisolated extension Computehop_V1_GetArtifactChunkRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".GetArtifactChunkRequest"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}job_id\0\u{1}digest\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}job_id\0\u{1}digest\0\u{3}accepted_encodings\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -1704,6 +1773,7 @@ nonisolated extension Computehop_V1_GetArtifactChunkRequest: SwiftProtobuf.Messa
       switch fieldNumber {
       case 1: try { try decoder.decodeSingularStringField(value: &self.jobID) }()
       case 2: try { try decoder.decodeSingularStringField(value: &self.digest) }()
+      case 3: try { try decoder.decodeRepeatedEnumField(value: &self.acceptedEncodings) }()
       default: break
       }
     }
@@ -1716,12 +1786,16 @@ nonisolated extension Computehop_V1_GetArtifactChunkRequest: SwiftProtobuf.Messa
     if !self.digest.isEmpty {
       try visitor.visitSingularStringField(value: self.digest, fieldNumber: 2)
     }
+    if !self.acceptedEncodings.isEmpty {
+      try visitor.visitPackedEnumField(value: self.acceptedEncodings, fieldNumber: 3)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
   public static func ==(lhs: Computehop_V1_GetArtifactChunkRequest, rhs: Computehop_V1_GetArtifactChunkRequest) -> Bool {
     if lhs.jobID != rhs.jobID {return false}
     if lhs.digest != rhs.digest {return false}
+    if lhs.acceptedEncodings != rhs.acceptedEncodings {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -1729,7 +1803,7 @@ nonisolated extension Computehop_V1_GetArtifactChunkRequest: SwiftProtobuf.Messa
 
 nonisolated extension Computehop_V1_GetArtifactChunkResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".GetArtifactChunkResponse"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}digest\0\u{1}data\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}digest\0\u{1}data\0\u{1}encoding\0\u{3}uncompressed_size\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -1739,6 +1813,8 @@ nonisolated extension Computehop_V1_GetArtifactChunkResponse: SwiftProtobuf.Mess
       switch fieldNumber {
       case 1: try { try decoder.decodeSingularStringField(value: &self.digest) }()
       case 2: try { try decoder.decodeSingularBytesField(value: &self.data) }()
+      case 3: try { try decoder.decodeSingularEnumField(value: &self.encoding) }()
+      case 4: try { try decoder.decodeSingularUInt32Field(value: &self.uncompressedSize) }()
       default: break
       }
     }
@@ -1751,12 +1827,20 @@ nonisolated extension Computehop_V1_GetArtifactChunkResponse: SwiftProtobuf.Mess
     if !self.data.isEmpty {
       try visitor.visitSingularBytesField(value: self.data, fieldNumber: 2)
     }
+    if self.encoding != .unspecified {
+      try visitor.visitSingularEnumField(value: self.encoding, fieldNumber: 3)
+    }
+    if self.uncompressedSize != 0 {
+      try visitor.visitSingularUInt32Field(value: self.uncompressedSize, fieldNumber: 4)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
   public static func ==(lhs: Computehop_V1_GetArtifactChunkResponse, rhs: Computehop_V1_GetArtifactChunkResponse) -> Bool {
     if lhs.digest != rhs.digest {return false}
     if lhs.data != rhs.data {return false}
+    if lhs.encoding != rhs.encoding {return false}
+    if lhs.uncompressedSize != rhs.uncompressedSize {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

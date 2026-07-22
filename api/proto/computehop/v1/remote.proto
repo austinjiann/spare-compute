@@ -55,11 +55,14 @@ message CheckSnapshotRequest {
 
 message CheckSnapshotResponse {
   repeated string missing_chunk_digests = 1;
+  repeated ChunkEncoding accepted_chunk_encodings = 2;
 }
 
 message PutChunkRequest {
   string digest = 1;
   bytes data = 2;
+  ChunkEncoding encoding = 3;
+  uint32 uncompressed_size = 4;
 }
 
 message PutChunkResponse {
@@ -79,11 +82,20 @@ message GetJobArtifactsResponse {
 message GetArtifactChunkRequest {
   string job_id = 1;
   string digest = 2;
+  repeated ChunkEncoding accepted_encodings = 3;
 }
 
 message GetArtifactChunkResponse {
   string digest = 1;
   bytes data = 2;
+  ChunkEncoding encoding = 3;
+  uint32 uncompressed_size = 4;
+}
+
+enum ChunkEncoding {
+  CHUNK_ENCODING_UNSPECIFIED = 0;
+  CHUNK_ENCODING_IDENTITY = 1;
+  CHUNK_ENCODING_ZSTD = 2;
 }
 
 message SnapshotManifest {

@@ -17,6 +17,7 @@ import (
 	"github.com/austinjiann/spare-compute/internal/protocol/mapper"
 	remoteprotocol "github.com/austinjiann/spare-compute/internal/protocol/remote"
 	"github.com/austinjiann/spare-compute/internal/snapshot"
+	"github.com/austinjiann/spare-compute/internal/transfer"
 	"github.com/austinjiann/spare-compute/internal/trust"
 )
 
@@ -165,7 +166,7 @@ func TestRemoteJobServiceFallsBackToSupervisedPathWithoutLAN(t *testing.T) {
 
 func TestRemoteJobServiceTransfersOnlyMissingSnapshotChunks(t *testing.T) {
 	peer := activeWorkerPeer(t, 17, "Build PC")
-	contents := []byte("package main\n")
+	contents := bytes.Repeat([]byte("package main\n"), 8_192)
 	digest := snapshot.Sum(contents)
 	manifest := snapshot.Manifest{
 		Version: snapshot.ManifestVersion,
@@ -203,11 +204,23 @@ func TestRemoteJobServiceTransfersOnlyMissingSnapshotChunks(t *testing.T) {
 						missing = []string{string(digest)}
 					}
 					return &computehopv1.RemoteResponse{Result: &computehopv1.RemoteResponse_CheckSnapshot{
-						CheckSnapshot: &computehopv1.CheckSnapshotResponse{MissingChunkDigests: missing},
+						CheckSnapshot: &computehopv1.CheckSnapshotResponse{
+							MissingChunkDigests: missing,
+							AcceptedChunkEncodings: []computehopv1.ChunkEncoding{
+								computehopv1.ChunkEncoding_CHUNK_ENCODING_ZSTD,
+								computehopv1.ChunkEncoding_CHUNK_ENCODING_IDENTITY,
+							},
+						},
 					}}, nil
 				case *computehopv1.RemoteRequest_PutChunk:
 					put := request.GetPutChunk()
-					if put.GetDigest() != string(digest) || string(put.GetData()) != string(contents) {
+					encoding, mapErr := mapper.ChunkEncodingFromRemoteProto(put.GetEncoding())
+					decoded, decodeErr := transfer.DecodeChunk(transfer.Chunk{
+						Encoding: encoding, Data: put.GetData(), UncompressedSize: put.GetUncompressedSize(),
+					})
+					if put.GetEncoding() != computehopv1.ChunkEncoding_CHUNK_ENCODING_ZSTD ||
+						mapErr != nil || decodeErr != nil || put.GetDigest() != string(digest) ||
+						!bytes.Equal(decoded, contents) {
 						t.Fatalf("put request = %#v", put)
 					}
 					uploads++
@@ -253,8 +266,12 @@ func TestRemoteJobServiceTransfersOnlyMissingSnapshotChunks(t *testing.T) {
 
 func TestRemoteJobServiceDownloadsOnlyMissingArtifactChunksAndRestores(t *testing.T) {
 	peer := activeWorkerPeer(t, 23, "Render PC")
-	contents := []byte("rendered output")
+	contents := bytes.Repeat([]byte("rendered output\n"), 8_192)
 	digest := snapshot.Sum(contents)
+	wireChunk, err := transfer.EncodeChunk(contents, []transfer.ChunkEncoding{transfer.EncodingZstd})
+	if err != nil {
+		t.Fatal(err)
+	}
 	manifest := snapshot.Manifest{
 		Version: snapshot.ManifestVersion,
 		Files: []snapshot.File{{
@@ -305,12 +322,15 @@ func TestRemoteJobServiceDownloadsOnlyMissingArtifactChunksAndRestores(t *testin
 					}}, nil
 				case *computehopv1.RemoteRequest_GetArtifactChunk:
 					downloads++
-					if request.GetGetArtifactChunk().GetDigest() != string(digest) {
+					if request.GetGetArtifactChunk().GetDigest() != string(digest) ||
+						len(request.GetGetArtifactChunk().GetAcceptedEncodings()) != 2 {
 						t.Fatalf("chunk request = %#v", request.GetGetArtifactChunk())
 					}
 					return &computehopv1.RemoteResponse{Result: &computehopv1.RemoteResponse_GetArtifactChunk{
 						GetArtifactChunk: &computehopv1.GetArtifactChunkResponse{
-							Digest: string(digest), Data: contents,
+							Digest: string(digest), Data: wireChunk.Data,
+							Encoding:         computehopv1.ChunkEncoding_CHUNK_ENCODING_ZSTD,
+							UncompressedSize: wireChunk.UncompressedSize,
 						},
 					}}, nil
 				default:
