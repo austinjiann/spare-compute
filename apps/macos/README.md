@@ -6,8 +6,9 @@ the menu does not stop work.
 
 The current menu supports daemon health with local Mac identity, first-run
 next-step guidance, nearby and connected devices, two-sided connect
-confirmation, native job submission to this Mac or a paired available worker,
-recent jobs, reconnectable output, cancellation, declared output paths, and
+confirmation, native job submission to this Mac, Auto worker when exactly one
+worker is runnable, or a paired available worker, recent jobs, reconnectable
+output, cancellation, declared output paths, and
 conflict-safe artifact restoration through a native destination picker. The
 command field splits quotes and escapes into literal arguments but never invokes
 a shell or performs shell expansion. Local jobs default to the user's home

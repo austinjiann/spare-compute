@@ -201,9 +201,10 @@ To launch the development menu-bar app against the default daemon state:
 swift run ComputeHop
 ```
 
-The app can submit a native command to this Mac or a paired available worker,
-choose the local project folder to snapshot, declare comma-separated output
-paths, restore completed outputs through a native folder picker, and read
+The app can submit a native command to this Mac, the single active worker through
+Auto worker, or a paired available worker, choose the local project folder to
+snapshot, declare comma-separated output paths, restore completed outputs
+through a native folder picker, and read
 durable logs directly in the menu. Quotes only group literal arguments; the app does not silently
 invoke a shell. The app and generated
 Swift protocol models build with `swift build` and test with `swift test`. See

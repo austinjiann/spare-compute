@@ -14,16 +14,19 @@ struct RunJobSection: View {
             HStack {
                 Picker("Run on", selection: $model.runTargetID) {
                     Text("This Mac").tag("")
+                    if model.canRunAutomatically {
+                        Text("Auto worker").tag(AppModel.automaticWorkerTargetID)
+                    }
                     ForEach(model.runnableDevices) { device in
                         Text(device.name).tag(device.id)
                     }
                 }
                 TextField(
-                    model.runTargetID.isEmpty ? "Working directory (home by default)" : "Project folder on this Mac",
+                    model.isRemoteRunTargetSelected ? "Project folder on this Mac" : "Working directory (home by default)",
                     text: $model.workingDirectory
                 )
                 .textFieldStyle(.roundedBorder)
-                if !model.runTargetID.isEmpty {
+                if model.isRemoteRunTargetSelected {
                     Button("Choose…") {
                         chooseProjectFolder()
                     }
@@ -46,7 +49,7 @@ struct RunJobSection: View {
                 .disabled(
                     !model.isConnected ||
                     model.commandInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-                    (!model.runTargetID.isEmpty && model.workingDirectory.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) ||
+                    (model.isRemoteRunTargetSelected && model.workingDirectory.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) ||
                     model.actionInProgress != nil
                 )
             }

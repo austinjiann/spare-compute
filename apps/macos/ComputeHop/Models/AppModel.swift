@@ -12,7 +12,9 @@ enum AppActionError: LocalizedError {
 @Observable
 @MainActor
 final class AppModel {
-    private let client: LocalDaemonClient
+    static let automaticWorkerTargetID = "auto"
+
+    private let client: LocalDaemonClientProtocol
     private var trackedRemoteJobs: [String: String] = [:]
     private var nextLogSequence: UInt64 = 0
 
@@ -33,7 +35,7 @@ final class AppModel {
     var isLoadingLogs = false
     var artifactMessage: String?
 
-    init(client: LocalDaemonClient = LocalDaemonClient()) {
+    init(client: LocalDaemonClientProtocol = LocalDaemonClient()) {
         self.client = client
     }
 
@@ -45,6 +47,12 @@ final class AppModel {
             $0.trust == "Paired" && [.nearby, .remote].contains($0.availability) && $0.role == "Worker"
         }
     }
+
+    var canRunAutomatically: Bool { runnableDevices.count == 1 }
+
+    var isRemoteRunTargetSelected: Bool { !runTargetID.isEmpty }
+
+    var isAutomaticRunTargetSelected: Bool { runTargetID == Self.automaticWorkerTargetID }
 
     var setupGuide: SetupGuideSummary? {
         SetupGuideSummary.make(
@@ -71,7 +79,7 @@ final class AppModel {
         do {
             async let daemon = client.ping()
             async let newDevices = client.listDevices()
-            async let newJobs = client.listJobs()
+            async let newJobs = client.listJobs(limit: 20)
             async let newPairings = client.listPairings()
             let snapshot = try await (daemon, newDevices, newJobs, newPairings)
             self.daemon = snapshot.0
@@ -84,7 +92,9 @@ final class AppModel {
             }
             jobs = refreshedJobs.sorted { $0.updatedAt > $1.updatedAt }
             pairings = snapshot.3
-            if !runTargetID.isEmpty && !runnableDevices.contains(where: { $0.id == runTargetID }) {
+            if isAutomaticRunTargetSelected && !canRunAutomatically {
+                runTargetID = ""
+            } else if !isAutomaticRunTargetSelected && !runTargetID.isEmpty && !runnableDevices.contains(where: { $0.id == runTargetID }) {
                 runTargetID = ""
             }
             lastError = nil
@@ -125,16 +135,20 @@ final class AppModel {
         await perform("submit-job") {
             let arguments = try CommandInput.parse(commandInput)
             let executable = arguments[0]
-            let targetDevice = runnableDevices.first { $0.id == runTargetID }
-            if !runTargetID.isEmpty && targetDevice == nil {
+            let automaticTarget = isAutomaticRunTargetSelected
+            let targetDevice = automaticTarget ? nil : runnableDevices.first { $0.id == runTargetID }
+            if automaticTarget && !canRunAutomatically {
                 throw AppActionError.targetUnavailable
             }
-            let targetName = targetDevice?.name ?? "This Mac"
+            if !runTargetID.isEmpty && !automaticTarget && targetDevice == nil {
+                throw AppActionError.targetUnavailable
+            }
+            let targetName = automaticTarget ? "Auto worker" : targetDevice?.name ?? "This Mac"
             let directory = workingDirectory.trimmingCharacters(in: .whitespacesAndNewlines)
             let outputs = outputsInput.split(separator: ",", omittingEmptySubsequences: true)
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                 .filter { !$0.isEmpty }
-            let effectiveDirectory = runTargetID.isEmpty && directory.isEmpty
+            let effectiveDirectory = !isRemoteRunTargetSelected && directory.isEmpty
                 ? FileManager.default.homeDirectoryForCurrentUser.path
                 : directory
             let submitted = try await client.submitJob(
@@ -142,10 +156,10 @@ final class AppModel {
                 arguments: Array(arguments.dropFirst()),
                 workingDirectory: effectiveDirectory,
                 outputs: outputs,
-                deviceSelector: targetDevice?.id ?? "",
+                deviceSelector: automaticTarget ? Self.automaticWorkerTargetID : targetDevice?.id ?? "",
                 target: targetName
             )
-            if targetDevice != nil {
+            if automaticTarget || targetDevice != nil {
                 trackedRemoteJobs[submitted.id] = targetName
             }
             jobs.removeAll { $0.id == submitted.id }
@@ -164,7 +178,7 @@ final class AppModel {
             let result = try await client.fetchArtifacts(
                 id: job.id,
                 destination: destination,
-                deviceSelector: job.target == "This Mac" ? "" : job.target
+                deviceSelector: ""
             )
             if result.conflictFileCount == 0 {
                 artifactMessage =
@@ -205,6 +219,7 @@ final class AppModel {
                 let page = try await client.readJobLogs(
                     id: selectedJobID,
                     afterSequence: nextLogSequence,
+                    limit: 32,
                     target: target
                 )
                 if let jobIndex = jobs.firstIndex(where: { $0.id == selectedJobID }) {

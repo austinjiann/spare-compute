@@ -3,6 +3,37 @@ import Network
 import ComputeHopProtocol
 import SwiftProtobuf
 
+protocol LocalDaemonClientProtocol: Sendable {
+    func ping() async throws -> LocalDaemonSummary
+    func listDevices() async throws -> [DeviceSummary]
+    func listJobs(limit: UInt32) async throws -> [JobSummary]
+    func getJob(id: String, target: String) async throws -> JobSummary
+    func submitJob(
+        executable: String,
+        arguments: [String],
+        workingDirectory: String,
+        outputs: [String],
+        deviceSelector: String,
+        target: String
+    ) async throws -> JobSummary
+    func fetchArtifacts(
+        id: String,
+        destination: String,
+        deviceSelector: String
+    ) async throws -> ArtifactRestoreSummary
+    func readJobLogs(
+        id: String,
+        afterSequence: UInt64,
+        limit: UInt32,
+        target: String
+    ) async throws -> JobLogPage
+    func listPairings() async throws -> [PairingSummary]
+    func beginPairing(device selector: String) async throws -> PairingSummary
+    func confirmPairing(id: String) async throws
+    func rejectPairing(id: String) async throws
+    func cancelJob(id: String) async throws
+}
+
 enum LocalDaemonError: LocalizedError, Sendable {
     case notRunning
     case invalidCapabilityToken(String)
@@ -90,7 +121,7 @@ private final class ContinuationGate<Value: Sendable>: @unchecked Sendable {
     }
 }
 
-actor LocalDaemonClient {
+actor LocalDaemonClient: LocalDaemonClientProtocol {
     static let protocolVersion: UInt32 = 6
 
     private let socketURL: URL
