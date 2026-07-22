@@ -185,6 +185,16 @@ final class AppModel {
         runDisabledReason ?? "Run this command on the selected target."
     }
 
+    var diagnosticsCommandBundle: String {
+        [
+            "computehop status",
+            "computehop devices",
+            "computehop connect",
+            "computehop jobs --limit 10",
+            "computehop doctor",
+        ].joined(separator: "\n")
+    }
+
     var runCommandCopyValue: String? {
         guard canSubmitCommand, let arguments = try? CommandInput.parse(commandInput) else {
             return nil
@@ -243,6 +253,10 @@ final class AppModel {
     func copyRunCommand(to clipboard: ClipboardWriting) {
         guard let runCommandCopyValue else { return }
         clipboard.write(runCommandCopyValue)
+    }
+
+    func copyDiagnosticsCommandBundle(to clipboard: ClipboardWriting) {
+        clipboard.write(diagnosticsCommandBundle)
     }
 
     func refreshLoop() async {

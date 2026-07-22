@@ -198,6 +198,23 @@ func copyRunCommandCopiesCurrentCLICommand() {
 
 @Test
 @MainActor
+func copyDiagnosticsCommandBundleCopiesSetupAndConnectivityCommands() {
+    let model = AppModel(client: RecordingDaemonClient())
+    let clipboard = RecordingClipboard()
+
+    model.copyDiagnosticsCommandBundle(to: clipboard)
+
+    #expect(clipboard.value == """
+    computehop status
+    computehop devices
+    computehop connect
+    computehop jobs --limit 10
+    computehop doctor
+    """)
+}
+
+@Test
+@MainActor
 func refreshNotifiesWhenObservedJobFinishes() async {
     let jobID = "7a338fa3-7ba4-4c54-bf59-da1161f6b76f"
     let client = RecordingDaemonClient(
