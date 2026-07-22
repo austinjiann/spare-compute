@@ -134,8 +134,28 @@ func TestJobPaths(t *testing.T) {
 	if want := filepath.Join(wantDirectory, JobLogFilename); logPath != want {
 		t.Fatalf("JobLogPath() = %q, want %q", logPath, want)
 	}
+	workspacePath, err := JobWorkspacePath("/state", id)
+	if err != nil {
+		t.Fatalf("JobWorkspacePath() error = %v", err)
+	}
+	if want := filepath.Join(wantDirectory, JobWorkspaceName); workspacePath != want {
+		t.Fatalf("JobWorkspacePath() = %q, want %q", workspacePath, want)
+	}
 	if _, err := JobDataDir("/state", "bad"); !errors.Is(err, job.ErrInvalidID) {
 		t.Fatalf("JobDataDir(invalid ID) error = %v", err)
+	}
+}
+
+func TestContentStoreDir(t *testing.T) {
+	got, err := ContentStoreDir("/state")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := filepath.Join("/state", ContentDirectoryName); got != want {
+		t.Fatalf("ContentStoreDir() = %q, want %q", got, want)
+	}
+	if _, err := ContentStoreDir(""); err == nil {
+		t.Fatal("ContentStoreDir(\"\") error = nil")
 	}
 }
 

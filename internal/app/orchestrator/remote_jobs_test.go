@@ -14,6 +14,7 @@ import (
 	"github.com/austinjiann/spare-compute/internal/placement"
 	"github.com/austinjiann/spare-compute/internal/protocol/mapper"
 	remoteprotocol "github.com/austinjiann/spare-compute/internal/protocol/remote"
+	"github.com/austinjiann/spare-compute/internal/snapshot"
 	"github.com/austinjiann/spare-compute/internal/trust"
 )
 
@@ -160,6 +161,94 @@ func TestRemoteJobServiceFallsBackToSupervisedPathWithoutLAN(t *testing.T) {
 	}
 }
 
+func TestRemoteJobServiceTransfersOnlyMissingSnapshotChunks(t *testing.T) {
+	peer := activeWorkerPeer(t, 17, "Build PC")
+	contents := []byte("package main\n")
+	digest := snapshot.Sum(contents)
+	manifest := snapshot.Manifest{
+		Version: snapshot.ManifestVersion,
+		Files: []snapshot.File{{
+			Path: "src/main.go", Mode: 0o644, Size: int64(len(contents)),
+			Chunks: []snapshot.Chunk{{Digest: digest, Size: uint32(len(contents))}},
+		}},
+		TotalBytes: int64(len(contents)),
+	}
+	want := queuedJobForTest()
+	want.Spec.WorkingDirectory = "/worker/jobs/workspace/src"
+	jobMessage, err := mapper.JobToRemoteProto(want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cached := false
+	uploads := 0
+	submissions := 0
+	service, err := NewRemoteJobService(RemoteDependencies{
+		Nearby: stubDeviceController{}, Trust: remoteTrustStub{peers: []trust.Peer{peer}},
+		Placements: newRemotePlacementStub(),
+		Dialer: remoteDialerFunc(func(context.Context, device.NearbyDevice, trust.Peer) (remoteprotocol.Caller, error) {
+			t.Fatal("absent LAN path was dialed")
+			return nil, nil
+		}),
+		Remote: pairedRemoteDialerFunc(func(context.Context, trust.Peer) (remoteprotocol.Caller, error) {
+			return &remoteCallerStub{call: func(
+				_ context.Context,
+				request *computehopv1.RemoteRequest,
+			) (*computehopv1.RemoteResponse, error) {
+				switch request.GetOperation().(type) {
+				case *computehopv1.RemoteRequest_CheckSnapshot:
+					missing := []string(nil)
+					if !cached {
+						missing = []string{string(digest)}
+					}
+					return &computehopv1.RemoteResponse{Result: &computehopv1.RemoteResponse_CheckSnapshot{
+						CheckSnapshot: &computehopv1.CheckSnapshotResponse{MissingChunkDigests: missing},
+					}}, nil
+				case *computehopv1.RemoteRequest_PutChunk:
+					put := request.GetPutChunk()
+					if put.GetDigest() != string(digest) || string(put.GetData()) != string(contents) {
+						t.Fatalf("put request = %#v", put)
+					}
+					uploads++
+					cached = true
+					return &computehopv1.RemoteResponse{Result: &computehopv1.RemoteResponse_PutChunk{
+						PutChunk: &computehopv1.PutChunkResponse{Digest: string(digest)},
+					}}, nil
+				case *computehopv1.RemoteRequest_SubmitJob:
+					submitted := request.GetSubmitJob()
+					if submitted.GetSnapshot() == nil || submitted.GetWorkingSubdirectory() != "src" ||
+						submitted.GetSpec().GetWorkingDirectory() != "" {
+						t.Fatalf("submit request = %#v", submitted)
+					}
+					submissions++
+					return &computehopv1.RemoteResponse{Result: &computehopv1.RemoteResponse_SubmitJob{
+						SubmitJob: &computehopv1.SubmitJobResponse{Job: jobMessage},
+					}}, nil
+				default:
+					t.Fatalf("unexpected request = %#v", request)
+					return nil, nil
+				}
+			}}, nil
+		}),
+		Snapshots: projectSnapshotterStub{result: snapshot.Result{
+			Root: "/local/project", WorkingSubdirectory: "src", Manifest: manifest,
+		}},
+		Content: snapshotContentStub{contents: map[snapshot.Digest][]byte{digest: contents}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	spec := want.Spec.Clone()
+	spec.WorkingDirectory = "/local/project/src"
+	for run := 0; run < 2; run++ {
+		if _, err := service.Submit(context.Background(), "Build PC", spec); err != nil {
+			t.Fatalf("Submit(%d) error = %v", run, err)
+		}
+	}
+	if uploads != 1 || submissions != 2 {
+		t.Fatalf("uploads = %d, submissions = %d", uploads, submissions)
+	}
+}
+
 func TestRemoteJobServiceRejectsRevokedRememberedWorker(t *testing.T) {
 	peer := activeWorkerPeer(t, 10, "Revoked PC")
 	revokedAt := peer.UpdatedAt.Add(time.Minute)
@@ -238,6 +327,27 @@ func (function pairedRemoteDialerFunc) DialRemotePeer(
 
 type remoteCallerStub struct {
 	call func(context.Context, *computehopv1.RemoteRequest) (*computehopv1.RemoteResponse, error)
+}
+
+type projectSnapshotterStub struct {
+	result snapshot.Result
+	err    error
+}
+
+func (stub projectSnapshotterStub) Build(context.Context, string) (snapshot.Result, error) {
+	return stub.result, stub.err
+}
+
+type snapshotContentStub struct {
+	contents map[snapshot.Digest][]byte
+}
+
+func (stub snapshotContentStub) Read(_ context.Context, digest snapshot.Digest) ([]byte, error) {
+	contents, ok := stub.contents[digest]
+	if !ok {
+		return nil, errors.New("missing local content")
+	}
+	return append([]byte(nil), contents...), nil
 }
 
 func (caller *remoteCallerStub) Call(

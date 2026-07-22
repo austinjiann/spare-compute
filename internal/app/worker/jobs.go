@@ -10,11 +10,14 @@ import (
 	"github.com/austinjiann/spare-compute/internal/execution"
 	"github.com/austinjiann/spare-compute/internal/job"
 	joblogging "github.com/austinjiann/spare-compute/internal/logging"
+	"github.com/austinjiann/spare-compute/internal/snapshot"
 )
 
 var (
-	ErrMissingDependency = errors.New("worker job service dependency is required")
-	ErrJobTerminal       = errors.New("job is already terminal")
+	ErrMissingDependency  = errors.New("worker job service dependency is required")
+	ErrJobTerminal        = errors.New("job is already terminal")
+	ErrSnapshotsDisabled  = errors.New("project snapshots are not configured on this worker")
+	ErrSnapshotIncomplete = errors.New("project snapshot is missing content")
 )
 
 // Dependencies are explicit so production wiring and tests use the same
@@ -25,6 +28,15 @@ type Dependencies struct {
 	Logs       LogReader
 	GenerateID func() (job.ID, error)
 	Now        func() time.Time
+	Snapshots  SnapshotWorkspace
+}
+
+// SnapshotWorkspace owns verified chunks and isolated job materialization.
+type SnapshotWorkspace interface {
+	Missing(context.Context, []snapshot.Digest) ([]snapshot.Digest, error)
+	Put(context.Context, snapshot.Digest, []byte) error
+	Materialize(context.Context, job.ID, snapshot.Manifest, string) (string, error)
+	RemoveWorkspace(job.ID) error
 }
 
 // ExecutionController is the execution state required by local job commands.
@@ -52,6 +64,7 @@ type JobService struct {
 	logs       LogReader
 	generateID func() (job.ID, error)
 	now        func() time.Time
+	snapshots  SnapshotWorkspace
 }
 
 // NewJobService validates and constructs the worker job application service.
@@ -77,6 +90,7 @@ func NewJobService(dependencies Dependencies) (*JobService, error) {
 		logs:       dependencies.Logs,
 		generateID: dependencies.GenerateID,
 		now:        dependencies.Now,
+		snapshots:  dependencies.Snapshots,
 	}, nil
 }
 
@@ -86,6 +100,84 @@ func (service *JobService) Submit(ctx context.Context, spec job.Spec) (job.Job, 
 	if err != nil {
 		return job.Job{}, fmt.Errorf("generate job ID: %w", err)
 	}
+	return service.submitWithID(ctx, id, spec)
+}
+
+// MissingChunks returns the content absent from this worker's verified cache.
+func (service *JobService) MissingChunks(
+	ctx context.Context,
+	digests []snapshot.Digest,
+) ([]snapshot.Digest, error) {
+	if service.snapshots == nil {
+		return nil, ErrSnapshotsDisabled
+	}
+	return service.snapshots.Missing(ctx, digests)
+}
+
+// PutChunk verifies and stores one uploaded project chunk.
+func (service *JobService) PutChunk(
+	ctx context.Context,
+	digest snapshot.Digest,
+	contents []byte,
+) error {
+	if service.snapshots == nil {
+		return ErrSnapshotsDisabled
+	}
+	if !digest.Valid() || len(contents) == 0 || len(contents) > snapshot.MaximumChunkBytes ||
+		snapshot.Sum(contents) != digest {
+		return snapshot.ErrInvalidDigest
+	}
+	return service.snapshots.Put(ctx, digest, contents)
+}
+
+// SubmitSnapshot materializes one complete immutable project into a fresh job
+// workspace before durably queueing the command.
+func (service *JobService) SubmitSnapshot(
+	ctx context.Context,
+	spec job.Spec,
+	manifest snapshot.Manifest,
+	workingSubdirectory string,
+) (job.Job, error) {
+	if service.snapshots == nil {
+		return job.Job{}, ErrSnapshotsDisabled
+	}
+	if err := spec.Validate(); err != nil {
+		return job.Job{}, err
+	}
+	if err := manifest.Validate(); err != nil {
+		return job.Job{}, err
+	}
+	if workingSubdirectory != "" {
+		if err := snapshot.ValidatePath(workingSubdirectory); err != nil {
+			return job.Job{}, err
+		}
+	}
+	missing, err := service.snapshots.Missing(ctx, manifest.Digests())
+	if err != nil {
+		return job.Job{}, err
+	}
+	if len(missing) != 0 {
+		return job.Job{}, fmt.Errorf("%w: %d chunks", ErrSnapshotIncomplete, len(missing))
+	}
+	id, err := service.generateID()
+	if err != nil {
+		return job.Job{}, fmt.Errorf("generate job ID: %w", err)
+	}
+	workingDirectory, err := service.snapshots.Materialize(ctx, id, manifest, workingSubdirectory)
+	if err != nil {
+		return job.Job{}, fmt.Errorf("materialize project snapshot: %w", err)
+	}
+	prepared := spec.Clone()
+	prepared.WorkingDirectory = workingDirectory
+	value, err := service.submitWithID(ctx, id, prepared)
+	if err != nil {
+		removeErr := service.snapshots.RemoveWorkspace(id)
+		return job.Job{}, errors.Join(err, removeErr)
+	}
+	return value, nil
+}
+
+func (service *JobService) submitWithID(ctx context.Context, id job.ID, spec job.Spec) (job.Job, error) {
 	created, err := job.New(id, spec, service.now())
 	if err != nil {
 		return job.Job{}, err

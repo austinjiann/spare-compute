@@ -15,6 +15,7 @@ import (
 const (
 	maximumConcurrentClients = 64
 	connectionTimeout        = 30 * time.Second
+	submitConnectionTimeout  = 6 * time.Hour
 )
 
 var ErrInvalidServer = errors.New("invalid local IPC server")
@@ -123,6 +124,23 @@ func (server *Server) serveConnection(ctx context.Context, connection net.Conn) 
 	if err := readMessage(connection, request); err != nil {
 		return
 	}
+	if request.GetSubmitJob() != nil {
+		_ = connection.SetDeadline(time.Now().Add(submitConnectionTimeout))
+	}
+	requestTimeout := connectionTimeout
+	if request.GetSubmitJob() != nil {
+		requestTimeout = submitConnectionTimeout
+	}
+	requestContext, cancel := context.WithTimeout(ctx, requestTimeout)
+	defer cancel()
+	// A request owns the rest of this one-shot connection. Watching for an EOF
+	// propagates CLI cancellation into snapshotting and transfer work instead of
+	// leaving it running invisibly in the daemon.
+	go func() {
+		var unexpected [1]byte
+		_, _ = connection.Read(unexpected[:])
+		cancel()
+	}()
 
 	response := &localv1.Response{
 		ProtocolVersion: ProtocolVersion,
@@ -140,7 +158,7 @@ func (server *Server) serveConnection(ctx context.Context, connection net.Conn) 
 	} else if request.GetOperation() == nil {
 		response.Error = protocolError(localv1.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "request operation is required")
 	} else {
-		response = server.handle(ctx, request)
+		response = server.handle(requestContext, request)
 		if response == nil {
 			response = &localv1.Response{
 				Error: protocolError(localv1.ErrorCode_ERROR_CODE_INTERNAL, "internal daemon error"),

@@ -13,6 +13,7 @@ import (
 	"github.com/austinjiann/spare-compute/internal/execution"
 	"github.com/austinjiann/spare-compute/internal/job"
 	joblogging "github.com/austinjiann/spare-compute/internal/logging"
+	"github.com/austinjiann/spare-compute/internal/snapshot"
 )
 
 func TestSubmitDurablyQueuesJob(t *testing.T) {
@@ -69,6 +70,50 @@ func TestSubmitPropagatesIDGenerationFailure(t *testing.T) {
 
 	if _, err := service.Submit(context.Background(), validSpec()); err == nil {
 		t.Fatalf("Submit() error = nil, want ID generation failure")
+	}
+}
+
+func TestSubmitSnapshotRequiresCompleteContentAndQueuesMaterializedWorkspace(t *testing.T) {
+	repository := newMemoryRepository()
+	id := mustJobID(t, 21)
+	contents := []byte("project")
+	digest := snapshot.Sum(contents)
+	manifest := snapshot.Manifest{
+		Version: snapshot.ManifestVersion,
+		Files: []snapshot.File{{
+			Path: "src/main.go", Mode: 0o644, Size: int64(len(contents)),
+			Chunks: []snapshot.Chunk{{Digest: digest, Size: uint32(len(contents))}},
+		}},
+		TotalBytes: int64(len(contents)),
+	}
+	workspace := &fakeSnapshotWorkspace{missing: []snapshot.Digest{digest}, directory: "/jobs/21/workspace/src"}
+	service, err := NewJobService(Dependencies{
+		Jobs: repository, Executions: &fakeExecutionController{}, Logs: fakeLogReader{},
+		GenerateID: func() (job.ID, error) { return id, nil }, Now: time.Now, Snapshots: workspace,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.SubmitSnapshot(
+		context.Background(), validSpec(), manifest, "src",
+	); !errors.Is(err, ErrSnapshotIncomplete) {
+		t.Fatalf("incomplete SubmitSnapshot() error = %v", err)
+	}
+	if workspace.materialized || len(repository.jobs) != 0 {
+		t.Fatal("incomplete snapshot was materialized or persisted")
+	}
+
+	workspace.missing = nil
+	queued, err := service.SubmitSnapshot(context.Background(), validSpec(), manifest, "src")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !workspace.materialized || queued.State != job.StateQueued ||
+		queued.Spec.WorkingDirectory != workspace.directory {
+		t.Fatalf("queued = %#v, materialized = %t", queued, workspace.materialized)
+	}
+	if workspace.manifest.Files[0].Path != "src/main.go" || workspace.subdirectory != "src" {
+		t.Fatalf("workspace request = %#v, %q", workspace.manifest, workspace.subdirectory)
 	}
 }
 
@@ -219,6 +264,49 @@ type fakeLogReader struct{}
 
 func (fakeLogReader) Read(context.Context, job.ID, uint64, int) (joblogging.Page, error) {
 	return joblogging.Page{}, nil
+}
+
+type fakeSnapshotWorkspace struct {
+	missing       []snapshot.Digest
+	directory     string
+	manifest      snapshot.Manifest
+	subdirectory  string
+	materialized  bool
+	removed       bool
+	storedDigests []snapshot.Digest
+}
+
+func (workspace *fakeSnapshotWorkspace) Missing(
+	context.Context,
+	[]snapshot.Digest,
+) ([]snapshot.Digest, error) {
+	return append([]snapshot.Digest(nil), workspace.missing...), nil
+}
+
+func (workspace *fakeSnapshotWorkspace) Put(
+	_ context.Context,
+	digest snapshot.Digest,
+	_ []byte,
+) error {
+	workspace.storedDigests = append(workspace.storedDigests, digest)
+	return nil
+}
+
+func (workspace *fakeSnapshotWorkspace) Materialize(
+	_ context.Context,
+	_ job.ID,
+	manifest snapshot.Manifest,
+	subdirectory string,
+) (string, error) {
+	workspace.materialized = true
+	workspace.manifest = manifest.Clone()
+	workspace.subdirectory = subdirectory
+	return workspace.directory, nil
+}
+
+func (workspace *fakeSnapshotWorkspace) RemoveWorkspace(job.ID) error {
+	workspace.removed = true
+	return nil
 }
 
 func validSpec() job.Spec {

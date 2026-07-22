@@ -16,15 +16,20 @@ import (
 	"github.com/austinjiann/spare-compute/internal/placement"
 	"github.com/austinjiann/spare-compute/internal/protocol/mapper"
 	remoteprotocol "github.com/austinjiann/spare-compute/internal/protocol/remote"
+	"github.com/austinjiann/spare-compute/internal/snapshot"
 	"github.com/austinjiann/spare-compute/internal/trust"
 )
 
-const remoteDialTimeout = 12 * time.Second
+const (
+	remoteDialTimeout      = 12 * time.Second
+	snapshotPreflightBatch = 4_096
+)
 
 var (
 	ErrMissingRemoteDependency    = errors.New("remote job service dependency is required")
 	ErrRemoteWorkerUnavailable    = errors.New("paired worker is unavailable")
 	ErrRemotePlacementPersistence = errors.New("remote job was accepted but its placement could not be saved")
+	ErrRemoteSnapshotUnavailable  = errors.New("remote project snapshot is unavailable")
 )
 
 // RemoteDialer opens a key-pinned job-control connection to one LAN observation.
@@ -38,6 +43,16 @@ type PairedRemoteDialer interface {
 	DialRemotePeer(context.Context, trust.Peer) (remoteprotocol.Caller, error)
 }
 
+// ProjectSnapshotter builds a stable project manifest into the local cache.
+type ProjectSnapshotter interface {
+	Build(context.Context, string) (snapshot.Result, error)
+}
+
+// SnapshotContent loads one locally verified chunk for transfer.
+type SnapshotContent interface {
+	Read(context.Context, snapshot.Digest) ([]byte, error)
+}
+
 // RemoteDependencies configure explicit paired-worker job routing.
 type RemoteDependencies struct {
 	Nearby     DeviceController
@@ -45,6 +60,8 @@ type RemoteDependencies struct {
 	Placements placement.Repository
 	Dialer     RemoteDialer
 	Remote     PairedRemoteDialer
+	Snapshots  ProjectSnapshotter
+	Content    SnapshotContent
 }
 
 // RemoteJobService prefers current LAN observations, then falls back to a
@@ -55,18 +72,22 @@ type RemoteJobService struct {
 	placements placement.Repository
 	dialer     RemoteDialer
 	remote     PairedRemoteDialer
+	snapshots  ProjectSnapshotter
+	content    SnapshotContent
 }
 
 // NewRemoteJobService constructs the orchestrator-side remote job controller.
 func NewRemoteJobService(dependencies RemoteDependencies) (*RemoteJobService, error) {
 	if dependencies.Nearby == nil || dependencies.Trust == nil ||
-		dependencies.Placements == nil || dependencies.Dialer == nil {
+		dependencies.Placements == nil || dependencies.Dialer == nil ||
+		(dependencies.Snapshots == nil) != (dependencies.Content == nil) {
 		return nil, ErrMissingRemoteDependency
 	}
 	return &RemoteJobService{
 		nearby: dependencies.Nearby, trust: dependencies.Trust,
 		placements: dependencies.Placements, dialer: dependencies.Dialer,
-		remote: dependencies.Remote,
+		remote:    dependencies.Remote,
+		snapshots: dependencies.Snapshots, content: dependencies.Content,
 	}, nil
 }
 
@@ -75,11 +96,14 @@ func (service *RemoteJobService) Submit(
 	selector string,
 	spec job.Spec,
 ) (job.Job, error) {
-	message, err := mapper.SpecToRemoteProto(spec)
+	peer, err := service.resolveTrustedWorker(ctx, selector)
 	if err != nil {
 		return job.Job{}, err
 	}
-	peer, err := service.resolveTrustedWorker(ctx, selector)
+	if service.snapshots != nil {
+		return service.submitSnapshot(ctx, peer, spec)
+	}
+	message, err := mapper.SpecToRemoteProto(spec)
 	if err != nil {
 		return job.Job{}, err
 	}
@@ -89,6 +113,127 @@ func (service *RemoteJobService) Submit(
 	if err != nil {
 		return job.Job{}, err
 	}
+	return service.acceptSubmitted(ctx, peer, response)
+}
+
+func (service *RemoteJobService) submitSnapshot(
+	ctx context.Context,
+	peer trust.Peer,
+	spec job.Spec,
+) (job.Job, error) {
+	if strings.TrimSpace(spec.WorkingDirectory) == "" {
+		return job.Job{}, fmt.Errorf(
+			"%w: choose the local project folder with --working-directory",
+			ErrRemoteSnapshotUnavailable,
+		)
+	}
+	project, err := service.snapshots.Build(ctx, spec.WorkingDirectory)
+	if err != nil {
+		return job.Job{}, fmt.Errorf("create project snapshot: %w", err)
+	}
+	manifestMessage, err := mapper.ManifestToRemoteProto(project.Manifest)
+	if err != nil {
+		return job.Job{}, err
+	}
+	manifestID, err := project.Manifest.ID()
+	if err != nil {
+		return job.Job{}, err
+	}
+	caller, err := service.open(ctx, peer)
+	if err != nil {
+		return job.Job{}, err
+	}
+	defer caller.Close()
+	missing, err := service.preflightSnapshot(ctx, caller, manifestID, project.Manifest.Digests())
+	if err != nil {
+		return job.Job{}, err
+	}
+	for _, digest := range missing {
+		contents, err := service.content.Read(ctx, digest)
+		if err != nil {
+			return job.Job{}, fmt.Errorf("read project chunk %s: %w", digest, err)
+		}
+		response, err := caller.Call(ctx, &computehopv1.RemoteRequest{
+			Operation: &computehopv1.RemoteRequest_PutChunk{PutChunk: &computehopv1.PutChunkRequest{
+				Digest: string(digest), Data: contents,
+			}},
+		})
+		if err != nil {
+			return job.Job{}, fmt.Errorf("transfer project chunk %s: %w", digest, err)
+		}
+		if response.GetPutChunk() == nil || response.GetPutChunk().GetDigest() != string(digest) {
+			return job.Job{}, remoteprotocol.ErrInvalidMessage
+		}
+	}
+	remoteSpec := spec.Clone()
+	remoteSpec.WorkingDirectory = ""
+	specMessage, err := mapper.SpecToRemoteProto(remoteSpec)
+	if err != nil {
+		return job.Job{}, err
+	}
+	response, err := caller.Call(ctx, &computehopv1.RemoteRequest{
+		Operation: &computehopv1.RemoteRequest_SubmitJob{SubmitJob: &computehopv1.SubmitJobRequest{
+			Spec: specMessage, Snapshot: manifestMessage,
+			WorkingSubdirectory: project.WorkingSubdirectory,
+		}},
+	})
+	if err != nil {
+		return job.Job{}, err
+	}
+	return service.acceptSubmitted(ctx, peer, response)
+}
+
+func (service *RemoteJobService) preflightSnapshot(
+	ctx context.Context,
+	caller remoteprotocol.Caller,
+	manifestID snapshot.Digest,
+	digests []snapshot.Digest,
+) ([]snapshot.Digest, error) {
+	missing := make(map[snapshot.Digest]struct{})
+	for offset := 0; offset < len(digests); offset += snapshotPreflightBatch {
+		end := min(offset+snapshotPreflightBatch, len(digests))
+		encoded := make([]string, end-offset)
+		allowed := make(map[snapshot.Digest]struct{}, end-offset)
+		for index, digest := range digests[offset:end] {
+			encoded[index] = string(digest)
+			allowed[digest] = struct{}{}
+		}
+		response, err := caller.Call(ctx, &computehopv1.RemoteRequest{
+			Operation: &computehopv1.RemoteRequest_CheckSnapshot{CheckSnapshot: &computehopv1.CheckSnapshotRequest{
+				ManifestId: string(manifestID), ChunkDigests: encoded,
+			}},
+		})
+		if err != nil {
+			return nil, fmt.Errorf("preflight project snapshot: %w", err)
+		}
+		if response.GetCheckSnapshot() == nil {
+			return nil, remoteprotocol.ErrInvalidMessage
+		}
+		for _, value := range response.GetCheckSnapshot().GetMissingChunkDigests() {
+			digest, err := snapshot.ParseDigest(value)
+			if err != nil {
+				return nil, remoteprotocol.ErrInvalidMessage
+			}
+			if _, ok := allowed[digest]; !ok {
+				return nil, remoteprotocol.ErrInvalidMessage
+			}
+			missing[digest] = struct{}{}
+		}
+	}
+	result := make([]snapshot.Digest, 0, len(missing))
+	for _, digest := range digests {
+		if _, ok := missing[digest]; ok {
+			result = append(result, digest)
+		}
+	}
+	return result, nil
+}
+
+func (service *RemoteJobService) acceptSubmitted(
+	ctx context.Context,
+	peer trust.Peer,
+	response *computehopv1.RemoteResponse,
+) (job.Job, error) {
 	result := response.GetSubmitJob()
 	if result == nil {
 		return job.Job{}, remoteprotocol.ErrInvalidMessage
@@ -234,6 +379,25 @@ func (service *RemoteJobService) call(
 	peer trust.Peer,
 	request *computehopv1.RemoteRequest,
 ) (*computehopv1.RemoteResponse, error) {
+	caller, err := service.open(ctx, peer)
+	if err != nil {
+		return nil, err
+	}
+	response, callErr := caller.Call(ctx, request)
+	closeErr := caller.Close()
+	if callErr != nil {
+		return nil, errors.Join(callErr, closeErr)
+	}
+	if closeErr != nil {
+		return nil, closeErr
+	}
+	return response, nil
+}
+
+func (service *RemoteJobService) open(
+	ctx context.Context,
+	peer trust.Peer,
+) (remoteprotocol.Caller, error) {
 	candidates, err := service.nearbyCandidates(ctx, peer)
 	var failures []error
 	if err != nil {
@@ -251,30 +415,14 @@ func (service *RemoteJobService) call(
 			failures = append(failures, dialErr)
 			continue
 		}
-		response, callErr := caller.Call(ctx, request)
-		closeErr := caller.Close()
-		if callErr != nil {
-			return nil, errors.Join(callErr, closeErr)
-		}
-		if closeErr != nil {
-			return nil, closeErr
-		}
-		return response, nil
+		return caller, nil
 	}
 	if service.remote != nil {
 		caller, dialErr := service.remote.DialRemotePeer(dialContext, peer)
 		if dialErr != nil {
 			failures = append(failures, dialErr)
 		} else {
-			response, callErr := caller.Call(ctx, request)
-			closeErr := caller.Close()
-			if callErr != nil {
-				return nil, errors.Join(callErr, closeErr)
-			}
-			if closeErr != nil {
-				return nil, closeErr
-			}
-			return response, nil
+			return caller, nil
 		}
 	}
 	return nil, fmt.Errorf("%w: %s: %v", ErrRemoteWorkerUnavailable, peer.Name, errors.Join(failures...))

@@ -21,10 +21,13 @@ TURN. A bounded Pion ICE path layer now gathers and selects direct or relayed
 UDP candidates and exchanges versioned descriptions through encrypted
 rendezvous presence. Daemons can now supervise active pair records and run the
 existing identity-pinned QUIC control protocol over a selected path; job
-routing prefers LAN and falls back to a ready direct ICE path. Automated local
-end-to-end coverage passes, while physical unrelated-network validation is
-still open. Public TURN relay traffic remains gated on entitlement-backed,
-quota-limited credential issuance.
+routing prefers LAN and falls back to a ready direct ICE path. Remote jobs now
+snapshot the local project, transfer only content chunks missing from the
+worker, and execute from a fresh worker-owned workspace. Repeating an unchanged
+job reuses the verified worker cache. Automated local end-to-end coverage
+passes, while physical unrelated-network validation is still open. Public TURN
+relay traffic remains gated on entitlement-backed, quota-limited credential
+issuance.
 
 See [`docs/PLAN.md`](docs/PLAN.md) for the product, architecture, security,
 execution, deployment, and launch plan.
@@ -49,13 +52,17 @@ request and owns all SQLite access. ComputeHop creates its state directory with
 owner-only permissions and rejects unsafe custom directories.
 
 Jobs run on the orchestrator unless `--on` explicitly selects a paired worker.
-Project snapshots, isolated per-job workspaces, artifact return, automatic
-placement, and fully validated network-change reconnection are later slices. A
-remote working directory supplied with `--working-directory` must already exist
-on the worker; when omitted, the command inherits the worker daemon's working
-directory. Discovery records never authorize commands: the live QUIC
-certificate must match the selected active public-key pin. Do not modify or
-remove a submitted working directory while its job is running.
+For a remote job, `-C`/`--working-directory` names a project directory on the
+orchestrator Mac—not a path that must already exist on the worker. It defaults
+to the CLI's current directory. ComputeHop finds the enclosing Git worktree or
+nearest recognized project marker, creates an immutable snapshot, transfers
+only missing content-defined chunks, and reconstructs it under a private
+per-job worker directory. `.gitignore` and `.computehopignore` rules are
+applied; `.git`, `.computehop-results`, symlinks, sockets, devices, traversal,
+and non-portable paths cannot enter a snapshot. Artifact return, cache quotas,
+transfer compression, automatic placement, and fully validated network-change
+reconnection are later slices. Discovery records never authorize commands: the
+live QUIC certificate must match the selected active public-key pin.
 
 Pairings created before connectivity-secret support remain valid for LAN use
 but cannot derive hosted rendezvous credentials. Unpair and explicitly pair
@@ -88,7 +95,8 @@ same commands with a device selector:
 
 ```bash
 go run ./cmd/computehop --state-dir "$computehop_state_dir" run --on "Gaming PC" echo hello
-go run ./cmd/computehop --state-dir "$computehop_state_dir" run --on "Gaming PC" -C /existing/worker/path cargo build --release
+go run ./cmd/computehop --state-dir "$computehop_state_dir" run --on "Gaming PC" cargo build --release
+go run ./cmd/computehop --state-dir "$computehop_state_dir" run --on "Gaming PC" -C /local/project cargo test
 go run ./cmd/computehop --state-dir "$computehop_state_dir" jobs --on "Gaming PC"
 go run ./cmd/computehop --state-dir "$computehop_state_dir" logs --follow <job-id>
 go run ./cmd/computehop --state-dir "$computehop_state_dir" cancel <job-id>
@@ -140,9 +148,10 @@ To launch the development menu-bar app against the default daemon state:
 swift run ComputeHop
 ```
 
-The app can submit a native command to this Mac or a paired nearby worker and
-read its durable output directly in the menu. Quotes only group literal
-arguments; the app does not silently invoke a shell. The app and generated
+The app can submit a native command to this Mac or a paired available worker,
+choose the local project folder to snapshot, and read durable output directly
+in the menu. Quotes only group literal arguments; the app does not silently
+invoke a shell. The app and generated
 Swift protocol models build with `swift build` and test with `swift test`. See
 [`apps/macos/README.md`](apps/macos/README.md) for the current packaging
 boundary. See [`deploy/vps/README.md`](deploy/vps/README.md) for the one-VPS

@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct RunJobSection: View {
@@ -18,10 +19,15 @@ struct RunJobSection: View {
                     }
                 }
                 TextField(
-                    model.runTargetID.isEmpty ? "Working directory (home by default)" : "Working directory on worker",
+                    model.runTargetID.isEmpty ? "Working directory (home by default)" : "Project folder on this Mac",
                     text: $model.workingDirectory
                 )
                 .textFieldStyle(.roundedBorder)
+                if !model.runTargetID.isEmpty {
+                    Button("Choose…") {
+                        chooseProjectFolder()
+                    }
+                }
             }
             HStack {
                 Text("Quotes group arguments; no shell expansion is performed.")
@@ -35,9 +41,22 @@ struct RunJobSection: View {
                 .disabled(
                     !model.isConnected ||
                     model.commandInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                    (!model.runTargetID.isEmpty && model.workingDirectory.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) ||
                     model.actionInProgress != nil
                 )
             }
+        }
+    }
+
+    private func chooseProjectFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = false
+        panel.prompt = "Choose Project"
+        if panel.runModal() == .OK, let selected = panel.url {
+            model.workingDirectory = selected.path
         }
     }
 }

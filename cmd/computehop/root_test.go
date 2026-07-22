@@ -57,7 +57,7 @@ func TestRunCommandSubmitsNativeSpec(t *testing.T) {
 	}
 }
 
-func TestRunCommandSelectsRemoteWorkerAndTargetDirectory(t *testing.T) {
+func TestRunCommandSelectsRemoteWorkerAndLocalProjectDirectory(t *testing.T) {
 	value := cliJobForTest(job.StateQueued)
 	message, err := mapper.JobToProto(value)
 	if err != nil {
@@ -92,6 +92,32 @@ func TestRunCommandSelectsRemoteWorkerAndTargetDirectory(t *testing.T) {
 	}
 	if got := stdout.String(); got != "Submitted "+string(value.ID)+" to Gaming PC (queued)\nFollow it: computehop logs --follow "+string(value.ID)+"\n" {
 		t.Fatalf("stdout = %q", got)
+	}
+}
+
+func TestRunCommandDefaultsRemoteProjectToCurrentDirectory(t *testing.T) {
+	value := cliJobForTest(job.StateQueued)
+	message, err := mapper.JobToProto(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	command := newRootCommand(dependencies{
+		stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{},
+		getwd: func() (string, error) { return "/local/project", nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+				if got := request.GetSubmitJob().GetSpec().GetWorkingDirectory(); got != "/local/project" {
+					t.Fatalf("working directory = %q", got)
+				}
+				return &localv1.Response{Result: &localv1.Response_SubmitJob{
+					SubmitJob: &localv1.SubmitJobResponse{Job: message},
+				}}, nil
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"run", "--on", "Gaming PC", "go", "test", "./..."})
+	if err := command.Execute(); err != nil {
+		t.Fatal(err)
 	}
 }
 

@@ -24,7 +24,6 @@ import (
 const (
 	controlALPN                = "computehop-control/1"
 	maximumControlStreams      = 16
-	controlStreamTimeout       = 30 * time.Second
 	controlConnectionIdleLimit = 45 * time.Second
 )
 
@@ -157,9 +156,7 @@ func (endpoint *Endpoint) serveRemoteConnection(
 				_ = stream.Close()
 				wait.Done()
 			}()
-			streamContext, cancel := context.WithTimeout(ctx, controlStreamTimeout)
-			defer cancel()
-			remoteprotocol.Serve(streamContext, stream, handler)
+			remoteprotocol.Serve(ctx, stream, handler)
 		}()
 	}
 }

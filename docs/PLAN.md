@@ -27,7 +27,8 @@ Last updated: 2026-07-22.
 | One-VPS staging deployment | In progress | Provider-neutral Compose stack, Caddy HTTPS edge, authenticated coturn relay, bounded ports/quotas, secrets, firewall bootstrap, health checks, and rollback runbook are ready; buying the VPS and forced-relay validation remain. |
 | CLI and physical Mac validation | In progress | Friendlier `--on` and no-`--` command syntax, inferred pairing confirmation, and merged trusted/nearby presentation are implemented; physical macOS-to-macOS discovery, pairing, execution, restart recovery, logs, and cancellation passed. Windows/Linux remain. |
 | macOS menu-bar foundation | In progress | SwiftUI `MenuBarExtra`, generated SwiftProtobuf v3 models, authenticated Unix-socket IPC, device/pairing controls, native job submission, reconnectable output, and cancellation build and pass real Swift-to-Go ping and job tests; an ad-hoc app bundle and per-user launchd installer are ready for development. |
-| Cross-network paths and later launch slices | In progress | Direct internet control is implemented but still needs physical unrelated-network and reconnect validation. TURN credential issuance requires a hosted entitlement boundary. Project snapshots, artifacts, scheduling, adapters, production packaging, and release operations follow. |
+| Project snapshots and incremental transfer | In progress | Remote runs resolve a local project root, apply bounded nested `.gitignore`/`.computehopignore` rules, create canonical content-defined snapshots, preflight a verified worker cache, upload only missing chunks, and execute in isolated workspaces. Automated LAN and supervised-path execution plus unchanged-project reuse pass; compression, cache quotas, full ignore conformance, artifacts, secrets, and physical cross-platform validation remain. |
+| Later launch slices | In progress | Direct internet control still needs physical unrelated-network and reconnect validation, and TURN credential issuance requires a hosted entitlement boundary. Artifacts, scheduling, adapters, production packaging, and release operations follow. |
 
 “Complete” here means implemented with automated coverage and merged to `main`.
 Physical multi-machine validation remains required by the launch acceptance
@@ -367,9 +368,10 @@ without forcing large content through unary RPC calls.
   filesystem.
 - Store metadata and state in SQLite, but store project chunks, logs, and large
   artifacts as files referenced by hash.
-- Use `lukechampine.com/blake3` for content identity, FastCDC behind a small
-  internal chunker interface for content-defined boundaries, and
-  `github.com/klauspost/compress/zstd` for negotiated compression.
+- Use a fixed 256-bit content identity and deterministic FastCDC-style
+  content-defined boundaries behind small internal interfaces. The current
+  implementation uses SHA-256; negotiated zstd compression remains a transfer
+  optimization rather than part of snapshot identity.
 - Use a dedicated Git-compatible ignore matcher for `.gitignore` and
   `.computehopignore`, backed by conformance fixtures for negation, nesting, and
   platform path differences.
@@ -708,15 +710,17 @@ compatibility, availability, or resource-safety checks.
 ### Project-root selection
 
 - Use the Git repository root when invoked inside a Git worktree.
-- Otherwise use the current directory.
+- Otherwise use the nearest recognized project marker, then the current
+  directory when no marker exists.
 - Allow an explicit root override.
 
 ### Default inclusion rules
 
-- Include tracked files and non-ignored untracked files.
+- Include regular files that are not excluded by the active ignore rules.
 - Respect `.gitignore` and `.computehopignore`.
-- Exclude `.git` and other VCS internals unless explicitly included.
-- Preserve symlinks only when their targets remain inside the snapshot root.
+- Always exclude `.git` and ComputeHop's result-staging directory.
+- Reject symlinks and special files; portable snapshots contain regular files
+  and inferred directories only.
 - Reject absolute paths, `..` traversal, device files, sockets, and escaping
   symlinks.
 
@@ -1191,13 +1195,14 @@ after a daemon restart.
 
 ### Step 2: LAN discovery, trust, and explicit remote execution
 
-**Implementation status:** discovery, pairing, explicit LAN-only `run`, `jobs`,
-`logs`, and `cancel` routing through identity-pinned QUIC, and durable remote job
-placement are merged. Project contents are not transferred, so an explicitly
-supplied remote working directory must already exist on the worker. The
-macOS-to-macOS physical flow has passed discovery, pairing, execution, daemon
-restart recovery, durable log retrieval, and cancellation. The checkpoint
-remains open until Windows and Linux workers pass the same physical flow.
+**Implementation status:** discovery, pairing, explicit `run`, `jobs`, `logs`,
+and `cancel` routing through identity-pinned QUIC, and durable remote job
+placement are implemented. Remote runs now transfer an immutable project
+snapshot and use an isolated worker workspace; `-C` identifies the local source
+directory and defaults to the CLI's current directory. The macOS-to-macOS
+physical flow has passed discovery, pairing, execution, daemon restart recovery,
+durable log retrieval, and cancellation. The checkpoint remains open until
+Windows and Linux workers pass the same physical flow.
 
 - Advertise and browse daemon endpoints with mDNS without treating discovery as
   authentication.
@@ -1269,6 +1274,23 @@ still end-to-end encrypted.
 
 ### Step 4: Project snapshots, transfer, and artifact recovery
 
+**Implementation status:** the input-transfer half is implemented end to end.
+The orchestrator prefers an enclosing Git root, falls back to the nearest known
+project marker or selected directory, applies nested `.gitignore` and
+`.computehopignore` rules, retries unstable reads, and creates a bounded,
+canonical SHA-256 manifest over deterministic content-defined chunks. The
+worker preflights its persistent verified content store, receives only missing
+chunks, re-verifies every read and upload, repairs corrupt cached entries, and
+atomically materializes a new owner-only workspace for each accepted job.
+Transfers are resumable at chunk granularity because a retried submission
+preflights the persistent cache again. Real LAN and supervised-path integration
+tests execute from the reconstructed workspace and prove that an unchanged
+second submission uploads no chunks. Symlinks and special files are safely
+rejected for now rather than preserved. Compression negotiation, cache
+quota/LRU policy, durable transfer-progress records, declared artifact return,
+secret delivery, and physical Windows/Linux validation remain, so the Step 4
+checkpoint is not complete.
+
 - Add project-root resolution, ignore semantics, immutable manifests,
   content-defined chunks, compression negotiation, and a bounded content cache.
 - Preflight manifests before sending content, request only missing chunks, and
@@ -1319,7 +1341,8 @@ preflight rather than after a large transfer.
 **Implementation status:** the SwiftUI menu-bar foundation now builds from the
 root Swift package, uses generated SwiftProtobuf models, authenticates to local
 IPC protocol v3, and presents daemon health, devices, pairing confirmation,
-native job submission to the Mac or a paired nearby worker, recent jobs,
+native job submission to the Mac or a paired available worker, local project
+folder selection for incremental remote transfer, recent jobs,
 reconnectable output, and cancellation. Unit tests cover framing and safe
 command parsing; a real Swift client has successfully pinged the Go daemon,
 submitted a durable native job, and read its output. Artifacts, notifications,

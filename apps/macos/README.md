@@ -5,11 +5,12 @@ jobs, discovery, trust, and remote sessions stay in the Go daemon, so closing
 the menu does not stop work.
 
 The current menu supports daemon health, nearby and paired devices, two-sided
-pairing confirmation, native job submission to this Mac or a paired nearby
+pairing confirmation, native job submission to this Mac or a paired available
 worker, recent jobs, reconnectable output, and cancellation. The command field
 splits quotes and escapes into literal arguments but never invokes a shell or
-performs shell expansion. Local jobs default to the user's home directory;
-enter a working directory explicitly for project commands or remote workers.
+performs shell expansion. Local jobs default to the user's home directory. For
+a remote job, choose a project folder on this Mac; the daemon incrementally
+snapshots it and executes from an isolated worker workspace.
 
 For development, start the daemon in one terminal and the menu-bar app in
 another:

@@ -18,6 +18,8 @@ const (
 	DeviceIdentityFilename  = "device-identity.pem"
 	JobsDirectoryName       = "jobs"
 	JobLogFilename          = "output.log"
+	JobWorkspaceName        = "workspace"
+	ContentDirectoryName    = "content"
 )
 
 // StateDir returns the default directory for durable local ComputeHop state.
@@ -70,6 +72,20 @@ func JobLogPath(stateDir string, id job.ID) (string, error) {
 		return "", err
 	}
 	return filepath.Join(directory, JobLogFilename), nil
+}
+
+// JobWorkspacePath resolves the private materialized workspace for id.
+func JobWorkspacePath(stateDir string, id job.ID) (string, error) {
+	directory, err := JobDataDir(stateDir, id)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(directory, JobWorkspaceName), nil
+}
+
+// ContentStoreDir resolves the private content-addressed chunk store.
+func ContentStoreDir(stateDir string) (string, error) {
+	return stateFilePath(stateDir, ContentDirectoryName)
 }
 
 func stateFilePath(stateDir, filename string) (string, error) {

@@ -22,6 +22,7 @@ import (
 	"github.com/austinjiann/spare-compute/internal/connectivity/remoteconn"
 	"github.com/austinjiann/spare-compute/internal/connectivity/rendezvous"
 	"github.com/austinjiann/spare-compute/internal/device"
+	"github.com/austinjiann/spare-compute/internal/infra/cas"
 	"github.com/austinjiann/spare-compute/internal/infra/discovery/mdns"
 	identityinfra "github.com/austinjiann/spare-compute/internal/infra/identity"
 	"github.com/austinjiann/spare-compute/internal/infra/sqlite"
@@ -33,6 +34,7 @@ import (
 	"github.com/austinjiann/spare-compute/internal/platform/processes"
 	"github.com/austinjiann/spare-compute/internal/protocol/localipc"
 	"github.com/austinjiann/spare-compute/internal/session"
+	"github.com/austinjiann/spare-compute/internal/snapshot"
 	"github.com/austinjiann/spare-compute/internal/trust"
 )
 
@@ -115,6 +117,22 @@ func runWithDependencies(
 	if err != nil {
 		return fmt.Errorf("initialize durable job logs: %w", err)
 	}
+	contentDirectory, err := paths.ContentStoreDir(stateDir)
+	if err != nil {
+		return err
+	}
+	contentStore, err := cas.New(contentDirectory)
+	if err != nil {
+		return fmt.Errorf("initialize project content store: %w", err)
+	}
+	workspaceStore, err := cas.NewWorkspaceStore(stateDir, contentStore)
+	if err != nil {
+		return fmt.Errorf("initialize job workspaces: %w", err)
+	}
+	projectSnapshots, err := snapshot.NewBuilder(contentStore)
+	if err != nil {
+		return fmt.Errorf("initialize project snapshotter: %w", err)
+	}
 
 	jobService, err := worker.NewJobService(worker.Dependencies{
 		Jobs:       database.Jobs(),
@@ -122,6 +140,7 @@ func runWithDependencies(
 		Logs:       logStore,
 		GenerateID: job.NewID,
 		Now:        time.Now,
+		Snapshots:  workspaceStore,
 	})
 	if err != nil {
 		return fmt.Errorf("initialize worker job service: %w", err)
@@ -280,6 +299,7 @@ func runWithDependencies(
 	remoteJobs, err := orchestrator.NewRemoteJobService(orchestrator.RemoteDependencies{
 		Nearby: deviceService, Trust: database.Trust(),
 		Placements: database.Placements(), Dialer: pairingEndpoint, Remote: remoteManager,
+		Snapshots: projectSnapshots, Content: contentStore,
 	})
 	if err != nil {
 		return fmt.Errorf("initialize remote job service: %w", err)

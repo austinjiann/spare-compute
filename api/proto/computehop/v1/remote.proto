@@ -16,6 +16,8 @@ message RemoteRequest {
     ListJobsRequest list_jobs = 12;
     CancelJobRequest cancel_job = 13;
     ReadJobLogsRequest read_job_logs = 14;
+    CheckSnapshotRequest check_snapshot = 15;
+    PutChunkRequest put_chunk = 16;
   }
 }
 
@@ -31,11 +33,52 @@ message RemoteResponse {
     ListJobsResponse list_jobs = 12;
     CancelJobResponse cancel_job = 13;
     ReadJobLogsResponse read_job_logs = 14;
+    CheckSnapshotResponse check_snapshot = 15;
+    PutChunkResponse put_chunk = 16;
   }
 }
 
 message SubmitJobRequest {
   JobSpec spec = 1;
+  SnapshotManifest snapshot = 2;
+  string working_subdirectory = 3;
+}
+
+message CheckSnapshotRequest {
+  string manifest_id = 1;
+  repeated string chunk_digests = 2;
+}
+
+message CheckSnapshotResponse {
+  repeated string missing_chunk_digests = 1;
+}
+
+message PutChunkRequest {
+  string digest = 1;
+  bytes data = 2;
+}
+
+message PutChunkResponse {
+  string digest = 1;
+}
+
+message SnapshotManifest {
+  uint32 version = 1;
+  string manifest_id = 2;
+  repeated SnapshotFile files = 3;
+  int64 total_bytes = 4;
+}
+
+message SnapshotFile {
+  string path = 1;
+  uint32 mode = 2;
+  int64 size = 3;
+  repeated SnapshotChunk chunks = 4;
+}
+
+message SnapshotChunk {
+  string digest = 1;
+  uint32 size = 2;
 }
 
 message SubmitJobResponse {

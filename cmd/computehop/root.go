@@ -547,7 +547,7 @@ func newRunCommand(
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(command *cobra.Command, arguments []string) error {
 			targetDirectory := workingDirectory
-			if targetDirectory == "" && deviceSelector == "" {
+			if targetDirectory == "" {
 				var err error
 				targetDirectory, err = getwd()
 				if err != nil {
@@ -602,7 +602,7 @@ func newRunCommand(
 		"working-directory",
 		"C",
 		"",
-		"working directory on the selected target",
+		"local project directory to snapshot (defaults to the current directory)",
 	)
 	return command
 }
