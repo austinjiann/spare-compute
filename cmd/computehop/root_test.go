@@ -2915,6 +2915,79 @@ func TestLogsCommandRoutesDurableStreams(t *testing.T) {
 	}
 }
 
+func TestLogsCommandExplainsTerminalJobWithNoOutput(t *testing.T) {
+	value := cliJobForTest(job.StateSucceeded)
+	message, err := mapper.JobToProto(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout,
+		stderr: &stderr,
+		getwd:  func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+				if request.GetReadJobLogs().GetAfterSequence() != 0 {
+					t.Fatalf("after sequence = %d", request.GetReadJobLogs().GetAfterSequence())
+				}
+				return &localv1.Response{Result: &localv1.Response_ReadJobLogs{
+					ReadJobLogs: &localv1.ReadJobLogsResponse{Job: message},
+				}}, nil
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"logs", string(value.ID)})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	if want := "No output captured for " + string(value.ID) + "."; !strings.Contains(stderr.String(), want) {
+		t.Fatalf("stderr %q does not contain %q", stderr.String(), want)
+	}
+}
+
+func TestLogsCommandExplainsRunningJobWithNoOutputYet(t *testing.T) {
+	value := cliJobForTest(job.StateRunning)
+	message, err := mapper.JobToProto(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout,
+		stderr: &stderr,
+		getwd:  func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+				if request.GetReadJobLogs().GetAfterSequence() != 0 {
+					t.Fatalf("after sequence = %d", request.GetReadJobLogs().GetAfterSequence())
+				}
+				return &localv1.Response{Result: &localv1.Response_ReadJobLogs{
+					ReadJobLogs: &localv1.ReadJobLogsResponse{Job: message},
+				}}, nil
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"logs", string(value.ID)})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	for _, want := range []string{
+		"No output captured yet for " + string(value.ID) + " (running).",
+		"computehop logs --follow " + string(value.ID),
+	} {
+		if !strings.Contains(stderr.String(), want) {
+			t.Fatalf("stderr %q does not contain %q", stderr.String(), want)
+		}
+	}
+}
+
 func cliJobForTest(state job.State) job.Job {
 	created := time.Unix(1_700_000_000, 0).UTC()
 	return job.Job{

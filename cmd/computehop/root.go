@@ -1877,7 +1877,7 @@ func newRunCommand(
 			}
 
 			if follow {
-				value, err = streamJobLogs(
+				value, _, err = streamJobLogs(
 					command.Context(), stdout, command.ErrOrStderr(), client, value.ID, deviceSelector, true,
 				)
 			} else {
@@ -1996,7 +1996,7 @@ func newSmokeCommand(
 			); err != nil {
 				return err
 			}
-			value, err = streamJobLogs(command.Context(), stdout, stderr, client, value.ID, deviceSelector, true)
+			value, _, err = streamJobLogs(command.Context(), stdout, stderr, client, value.ID, deviceSelector, true)
 			if err != nil {
 				return err
 			}
@@ -2321,7 +2321,21 @@ computehop logs --on "Gaming PC" <job-id>`),
 			if err != nil {
 				return err
 			}
-			_, err = streamJobLogs(command.Context(), stdout, stderr, client, id, deviceSelector, follow)
+			value, records, err := streamJobLogs(command.Context(), stdout, stderr, client, id, deviceSelector, follow)
+			if err != nil {
+				return err
+			}
+			if records > 0 {
+				return nil
+			}
+			if value.State.Terminal() {
+				_, err = fmt.Fprintf(stderr, "No output captured for %s.\n", id)
+				return err
+			}
+			if _, err = fmt.Fprintf(stderr, "No output captured yet for %s (%s).\n", id, value.State); err != nil {
+				return err
+			}
+			_, err = fmt.Fprintf(stderr, "Tip: wait for new output with: computehop logs --follow %s\n", id)
 			return err
 		},
 	}
@@ -2338,8 +2352,9 @@ func streamJobLogs(
 	id job.ID,
 	deviceSelector string,
 	follow bool,
-) (job.Job, error) {
+) (job.Job, uint64, error) {
 	var after uint64
+	var emitted uint64
 	for {
 		response, err := client.Call(ctx, &localv1.Request{
 			Operation: &localv1.Request_ReadJobLogs{ReadJobLogs: &localv1.ReadJobLogsRequest{
@@ -2350,15 +2365,15 @@ func streamJobLogs(
 			}},
 		})
 		if err != nil {
-			return job.Job{}, err
+			return job.Job{}, emitted, err
 		}
 		result := response.GetReadJobLogs()
 		if result == nil {
-			return job.Job{}, fmt.Errorf("%w: missing job logs result", ErrInvalidDaemonResponse)
+			return job.Job{}, emitted, fmt.Errorf("%w: missing job logs result", ErrInvalidDaemonResponse)
 		}
 		for _, record := range result.GetRecords() {
 			if record.GetSequence() <= after {
-				return job.Job{}, fmt.Errorf("%w: job log sequence did not advance", ErrInvalidDaemonResponse)
+				return job.Job{}, emitted, fmt.Errorf("%w: job log sequence did not advance", ErrInvalidDaemonResponse)
 			}
 			var destination io.Writer
 			switch record.GetStream() {
@@ -2367,25 +2382,26 @@ func streamJobLogs(
 			case localv1.JobLogStream_JOB_LOG_STREAM_STDERR:
 				destination = stderr
 			default:
-				return job.Job{}, fmt.Errorf("%w: invalid job log stream", ErrInvalidDaemonResponse)
+				return job.Job{}, emitted, fmt.Errorf("%w: invalid job log stream", ErrInvalidDaemonResponse)
 			}
 			if _, err := destination.Write(record.GetData()); err != nil {
-				return job.Job{}, err
+				return job.Job{}, emitted, err
 			}
 			after = record.GetSequence()
+			emitted++
 		}
 		if result.GetHasMore() {
 			continue
 		}
 		value, err := mapper.JobFromProto(result.GetJob())
 		if err != nil {
-			return job.Job{}, fmt.Errorf("%w: %v", ErrInvalidDaemonResponse, err)
+			return job.Job{}, emitted, fmt.Errorf("%w: %v", ErrInvalidDaemonResponse, err)
 		}
 		if !follow || value.State.Terminal() {
-			return value, nil
+			return value, emitted, nil
 		}
 		if err := waitForNextPoll(ctx); err != nil {
-			return job.Job{}, err
+			return job.Job{}, emitted, err
 		}
 	}
 }

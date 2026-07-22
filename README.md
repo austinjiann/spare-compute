@@ -184,9 +184,12 @@ directory by default; use `--to <directory>` to choose another destination. Use
 declared outputs, so the worker runs the command without a project snapshot
 upload. Remote project runs print a pre-submit preparation message before the
 blocking snapshot/upload step so the CLI does not look idle. You
-can still fetch later with `computehop outputs <job-id>` (`artifacts`, `fetch`,
-and `download` remain aliases), which infers its worker and restores to
-`.computehop-results/<job-id>` by default. Existing files are never overwritten.
+can still read logs later with `computehop logs <job-id>`; if a running or
+finished job has not produced stdout/stderr yet, the CLI says that explicitly
+instead of exiting silently. Fetch outputs later with `computehop outputs
+<job-id>` (`artifacts`, `fetch`, and `download` remain aliases), which infers
+its worker and restores to `.computehop-results/<job-id>` by default. Existing
+files are never overwritten.
 Incoming conflicts are retained beneath `.computehop-conflicts` in the destination.
 While outputs are being fetched or restored, `computehop jobs`, remote job
 refreshes, and the menu-bar job list show durable byte-level progress for the
