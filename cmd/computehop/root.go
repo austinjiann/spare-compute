@@ -25,8 +25,9 @@ import (
 )
 
 var (
-	ErrDaemonNotRunning      = errors.New("ComputeHop daemon is not running")
-	ErrInvalidDaemonResponse = errors.New("invalid response from computehopd")
+	ErrDaemonNotRunning       = errors.New("ComputeHop daemon is not running")
+	ErrDaemonProtocolMismatch = errors.New("ComputeHop daemon does not match this CLI")
+	ErrInvalidDaemonResponse  = errors.New("invalid response from computehopd")
 )
 
 type nearbyDeviceView struct {
@@ -1469,7 +1470,7 @@ func newDoctorCommand(
 				Operation: &localv1.Request_Ping{Ping: &localv1.PingRequest{}},
 			})
 			if err != nil {
-				if errors.Is(err, ErrDaemonNotRunning) {
+				if errors.Is(err, ErrDaemonNotRunning) || errors.Is(err, ErrDaemonProtocolMismatch) {
 					return printDaemonStartAdvice(stdout, err)
 				}
 				return err
@@ -1501,18 +1502,32 @@ func newDoctorCommand(
 }
 
 func printDaemonStartAdvice(stdout io.Writer, err error) error {
-	if !errors.Is(err, ErrDaemonNotRunning) {
+	var lines []string
+	switch {
+	case errors.Is(err, ErrDaemonProtocolMismatch):
+		lines = []string{
+			"Daemon: running, but not compatible with this CLI",
+			"",
+			"Next:",
+			"- If you installed from this checkout: make install-macos",
+			"- If you are developing from this repo: stop the existing computehopd terminal or launch agent, then start it again:",
+			"  go run ./cmd/computehopd --role orchestrator --device-name \"This Mac\"",
+			"- Then run: computehop doctor",
+		}
+	case errors.Is(err, ErrDaemonNotRunning):
+		lines = []string{
+			"Daemon: not running",
+			"",
+			"Next:",
+			"- If the app is installed: open -a ComputeHop",
+			"- If you are developing from this repo: go run ./cmd/computehopd --role orchestrator --device-name \"This Mac\"",
+			"- To print the exact menu-bar app and launch-at-login install command: computehop setup orchestrator",
+			"- Then run: computehop doctor",
+		}
+	default:
 		return err
 	}
-	for _, line := range []string{
-		"Daemon: not running",
-		"",
-		"Next:",
-		"- If the app is installed: open -a ComputeHop",
-		"- If you are developing from this repo: go run ./cmd/computehopd --role orchestrator --device-name \"This Mac\"",
-		"- To print the exact menu-bar app and launch-at-login install command: computehop setup orchestrator",
-		"- Then run: computehop doctor",
-	} {
+	for _, line := range lines {
 		if _, writeErr := fmt.Fprintln(stdout, line); writeErr != nil {
 			return writeErr
 		}

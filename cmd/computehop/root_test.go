@@ -1612,6 +1612,32 @@ func TestDoctorCommandPrintsStartAdviceWhenPingCannotReachDaemon(t *testing.T) {
 	}
 }
 
+func TestDoctorCommandPrintsRestartAdviceWhenDaemonProtocolMismatches(t *testing.T) {
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(context.Context, *localv1.Request) (*localv1.Response, error) {
+				return nil, ErrDaemonProtocolMismatch
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"doctor"})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	for _, want := range []string{
+		"Daemon: running, but not compatible with this CLI",
+		"make install-macos",
+		"stop the existing computehopd terminal or launch agent",
+		"computehop doctor",
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
+		}
+	}
+}
+
 func TestSetupCommandPrintsFirstRunChecklistWithoutDaemon(t *testing.T) {
 	var stdout bytes.Buffer
 	command := newRootCommand(dependencies{

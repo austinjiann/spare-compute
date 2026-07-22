@@ -35,11 +35,21 @@ func (value localDaemonCaller) Call(ctx context.Context, request *localv1.Reques
 	if err == nil {
 		return response, nil
 	}
+	return nil, localDaemonCallError(err)
+}
+
+func localDaemonCallError(err error) error {
 	var remoteError *localipc.RemoteError
 	if errors.As(err, &remoteError) || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-		return nil, err
+		return err
 	}
-	return nil, fmt.Errorf(
+	if errors.Is(err, localipc.ErrMismatchedResponse) {
+		return fmt.Errorf(
+			"%w; restart ComputeHop or reinstall from this checkout, then run 'computehop doctor'",
+			ErrDaemonProtocolMismatch,
+		)
+	}
+	return fmt.Errorf(
 		"%w; run 'computehop doctor' for setup help: %v",
 		ErrDaemonNotRunning,
 		err,
