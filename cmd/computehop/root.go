@@ -307,6 +307,7 @@ func printSetupGuide(stdout io.Writer) error {
 		"",
 		"4. Connect devices:",
 		"   computehop connect",
+		"   computehop connect auto",
 		"   computehop connect <device>",
 		"   computehop connect confirm",
 		"",
@@ -443,21 +444,14 @@ func newConnectCommand(
 				}
 				return printDoctorDevices(stdout, result)
 			}
-			response, err := client.Call(command.Context(), &localv1.Request{
-				Operation: &localv1.Request_BeginPairing{BeginPairing: &localv1.BeginPairingRequest{
-					DeviceSelector: arguments[0],
-				}},
-			})
+			var value trust.Pairing
+			if isConnectAutoSelector(arguments[0]) {
+				value, err = beginAutomaticPairing(command.Context(), client)
+			} else {
+				value, err = beginPairing(command.Context(), client, arguments[0])
+			}
 			if err != nil {
 				return err
-			}
-			result := response.GetBeginPairing()
-			if result == nil {
-				return fmt.Errorf("%w: missing begin-pairing result", ErrInvalidDaemonResponse)
-			}
-			value, err := mapper.PairingFromProto(result.GetPairing())
-			if err != nil {
-				return fmt.Errorf("%w: %v", ErrInvalidDaemonResponse, err)
 			}
 			return printPairingInstructionsWithConfirm(stdout, value, "computehop connect confirm")
 		},
@@ -465,6 +459,82 @@ func newConnectCommand(
 	command.AddCommand(newPairDecisionCommand(stdout, clientForCommand, true))
 	command.AddCommand(newPairDecisionCommand(stdout, clientForCommand, false))
 	return command
+}
+
+func beginPairing(ctx context.Context, client caller, deviceSelector string) (trust.Pairing, error) {
+	response, err := client.Call(ctx, &localv1.Request{
+		Operation: &localv1.Request_BeginPairing{BeginPairing: &localv1.BeginPairingRequest{
+			DeviceSelector: deviceSelector,
+		}},
+	})
+	if err != nil {
+		return trust.Pairing{}, err
+	}
+	result := response.GetBeginPairing()
+	if result == nil {
+		return trust.Pairing{}, fmt.Errorf("%w: missing begin-pairing result", ErrInvalidDaemonResponse)
+	}
+	value, err := mapper.PairingFromProto(result.GetPairing())
+	if err != nil {
+		return trust.Pairing{}, fmt.Errorf("%w: %v", ErrInvalidDaemonResponse, err)
+	}
+	return value, nil
+}
+
+func beginAutomaticPairing(ctx context.Context, client caller) (trust.Pairing, error) {
+	response, err := client.Call(ctx, &localv1.Request{
+		Operation: &localv1.Request_ListDevices{ListDevices: &localv1.ListDevicesRequest{}},
+	})
+	if err != nil {
+		return trust.Pairing{}, err
+	}
+	result := response.GetListDevices()
+	if result == nil {
+		return trust.Pairing{}, fmt.Errorf("%w: missing device list result", ErrInvalidDaemonResponse)
+	}
+	candidates, err := nearbyUnpairedWorkers(result)
+	if err != nil {
+		return trust.Pairing{}, err
+	}
+	switch len(candidates) {
+	case 0:
+		if result.GetDiscoveryState() == localv1.DiscoveryState_DISCOVERY_STATE_UNAVAILABLE {
+			reason := result.GetDiscoveryError()
+			if reason == "" {
+				reason = "multicast DNS is unavailable"
+			}
+			return trust.Pairing{}, fmt.Errorf(
+				"no nearby unpaired worker found because LAN discovery is unavailable: %s; run 'computehop connect' for setup status",
+				reason,
+			)
+		}
+		return trust.Pairing{}, errors.New("no nearby unpaired worker found; start ComputeHop as a worker on another computer, then run 'computehop connect'")
+	case 1:
+		return beginPairing(ctx, client, candidates[0].presenceID.Short())
+	default:
+		names := make([]string, 0, len(candidates))
+		for _, candidate := range candidates {
+			names = append(names, strconv.Quote(candidate.name))
+		}
+		return trust.Pairing{}, fmt.Errorf(
+			"more than one nearby unpaired worker found: %s; choose one with 'computehop connect <device>'",
+			strings.Join(names, ", "),
+		)
+	}
+}
+
+func nearbyUnpairedWorkers(result *localv1.ListDevicesResponse) ([]nearbyDeviceView, error) {
+	candidates := make([]nearbyDeviceView, 0, len(result.GetDevices()))
+	for _, message := range result.GetDevices() {
+		nearby, err := nearbyViewFromProto(message)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %v", ErrInvalidDaemonResponse, err)
+		}
+		if nearby.role == string(device.RoleWorker) {
+			candidates = append(candidates, nearby)
+		}
+	}
+	return candidates, nil
 }
 
 func listPairings(command *cobra.Command, stdout io.Writer, client caller) error {
@@ -934,9 +1004,27 @@ func printDoctorDevices(stdout io.Writer, result *localv1.ListDevicesResponse) e
 		_, err := fmt.Fprintf(stdout, "- Watch it: computehop jobs --on %s\n", selector)
 		return err
 	case len(unpairedNearbyDevices) > 0:
-		if _, err := fmt.Fprintf(
+		unpairedWorkers := make([]nearbyDeviceView, 0, len(unpairedNearbyDevices))
+		for _, nearby := range unpairedNearbyDevices {
+			if nearby.role == string(device.RoleWorker) {
+				unpairedWorkers = append(unpairedWorkers, nearby)
+			}
+		}
+		if len(unpairedWorkers) == 1 {
+			if _, err := fmt.Fprintln(stdout, "- Connect to the nearby worker: computehop connect auto"); err != nil {
+				return err
+			}
+		} else if len(unpairedWorkers) > 1 {
+			if _, err := fmt.Fprintf(
+				stdout,
+				"- Choose a nearby worker: computehop connect %s\n",
+				strconv.Quote(unpairedWorkers[0].name),
+			); err != nil {
+				return err
+			}
+		} else if _, err := fmt.Fprintf(
 			stdout,
-			"- Connect to the first nearby device: computehop connect %s\n",
+			"- Connect to a nearby device: computehop connect %s\n",
 			strconv.Quote(unpairedNearbyDevices[0].name),
 		); err != nil {
 			return err
@@ -1562,11 +1650,22 @@ func addDeviceSelectorFlags(command *cobra.Command, destination *string) {
 	_ = command.Flags().MarkHidden("device")
 }
 
-func deviceSelectorDisplay(selector string) string {
+func isConnectAutoSelector(selector string) bool {
+	return strings.EqualFold(strings.TrimSpace(selector), "auto")
+}
+
+func isAutomaticSelector(selector string) bool {
 	switch strings.ToLower(strings.TrimSpace(selector)) {
 	case "auto", "best":
-		return "an automatically selected worker"
+		return true
 	default:
-		return selector
+		return false
 	}
+}
+
+func deviceSelectorDisplay(selector string) string {
+	if isAutomaticSelector(selector) {
+		return "an automatically selected worker"
+	}
+	return selector
 }

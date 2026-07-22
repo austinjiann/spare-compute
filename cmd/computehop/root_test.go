@@ -842,7 +842,7 @@ func TestDoctorCommandSuggestsPairingNearbyWorker(t *testing.T) {
 	}
 	for _, want := range []string{
 		"Nearby unpaired devices: 1",
-		"computehop connect \"Gaming PC\"",
+		"computehop connect auto",
 		"computehop connect confirm",
 	} {
 		if !strings.Contains(stdout.String(), want) {
@@ -930,6 +930,7 @@ func TestSetupCommandPrintsFirstRunChecklistWithoutDaemon(t *testing.T) {
 		"ComputeHop setup",
 		"make install-macos",
 		"computehop doctor",
+		"computehop connect auto",
 		"computehop connect <device>",
 		"computehop run --on auto hostname",
 		"cd deploy/vps",
@@ -1033,11 +1034,170 @@ func TestConnectCommandWithoutDeviceSuggestsNearbyWorker(t *testing.T) {
 	for _, want := range []string{
 		"LAN discovery: available",
 		"Nearby unpaired devices: 1",
-		"computehop connect \"Gaming PC\"",
+		"computehop connect auto",
 	} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
 		}
+	}
+}
+
+func TestConnectAutoBeginsPairingWithOnlyNearbyWorker(t *testing.T) {
+	presenceID, err := device.NewPresenceID(bytes.NewReader(bytes.Repeat([]byte{23}, 16)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := time.Date(2026, time.July, 22, 11, 30, 0, 0, time.UTC)
+	value := cliPairingForTest(t)
+	message, err := mapper.PairingToProto(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var calls int
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+				calls++
+				switch calls {
+				case 1:
+					if request.GetListDevices() == nil {
+						t.Fatalf("first request = %#v", request)
+					}
+					return &localv1.Response{Result: &localv1.Response_ListDevices{
+						ListDevices: &localv1.ListDevicesResponse{
+							DiscoveryState: localv1.DiscoveryState_DISCOVERY_STATE_AVAILABLE,
+							Devices: []*localv1.NearbyDevice{{
+								PresenceId: string(presenceID), Name: "Gaming PC",
+								Role:      localv1.DeviceRole_DEVICE_ROLE_WORKER,
+								Addresses: []string{"192.0.2.20"}, Port: 47823,
+								LastSeenAtUnixNano: seen.UnixNano(),
+								TrustState:         localv1.DeviceTrustState_DEVICE_TRUST_STATE_UNPAIRED,
+							}},
+						},
+					}}, nil
+				case 2:
+					begin := request.GetBeginPairing()
+					if begin == nil {
+						t.Fatalf("second request = %#v", request)
+					}
+					if got := begin.GetDeviceSelector(); got != presenceID.Short() {
+						t.Fatalf("device selector = %q", got)
+					}
+					return &localv1.Response{Result: &localv1.Response_BeginPairing{
+						BeginPairing: &localv1.BeginPairingResponse{Pairing: message},
+					}}, nil
+				default:
+					t.Fatalf("unexpected call %d", calls)
+					return nil, nil
+				}
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"connect", "auto"})
+	if err := command.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		value.ID.Short(), value.PeerName, string(value.Verification),
+		"Compare this exact code on both devices", "computehop connect confirm",
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
+		}
+	}
+	if calls != 2 {
+		t.Fatalf("calls = %d", calls)
+	}
+}
+
+func TestConnectAutoRejectsNoNearbyWorkers(t *testing.T) {
+	var calls int
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+				calls++
+				if calls != 1 || request.GetListDevices() == nil {
+					t.Fatalf("request %d = %#v", calls, request)
+				}
+				return &localv1.Response{Result: &localv1.Response_ListDevices{
+					ListDevices: &localv1.ListDevicesResponse{
+						DiscoveryState: localv1.DiscoveryState_DISCOVERY_STATE_AVAILABLE,
+					},
+				}}, nil
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"connect", "auto"})
+	err := command.Execute()
+	if err == nil || !strings.Contains(err.Error(), "no nearby unpaired worker found") {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+}
+
+func TestConnectAutoRejectsMultipleNearbyWorkers(t *testing.T) {
+	firstPresenceID, err := device.NewPresenceID(bytes.NewReader(bytes.Repeat([]byte{24}, 16)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondPresenceID, err := device.NewPresenceID(bytes.NewReader(bytes.Repeat([]byte{25}, 16)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := time.Date(2026, time.July, 22, 12, 0, 0, 0, time.UTC)
+	var calls int
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+				calls++
+				if calls != 1 || request.GetListDevices() == nil {
+					t.Fatalf("request %d = %#v", calls, request)
+				}
+				return &localv1.Response{Result: &localv1.Response_ListDevices{
+					ListDevices: &localv1.ListDevicesResponse{
+						DiscoveryState: localv1.DiscoveryState_DISCOVERY_STATE_AVAILABLE,
+						Devices: []*localv1.NearbyDevice{
+							{
+								PresenceId: string(firstPresenceID), Name: "Gaming PC",
+								Role:      localv1.DeviceRole_DEVICE_ROLE_WORKER,
+								Addresses: []string{"192.0.2.20"}, Port: 47823,
+								LastSeenAtUnixNano: seen.UnixNano(),
+								TrustState:         localv1.DeviceTrustState_DEVICE_TRUST_STATE_UNPAIRED,
+							},
+							{
+								PresenceId: string(secondPresenceID), Name: "Mini PC",
+								Role:      localv1.DeviceRole_DEVICE_ROLE_WORKER,
+								Addresses: []string{"192.0.2.21"}, Port: 47823,
+								LastSeenAtUnixNano: seen.UnixNano(),
+								TrustState:         localv1.DeviceTrustState_DEVICE_TRUST_STATE_UNPAIRED,
+							},
+						},
+					},
+				}}, nil
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"connect", "auto"})
+	err = command.Execute()
+	if err == nil {
+		t.Fatal("Execute() error = nil")
+	}
+	for _, want := range []string{"more than one nearby unpaired worker found", "Gaming PC", "Mini PC", "computehop connect <device>"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("error %q does not contain %q", err.Error(), want)
+		}
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q", stdout.String())
 	}
 }
 
