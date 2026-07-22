@@ -93,6 +93,7 @@ Then use the same state directory in another terminal:
 go run ./cmd/computehop --state-dir "$computehop_state_dir" status
 go run ./cmd/computehop --state-dir "$computehop_state_dir" setup
 go run ./cmd/computehop --state-dir "$computehop_state_dir" setup vps
+go run ./cmd/computehop --state-dir "$computehop_state_dir" setup vps --connectivity-domain connect.example.com --turn-domain turn.example.com --email admin@example.com --public-ip 203.0.113.10
 go run ./cmd/computehop --state-dir "$computehop_state_dir" doctor
 go run ./cmd/computehop --state-dir "$computehop_state_dir" devices
 go run ./cmd/computehop --state-dir "$computehop_state_dir" connect
@@ -114,6 +115,8 @@ device name, role, and short device ID when available. `setup` prints the
 first-run local, connection, smoke-test, and one-VPS commands without requiring
 the daemon to be running; `setup vps` expands that into a concrete buy, DNS,
 firewall, bootstrap, install, and smoke-test checklist for the one-VPS stack.
+Pass `--connectivity-domain`, `--turn-domain`, `--email`, and `--public-ip` to
+print the checklist with your actual VPS values instead of the example values.
 `doctor` is the quickest manual smoke-check: it is
 safe to run before the daemon is up, prints exact start/install commands when
 ComputeHop is not running, and otherwise verifies daemon reachability, LAN

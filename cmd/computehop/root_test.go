@@ -958,8 +958,10 @@ func TestSetupVPSCommandPrintsDeploymentChecklistWithoutDaemon(t *testing.T) {
 	}
 	for _, want := range []string{
 		"ComputeHop one-VPS setup",
+		"computehop setup vps --connectivity-domain connect.example.com",
 		"Ubuntu 24.04 LTS VPS",
-		"connect.example.com -> VPS public IPv4",
+		"connect.example.com -> 203.0.113.10",
+		"turn.example.com -> 203.0.113.10",
 		"Allow TCP 80/443, UDP 443, TCP/UDP 3478, UDP 49160-49200",
 		"sudo ./deploy/vps/bootstrap-ubuntu.sh",
 		"./init.sh --connectivity-domain connect.example.com",
@@ -971,6 +973,41 @@ func TestSetupVPSCommandPrintsDeploymentChecklistWithoutDaemon(t *testing.T) {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
 		}
+	}
+}
+
+func TestSetupVPSCommandInterpolatesProvidedValuesWithoutDaemon(t *testing.T) {
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			t.Fatal("setup vps should not require a daemon client")
+			return nil, nil
+		},
+	})
+	command.SetArgs([]string{
+		"setup", "vps",
+		"--connectivity-domain", "connect.computehop.dev",
+		"--turn-domain", "turn.computehop.dev",
+		"--email", "ops@computehop.dev",
+		"--public-ip", "198.51.100.25",
+	})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	for _, want := range []string{
+		"connect.computehop.dev -> 198.51.100.25",
+		"turn.computehop.dev -> 198.51.100.25",
+		"./init.sh --connectivity-domain connect.computehop.dev --turn-domain turn.computehop.dev --email ops@computehop.dev --public-ip 198.51.100.25",
+		"--connectivity-url https://connect.computehop.dev",
+		"--stun-server stun:turn.computehop.dev:3478",
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
+		}
+	}
+	if strings.Contains(stdout.String(), "connect.example.com ->") {
+		t.Fatalf("stdout still contains default connectivity domain: %q", stdout.String())
 	}
 }
 

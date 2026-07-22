@@ -282,17 +282,76 @@ func newSetupCommand(stdout io.Writer) *cobra.Command {
 }
 
 func newSetupVPSCommand(stdout io.Writer) *cobra.Command {
-	return &cobra.Command{
+	options := defaultVPSSetupOptions()
+	command := &cobra.Command{
 		Use:   "vps",
 		Short: "Print the one-VPS deployment checklist",
 		Args:  cobra.NoArgs,
 		RunE: func(*cobra.Command, []string) error {
-			return printVPSSetupGuide(stdout)
+			return printVPSSetupGuide(stdout, options)
 		},
+	}
+	command.Flags().StringVar(&options.connectivityDomain, "connectivity-domain", options.connectivityDomain, "public HTTPS domain for ComputeHop rendezvous")
+	command.Flags().StringVar(&options.turnDomain, "turn-domain", options.turnDomain, "public STUN/TURN domain")
+	command.Flags().StringVar(&options.email, "email", options.email, "operations email for HTTPS certificate registration")
+	command.Flags().StringVar(&options.publicIP, "public-ip", options.publicIP, "VPS public IPv4 address")
+	return command
+}
+
+type vpsSetupOptions struct {
+	connectivityDomain string
+	turnDomain         string
+	email              string
+	publicIP           string
+}
+
+func defaultVPSSetupOptions() vpsSetupOptions {
+	return vpsSetupOptions{
+		connectivityDomain: "connect.example.com",
+		turnDomain:         "turn.example.com",
+		email:              "admin@example.com",
+		publicIP:           "203.0.113.10",
 	}
 }
 
+func (options vpsSetupOptions) initCommand() string {
+	return fmt.Sprintf(
+		"./init.sh --connectivity-domain %s --turn-domain %s --email %s --public-ip %s",
+		shellArg(options.connectivityDomain),
+		shellArg(options.turnDomain),
+		shellArg(options.email),
+		shellArg(options.publicIP),
+	)
+}
+
+func (options vpsSetupOptions) orchestratorInstallCommand() string {
+	return fmt.Sprintf(
+		"./packaging/macos/install.sh --role orchestrator --connectivity-url %s --stun-server %s",
+		shellArg("https://"+options.connectivityDomain),
+		shellArg("stun:"+options.turnDomain+":3478"),
+	)
+}
+
+func (options vpsSetupOptions) workerInstallCommand() string {
+	return fmt.Sprintf(
+		"./packaging/macos/install.sh --role worker --device-name \"Gaming PC\" --connectivity-url %s --stun-server %s",
+		shellArg("https://"+options.connectivityDomain),
+		shellArg("stun:"+options.turnDomain+":3478"),
+	)
+}
+
+func shellArg(value string) string {
+	if value == "" {
+		return "''"
+	}
+	if !strings.ContainsAny(value, " \t\n'\"\\$`!*?[]{}()<>|&;") {
+		return value
+	}
+	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
+}
+
 func printSetupGuide(stdout io.Writer) error {
+	vpsDefaults := defaultVPSSetupOptions()
 	lines := []string{
 		"ComputeHop setup",
 		"",
@@ -318,7 +377,7 @@ func printSetupGuide(stdout io.Writer) error {
 		"   computehop setup vps",
 		"   cd deploy/vps",
 		"   sudo ./bootstrap-ubuntu.sh",
-		"   ./init.sh --connectivity-domain connect.example.com --turn-domain turn.example.com --email admin@example.com --public-ip 203.0.113.10",
+		"   " + vpsDefaults.initCommand(),
 		"   docker compose up -d --build",
 		"   ./verify.sh",
 	}
@@ -330,9 +389,12 @@ func printSetupGuide(stdout io.Writer) error {
 	return nil
 }
 
-func printVPSSetupGuide(stdout io.Writer) error {
+func printVPSSetupGuide(stdout io.Writer, options vpsSetupOptions) error {
 	lines := []string{
 		"ComputeHop one-VPS setup",
+		"",
+		"Customize:",
+		"   computehop setup vps --connectivity-domain " + shellArg(options.connectivityDomain) + " --turn-domain " + shellArg(options.turnDomain) + " --email " + shellArg(options.email) + " --public-ip " + shellArg(options.publicIP),
 		"",
 		"Buy:",
 		"- Ubuntu 24.04 LTS VPS",
@@ -340,8 +402,8 @@ func printVPSSetupGuide(stdout io.Writer) error {
 		"- At least 1 TiB monthly transfer and provider bandwidth alerts",
 		"",
 		"DNS:",
-		"- connect.example.com -> VPS public IPv4",
-		"- turn.example.com -> VPS public IPv4",
+		"- " + options.connectivityDomain + " -> " + options.publicIP,
+		"- " + options.turnDomain + " -> " + options.publicIP,
 		"",
 		"Provider firewall:",
 		"- Allow TCP 22 from your IP",
@@ -352,14 +414,14 @@ func printVPSSetupGuide(stdout io.Writer) error {
 		"   cd spare-compute",
 		"   sudo ./deploy/vps/bootstrap-ubuntu.sh",
 		"   cd deploy/vps",
-		"   ./init.sh --connectivity-domain connect.example.com --turn-domain turn.example.com --email admin@example.com --public-ip 203.0.113.10",
+		"   " + options.initCommand(),
 		"   docker compose config --quiet",
 		"   docker compose up -d --build",
 		"   ./verify.sh",
 		"",
 		"On each Mac after pairing once on the LAN:",
-		"   ./packaging/macos/install.sh --role orchestrator --connectivity-url https://connect.example.com --stun-server stun:turn.example.com:3478",
-		"   ./packaging/macos/install.sh --role worker --device-name \"Gaming PC\" --connectivity-url https://connect.example.com --stun-server stun:turn.example.com:3478",
+		"   " + options.orchestratorInstallCommand(),
+		"   " + options.workerInstallCommand(),
 		"",
 		"Smoke test:",
 		"   computehop devices",

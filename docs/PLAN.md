@@ -24,7 +24,7 @@ Last updated: 2026-07-22.
 | Hosted rendezvous foundation | Complete | Derive rotating anonymous pair credentials and exchange bounded, route-bound, end-to-end encrypted, expiring presence and signaling payloads through a standalone service and HTTPS client. |
 | Direct ICE path and signaling foundation | Complete | Gather bounded UDP candidates with Pion ICE, exchange versioned descriptions through pair-encrypted rendezvous presence, select orchestrator/worker paths, report routing without secrets, and carry QUIC over the selected packet connection. |
 | Supervised direct internet control | In progress | Daemons reconcile active pair records, retry encrypted rendezvous/ICE negotiation, run the identity-pinned control protocol over selected paths, prefer LAN for jobs, and expose path state to CLI/Swift. Automated end-to-end and race coverage pass; physical unrelated-network and network-change validation remain. |
-| One-VPS staging deployment | In progress | Provider-neutral Compose stack, Caddy HTTPS edge, authenticated coturn relay, bounded ports/quotas, generated local env/secrets, firewall bootstrap, health checks, rollback runbook, and daemon-free `computehop setup vps` checklist are ready; buying the VPS and forced-relay validation remain. |
+| One-VPS staging deployment | In progress | Provider-neutral Compose stack, Caddy HTTPS edge, authenticated coturn relay, bounded ports/quotas, generated local env/secrets, firewall bootstrap, health checks, rollback runbook, and daemon-free, flag-customizable `computehop setup vps` checklist are ready; buying the VPS and forced-relay validation remain. |
 | CLI and physical Mac validation | In progress | Friendlier `--on`, `--on auto` for the single active worker, safe `connect auto` for the single nearby unpaired worker, and no-`--` command syntax, daemon-free `setup` and `setup vps`, `run --follow/--wait/--get`, `connect` as the guided pairing entry point, inferred and actionable pairing confirmation, first-run `doctor`, duplicate-daemon startup guidance, local daemon identity in status output, hidden legacy `pair` help, and merged trusted/nearby presentation are implemented; physical macOS-to-macOS discovery, pairing, execution, restart recovery, logs, and cancellation passed. Windows/Linux remain. |
 | macOS menu-bar foundation | In progress | SwiftUI `MenuBarExtra`, generated SwiftProtobuf models, authenticated Unix-socket IPC, local daemon identity, first-run next-step guidance, device/connect controls that pair by discovered identifiers instead of display names, native job submission with This Mac, Auto worker, and explicit worker targets, output declarations and retrieval, reconnectable logs, and cancellation build and pass Swift tests; an ad-hoc app bundle and per-user launchd installer are ready for development. |
 | Project snapshots, incremental transfer, and declared artifacts | In progress | Remote runs resolve a local project root, create bounded content-defined snapshots, upload only missing verified chunks, and execute in isolated workspaces. Workers durably collect exact declared files/directories before success; orchestrators fetch only missing verified chunks and restore without overwrites or symlink traversal. Transfer peers negotiate bounded identity/zstd chunk encoding while preserving decoded-content hashes. The persistent verified content cache is SQLite-indexed, LRU-evicted, quota-bound, and protects active jobs plus unacknowledged artifact chunks. Artifact download/restore progress is durable and visible in CLI/Swift job summaries, and `run --get` restores to the submitted working directory by default. Automated LAN/supervised-path reuse and artifact coverage pass; full ignore conformance, secrets, upload progress, and physical cross-platform validation remain. |
@@ -542,6 +542,7 @@ orchestrator requests records after its last durable offset.
 # Discovery and trust
 computehop setup
 computehop setup vps
+computehop setup vps --connectivity-domain <domain> --turn-domain <domain> --email <email> --public-ip <ip>
 computehop doctor
 computehop devices
 computehop connect
@@ -1207,7 +1208,7 @@ after a daemon restart.
 ### Step 2: LAN discovery, trust, and explicit remote execution
 
 **Implementation status:** discovery, pairing, daemon-free first-run `setup` and
-one-VPS `setup vps`, first-run `doctor` with daemon-not-running setup guidance,
+flag-customizable one-VPS `setup vps`, first-run `doctor` with daemon-not-running setup guidance,
 duplicate-daemon startup guidance for local socket or ComputeHop port conflicts,
 local daemon identity in status output, `connect` as the guided pairing entry point,
 safe `connect auto` for the single nearby unpaired worker, actionable `connect confirm`
