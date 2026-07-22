@@ -97,6 +97,9 @@ func TestRunCommandSelectsRemoteWorkerAndLocalProjectDirectory(t *testing.T) {
 	if got := stdout.String(); got != "Submitted "+string(value.ID)+" to Gaming PC (queued)\nFollow it: computehop logs --follow "+string(value.ID)+"\n" {
 		t.Fatalf("stdout = %q", got)
 	}
+	if got := stderr.String(); got != "Preparing remote run for Gaming PC from D:\\projects\\demo; snapshot/upload may take a moment.\n" {
+		t.Fatalf("stderr = %q", got)
+	}
 }
 
 func TestRunCommandShowsFriendlyAutoSelector(t *testing.T) {
@@ -323,8 +326,9 @@ func TestRunCommandNoProjectSubmitsEmptyWorkingDirectory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	var stderr bytes.Buffer
 	command := newRootCommand(dependencies{
-		stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{},
+		stdout: &bytes.Buffer{}, stderr: &stderr,
 		getwd: func() (string, error) {
 			t.Fatal("--no-project resolved the local working directory")
 			return "", nil
@@ -344,6 +348,9 @@ func TestRunCommandNoProjectSubmitsEmptyWorkingDirectory(t *testing.T) {
 	command.SetArgs([]string{"run", "--on", "auto", "--no-project", "hostname"})
 	if err := command.Execute(); err != nil {
 		t.Fatal(err)
+	}
+	if got := stderr.String(); got != "" {
+		t.Fatalf("stderr = %q", got)
 	}
 }
 
@@ -504,7 +511,7 @@ func TestRunCommandFollowsAndFetchesDeclaredOutputs(t *testing.T) {
 			t.Fatalf("stdout %q does not contain %q", output, want)
 		}
 	}
-	if stderr.Len() != 0 {
+	if got := stderr.String(); got != "Preparing remote run for Gaming PC from /project; snapshot/upload may take a moment.\n" {
 		t.Fatalf("stderr = %q", stderr.String())
 	}
 }

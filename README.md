@@ -166,7 +166,8 @@ successful job. `--get` implies waiting and restores to the submitted working
 directory by default; use `--to <directory>` to choose another destination. Use
 `--no-project` for remote utility commands that do not need local files or
 declared outputs, so the worker runs the command without a project snapshot
-upload. You
+upload. Remote project runs print a pre-submit preparation message before the
+blocking snapshot/upload step so the CLI does not look idle. You
 can still fetch later with `computehop outputs <job-id>` (`artifacts`, `fetch`,
 and `download` remain aliases), which infers its worker and restores to
 `.computehop-results/<job-id>` by default. Existing files are never overwritten.

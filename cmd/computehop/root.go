@@ -1258,6 +1258,16 @@ func newRunCommand(
 			if err != nil {
 				return err
 			}
+			if shouldPrintRemotePreparation(deviceSelector, targetDirectory) {
+				if _, err := fmt.Fprintf(
+					command.ErrOrStderr(),
+					"Preparing remote run for %s from %s; snapshot/upload may take a moment.\n",
+					deviceSelectorDisplay(deviceSelector),
+					targetDirectory,
+				); err != nil {
+					return err
+				}
+			}
 			response, err := client.Call(command.Context(), &localv1.Request{
 				Operation: &localv1.Request_SubmitJob{SubmitJob: &localv1.SubmitJobRequest{
 					Spec: spec, DeviceSelector: deviceSelector,
@@ -1359,6 +1369,10 @@ func newRunCommand(
 		"output destination when used with --get (defaults to the submitted working directory)",
 	)
 	return command
+}
+
+func shouldPrintRemotePreparation(selector string, workingDirectory string) bool {
+	return strings.TrimSpace(selector) != "" && strings.TrimSpace(workingDirectory) != ""
 }
 
 func newSmokeCommand(
