@@ -269,12 +269,25 @@ func deviceDisplayKey(name, role string) string {
 }
 
 func newSetupCommand(stdout io.Writer) *cobra.Command {
-	return &cobra.Command{
+	command := &cobra.Command{
 		Use:   "setup",
 		Short: "Print first-run setup commands",
 		Args:  cobra.NoArgs,
 		RunE: func(*cobra.Command, []string) error {
 			return printSetupGuide(stdout)
+		},
+	}
+	command.AddCommand(newSetupVPSCommand(stdout))
+	return command
+}
+
+func newSetupVPSCommand(stdout io.Writer) *cobra.Command {
+	return &cobra.Command{
+		Use:   "vps",
+		Short: "Print the one-VPS deployment checklist",
+		Args:  cobra.NoArgs,
+		RunE: func(*cobra.Command, []string) error {
+			return printVPSSetupGuide(stdout)
 		},
 	}
 }
@@ -301,11 +314,59 @@ func printSetupGuide(stdout io.Writer) error {
 		"   computehop run --on auto hostname",
 		"",
 		"After buying the VPS:",
+		"   computehop setup vps",
 		"   cd deploy/vps",
 		"   sudo ./bootstrap-ubuntu.sh",
 		"   ./init.sh --connectivity-domain connect.example.com --turn-domain turn.example.com --email admin@example.com --public-ip 203.0.113.10",
 		"   docker compose up -d --build",
 		"   ./verify.sh",
+	}
+	for _, line := range lines {
+		if _, err := fmt.Fprintln(stdout, line); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func printVPSSetupGuide(stdout io.Writer) error {
+	lines := []string{
+		"ComputeHop one-VPS setup",
+		"",
+		"Buy:",
+		"- Ubuntu 24.04 LTS VPS",
+		"- 1 shared vCPU, 1 GiB RAM, static public IPv4",
+		"- At least 1 TiB monthly transfer and provider bandwidth alerts",
+		"",
+		"DNS:",
+		"- connect.example.com -> VPS public IPv4",
+		"- turn.example.com -> VPS public IPv4",
+		"",
+		"Provider firewall:",
+		"- Allow TCP 22 from your IP",
+		"- Allow TCP 80/443, UDP 443, TCP/UDP 3478, UDP 49160-49200",
+		"",
+		"On the VPS:",
+		"   git clone https://github.com/austinjiann/spare-compute.git",
+		"   cd spare-compute",
+		"   sudo ./deploy/vps/bootstrap-ubuntu.sh",
+		"   cd deploy/vps",
+		"   ./init.sh --connectivity-domain connect.example.com --turn-domain turn.example.com --email admin@example.com --public-ip 203.0.113.10",
+		"   docker compose config --quiet",
+		"   docker compose up -d --build",
+		"   ./verify.sh",
+		"",
+		"On each Mac after pairing once on the LAN:",
+		"   ./packaging/macos/install.sh --role orchestrator --connectivity-url https://connect.example.com --stun-server stun:turn.example.com:3478",
+		"   ./packaging/macos/install.sh --role worker --device-name \"Gaming PC\" --connectivity-url https://connect.example.com --stun-server stun:turn.example.com:3478",
+		"",
+		"Smoke test:",
+		"   computehop devices",
+		"   computehop run --on auto hostname",
+		"",
+		"Boundary:",
+		"- This enables rendezvous and direct ICE/STUN paths.",
+		"- Shared TURN relay use still needs short-lived credential issuance and quotas before launch.",
 	}
 	for _, line := range lines {
 		if _, err := fmt.Fprintln(stdout, line); err != nil {

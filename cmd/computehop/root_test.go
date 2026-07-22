@@ -942,6 +942,37 @@ func TestSetupCommandPrintsFirstRunChecklistWithoutDaemon(t *testing.T) {
 	}
 }
 
+func TestSetupVPSCommandPrintsDeploymentChecklistWithoutDaemon(t *testing.T) {
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			t.Fatal("setup vps should not require a daemon client")
+			return nil, nil
+		},
+	})
+	command.SetArgs([]string{"setup", "vps"})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	for _, want := range []string{
+		"ComputeHop one-VPS setup",
+		"Ubuntu 24.04 LTS VPS",
+		"connect.example.com -> VPS public IPv4",
+		"Allow TCP 80/443, UDP 443, TCP/UDP 3478, UDP 49160-49200",
+		"sudo ./deploy/vps/bootstrap-ubuntu.sh",
+		"./init.sh --connectivity-domain connect.example.com",
+		"docker compose up -d --build",
+		"./packaging/macos/install.sh --role worker",
+		"computehop run --on auto hostname",
+		"Shared TURN relay use still needs short-lived credential issuance",
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
+		}
+	}
+}
+
 func TestRootHelpShowsSetupAndConnectButHidesLegacyPair(t *testing.T) {
 	var stdout bytes.Buffer
 	command := newRootCommand(dependencies{
