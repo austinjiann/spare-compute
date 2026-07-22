@@ -242,8 +242,9 @@ To launch the development menu-bar app against the default daemon state:
 swift run ComputeHop
 ```
 
-The app can connect nearby workers, disconnect paired devices by revoking the
-local trust pin, copy normal or LAN-only worker setup commands, submit a native
+The app can connect nearby workers, show when a paired worker is offline because
+remote connectivity is LAN-only, disconnect paired devices by revoking the local
+trust pin, copy normal or LAN-only worker setup commands, submit a native
 command to this Mac, the single active worker through Auto worker, or a paired
 available worker, choose the local project
 folder to snapshot, declare comma-separated output paths, restore completed

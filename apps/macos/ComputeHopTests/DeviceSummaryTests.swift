@@ -114,6 +114,26 @@ func deviceSummaryMakesConnectedRemoteWorkerRunnable() {
 }
 
 @Test
+func deviceSummaryShowsLANOnlyWhenRemoteConnectivityIsDisabled() {
+    var trusted = Computehop_Local_V1_TrustedDevice()
+    trusted.deviceID = "lan-only-device-id"
+    trusted.name = "LAN Worker"
+    trusted.role = .worker
+    trusted.trustState = .paired
+    trusted.connectivityState = .disabled
+
+    var response = Computehop_Local_V1_ListDevicesResponse()
+    response.trustedDevices = [trusted]
+
+    let summaries = DeviceSummary.make(from: response)
+    #expect(summaries.count == 1)
+    #expect(summaries[0].availability == .offline)
+    #expect(summaries[0].path == "LAN only")
+    #expect(summaries[0].address == nil)
+    #expect(summaries[0].canDisconnect)
+}
+
+@Test
 func deviceSummaryUsesPresenceIDForUnpairedNearbyDevices() {
     var nearby = Computehop_Local_V1_NearbyDevice()
     nearby.presenceID = "ephemeral-presence-id"

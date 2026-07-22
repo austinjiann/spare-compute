@@ -179,6 +179,8 @@ struct DeviceSummary: Identifiable, Sendable {
             return (.remote, remotePathLabel(value.connectivityPath))
         case .connecting:
             return (.connecting, "Internet")
+        case .disabled:
+            return (.offline, "LAN only")
         default:
             return (.offline, nil)
         }
@@ -256,9 +258,14 @@ struct SetupGuideSummary: Sendable {
         if devices.contains(where: {
             $0.role == "Worker" && $0.trust == "Paired" && $0.availability == .offline
         }) {
+            let remoteDisabled = devices.contains {
+                $0.role == "Worker" && $0.trust == "Paired" && $0.availability == .offline && $0.path == "LAN only"
+            }
             return SetupGuideSummary(
                 title: "Worker offline",
-                detail: "A trusted worker exists but is not reachable. Start ComputeHop on that computer or put both devices on the same LAN.",
+                detail: remoteDisabled
+                    ? "Remote connectivity is disabled. Put both devices on the same LAN, or reinstall without --lan-only after the VPS is ready."
+                    : "A trusted worker exists but is not reachable. Start ComputeHop on that computer or put both devices on the same LAN.",
                 command: "computehop devices"
             )
         }

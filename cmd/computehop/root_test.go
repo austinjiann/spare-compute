@@ -1068,6 +1068,51 @@ func TestDevicesCommandShowsRemotePathForOfflineLANPeer(t *testing.T) {
 	}
 }
 
+func TestDevicesCommandShowsLANOnlyForDisabledRemoteConnectivity(t *testing.T) {
+	identity, err := device.GenerateIdentity(bytes.NewReader(bytes.Repeat([]byte{18}, 64)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pairID, err := trust.NewPairID(bytes.NewReader(bytes.Repeat([]byte{19}, 16)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	updatedAt := time.Date(2026, time.July, 22, 8, 0, 0, 0, time.UTC)
+	trusted, err := mapper.TrustedPeerToProto(trust.Peer{
+		PairID: pairID, DeviceID: identity.ID(), PublicKey: identity.PublicKey(),
+		Name: "LAN Worker", Role: device.RoleWorker, State: trust.StateActive,
+		PairedAt: updatedAt.Add(-time.Hour), UpdatedAt: updatedAt,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	trusted.ConnectivityState = localv1.ConnectivityState_CONNECTIVITY_STATE_DISABLED
+
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(context.Context, *localv1.Request) (*localv1.Response, error) {
+				return &localv1.Response{Result: &localv1.Response_ListDevices{
+					ListDevices: &localv1.ListDevicesResponse{
+						DiscoveryState: localv1.DiscoveryState_DISCOVERY_STATE_AVAILABLE,
+						TrustedDevices: []*localv1.TrustedDevice{trusted},
+					},
+				}}, nil
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"devices"})
+	if err := command.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"LAN Worker", "offline", "LAN only"} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
+		}
+	}
+}
+
 func TestDoctorCommandReportsOfflinePairedWorker(t *testing.T) {
 	identity, err := device.GenerateIdentity(bytes.NewReader(bytes.Repeat([]byte{14}, 64)))
 	if err != nil {

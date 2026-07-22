@@ -7,11 +7,11 @@ the menu does not stop work.
 The current menu supports daemon health with local Mac identity, first-run
 next-step guidance that points at `computehop setup worker --device-name
 "Gaming PC"` and its `--lan-only` variant when no worker exists, Copy buttons
-for setup commands, a
-one-click Connect Nearby Worker action when exactly one unpaired worker is
-visible, nearby and connected devices, two-sided connect confirmation with
-explicit local/other-device status, stale restart duplicate suppression for
-trusted nearby devices,
+for setup commands, a one-click Connect Nearby Worker action when exactly one
+unpaired worker is visible, nearby and connected devices, LAN-only status for
+paired workers whose remote connectivity is disabled, two-sided connect
+confirmation with explicit local/other-device status, stale restart duplicate
+suppression for trusted nearby devices,
 native job submission to this Mac, Auto worker when exactly one
 worker is runnable, or a paired available worker, a Smoke Test button that runs
 `hostname` remotely without uploading a project, recent jobs, reconnectable

@@ -99,6 +99,31 @@ func setupGuideExplainsOfflineTrustedWorker() {
 }
 
 @Test
+func setupGuideExplainsLANOnlyOfflineTrustedWorker() {
+    let worker = DeviceSummary(
+        id: "lan-only-worker",
+        name: "Gaming PC",
+        role: "Worker",
+        trust: "Paired",
+        availability: .offline,
+        path: "LAN only",
+        address: nil,
+        canPair: false
+    )
+
+    let guide = SetupGuideSummary.make(
+        isConnected: true,
+        devices: [worker],
+        pairings: [],
+        runnableDevices: []
+    )
+
+    #expect(guide?.title == "Worker offline")
+    #expect(guide?.detail == "Remote connectivity is disabled. Put both devices on the same LAN, or reinstall without --lan-only after the VPS is ready.")
+    #expect(guide?.command == "computehop devices")
+}
+
+@Test
 func setupGuidePointsAtWorkerSetupWhenNoWorkerExists() {
     let guide = SetupGuideSummary.make(
         isConnected: true,

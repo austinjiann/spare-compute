@@ -198,6 +198,8 @@ func newDevicesCommand(
 					case localv1.ConnectivityState_CONNECTIVITY_STATE_CONNECTING:
 						availability = "connecting"
 						path = "internet"
+					case localv1.ConnectivityState_CONNECTIVITY_STATE_DISABLED:
+						path = "LAN only"
 					}
 					if message.GetConnectivityUpdatedAtUnixNano() > 0 {
 						updatedAt = time.Unix(0, message.GetConnectivityUpdatedAtUnixNano()).UTC()
