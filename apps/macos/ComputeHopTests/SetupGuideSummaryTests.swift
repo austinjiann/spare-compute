@@ -121,6 +121,11 @@ func setupGuideExplainsLANOnlyOfflineTrustedWorker() {
     #expect(guide?.title == "Worker offline")
     #expect(guide?.detail == "Remote connectivity is disabled. Put both devices on the same LAN, or reinstall without --lan-only after the VPS is ready.")
     #expect(guide?.command == "computehop devices")
+    #expect(guide?.commands.map(\.label) == ["Check devices", "VPS worker setup"])
+    #expect(guide?.commands.map(\.value) == [
+        "computehop devices",
+        "computehop setup worker --device-name 'Gaming PC' --connectivity-domain connect.example.com --turn-domain turn.example.com",
+    ])
 }
 
 @Test
@@ -133,12 +138,38 @@ func setupGuidePointsAtWorkerSetupWhenNoWorkerExists() {
     )
 
     #expect(guide?.title == "Add a worker")
-    #expect(guide?.command == "computehop setup worker --device-name \"Gaming PC\"")
-    #expect(guide?.commands.map(\.label) == ["Worker install", "LAN-only worker"])
+    #expect(guide?.command == "computehop setup worker --device-name 'Gaming PC'")
+    #expect(guide?.commands.map(\.label) == ["Worker install", "LAN-only worker", "VPS worker template"])
     #expect(guide?.commands.map(\.value) == [
-        "computehop setup worker --device-name \"Gaming PC\"",
-        "computehop setup worker --device-name \"Gaming PC\" --lan-only",
+        "computehop setup worker --device-name 'Gaming PC'",
+        "computehop setup worker --device-name 'Gaming PC' --lan-only",
+        "computehop setup worker --device-name 'Gaming PC' --connectivity-domain connect.example.com --turn-domain turn.example.com",
     ])
+}
+
+@Test
+func setupGuideShellQuotesWorkerNamesInCommands() {
+    let worker = DeviceSummary(
+        id: "quoted-worker",
+        name: "Austin's Gaming PC",
+        role: "Worker",
+        trust: "Paired",
+        availability: .offline,
+        path: "LAN only",
+        address: nil,
+        canPair: false
+    )
+
+    let guide = SetupGuideSummary.make(
+        isConnected: true,
+        devices: [worker],
+        pairings: [],
+        runnableDevices: []
+    )
+
+    #expect(guide?.commands.map(\.value).contains(
+        "computehop setup worker --device-name 'Austin'\"'\"'s Gaming PC' --connectivity-domain connect.example.com --turn-domain turn.example.com"
+    ) == true)
 }
 
 @Test

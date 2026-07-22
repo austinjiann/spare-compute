@@ -261,12 +261,21 @@ struct SetupGuideSummary: Sendable {
             let remoteDisabled = devices.contains {
                 $0.role == "Worker" && $0.trust == "Paired" && $0.availability == .offline && $0.path == "LAN only"
             }
+            let offlineWorkerName = devices.first {
+                $0.role == "Worker" && $0.trust == "Paired" && $0.availability == .offline
+            }?.name ?? "Gaming PC"
+            let commands = remoteDisabled
+                ? [
+                    SetupGuideCommand(label: "Check devices", value: "computehop devices"),
+                    SetupGuideCommand(label: "VPS worker setup", value: workerSetupCommand(deviceName: offlineWorkerName, vpsTemplate: true)),
+                ]
+                : [SetupGuideCommand(label: "Check devices", value: "computehop devices")]
             return SetupGuideSummary(
                 title: "Worker offline",
                 detail: remoteDisabled
                     ? "Remote connectivity is disabled. Put both devices on the same LAN, or reinstall without --lan-only after the VPS is ready."
                     : "A trusted worker exists but is not reachable. Start ComputeHop on that computer or put both devices on the same LAN.",
-                command: "computehop devices"
+                commands: commands
             )
         }
         return SetupGuideSummary(
@@ -275,14 +284,53 @@ struct SetupGuideSummary: Sendable {
             commands: [
                 SetupGuideCommand(
                     label: "Worker install",
-                    value: "computehop setup worker --device-name \"Gaming PC\""
+                    value: workerSetupCommand(deviceName: "Gaming PC")
                 ),
                 SetupGuideCommand(
                     label: "LAN-only worker",
-                    value: "computehop setup worker --device-name \"Gaming PC\" --lan-only"
+                    value: workerSetupCommand(deviceName: "Gaming PC", lanOnly: true)
+                ),
+                SetupGuideCommand(
+                    label: "VPS worker template",
+                    value: workerSetupCommand(deviceName: "Gaming PC", vpsTemplate: true)
                 ),
             ]
         )
+    }
+
+    private static func workerSetupCommand(
+        deviceName: String,
+        lanOnly: Bool = false,
+        vpsTemplate: Bool = false
+    ) -> String {
+        var parts = [
+            "computehop",
+            "setup",
+            "worker",
+            "--device-name",
+            shellArgument(deviceName),
+        ]
+        if lanOnly {
+            parts.append("--lan-only")
+        }
+        if vpsTemplate {
+            parts.append(contentsOf: [
+                "--connectivity-domain",
+                "connect.example.com",
+                "--turn-domain",
+                "turn.example.com",
+            ])
+        }
+        return parts.joined(separator: " ")
+    }
+
+    private static func shellArgument(_ value: String) -> String {
+        guard !value.isEmpty else { return "''" }
+        let safeCharacters = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_./:@%+=,")
+        if value.unicodeScalars.allSatisfy({ safeCharacters.contains($0) }) {
+            return value
+        }
+        return "'" + value.replacingOccurrences(of: "'", with: "'\"'\"'") + "'"
     }
 }
 

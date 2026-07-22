@@ -182,7 +182,7 @@ func copySetupGuideCommandCopiesCurrentCommand() {
 
     model.copySetupGuideCommand(to: clipboard)
 
-    #expect(clipboard.value == "computehop setup worker --device-name \"Gaming PC\"")
+    #expect(clipboard.value == "computehop setup worker --device-name 'Gaming PC'")
 }
 
 @Test
@@ -192,11 +192,11 @@ func copySpecificSetupGuideCommandCopiesThatCommand() {
     let clipboard = RecordingClipboard()
 
     model.copySetupGuideCommand(
-        SetupGuideCommand(label: "LAN-only worker", value: "computehop setup worker --device-name \"Gaming PC\" --lan-only"),
+        SetupGuideCommand(label: "LAN-only worker", value: "computehop setup worker --device-name 'Gaming PC' --lan-only"),
         to: clipboard
     )
 
-    #expect(clipboard.value == "computehop setup worker --device-name \"Gaming PC\" --lan-only")
+    #expect(clipboard.value == "computehop setup worker --device-name 'Gaming PC' --lan-only")
 }
 
 @Test
