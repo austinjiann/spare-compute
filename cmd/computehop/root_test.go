@@ -2025,6 +2025,17 @@ func TestCoreCommandHelpShowsFriendlyExamplesWithoutDaemon(t *testing.T) {
 		want []string
 	}{
 		{
+			name: "devices",
+			args: []string{"devices", "--help"},
+			want: []string{
+				"List devices ComputeHop knows about.",
+				"CONNECTION column",
+				"LAN only",
+				"computehop connect nearby",
+				"computehop disconnect \"Gaming PC\"",
+			},
+		},
+		{
 			name: "connect",
 			args: []string{"connect", "--help"},
 			want: []string{

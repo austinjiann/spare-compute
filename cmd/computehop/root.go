@@ -85,8 +85,20 @@ func newDevicesCommand(
 ) *cobra.Command {
 	return &cobra.Command{
 		Use:   "devices",
-		Short: "List nearby devices discovered on this LAN",
-		Args:  cobra.NoArgs,
+		Short: "List connected and nearby devices",
+		Long: strings.TrimSpace(`List devices ComputeHop knows about.
+
+The table includes trusted devices saved on this computer and nearby unpaired
+devices discovered on the LAN. The CONNECTION column shows whether the device is
+connected, not connected, or revoked. AVAILABILITY and PATH explain whether a
+connected device is currently reachable over LAN, direct internet/STUN, TURN
+relay, or LAN only.
+
+Use this before connecting, disconnecting, or choosing a run target.`),
+		Example: strings.TrimSpace(`computehop devices
+computehop connect nearby
+computehop disconnect "Gaming PC"`),
+		Args: cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
 			client, err := clientForCommand()
 			if err != nil {
