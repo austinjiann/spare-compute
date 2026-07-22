@@ -98,6 +98,37 @@ func TestRunCommandSelectsRemoteWorkerAndLocalProjectDirectory(t *testing.T) {
 	}
 }
 
+func TestRunCommandShowsFriendlyAutoSelector(t *testing.T) {
+	value := cliJobForTest(job.StateQueued)
+	message, err := mapper.JobToProto(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout,
+		stderr: &bytes.Buffer{},
+		getwd:  func() (string, error) { return "/project", nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+				if got := request.GetSubmitJob().GetDeviceSelector(); got != "auto" {
+					t.Fatalf("device selector = %q", got)
+				}
+				return &localv1.Response{Result: &localv1.Response_SubmitJob{
+					SubmitJob: &localv1.SubmitJobResponse{Job: message},
+				}}, nil
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"run", "--on", "auto", "hostname"})
+	if err := command.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if got := stdout.String(); got != "Submitted "+string(value.ID)+" to an automatically selected worker (queued)\nFollow it: computehop logs --follow "+string(value.ID)+"\n" {
+		t.Fatalf("stdout = %q", got)
+	}
+}
+
 func TestRunCommandDefaultsRemoteProjectToCurrentDirectory(t *testing.T) {
 	value := cliJobForTest(job.StateQueued)
 	message, err := mapper.JobToProto(value)
@@ -758,8 +789,8 @@ func TestDoctorCommandSuggestsRemoteSmokeTestForConnectedWorker(t *testing.T) {
 	for _, want := range []string{
 		"Reachable workers: 1 (Gaming PC)",
 		"Nearby unpaired devices: 0",
-		"computehop run --on " + identity.ID().Short() + " hostname",
-		"computehop jobs --on " + identity.ID().Short(),
+		"computehop run --on auto hostname",
+		"computehop jobs --on auto",
 	} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
@@ -900,7 +931,7 @@ func TestSetupCommandPrintsFirstRunChecklistWithoutDaemon(t *testing.T) {
 		"make install-macos",
 		"computehop doctor",
 		"computehop connect <device>",
-		"computehop run --on <device> hostname",
+		"computehop run --on auto hostname",
 		"cd deploy/vps",
 		"./init.sh --connectivity-domain connect.example.com",
 		"./verify.sh",

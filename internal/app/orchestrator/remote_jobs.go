@@ -26,6 +26,8 @@ import (
 const (
 	remoteDialTimeout      = 12 * time.Second
 	snapshotPreflightBatch = 4_096
+	automaticWorker        = "auto"
+	bestWorker             = "best"
 )
 
 var (
@@ -735,6 +737,9 @@ func (service *RemoteJobService) resolveTrustedWorker(ctx context.Context, selec
 	if err != nil {
 		return trust.Peer{}, err
 	}
+	if isAutomaticWorkerSelector(selector) {
+		return resolveAutomaticWorker(peers)
+	}
 	matches := make([]trust.Peer, 0, 1)
 	for _, peer := range peers {
 		id := string(peer.DeviceID)
@@ -750,6 +755,38 @@ func (service *RemoteJobService) resolveTrustedWorker(ctx context.Context, selec
 		return matches[0], nil
 	default:
 		return trust.Peer{}, fmt.Errorf("%w: %s matches %d active workers", trust.ErrConflict, selector, len(matches))
+	}
+}
+
+func isAutomaticWorkerSelector(selector string) bool {
+	switch strings.ToLower(strings.TrimSpace(selector)) {
+	case automaticWorker, bestWorker:
+		return true
+	default:
+		return false
+	}
+}
+
+func resolveAutomaticWorker(peers []trust.Peer) (trust.Peer, error) {
+	candidates := make([]trust.Peer, 0, 1)
+	for _, peer := range peers {
+		if peer.State == trust.StateActive && peer.Role == device.RoleWorker {
+			candidates = append(candidates, peer)
+		}
+	}
+	switch len(candidates) {
+	case 0:
+		return trust.Peer{}, fmt.Errorf(
+			"%w: automatic worker selection found no active paired workers; run 'computehop connect'",
+			ErrRemoteWorkerUnavailable,
+		)
+	case 1:
+		return candidates[0], nil
+	default:
+		return trust.Peer{}, fmt.Errorf(
+			"%w: automatic worker selection found %d active workers; choose one with --on <device>",
+			trust.ErrConflict, len(candidates),
+		)
 	}
 }
 

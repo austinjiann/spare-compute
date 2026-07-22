@@ -25,10 +25,10 @@ Last updated: 2026-07-22.
 | Direct ICE path and signaling foundation | Complete | Gather bounded UDP candidates with Pion ICE, exchange versioned descriptions through pair-encrypted rendezvous presence, select orchestrator/worker paths, report routing without secrets, and carry QUIC over the selected packet connection. |
 | Supervised direct internet control | In progress | Daemons reconcile active pair records, retry encrypted rendezvous/ICE negotiation, run the identity-pinned control protocol over selected paths, prefer LAN for jobs, and expose path state to CLI/Swift. Automated end-to-end and race coverage pass; physical unrelated-network and network-change validation remain. |
 | One-VPS staging deployment | In progress | Provider-neutral Compose stack, Caddy HTTPS edge, authenticated coturn relay, bounded ports/quotas, generated local env/secrets, firewall bootstrap, health checks, and rollback runbook are ready; buying the VPS and forced-relay validation remain. |
-| CLI and physical Mac validation | In progress | Friendlier `--on` and no-`--` command syntax, daemon-free `setup`, `run --follow/--wait/--get`, `connect` as the guided pairing entry point, inferred pairing confirmation, first-run `doctor`, local daemon identity in status output, hidden legacy `pair` help, and merged trusted/nearby presentation are implemented; physical macOS-to-macOS discovery, pairing, execution, restart recovery, logs, and cancellation passed. Windows/Linux remain. |
+| CLI and physical Mac validation | In progress | Friendlier `--on`, `--on auto` for the single active worker, and no-`--` command syntax, daemon-free `setup`, `run --follow/--wait/--get`, `connect` as the guided pairing entry point, inferred pairing confirmation, first-run `doctor`, local daemon identity in status output, hidden legacy `pair` help, and merged trusted/nearby presentation are implemented; physical macOS-to-macOS discovery, pairing, execution, restart recovery, logs, and cancellation passed. Windows/Linux remain. |
 | macOS menu-bar foundation | In progress | SwiftUI `MenuBarExtra`, generated SwiftProtobuf models, authenticated Unix-socket IPC, local daemon identity, first-run next-step guidance, device/connect controls, native job submission, output declarations and retrieval, reconnectable logs, and cancellation build and pass Swift tests; an ad-hoc app bundle and per-user launchd installer are ready for development. |
 | Project snapshots, incremental transfer, and declared artifacts | In progress | Remote runs resolve a local project root, create bounded content-defined snapshots, upload only missing verified chunks, and execute in isolated workspaces. Workers durably collect exact declared files/directories before success; orchestrators fetch only missing verified chunks and restore without overwrites or symlink traversal. Transfer peers negotiate bounded identity/zstd chunk encoding while preserving decoded-content hashes. The persistent verified content cache is SQLite-indexed, LRU-evicted, quota-bound, and protects active jobs plus unacknowledged artifact chunks. Artifact download/restore progress is durable and visible in CLI/Swift job summaries, and `run --get` restores to the submitted working directory by default. Automated LAN/supervised-path reuse and artifact coverage pass; full ignore conformance, secrets, upload progress, and physical cross-platform validation remain. |
-| Later launch slices | In progress | Direct internet control still needs physical unrelated-network and reconnect validation, and TURN credential issuance requires a hosted entitlement boundary. Scheduling, adapters, production packaging, and release operations follow. |
+| Later launch slices | In progress | Direct internet control still needs physical unrelated-network and reconnect validation, and TURN credential issuance requires a hosted entitlement boundary. Full compatibility/resource scheduling, adapters, production packaging, and release operations follow. |
 
 “Complete” here means implemented with automated coverage and merged to `main`.
 Physical multi-machine validation remains required by the launch acceptance
@@ -551,6 +551,7 @@ computehop unpair <device>
 # Ad hoc and saved jobs
 computehop run <program> [args...]
 computehop run <job-name>
+computehop run --on auto <program> [args...]
 computehop run --on <device> --output <relative-path> <program> [args...]
 computehop run --on <device> --output <relative-path> --follow --get <program> [args...]
 
@@ -1205,9 +1206,9 @@ after a daemon restart.
 
 **Implementation status:** discovery, pairing, daemon-free first-run `setup`,
 first-run `doctor` with daemon-not-running setup guidance, local daemon identity
-in status output, `connect` as the guided pairing entry point,
-explicit `run`, `run --follow/--wait/--get`, `jobs`, `logs`, and `cancel`
-routing through identity-pinned QUIC, and durable remote job placement are
+in status output, `connect` as the guided pairing entry point, `--on auto` for
+the single active worker, explicit `run`, `run --follow/--wait/--get`, `jobs`,
+`logs`, and `cancel` routing through identity-pinned QUIC, and durable remote job placement are
 implemented. Remote runs now transfer an immutable project
 snapshot and use an isolated worker workspace; `-C` identifies the local source
 directory and defaults to the CLI's current directory. The macOS-to-macOS
@@ -1220,16 +1221,17 @@ Windows and Linux workers pass the same physical flow.
 - Implement device identity creation, two-sided verification, trust storage,
   reconnect, revocation, and re-pairing.
 - Establish mutually authenticated QUIC sessions pinned to paired identities.
-- Run the existing durable job slice on an explicitly selected worker, first
-  without automatic scheduling or project transfer.
+- Run the existing durable job slice on an explicitly selected worker, then add
+  a safe `--on auto` path before full compatibility scheduling.
 - Persist remote job placement on the orchestrator so later job-specific
   operations reconnect to the correct worker by ID after daemon restarts.
 - Validate macOS-to-macOS, macOS-to-Windows, and macOS-to-Linux behavior on
   physical machines as soon as each worker build exists.
 
-**Checkpoint:** `computehop run --on <name> <command>` discovers a worker
-without an address, pairs it once, reconnects without prompting, streams logs,
-and rejects unpaired or revoked devices.
+**Checkpoint:** `computehop run --on auto <command>` selects the only active
+worker, while `computehop run --on <name> <command>` discovers a specific
+worker without an address, pairs it once, reconnects without prompting, streams
+logs, and rejects unpaired or revoked devices.
 
 ### Step 3: Cross-network connectivity
 

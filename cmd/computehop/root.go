@@ -298,7 +298,7 @@ func printSetupGuide(stdout io.Writer) error {
 		"   computehop connect confirm",
 		"",
 		"5. Run a smoke test:",
-		"   computehop run --on <device> hostname",
+		"   computehop run --on auto hostname",
 		"",
 		"After buying the VPS:",
 		"   cd deploy/vps",
@@ -844,6 +844,9 @@ func printDoctorDevices(stdout io.Writer, result *localv1.ListDevicesResponse) e
 	switch {
 	case len(reachableWorkers) > 0:
 		selector := reachableWorkers[0].selector
+		if len(reachableWorkers) == 1 {
+			selector = "auto"
+		}
 		if _, err := fmt.Fprintf(stdout, "- Run a smoke test: computehop run --on %s hostname\n", selector); err != nil {
 			return err
 		}
@@ -977,7 +980,13 @@ func newRunCommand(
 			if deviceSelector == "" {
 				_, err = fmt.Fprintf(stdout, "Submitted %s (%s)\n", value.ID, value.State)
 			} else {
-				_, err = fmt.Fprintf(stdout, "Submitted %s to %s (%s)\n", value.ID, deviceSelector, value.State)
+				_, err = fmt.Fprintf(
+					stdout,
+					"Submitted %s to %s (%s)\n",
+					value.ID,
+					deviceSelectorDisplay(deviceSelector),
+					value.State,
+				)
 			}
 			if err != nil {
 				return err
@@ -1467,7 +1476,16 @@ func formatByteCount(value int64) string {
 }
 
 func addDeviceSelectorFlags(command *cobra.Command, destination *string) {
-	command.Flags().StringVar(destination, "on", "", "paired worker name or device ID")
-	command.Flags().StringVar(destination, "device", "", "paired worker name or device ID (legacy alias for --on)")
+	command.Flags().StringVar(destination, "on", "", "paired worker name, device ID, or auto")
+	command.Flags().StringVar(destination, "device", "", "paired worker name, device ID, or auto (legacy alias for --on)")
 	_ = command.Flags().MarkHidden("device")
+}
+
+func deviceSelectorDisplay(selector string) string {
+	switch strings.ToLower(strings.TrimSpace(selector)) {
+	case "auto", "best":
+		return "an automatically selected worker"
+	default:
+		return selector
+	}
 }

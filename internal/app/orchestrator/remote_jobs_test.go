@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/netip"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -87,6 +88,87 @@ func TestRemoteJobServiceRoutesOnlyThroughSelectedWorkerPin(t *testing.T) {
 	got, err = service.Get(context.Background(), "", want.ID)
 	if err != nil || got.ID != want.ID {
 		t.Fatalf("Get(remembered) = %#v, %v", got, err)
+	}
+}
+
+func TestRemoteJobServiceAutoSelectsSingleActiveWorker(t *testing.T) {
+	peer := activeWorkerPeer(t, 10, "Build PC")
+	nearby := nearbyWorker(t, "Build PC", 47823)
+	want := queuedJobForTest()
+	message, err := mapper.JobToRemoteProto(want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dialed := false
+	placements := newRemotePlacementStub()
+	service, err := NewRemoteJobService(RemoteDependencies{
+		Nearby: stubDeviceController{list: func(context.Context) (device.DiscoverySnapshot, error) {
+			return device.DiscoverySnapshot{Available: true, Devices: []device.NearbyDevice{nearby}}, nil
+		}},
+		Trust:      remoteTrustStub{peers: []trust.Peer{peer}},
+		Placements: placements,
+		Dialer: remoteDialerFunc(func(
+			_ context.Context,
+			target device.NearbyDevice,
+			pinned trust.Peer,
+		) (remoteprotocol.Caller, error) {
+			dialed = true
+			if target.Announcement.Name != "Build PC" || pinned.DeviceID != peer.DeviceID {
+				t.Fatalf("target = %#v; peer = %#v", target, pinned)
+			}
+			return &remoteCallerStub{call: func(
+				_ context.Context,
+				request *computehopv1.RemoteRequest,
+			) (*computehopv1.RemoteResponse, error) {
+				if request.GetSubmitJob() == nil {
+					t.Fatalf("request = %#v", request)
+				}
+				return &computehopv1.RemoteResponse{Result: &computehopv1.RemoteResponse_SubmitJob{
+					SubmitJob: &computehopv1.SubmitJobResponse{Job: message},
+				}}, nil
+			}}, nil
+		}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := service.Submit(context.Background(), "auto", want.Spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !dialed || got.ID != want.ID {
+		t.Fatalf("job = %#v; dialed = %t", got, dialed)
+	}
+	remembered, err := placements.Get(context.Background(), want.ID)
+	if err != nil || remembered.WorkerID != peer.DeviceID {
+		t.Fatalf("placement = %#v, %v", remembered, err)
+	}
+}
+
+func TestRemoteJobServiceAutoSelectorRequiresExactlyOneActiveWorker(t *testing.T) {
+	service, err := NewRemoteJobService(RemoteDependencies{
+		Nearby: stubDeviceController{},
+		Trust: remoteTrustStub{peers: []trust.Peer{
+			activeWorkerPeer(t, 12, "Build PC"),
+			activeWorkerPeer(t, 13, "Render PC"),
+		}},
+		Placements: newRemotePlacementStub(),
+		Dialer: remoteDialerFunc(func(
+			context.Context,
+			device.NearbyDevice,
+			trust.Peer,
+		) (remoteprotocol.Caller, error) {
+			t.Fatal("ambiguous automatic selection opened a remote connection")
+			return nil, nil
+		}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = service.Submit(context.Background(), "auto", queuedJobForTest().Spec)
+	if !errors.Is(err, trust.ErrConflict) ||
+		!strings.Contains(err.Error(), "choose one with --on <device>") {
+		t.Fatalf("error = %v", err)
 	}
 }
 

@@ -119,16 +119,17 @@ friendlier pairing entry point: run it with no arguments for the next connection
 step, `connect <device>` to start trust setup, and `connect confirm` on both
 devices after the verification code matches.
 
-After connecting a currently nearby worker, explicit remote job control uses the
-same commands with a device selector:
+After connecting a currently nearby worker, use `--on auto` when there is one
+active worker. Use an explicit name or device ID when you have more than one
+worker:
 
 ```bash
-go run ./cmd/computehop --state-dir "$computehop_state_dir" run --on "Gaming PC" echo hello
-go run ./cmd/computehop --state-dir "$computehop_state_dir" run --on "Gaming PC" cargo build --release
+go run ./cmd/computehop --state-dir "$computehop_state_dir" run --on auto echo hello
+go run ./cmd/computehop --state-dir "$computehop_state_dir" run --on auto cargo build --release
 go run ./cmd/computehop --state-dir "$computehop_state_dir" run --on "Gaming PC" -C /local/project cargo test
 go run ./cmd/computehop --state-dir "$computehop_state_dir" run --on "Gaming PC" -o target/release/my-app cargo build --release
 go run ./cmd/computehop --state-dir "$computehop_state_dir" run --on "Gaming PC" -o target/release/my-app --follow --get cargo build --release
-go run ./cmd/computehop --state-dir "$computehop_state_dir" jobs --on "Gaming PC"
+go run ./cmd/computehop --state-dir "$computehop_state_dir" jobs --on auto
 go run ./cmd/computehop --state-dir "$computehop_state_dir" logs --follow <job-id>
 go run ./cmd/computehop --state-dir "$computehop_state_dir" cancel <job-id>
 go run ./cmd/computehop --state-dir "$computehop_state_dir" artifacts <job-id>
@@ -153,7 +154,9 @@ submitted remote job ID to the pinned worker identity. That mapping lets
 `logs` and `cancel` reconnect without `--on`, including after an orchestrator
 daemon restart. `--on` remains an explicit override and is still required to
 browse a worker's complete history with `jobs`; job lists are not aggregated
-yet. The older `--device` spelling remains a hidden compatibility alias. Jobs
+yet. `--on auto` is a first scheduler step: it selects the only active paired
+worker, or asks you to choose when there are none or multiple. The older
+`--device` spelling remains a hidden compatibility alias. Jobs
 submitted by an older build have no placement record and still require an
 explicit selector.
 
