@@ -88,6 +88,10 @@ final class AppModel {
         clipboard.write(command)
     }
 
+    func copySetupGuideCommand(_ command: SetupGuideCommand, to clipboard: ClipboardWriting) {
+        clipboard.write(command.value)
+    }
+
     func refreshLoop() async {
         await refresh()
         while !Task.isCancelled {

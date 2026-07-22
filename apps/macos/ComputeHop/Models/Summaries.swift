@@ -197,7 +197,25 @@ struct DeviceSummary: Identifiable, Sendable {
 struct SetupGuideSummary: Sendable {
     let title: String
     let detail: String
-    let command: String?
+    let commands: [SetupGuideCommand]
+
+    var command: String? { commands.first?.value }
+
+    init(title: String, detail: String, command: String? = nil) {
+        self.title = title
+        self.detail = detail
+        if let command {
+            commands = [SetupGuideCommand(label: "Command", value: command)]
+        } else {
+            commands = []
+        }
+    }
+
+    init(title: String, detail: String, commands: [SetupGuideCommand]) {
+        self.title = title
+        self.detail = detail
+        self.commands = commands
+    }
 
     static func make(
         isConnected: Bool,
@@ -247,9 +265,25 @@ struct SetupGuideSummary: Sendable {
         return SetupGuideSummary(
             title: "Add a worker",
             detail: "Install ComputeHop as a worker on another computer on this LAN. It will appear here automatically.",
-            command: "computehop setup worker --device-name \"Gaming PC\""
+            commands: [
+                SetupGuideCommand(
+                    label: "Worker install",
+                    value: "computehop setup worker --device-name \"Gaming PC\""
+                ),
+                SetupGuideCommand(
+                    label: "LAN-only worker",
+                    value: "computehop setup worker --device-name \"Gaming PC\" --lan-only"
+                ),
+            ]
         )
     }
+}
+
+struct SetupGuideCommand: Sendable, Identifiable {
+    let label: String
+    let value: String
+
+    var id: String { label + "\u{0}" + value }
 }
 
 struct JobSummary: Identifiable, Sendable {

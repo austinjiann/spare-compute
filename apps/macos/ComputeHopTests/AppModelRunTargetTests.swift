@@ -187,6 +187,20 @@ func copySetupGuideCommandCopiesCurrentCommand() {
 
 @Test
 @MainActor
+func copySpecificSetupGuideCommandCopiesThatCommand() {
+    let model = AppModel(client: RecordingDaemonClient())
+    let clipboard = RecordingClipboard()
+
+    model.copySetupGuideCommand(
+        SetupGuideCommand(label: "LAN-only worker", value: "computehop setup worker --device-name \"Gaming PC\" --lan-only"),
+        to: clipboard
+    )
+
+    #expect(clipboard.value == "computehop setup worker --device-name \"Gaming PC\" --lan-only")
+}
+
+@Test
+@MainActor
 func copySetupGuideCommandDoesNothingWhenGuideHasNoCommand() {
     let nearby = pairableDevice(id: "ephemeral-presence-id", name: "Gaming PC")
     let model = AppModel(client: RecordingDaemonClient())

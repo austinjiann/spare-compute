@@ -20,18 +20,25 @@ struct SetupGuideSection: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                if let command = guide.command {
-                    HStack(alignment: .top, spacing: 6) {
-                        Text(command)
-                            .font(.system(.caption, design: .monospaced))
-                            .textSelection(.enabled)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 4)
-                            .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
-                        Button("Copy") {
-                            model.copySetupGuideCommand(to: SystemClipboardWriter())
+                ForEach(guide.commands) { command in
+                    VStack(alignment: .leading, spacing: 3) {
+                        if guide.commands.count > 1 {
+                            Text(command.label)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
                         }
-                        .buttonStyle(.borderless)
+                        HStack(alignment: .top, spacing: 6) {
+                            Text(command.value)
+                                .font(.system(.caption, design: .monospaced))
+                                .textSelection(.enabled)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 4)
+                                .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
+                            Button("Copy") {
+                                model.copySetupGuideCommand(command, to: SystemClipboardWriter())
+                            }
+                            .buttonStyle(.borderless)
+                        }
                     }
                 }
                 if model.canConnectNearbyWorker {

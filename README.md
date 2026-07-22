@@ -243,8 +243,9 @@ swift run ComputeHop
 ```
 
 The app can connect nearby workers, disconnect paired devices by revoking the
-local trust pin, submit a native command to this Mac, the single active worker
-through Auto worker, or a paired available worker, choose the local project
+local trust pin, copy normal or LAN-only worker setup commands, submit a native
+command to this Mac, the single active worker through Auto worker, or a paired
+available worker, choose the local project
 folder to snapshot, declare comma-separated output paths, restore completed
 outputs through a native folder picker, and read durable logs directly in the
 menu. Quotes only group literal arguments; the app does not silently invoke a

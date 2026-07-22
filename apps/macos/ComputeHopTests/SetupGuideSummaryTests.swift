@@ -109,6 +109,11 @@ func setupGuidePointsAtWorkerSetupWhenNoWorkerExists() {
 
     #expect(guide?.title == "Add a worker")
     #expect(guide?.command == "computehop setup worker --device-name \"Gaming PC\"")
+    #expect(guide?.commands.map(\.label) == ["Worker install", "LAN-only worker"])
+    #expect(guide?.commands.map(\.value) == [
+        "computehop setup worker --device-name \"Gaming PC\"",
+        "computehop setup worker --device-name \"Gaming PC\" --lan-only",
+    ])
 }
 
 @Test
