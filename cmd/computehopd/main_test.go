@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"net"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -119,6 +120,74 @@ func TestRunStopsWhenContextIsCancelled(t *testing.T) {
 	}
 	if logs := stderr.String(); !strings.Contains(logs, "computehopd started") || !strings.Contains(logs, "computehopd stopped") {
 		t.Fatalf("daemon lifecycle logs = %q", logs)
+	}
+}
+
+func TestRunExplainsDuplicateDaemonNetworkPort(t *testing.T) {
+	stateDir := shortStateDir(t)
+	var stdout, stderr bytes.Buffer
+	err := runWithDependencies(
+		context.Background(),
+		[]string{"--state-dir", stateDir},
+		&stdout,
+		&stderr,
+		runtimeDependencies{
+			pairingEndpoint: func(string, session.LocalDevice, trust.Repository) (session.Endpoint, error) {
+				return nil, errors.New("listen udp :47823: bind: address already in use")
+			},
+		},
+	)
+	assertDuplicateDaemonError(t, err, "initialize pairing endpoint")
+}
+
+func TestRunExplainsDuplicateDaemonLocalIPC(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows local IPC uses named pipes")
+	}
+	stateDir := shortStateDir(t)
+	if err := permissions.EnsurePrivateDirectory(stateDir); err != nil {
+		t.Fatal(err)
+	}
+	socketPath, err := paths.LocalSocketPath(stateDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	listener, err := net.Listen("unix", socketPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	defer os.Remove(socketPath)
+
+	var stdout, stderr bytes.Buffer
+	err = runWithDependencies(
+		context.Background(),
+		[]string{"--state-dir", stateDir},
+		&stdout,
+		&stderr,
+		runtimeDependencies{
+			disableDispatcher: true,
+			discovery:         idleTestDiscovery{},
+			pairingEndpoint:   idlePairingEndpointFactory,
+		},
+	)
+	assertDuplicateDaemonError(t, err, "initialize local IPC server")
+}
+
+func assertDuplicateDaemonError(t *testing.T, err error, stage string) {
+	t.Helper()
+	if err == nil {
+		t.Fatal("run() error = nil")
+	}
+	for _, want := range []string{
+		stage,
+		"another ComputeHop daemon already appears to be running",
+		"computehop status",
+		"stop the existing terminal or launch agent",
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("error %q does not contain %q", err.Error(), want)
+		}
 	}
 }
 

@@ -236,7 +236,7 @@ func runWithDependencies(
 		fmt.Sprintf(":%d", mdns.DefaultPort), localDevice, database.Trust(),
 	)
 	if err != nil {
-		return fmt.Errorf("initialize pairing endpoint: %w", err)
+		return daemonStartupError("initialize pairing endpoint", err)
 	}
 	defer pairingEndpoint.Close()
 	if pairingEndpoint.Port() == 0 {
@@ -350,7 +350,7 @@ func runWithDependencies(
 	}
 	server, err := localipc.NewServer(socketPath, token, handler)
 	if err != nil {
-		return fmt.Errorf("initialize local IPC server: %w", err)
+		return daemonStartupError("initialize local IPC server", err)
 	}
 	defer server.Close()
 
@@ -438,6 +438,21 @@ func runWithDependencies(
 	}
 	logger.Info("computehopd stopped")
 	return nil
+}
+
+func daemonStartupError(stage string, err error) error {
+	if errors.Is(err, localipc.ErrDaemonAlreadyRunning) || addressAlreadyInUse(err) {
+		return fmt.Errorf(
+			"%s: another ComputeHop daemon already appears to be running; run 'computehop status' to use it, or stop the existing terminal or launch agent before starting another daemon: %w",
+			stage,
+			err,
+		)
+	}
+	return fmt.Errorf("%s: %w", stage, err)
+}
+
+func addressAlreadyInUse(err error) bool {
+	return err != nil && strings.Contains(strings.ToLower(err.Error()), "address already in use")
 }
 
 func parseOptions(arguments []string, stderr io.Writer) (options, error) {

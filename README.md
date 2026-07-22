@@ -118,6 +118,10 @@ before printing the next command to run for the current state. `connect` is the
 friendlier pairing entry point: run it with no arguments for the next connection
 step, `connect <device>` to start trust setup, and `connect confirm` on both
 devices after the verification code matches.
+If a second daemon is started while the first one is still using the local
+socket or ComputeHop network port, `computehopd` now reports that another daemon
+appears to be running and points the user to `computehop status` instead of
+printing only a raw bind error.
 
 After connecting a currently nearby worker, use `--on auto` when there is one
 active worker. Use an explicit name or device ID when you have more than one

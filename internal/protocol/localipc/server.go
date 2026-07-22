@@ -18,7 +18,10 @@ const (
 	submitConnectionTimeout  = 6 * time.Hour
 )
 
-var ErrInvalidServer = errors.New("invalid local IPC server")
+var (
+	ErrInvalidServer        = errors.New("invalid local IPC server")
+	ErrDaemonAlreadyRunning = errors.New("computehopd is already listening")
+)
 
 // Handler processes authenticated, version-compatible local requests.
 type Handler interface {

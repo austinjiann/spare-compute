@@ -14,8 +14,6 @@ import (
 	"github.com/austinjiann/spare-compute/internal/platform/permissions"
 )
 
-var ErrDaemonAlreadyRunning = errors.New("computehopd is already listening")
-
 func listen(path string) (net.Listener, error) {
 	if err := permissions.EnsurePrivateDirectory(filepath.Dir(path)); err != nil {
 		return nil, fmt.Errorf("secure local IPC directory: %w", err)
