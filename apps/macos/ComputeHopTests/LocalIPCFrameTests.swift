@@ -19,3 +19,13 @@ func frameRejectsEmptyAndOversizedPayloads() {
         try LocalIPCFrame.encode(Data(count: LocalIPCFrame.maximumPayloadBytes + 1))
     }
 }
+
+@Test
+func localDaemonErrorExplainsIncompatibleDaemonForMenuUsers() {
+    let error = LocalDaemonError.incompatibleDaemon(
+        "Daemon protocol version 5 is not supported by app protocol version 6."
+    )
+    #expect(error.errorDescription?.contains("ComputeHop daemon does not match this menu app") == true)
+    #expect(error.errorDescription?.contains("Reinstall or restart ComputeHop") == true)
+    #expect(error.errorDescription?.contains("protocol version 5") == true)
+}

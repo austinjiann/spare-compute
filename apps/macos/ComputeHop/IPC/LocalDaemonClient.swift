@@ -37,6 +37,7 @@ protocol LocalDaemonClientProtocol: Sendable {
 
 enum LocalDaemonError: LocalizedError, Sendable {
     case notRunning
+    case incompatibleDaemon(String)
     case invalidCapabilityToken(String)
     case invalidFrame(String)
     case invalidResponse(String)
@@ -47,6 +48,8 @@ enum LocalDaemonError: LocalizedError, Sendable {
         switch self {
         case .notRunning:
             return "ComputeHop is not running. Start the daemon and try again."
+        case .incompatibleDaemon(let detail):
+            return "ComputeHop daemon does not match this menu app. Reinstall or restart ComputeHop, then try again. \(detail)"
         case .invalidCapabilityToken(let detail):
             return "The local daemon credential is invalid: \(detail)"
         case .invalidFrame(let detail):
@@ -316,12 +319,12 @@ actor LocalDaemonClient: LocalDaemonClientProtocol {
         let response = try Computehop_Local_V1_Response(serializedBytes: responseData)
 
         guard response.protocolVersion == Self.protocolVersion else {
-            throw LocalDaemonError.invalidResponse(
-                "protocol version \(response.protocolVersion) is not supported"
+            throw LocalDaemonError.incompatibleDaemon(
+                "Daemon protocol version \(response.protocolVersion) is not supported by app protocol version \(Self.protocolVersion)."
             )
         }
         guard response.requestID == requestID else {
-            throw LocalDaemonError.invalidResponse("request identifier does not match")
+            throw LocalDaemonError.incompatibleDaemon("Daemon replied to the wrong request.")
         }
         if response.hasError {
             throw LocalDaemonError.remote(response.error.message)
