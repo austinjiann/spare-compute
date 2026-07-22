@@ -133,7 +133,7 @@ func TestRunCommandShowsFriendlyAutoSelector(t *testing.T) {
 	}
 }
 
-func TestRunCommandAutoSelectorErrorExplainsConnectAuto(t *testing.T) {
+func TestRunCommandAutoSelectorErrorExplainsConnectNearby(t *testing.T) {
 	var stdout bytes.Buffer
 	command := newRootCommand(dependencies{
 		stdout: &stdout,

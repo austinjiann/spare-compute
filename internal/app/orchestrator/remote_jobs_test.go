@@ -192,7 +192,7 @@ func TestRemoteJobServiceAutoSelectorExplainsNoActiveWorkers(t *testing.T) {
 	}
 	_, err = service.Submit(context.Background(), "auto", queuedJobForTest().Spec)
 	if !errors.Is(err, ErrRemoteWorkerUnavailable) ||
-		!strings.Contains(err.Error(), "computehop connect auto") ||
+		!strings.Contains(err.Error(), "computehop connect nearby") ||
 		!strings.Contains(err.Error(), "computehop devices") {
 		t.Fatalf("error = %v", err)
 	}
