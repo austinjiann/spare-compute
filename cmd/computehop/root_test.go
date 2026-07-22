@@ -211,6 +211,86 @@ func TestRunCommandAutoSelectorErrorExplainsExplicitChoice(t *testing.T) {
 	}
 }
 
+func TestRunCommandExplicitSelectorNotFoundErrorExplainsDevices(t *testing.T) {
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout,
+		stderr: &bytes.Buffer{},
+		getwd:  func() (string, error) { return "/project", nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+				if got := request.GetSubmitJob().GetDeviceSelector(); got != "Austin MacBook 2" {
+					t.Fatalf("device selector = %q", got)
+				}
+				return nil, &localipc.RemoteError{
+					Code:    localv1.ErrorCode_ERROR_CODE_NOT_FOUND,
+					Message: "trusted peer not found: active worker Austin MacBook 2",
+				}
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"run", "--on", "Austin MacBook 2", "hostname"})
+	err := command.Execute()
+	if err == nil {
+		t.Fatal("Execute() error = nil")
+	}
+	for _, want := range []string{
+		"no active paired worker matches \"Austin MacBook 2\"",
+		"computehop devices",
+		"computehop connect auto",
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("error = %q; missing %q", err, want)
+		}
+	}
+	if strings.Contains(err.Error(), "trusted peer not found") {
+		t.Fatalf("error leaked backend wording: %q", err)
+	}
+	if got := stdout.String(); got != "" {
+		t.Fatalf("stdout = %q", got)
+	}
+}
+
+func TestRunCommandExplicitSelectorAmbiguityExplainsLongerID(t *testing.T) {
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout,
+		stderr: &bytes.Buffer{},
+		getwd:  func() (string, error) { return "/project", nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+				if got := request.GetSubmitJob().GetDeviceSelector(); got != "mac" {
+					t.Fatalf("device selector = %q", got)
+				}
+				return nil, &localipc.RemoteError{
+					Code:    localv1.ErrorCode_ERROR_CODE_CONFLICT,
+					Message: "trusted peer conflict: mac matches 2 active workers",
+				}
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"run", "--on", "mac", "hostname"})
+	err := command.Execute()
+	if err == nil {
+		t.Fatal("Execute() error = nil")
+	}
+	for _, want := range []string{
+		"more than one active paired worker matches \"mac\"",
+		"computehop devices",
+		"use a longer device ID",
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("error = %q; missing %q", err, want)
+		}
+	}
+	if strings.Contains(err.Error(), "trusted peer conflict") {
+		t.Fatalf("error leaked backend wording: %q", err)
+	}
+	if got := stdout.String(); got != "" {
+		t.Fatalf("stdout = %q", got)
+	}
+}
+
 func TestRunCommandDefaultsRemoteProjectToCurrentDirectory(t *testing.T) {
 	value := cliJobForTest(job.StateQueued)
 	message, err := mapper.JobToProto(value)

@@ -1863,23 +1863,38 @@ func addDeviceSelectorFlagsWithDefault(command *cobra.Command, destination *stri
 }
 
 func runSubmitError(selector string, err error) error {
-	if !isAutomaticSelector(selector) {
-		return err
-	}
 	var remoteError *localipc.RemoteError
 	if !errors.As(err, &remoteError) {
 		return err
 	}
-	if remoteError.Code == localv1.ErrorCode_ERROR_CODE_DEVICE_UNAVAILABLE &&
-		isAutoSelectorNoWorkerMessage(remoteError.Message) {
-		return errors.New(
-			"no active paired worker is available for --on auto; run 'computehop connect auto' when one nearby worker is visible, or run 'computehop devices' to choose a worker",
+	if isAutomaticSelector(selector) {
+		if remoteError.Code == localv1.ErrorCode_ERROR_CODE_DEVICE_UNAVAILABLE &&
+			isAutoSelectorNoWorkerMessage(remoteError.Message) {
+			return errors.New(
+				"no active paired worker is available for --on auto; run 'computehop connect auto' when one nearby worker is visible, or run 'computehop devices' to choose a worker",
+			)
+		}
+		if remoteError.Code == localv1.ErrorCode_ERROR_CODE_CONFLICT &&
+			isAutoSelectorAmbiguousMessage(remoteError.Message) {
+			return errors.New(
+				"more than one active paired worker is available for --on auto; run 'computehop devices', then choose one with 'computehop run --on <device> ...'",
+			)
+		}
+		return err
+	}
+	selector = strings.TrimSpace(selector)
+	if selector != "" && remoteError.Code == localv1.ErrorCode_ERROR_CODE_NOT_FOUND &&
+		isExplicitSelectorNoWorkerMessage(remoteError.Message) {
+		return fmt.Errorf(
+			"no active paired worker matches %q; run 'computehop devices' to see worker names/IDs, or run 'computehop connect auto' if the worker is nearby but still unpaired",
+			selector,
 		)
 	}
-	if remoteError.Code == localv1.ErrorCode_ERROR_CODE_CONFLICT &&
-		isAutoSelectorAmbiguousMessage(remoteError.Message) {
-		return errors.New(
-			"more than one active paired worker is available for --on auto; run 'computehop devices', then choose one with 'computehop run --on <device> ...'",
+	if selector != "" && remoteError.Code == localv1.ErrorCode_ERROR_CODE_CONFLICT &&
+		isExplicitSelectorAmbiguousMessage(remoteError.Message) {
+		return fmt.Errorf(
+			"more than one active paired worker matches %q; run 'computehop devices', then use a longer device ID or exact worker name with 'computehop run --on <device> ...'",
+			selector,
 		)
 	}
 	return err
@@ -1894,6 +1909,14 @@ func isAutoSelectorAmbiguousMessage(message string) bool {
 	return (strings.Contains(message, "automatic worker selection found") &&
 		strings.Contains(message, "active workers")) ||
 		strings.Contains(message, "more than one active paired worker is available for --on auto")
+}
+
+func isExplicitSelectorNoWorkerMessage(message string) bool {
+	return strings.Contains(message, "active worker")
+}
+
+func isExplicitSelectorAmbiguousMessage(message string) bool {
+	return strings.Contains(message, "matches") && strings.Contains(message, "active workers")
 }
 
 func isConnectAutoSelector(selector string) bool {
