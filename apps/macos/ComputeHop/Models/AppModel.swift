@@ -39,6 +39,7 @@ final class AppModel {
 
     private let client: LocalDaemonClientProtocol
     private let notifier: JobCompletionNotifying
+    private let settingsStore: AppSettingsStoring
     private var trackedRemoteJobs: [String: String] = [:]
     private var observedJobStates: [String: String] = [:]
     private var nextLogSequence: UInt64 = 0
@@ -60,13 +61,21 @@ final class AppModel {
     var selectedJobLogsTruncated = false
     var isLoadingLogs = false
     var artifactMessage: String?
+    var jobCompletionNotificationsEnabled: Bool {
+        didSet {
+            settingsStore.setJobCompletionNotificationsEnabled(jobCompletionNotificationsEnabled)
+        }
+    }
 
     init(
         client: LocalDaemonClientProtocol = LocalDaemonClient(),
-        notifier: JobCompletionNotifying = SystemJobCompletionNotifier()
+        notifier: JobCompletionNotifying = SystemJobCompletionNotifier(),
+        settingsStore: AppSettingsStoring = UserDefaultsAppSettingsStore()
     ) {
         self.client = client
         self.notifier = notifier
+        self.settingsStore = settingsStore
+        jobCompletionNotificationsEnabled = settingsStore.jobCompletionNotificationsEnabled
     }
 
     var daemonVersion: String? { daemon?.version }
@@ -485,6 +494,7 @@ final class AppModel {
         defer { observedJobStates[job.id] = job.state }
         guard let previousState, previousState != job.state else { return }
         guard job.terminal, !Self.terminalJobStates.contains(previousState) else { return }
+        guard jobCompletionNotificationsEnabled else { return }
 
         await notifier.notifyJobFinished(
             title: "ComputeHop job \(job.state.lowercased())",

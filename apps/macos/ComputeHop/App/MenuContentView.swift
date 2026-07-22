@@ -53,6 +53,8 @@ struct MenuContentView: View {
             Divider()
             JobsSection(model: model)
             Divider()
+            SettingsSection(model: model)
+            Divider()
 
             HStack {
                 Text("Nearby addresses are untrusted hints; paired sessions still verify device keys.")

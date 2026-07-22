@@ -259,6 +259,48 @@ func refreshDoesNotNotifyForExistingTerminalHistory() async {
 
 @Test
 @MainActor
+func refreshDoesNotNotifyWhenJobNotificationsAreDisabled() async {
+    let jobID = "7a338fa3-7ba4-4c54-bf59-da1161f6b76f"
+    let client = RecordingDaemonClient(
+        jobs: [
+            jobSummary(id: jobID, target: "Gaming PC", state: .running)
+        ]
+    )
+    let notifier = RecordingJobCompletionNotifier()
+    let model = AppModel(
+        client: client,
+        notifier: notifier,
+        settingsStore: RecordingSettingsStore(jobCompletionNotificationsEnabled: false)
+    )
+
+    await model.refresh()
+    await client.setJobs([
+        jobSummary(id: jobID, target: "Gaming PC", state: .succeeded)
+    ])
+    await model.refresh()
+
+    #expect(notifier.notifications.isEmpty)
+}
+
+@Test
+@MainActor
+func notificationSettingLoadsAndPersistsThroughStore() {
+    let store = RecordingSettingsStore(jobCompletionNotificationsEnabled: false)
+    let model = AppModel(
+        client: RecordingDaemonClient(),
+        notifier: RecordingJobCompletionNotifier(),
+        settingsStore: store
+    )
+
+    #expect(!model.jobCompletionNotificationsEnabled)
+
+    model.jobCompletionNotificationsEnabled = true
+
+    #expect(store.savedNotificationValues == [true])
+}
+
+@Test
+@MainActor
 func submitLocalCommandIgnoresStaleNoProjectToggle() async {
     let client = RecordingDaemonClient(devices: [])
     let model = AppModel(client: client)
@@ -596,6 +638,21 @@ private final class RecordingJobCompletionNotifier: JobCompletionNotifying {
 
     func notifyJobFinished(title: String, body: String) async {
         notifications.append(NotificationRecord(title: title, body: body))
+    }
+}
+
+@MainActor
+private final class RecordingSettingsStore: AppSettingsStoring {
+    var jobCompletionNotificationsEnabled: Bool
+    var savedNotificationValues: [Bool] = []
+
+    init(jobCompletionNotificationsEnabled: Bool = true) {
+        self.jobCompletionNotificationsEnabled = jobCompletionNotificationsEnabled
+    }
+
+    func setJobCompletionNotificationsEnabled(_ enabled: Bool) {
+        jobCompletionNotificationsEnabled = enabled
+        savedNotificationValues.append(enabled)
     }
 }
 
