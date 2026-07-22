@@ -48,6 +48,7 @@ struct DeviceSummary: Identifiable, Sendable {
     let path: String?
     let address: String?
     let canPair: Bool
+    let canDisconnect: Bool
 
     var shortID: String { String(id.prefix(8)) }
     var trustDisplay: String {
@@ -82,7 +83,8 @@ struct DeviceSummary: Identifiable, Sendable {
                 availability: nearbyMatches.isEmpty ? remote.availability : .nearby,
                 path: nearbyMatches.isEmpty ? remote.path : "LAN",
                 address: address(nearbyMatches),
-                canPair: false
+                canPair: false,
+                canDisconnect: trusted.trustState == .paired
             )
         }
         result.append(contentsOf: response.devices.compactMap { nearby in
@@ -95,13 +97,49 @@ struct DeviceSummary: Identifiable, Sendable {
                 availability: .nearby,
                 path: "LAN",
                 address: address(nearby),
-                canPair: true
+                canPair: true,
+                canDisconnect: false
             )
         })
         return result.sorted {
             if $0.trust != $1.trust { return $0.trust == "Paired" }
             return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
         }
+    }
+
+    init(_ value: Computehop_Local_V1_TrustedDevice) {
+        let remote = Self.remoteAvailability(value)
+        id = value.deviceID
+        name = value.name
+        role = roleLabel(value.role)
+        trust = value.trustState == .paired ? "Paired" : "Revoked"
+        availability = remote.availability
+        path = remote.path
+        address = nil
+        canPair = false
+        canDisconnect = value.trustState == .paired
+    }
+
+    init(
+        id: String,
+        name: String,
+        role: String,
+        trust: String,
+        availability: Availability,
+        path: String?,
+        address: String?,
+        canPair: Bool,
+        canDisconnect: Bool = false
+    ) {
+        self.id = id
+        self.name = name
+        self.role = role
+        self.trust = trust
+        self.availability = availability
+        self.path = path
+        self.address = address
+        self.canPair = canPair
+        self.canDisconnect = canDisconnect
     }
 
     private static func deviceKey(_ value: Computehop_Local_V1_TrustedDevice) -> String {

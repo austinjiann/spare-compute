@@ -150,6 +150,15 @@ final class AppModel {
         }
     }
 
+    func disconnect(_ device: DeviceSummary) async {
+        await perform("disconnect-\(device.id)") {
+            _ = try await client.unpairDevice(id: device.id)
+            if runTargetID == device.id {
+                runTargetID = ""
+            }
+        }
+    }
+
     func cancel(_ job: JobSummary) async {
         await perform("cancel-\(job.id)") {
             try await client.cancelJob(id: job.id)

@@ -29,8 +29,16 @@ struct DevicesSection: View {
                                 Task { await model.connect(device) }
                             }
                             .disabled(model.actionInProgress != nil)
+                        } else if device.canDisconnect {
+                            Text(statusText(for: device))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Button("Disconnect") {
+                                Task { await model.disconnect(device) }
+                            }
+                            .disabled(model.actionInProgress != nil)
                         } else {
-                            Text([device.availability.rawValue, device.path, device.address].compactMap { $0 }.joined(separator: " · "))
+                            Text(statusText(for: device))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -47,5 +55,11 @@ struct DevicesSection: View {
         case .connecting: return .orange
         case .offline: return .secondary
         }
+    }
+
+    private func statusText(for device: DeviceSummary) -> String {
+        [device.availability.rawValue, device.path, device.address]
+            .compactMap { $0 }
+            .joined(separator: " · ")
     }
 }

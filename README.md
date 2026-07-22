@@ -227,12 +227,13 @@ To launch the development menu-bar app against the default daemon state:
 swift run ComputeHop
 ```
 
-The app can submit a native command to this Mac, the single active worker through
-Auto worker, or a paired available worker, choose the local project folder to
-snapshot, declare comma-separated output paths, restore completed outputs
-through a native folder picker, and read
-durable logs directly in the menu. Quotes only group literal arguments; the app does not silently
-invoke a shell. The app and generated
+The app can connect nearby workers, disconnect paired devices by revoking the
+local trust pin, submit a native command to this Mac, the single active worker
+through Auto worker, or a paired available worker, choose the local project
+folder to snapshot, declare comma-separated output paths, restore completed
+outputs through a native folder picker, and read durable logs directly in the
+menu. Quotes only group literal arguments; the app does not silently invoke a
+shell. The app and generated
 Swift protocol models build with `swift build` and test with `swift test`. See
 [`apps/macos/README.md`](apps/macos/README.md) for the current packaging
 boundary. See [`deploy/vps/README.md`](deploy/vps/README.md) for the one-VPS

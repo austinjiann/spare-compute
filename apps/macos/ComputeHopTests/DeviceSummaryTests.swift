@@ -55,6 +55,7 @@ func deviceSummaryCombinesOneTrustedPeerWithItsNearbyPresence() {
     #expect(summaries[0].address == "192.0.2.20:47823")
     #expect(summaries[0].trustDisplay == "Connected")
     #expect(!summaries[0].canPair)
+    #expect(summaries[0].canDisconnect)
 }
 
 @Test
@@ -88,6 +89,7 @@ func deviceSummaryCollapsesDuplicateNearbyPresenceRowsForTrustedPeer() {
     #expect(summaries[0].path == "LAN")
     #expect(summaries[0].address == "2 LAN records")
     #expect(!summaries[0].canPair)
+    #expect(summaries[0].canDisconnect)
 }
 
 @Test
@@ -108,6 +110,7 @@ func deviceSummaryMakesConnectedRemoteWorkerRunnable() {
     #expect(summaries[0].availability == .remote)
     #expect(summaries[0].path == "Direct via STUN")
     #expect(summaries[0].address == nil)
+    #expect(summaries[0].canDisconnect)
 }
 
 @Test
@@ -128,4 +131,23 @@ func deviceSummaryUsesPresenceIDForUnpairedNearbyDevices() {
     #expect(summaries[0].id == "ephemeral-presence-id")
     #expect(summaries[0].name == "Gaming PC")
     #expect(summaries[0].canPair)
+    #expect(!summaries[0].canDisconnect)
+}
+
+@Test
+func deviceSummaryDoesNotOfferDisconnectForRevokedDevices() {
+    var trusted = Computehop_Local_V1_TrustedDevice()
+    trusted.deviceID = "revoked-device-id"
+    trusted.name = "Old PC"
+    trusted.role = .worker
+    trusted.trustState = .revoked
+
+    var response = Computehop_Local_V1_ListDevicesResponse()
+    response.trustedDevices = [trusted]
+
+    let summaries = DeviceSummary.make(from: response)
+    #expect(summaries.count == 1)
+    #expect(summaries[0].trustDisplay == "Revoked")
+    #expect(!summaries[0].canPair)
+    #expect(!summaries[0].canDisconnect)
 }

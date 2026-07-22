@@ -157,6 +157,22 @@ func connectNearbyWorkerRefusesAmbiguousNearbyWorkers() async {
     #expect(model.lastError == "Connect automatically works only when exactly one nearby worker is available. Refresh and choose one manually.")
 }
 
+@Test
+@MainActor
+func disconnectUsesDurableDeviceIDAndClearsSelectedRunTarget() async {
+    let worker = runTargetDevice(id: "durable-worker-id", name: "Gaming PC")
+    let client = RecordingDaemonClient(devices: [])
+    let model = AppModel(client: client)
+    model.devices = [worker]
+    model.runTargetID = worker.id
+
+    await model.disconnect(worker)
+
+    #expect(await client.lastUnpairedSelector() == "durable-worker-id")
+    #expect(model.runTargetID.isEmpty)
+    #expect(model.lastError == nil)
+}
+
 private actor RecordingDaemonClient: LocalDaemonClientProtocol {
     private let devices: [DeviceSummary]
     private var submittedExecutable: String?
@@ -165,6 +181,7 @@ private actor RecordingDaemonClient: LocalDaemonClientProtocol {
     private var submittedWorkingDirectory: String?
     private var submittedOutputs: [String]?
     private var pairingSelector: String?
+    private var unpairedSelector: String?
     private let submittedID = "7a338fa3-7ba4-4c54-bf59-da1161f6b76f"
 
     init(devices: [DeviceSummary] = []) {
@@ -182,6 +199,8 @@ private actor RecordingDaemonClient: LocalDaemonClientProtocol {
     func lastSubmittedOutputs() -> [String]? { submittedOutputs }
 
     func lastPairingSelector() -> String? { pairingSelector }
+
+    func lastUnpairedSelector() -> String? { unpairedSelector }
 
     func ping() async throws -> LocalDaemonSummary { daemonSummary() }
 
@@ -242,6 +261,20 @@ private actor RecordingDaemonClient: LocalDaemonClientProtocol {
     func confirmPairing(id: String) async throws {}
 
     func rejectPairing(id: String) async throws {}
+
+    func unpairDevice(id: String) async throws -> DeviceSummary {
+        unpairedSelector = id
+        return DeviceSummary(
+            id: id,
+            name: "Gaming PC",
+            role: "Worker",
+            trust: "Revoked",
+            availability: .offline,
+            path: nil,
+            address: nil,
+            canPair: false
+        )
+    }
 
     func cancelJob(id: String) async throws {}
 }

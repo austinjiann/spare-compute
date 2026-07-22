@@ -31,6 +31,7 @@ protocol LocalDaemonClientProtocol: Sendable {
     func beginPairing(device selector: String) async throws -> PairingSummary
     func confirmPairing(id: String) async throws
     func rejectPairing(id: String) async throws
+    func unpairDevice(id: String) async throws -> DeviceSummary
     func cancelJob(id: String) async throws
 }
 
@@ -271,6 +272,16 @@ actor LocalDaemonClient: LocalDaemonClientProtocol {
         guard case .rejectPairing(let result)? = response.result, result.hasPairing else {
             throw LocalDaemonError.invalidResponse("missing rejected pairing")
         }
+    }
+
+    func unpairDevice(id: String) async throws -> DeviceSummary {
+        var operation = Computehop_Local_V1_UnpairDeviceRequest()
+        operation.deviceSelector = id
+        let response = try await call(.unpairDevice(operation))
+        guard case .unpairDevice(let result)? = response.result, result.hasDevice else {
+            throw LocalDaemonError.invalidResponse("missing unpaired device")
+        }
+        return DeviceSummary(result.device)
     }
 
     func cancelJob(id: String) async throws {
