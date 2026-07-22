@@ -104,7 +104,7 @@ go run ./cmd/computehop --state-dir "$computehop_state_dir" setup vps --connecti
 go run ./cmd/computehop --state-dir "$computehop_state_dir" doctor
 go run ./cmd/computehop --state-dir "$computehop_state_dir" devices
 go run ./cmd/computehop --state-dir "$computehop_state_dir" connect
-go run ./cmd/computehop --state-dir "$computehop_state_dir" connect auto
+go run ./cmd/computehop --state-dir "$computehop_state_dir" connect nearby
 go run ./cmd/computehop --state-dir "$computehop_state_dir" connect <device-name-or-session>
 go run ./cmd/computehop --state-dir "$computehop_state_dir" connect confirm
 go run ./cmd/computehop --state-dir "$computehop_state_dir" unpair <device-name-or-id>
@@ -141,9 +141,10 @@ trusted peers with matching LAN presence and collapses duplicate same-name LAN
 records for a single active peer so stale daemon restarts do not look like
 extra unpaired computers. `connect` is the
 friendlier pairing entry point: run it with no arguments for the next connection
-step, `connect auto` to start trust setup only when exactly one nearby unpaired
-worker is visible, `connect <device>` when you need to choose explicitly, and
-`connect confirm` on both devices after the verification code matches.
+step, `connect nearby` to start trust setup only when exactly one nearby
+unpaired worker is visible, `connect <device>` when you need to choose
+explicitly, and `connect confirm` on both devices after the verification code
+matches. `connect auto` remains a compatibility alias for `connect nearby`.
 If a second daemon is started while the first one is still using the local
 socket or ComputeHop network port, `computehopd` now reports that another daemon
 appears to be running and points the user to `computehop status` instead of
@@ -152,7 +153,7 @@ printing only a raw bind error.
 After connecting a currently nearby worker, use `--on auto` when there is one
 active worker. Use an explicit name or device ID when you have more than one
 worker. If automatic selection cannot choose safely, the CLI tells you whether
-to run `computehop connect auto` for setup or `computehop devices` to pick an
+to run `computehop connect nearby` for setup or `computehop devices` to pick an
 explicit worker. For the cheap “does remote execution work?” check, run
 `computehop smoke`; it submits `hostname` to the selected worker without
 uploading a project and follows the result:
@@ -214,7 +215,7 @@ untrusted until an explicit connection setup reveals and pins the public key.
 
 macOS defaults to the `orchestrator` role; Linux and Windows default to
 `worker`. Use `--role worker` when running a worker daemon on another Mac. A
-connection starts from the orchestrator with `computehop connect auto` when one
+connection starts from the orchestrator with `computehop connect nearby` when one
 nearby unpaired worker is visible, or `computehop connect <device>` when you
 need to choose among multiple devices. Both local CLIs then show the same
 connection-bound verification code. Compare it exactly and run

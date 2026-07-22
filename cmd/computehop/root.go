@@ -691,7 +691,7 @@ func printSetupGuide(stdout io.Writer) error {
 		"",
 		"4. Connect devices:",
 		"   computehop connect",
-		"   computehop connect auto",
+		"   computehop connect nearby",
 		"   computehop connect <device>",
 		"   computehop connect confirm",
 		"",
@@ -732,7 +732,7 @@ func printMacSetupGuide(stdout io.Writer, options macSetupOptions) error {
 		lines = append(lines,
 			"",
 			"Connect from your orchestrator Mac:",
-			"   computehop connect auto",
+			"   computehop connect nearby",
 			"   computehop connect confirm",
 			"",
 			"Confirm on this worker if a pairing request is waiting:",
@@ -742,7 +742,7 @@ func printMacSetupGuide(stdout io.Writer, options macSetupOptions) error {
 		lines = append(lines,
 			"",
 			"Connect a worker on the same LAN:",
-			"   computehop connect auto",
+			"   computehop connect nearby",
 			"   computehop connect confirm",
 			"",
 			"Smoke test:",
@@ -867,15 +867,16 @@ func newConnectCommand(
 	clientForCommand func() (caller, error),
 ) *cobra.Command {
 	command := &cobra.Command{
-		Use:   "connect [auto|device]",
+		Use:   "connect [nearby|device]",
 		Short: "Connect another computer",
 		Long: "Connect starts trust setup with another ComputeHop device.\n\n" +
 			"Run without arguments to see the next connection step for the current state.\n" +
-			"Use 'auto' when exactly one nearby unpaired worker is visible, or pass a\n" +
-			"device name, full presence ID, or short presence ID prefix to choose explicitly.",
+			"Use 'nearby' when exactly one nearby unpaired worker is visible, or pass a\n" +
+			"device name, full presence ID, or short presence ID prefix to choose explicitly.\n" +
+			"'auto' remains a compatibility alias for 'nearby'.",
 		Example: strings.Join([]string{
 			"computehop connect",
-			"computehop connect auto",
+			"computehop connect nearby",
 			"computehop connect \"Gaming PC\"",
 			"computehop connect confirm",
 		}, "\n"),
@@ -1473,7 +1474,7 @@ func printDoctorDevices(stdout io.Writer, result *localv1.ListDevicesResponse) e
 			}
 		}
 		if len(unpairedWorkers) == 1 {
-			if _, err := fmt.Fprintln(stdout, "- Connect to the nearby worker: computehop connect auto"); err != nil {
+			if _, err := fmt.Fprintln(stdout, "- Connect to the nearby worker: computehop connect nearby"); err != nil {
 				return err
 			}
 		} else if len(unpairedWorkers) > 1 {
@@ -2249,7 +2250,7 @@ func runSubmitError(selector string, err error) error {
 		if remoteError.Code == localv1.ErrorCode_ERROR_CODE_DEVICE_UNAVAILABLE &&
 			isAutoSelectorNoWorkerMessage(remoteError.Message) {
 			return errors.New(
-				"no active paired worker is available for --on auto; run 'computehop connect auto' when one nearby worker is visible, or run 'computehop devices' to choose a worker",
+				"no active paired worker is available for --on auto; run 'computehop connect nearby' when one nearby worker is visible, or run 'computehop devices' to choose a worker",
 			)
 		}
 		if remoteError.Code == localv1.ErrorCode_ERROR_CODE_CONFLICT &&
@@ -2264,7 +2265,7 @@ func runSubmitError(selector string, err error) error {
 	if selector != "" && remoteError.Code == localv1.ErrorCode_ERROR_CODE_NOT_FOUND &&
 		isExplicitSelectorNoWorkerMessage(remoteError.Message) {
 		return fmt.Errorf(
-			"no active paired worker matches %q; run 'computehop devices' to see worker names/IDs, or run 'computehop connect auto' if the worker is nearby but still unpaired",
+			"no active paired worker matches %q; run 'computehop devices' to see worker names/IDs, or run 'computehop connect nearby' if the worker is nearby but still unpaired",
 			selector,
 		)
 	}
@@ -2298,7 +2299,12 @@ func isExplicitSelectorAmbiguousMessage(message string) bool {
 }
 
 func isConnectAutoSelector(selector string) bool {
-	return strings.EqualFold(strings.TrimSpace(selector), "auto")
+	switch strings.ToLower(strings.TrimSpace(selector)) {
+	case "auto", "nearby":
+		return true
+	default:
+		return false
+	}
 }
 
 func isAutomaticSelector(selector string) bool {

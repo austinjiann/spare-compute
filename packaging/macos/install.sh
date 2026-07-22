@@ -258,9 +258,9 @@ echo "Next:"
 if [ "$device_role" = "orchestrator" ]; then
     echo "- Check readiness: $cli_command doctor"
     echo "- Install or start a worker on another computer on the same LAN."
-    echo "- Connect one nearby worker: $cli_command connect auto"
+    echo "- Connect one nearby worker: $cli_command connect nearby"
     echo "- Smoke test: $cli_command run --on auto hostname"
 else
-    echo "- On the orchestrator Mac, run: computehop connect auto"
+    echo "- On the orchestrator Mac, run: computehop connect nearby"
     echo "- On this worker, confirm the matching code in the menu bar or run: $cli_command connect confirm"
 fi

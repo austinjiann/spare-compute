@@ -159,7 +159,7 @@ func TestRunCommandAutoSelectorErrorExplainsConnectAuto(t *testing.T) {
 	}
 	for _, want := range []string{
 		"no active paired worker is available for --on auto",
-		"computehop connect auto",
+		"computehop connect nearby",
 		"computehop devices",
 	} {
 		if !strings.Contains(err.Error(), want) {
@@ -240,7 +240,7 @@ func TestRunCommandExplicitSelectorNotFoundErrorExplainsDevices(t *testing.T) {
 	for _, want := range []string{
 		"no active paired worker matches \"Austin MacBook 2\"",
 		"computehop devices",
-		"computehop connect auto",
+		"computehop connect nearby",
 	} {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("error = %q; missing %q", err, want)
@@ -1317,7 +1317,7 @@ func TestDoctorCommandSuggestsPairingNearbyWorker(t *testing.T) {
 	}
 	for _, want := range []string{
 		"Nearby unpaired devices: 1",
-		"computehop connect auto",
+		"computehop connect nearby",
 		"computehop connect confirm",
 	} {
 		if !strings.Contains(stdout.String(), want) {
@@ -1408,7 +1408,7 @@ func TestSetupCommandPrintsFirstRunChecklistWithoutDaemon(t *testing.T) {
 		"Advanced equivalent: computehop setup mac --role worker --device-name \"Gaming PC\"",
 		"computehop doctor",
 		"Development-only alternative: go run ./cmd/computehopd --role worker",
-		"computehop connect auto",
+		"computehop connect nearby",
 		"computehop connect <device>",
 		"computehop smoke",
 		"cd deploy/vps",
@@ -1533,7 +1533,7 @@ func TestSetupMacCommandPrintsDefaultOrchestratorInstallWithoutDaemon(t *testing
 		"computehop setup mac --role orchestrator",
 		"make install-macos",
 		"computehop doctor",
-		"computehop connect auto",
+		"computehop connect nearby",
 		"computehop smoke",
 		"After buying the VPS",
 	} {
@@ -1828,8 +1828,8 @@ func TestCoreCommandHelpShowsFriendlyExamplesWithoutDaemon(t *testing.T) {
 			name: "connect",
 			args: []string{"connect", "--help"},
 			want: []string{
-				"connect [auto|device]",
-				"computehop connect auto",
+				"connect [nearby|device]",
+				"computehop connect nearby",
 				"computehop connect confirm",
 				"nearby unpaired worker",
 			},
@@ -1923,7 +1923,7 @@ func TestConnectCommandWithoutDeviceSuggestsNearbyWorker(t *testing.T) {
 	for _, want := range []string{
 		"LAN discovery: available",
 		"Nearby unpaired devices: 1",
-		"computehop connect auto",
+		"computehop connect nearby",
 	} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
@@ -1931,7 +1931,7 @@ func TestConnectCommandWithoutDeviceSuggestsNearbyWorker(t *testing.T) {
 	}
 }
 
-func TestConnectAutoBeginsPairingWithOnlyNearbyWorker(t *testing.T) {
+func TestConnectNearbyBeginsPairingWithOnlyNearbyWorker(t *testing.T) {
 	presenceID, err := device.NewPresenceID(bytes.NewReader(bytes.Repeat([]byte{23}, 16)))
 	if err != nil {
 		t.Fatal(err)
@@ -1985,7 +1985,7 @@ func TestConnectAutoBeginsPairingWithOnlyNearbyWorker(t *testing.T) {
 			}}, nil
 		},
 	})
-	command.SetArgs([]string{"connect", "auto"})
+	command.SetArgs([]string{"connect", "nearby"})
 	if err := command.Execute(); err != nil {
 		t.Fatal(err)
 	}
@@ -1999,6 +1999,17 @@ func TestConnectAutoBeginsPairingWithOnlyNearbyWorker(t *testing.T) {
 	}
 	if calls != 2 {
 		t.Fatalf("calls = %d", calls)
+	}
+}
+
+func TestConnectAutoRemainsCompatibilityAliasForNearby(t *testing.T) {
+	for _, selector := range []string{"auto", "nearby", " NEARBY "} {
+		if !isConnectAutoSelector(selector) {
+			t.Fatalf("isConnectAutoSelector(%q) = false", selector)
+		}
+	}
+	if isConnectAutoSelector("Gaming PC") {
+		t.Fatal("explicit device selector was treated as automatic nearby selector")
 	}
 }
 
