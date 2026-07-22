@@ -52,7 +52,10 @@ The installer places the app in `~/Applications`, adds a safe CLI symlink at
 then starts at login in the selected role and writes diagnostics to
 `~/Library/Logs/ComputeHop/daemon.log`. If a manually started daemon is already
 using the ComputeHop socket or UDP port, the installer asks you to stop it
-instead of killing it.
+instead of killing it. After installation, the script prints role-specific next
+steps: orchestrator installs get `doctor`, `connect auto`, and smoke-test
+commands; worker installs tell you what to run on the orchestrator and how to
+confirm the pairing locally.
 
 The current daemon integration attempts LAN first, then a direct ICE path using
 the configured rendezvous and STUN services. The menu bar and `computehop

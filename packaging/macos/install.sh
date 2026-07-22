@@ -197,7 +197,22 @@ if [ -n "$connectivity_url" ]; then
     echo "Direct remote connectivity is enabled through $connectivity_url"
 fi
 echo "CLI: $cli_target"
+cli_command="computehop"
 case ":$PATH:" in
     *:"$cli_dir":*) ;;
-    *) echo "Add $cli_dir to PATH to run 'computehop' without its full path." ;;
+    *)
+        cli_command="$cli_target"
+        echo "Add $cli_dir to PATH to run 'computehop' without its full path."
+        ;;
 esac
+echo ""
+echo "Next:"
+if [ "$device_role" = "orchestrator" ]; then
+    echo "- Check readiness: $cli_command doctor"
+    echo "- Install or start a worker on another computer on the same LAN."
+    echo "- Connect one nearby worker: $cli_command connect auto"
+    echo "- Smoke test: $cli_command run --on auto hostname"
+else
+    echo "- On the orchestrator Mac, run: computehop connect auto"
+    echo "- On this worker, confirm the matching code in the menu bar or run: $cli_command connect confirm"
+fi
