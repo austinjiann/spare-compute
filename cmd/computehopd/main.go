@@ -330,14 +330,19 @@ func runWithDependencies(
 	if err != nil {
 		return err
 	}
+	localDeviceInfo := orchestrator.LocalDeviceInfo{
+		DeviceID: localDevice.Identity.ID(),
+		Name:     localDevice.Name,
+		Role:     localDevice.Role,
+	}
 	var handler *orchestrator.LocalHandler
 	if remoteManager == nil {
-		handler, err = orchestrator.NewLocalHandler(
-			jobService, remoteJobs, deviceService, pairingService, version,
+		handler, err = orchestrator.NewLocalHandlerWithLocalDevice(
+			jobService, remoteJobs, deviceService, pairingService, localDeviceInfo, version,
 		)
 	} else {
-		handler, err = orchestrator.NewLocalHandler(
-			jobService, remoteJobs, deviceService, pairingService, version, remoteManager,
+		handler, err = orchestrator.NewLocalHandlerWithLocalDevice(
+			jobService, remoteJobs, deviceService, pairingService, localDeviceInfo, version, remoteManager,
 		)
 	}
 	if err != nil {

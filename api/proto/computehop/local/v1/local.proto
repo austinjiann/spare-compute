@@ -56,6 +56,9 @@ message PingRequest {}
 
 message PingResponse {
   string daemon_version = 1;
+  string device_id = 2;
+  string device_name = 3;
+  DeviceRole role = 4;
 }
 
 message SubmitJobRequest {

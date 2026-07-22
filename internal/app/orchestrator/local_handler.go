@@ -28,6 +28,7 @@ var (
 	ErrMissingDeviceController  = errors.New("local handler device controller is required")
 	ErrMissingPairingController = errors.New("local handler pairing controller is required")
 	ErrInvalidConnectivity      = errors.New("local handler accepts at most one connectivity controller")
+	ErrInvalidLocalDevice       = errors.New("invalid local handler device info")
 )
 
 // JobController is the narrow application boundary exposed over local IPC.
@@ -78,6 +79,21 @@ type ConnectivityController interface {
 	States() []remoteconn.State
 }
 
+// LocalDeviceInfo is the secret-free local daemon identity exposed to local UI.
+type LocalDeviceInfo struct {
+	DeviceID device.ID
+	Name     string
+	Role     device.Role
+}
+
+func (info LocalDeviceInfo) Validate() error {
+	if !info.DeviceID.Valid() || device.ValidateName(info.Name) != nil ||
+		(info.Role != device.RoleWorker && info.Role != device.RoleOrchestrator) {
+		return ErrInvalidLocalDevice
+	}
+	return nil
+}
+
 // LocalHandler maps authenticated protocol requests to application use cases.
 type LocalHandler struct {
 	jobs         JobController
@@ -85,6 +101,7 @@ type LocalHandler struct {
 	devices      DeviceController
 	pairings     PairingController
 	connectivity ConnectivityController
+	local        LocalDeviceInfo
 	version      string
 }
 
@@ -122,13 +139,50 @@ func NewLocalHandler(
 	}, nil
 }
 
+// NewLocalHandlerWithLocalDevice constructs a local control handler that can
+// identify the local daemon in health/status responses.
+func NewLocalHandlerWithLocalDevice(
+	jobs JobController,
+	remote PairedJobController,
+	devices DeviceController,
+	pairings PairingController,
+	local LocalDeviceInfo,
+	version string,
+	connectivity ...ConnectivityController,
+) (*LocalHandler, error) {
+	handler, err := NewLocalHandler(jobs, remote, devices, pairings, version, connectivity...)
+	if err != nil {
+		return nil, err
+	}
+	if err := handler.SetLocalDevice(local); err != nil {
+		return nil, err
+	}
+	return handler, nil
+}
+
+// SetLocalDevice updates the secret-free local daemon identity exposed over
+// authenticated local IPC.
+func (handler *LocalHandler) SetLocalDevice(local LocalDeviceInfo) error {
+	if err := local.Validate(); err != nil {
+		return err
+	}
+	handler.local = local
+	return nil
+}
+
 // Handle executes one already-authenticated local request.
 func (handler *LocalHandler) Handle(ctx context.Context, request *localv1.Request) *localv1.Response {
 	switch operation := request.GetOperation().(type) {
 	case *localv1.Request_Ping:
-		return &localv1.Response{Result: &localv1.Response_Ping{Ping: &localv1.PingResponse{
+		ping := &localv1.PingResponse{
 			DaemonVersion: handler.version,
-		}}}
+		}
+		if handler.local.Name != "" {
+			ping.DeviceId = string(handler.local.DeviceID)
+			ping.DeviceName = handler.local.Name
+			ping.Role = localDeviceRoleToProto(handler.local.Role)
+		}
+		return &localv1.Response{Result: &localv1.Response_Ping{Ping: ping}}
 	case *localv1.Request_SubmitJob:
 		return handler.submit(ctx, operation.SubmitJob)
 	case *localv1.Request_GetJob:
@@ -157,6 +211,17 @@ func (handler *LocalHandler) Handle(ctx context.Context, request *localv1.Reques
 		return handler.fetchArtifacts(ctx, operation.FetchArtifacts)
 	default:
 		return failureResponse(localv1.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "unsupported local operation")
+	}
+}
+
+func localDeviceRoleToProto(role device.Role) localv1.DeviceRole {
+	switch role {
+	case device.RoleWorker:
+		return localv1.DeviceRole_DEVICE_ROLE_WORKER
+	case device.RoleOrchestrator:
+		return localv1.DeviceRole_DEVICE_ROLE_ORCHESTRATOR
+	default:
+		return localv1.DeviceRole_DEVICE_ROLE_UNSPECIFIED
 	}
 }
 

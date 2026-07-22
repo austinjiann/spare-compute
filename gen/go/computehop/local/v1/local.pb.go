@@ -1284,6 +1284,9 @@ func (*PingRequest) Descriptor() ([]byte, []int) {
 type PingResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	DaemonVersion string                 `protobuf:"bytes,1,opt,name=daemon_version,json=daemonVersion,proto3" json:"daemon_version,omitempty"`
+	DeviceId      string                 `protobuf:"bytes,2,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
+	DeviceName    string                 `protobuf:"bytes,3,opt,name=device_name,json=deviceName,proto3" json:"device_name,omitempty"`
+	Role          DeviceRole             `protobuf:"varint,4,opt,name=role,proto3,enum=computehop.local.v1.DeviceRole" json:"role,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1323,6 +1326,27 @@ func (x *PingResponse) GetDaemonVersion() string {
 		return x.DaemonVersion
 	}
 	return ""
+}
+
+func (x *PingResponse) GetDeviceId() string {
+	if x != nil {
+		return x.DeviceId
+	}
+	return ""
+}
+
+func (x *PingResponse) GetDeviceName() string {
+	if x != nil {
+		return x.DeviceName
+	}
+	return ""
+}
+
+func (x *PingResponse) GetRole() DeviceRole {
+	if x != nil {
+		return x.Role
+	}
+	return DeviceRole_DEVICE_ROLE_UNSPECIFIED
 }
 
 type SubmitJobRequest struct {
@@ -3492,9 +3516,13 @@ const file_computehop_local_v1_local_proto_rawDesc = "" +
 	"\runpair_device\x18\x16 \x01(\v2).computehop.local.v1.UnpairDeviceResponseH\x00R\funpairDevice\x12V\n" +
 	"\x0ffetch_artifacts\x18\x17 \x01(\v2+.computehop.local.v1.FetchArtifactsResponseH\x00R\x0efetchArtifactsB\b\n" +
 	"\x06result\"\r\n" +
-	"\vPingRequest\"5\n" +
+	"\vPingRequest\"\xa8\x01\n" +
 	"\fPingResponse\x12%\n" +
-	"\x0edaemon_version\x18\x01 \x01(\tR\rdaemonVersion\"m\n" +
+	"\x0edaemon_version\x18\x01 \x01(\tR\rdaemonVersion\x12\x1b\n" +
+	"\tdevice_id\x18\x02 \x01(\tR\bdeviceId\x12\x1f\n" +
+	"\vdevice_name\x18\x03 \x01(\tR\n" +
+	"deviceName\x123\n" +
+	"\x04role\x18\x04 \x01(\x0e2\x1f.computehop.local.v1.DeviceRoleR\x04role\"m\n" +
 	"\x10SubmitJobRequest\x120\n" +
 	"\x04spec\x18\x01 \x01(\v2\x1c.computehop.local.v1.JobSpecR\x04spec\x12'\n" +
 	"\x0fdevice_selector\x18\x02 \x01(\tR\x0edeviceSelector\"?\n" +
@@ -3824,45 +3852,46 @@ var file_computehop_local_v1_local_proto_depIdxs = []int32{
 	37, // 26: computehop.local.v1.Response.list_trusted_devices:type_name -> computehop.local.v1.ListTrustedDevicesResponse
 	39, // 27: computehop.local.v1.Response.unpair_device:type_name -> computehop.local.v1.UnpairDeviceResponse
 	41, // 28: computehop.local.v1.Response.fetch_artifacts:type_name -> computehop.local.v1.FetchArtifactsResponse
-	45, // 29: computehop.local.v1.SubmitJobRequest.spec:type_name -> computehop.local.v1.JobSpec
-	46, // 30: computehop.local.v1.SubmitJobResponse.job:type_name -> computehop.local.v1.Job
-	46, // 31: computehop.local.v1.GetJobResponse.job:type_name -> computehop.local.v1.Job
-	1,  // 32: computehop.local.v1.ListJobsRequest.states:type_name -> computehop.local.v1.JobState
-	46, // 33: computehop.local.v1.ListJobsResponse.jobs:type_name -> computehop.local.v1.Job
-	46, // 34: computehop.local.v1.CancelJobResponse.job:type_name -> computehop.local.v1.Job
-	46, // 35: computehop.local.v1.ReadJobLogsResponse.job:type_name -> computehop.local.v1.Job
-	25, // 36: computehop.local.v1.ReadJobLogsResponse.records:type_name -> computehop.local.v1.JobLogRecord
-	4,  // 37: computehop.local.v1.JobLogRecord.stream:type_name -> computehop.local.v1.JobLogStream
-	44, // 38: computehop.local.v1.ListDevicesResponse.devices:type_name -> computehop.local.v1.NearbyDevice
-	9,  // 39: computehop.local.v1.ListDevicesResponse.discovery_state:type_name -> computehop.local.v1.DiscoveryState
-	43, // 40: computehop.local.v1.ListDevicesResponse.trusted_devices:type_name -> computehop.local.v1.TrustedDevice
-	42, // 41: computehop.local.v1.BeginPairingResponse.pairing:type_name -> computehop.local.v1.Pairing
-	42, // 42: computehop.local.v1.ListPairingsResponse.pairings:type_name -> computehop.local.v1.Pairing
-	42, // 43: computehop.local.v1.ConfirmPairingResponse.pairing:type_name -> computehop.local.v1.Pairing
-	42, // 44: computehop.local.v1.RejectPairingResponse.pairing:type_name -> computehop.local.v1.Pairing
-	43, // 45: computehop.local.v1.ListTrustedDevicesResponse.devices:type_name -> computehop.local.v1.TrustedDevice
-	43, // 46: computehop.local.v1.UnpairDeviceResponse.device:type_name -> computehop.local.v1.TrustedDevice
-	5,  // 47: computehop.local.v1.Pairing.peer_role:type_name -> computehop.local.v1.DeviceRole
-	7,  // 48: computehop.local.v1.Pairing.direction:type_name -> computehop.local.v1.PairingDirection
-	8,  // 49: computehop.local.v1.Pairing.state:type_name -> computehop.local.v1.PairingState
-	5,  // 50: computehop.local.v1.TrustedDevice.role:type_name -> computehop.local.v1.DeviceRole
-	6,  // 51: computehop.local.v1.TrustedDevice.trust_state:type_name -> computehop.local.v1.DeviceTrustState
-	10, // 52: computehop.local.v1.TrustedDevice.connectivity_state:type_name -> computehop.local.v1.ConnectivityState
-	5,  // 53: computehop.local.v1.NearbyDevice.role:type_name -> computehop.local.v1.DeviceRole
-	6,  // 54: computehop.local.v1.NearbyDevice.trust_state:type_name -> computehop.local.v1.DeviceTrustState
-	50, // 55: computehop.local.v1.JobSpec.environment:type_name -> computehop.local.v1.JobSpec.EnvironmentEntry
-	0,  // 56: computehop.local.v1.JobSpec.executor:type_name -> computehop.local.v1.Executor
-	45, // 57: computehop.local.v1.Job.spec:type_name -> computehop.local.v1.JobSpec
-	1,  // 58: computehop.local.v1.Job.state:type_name -> computehop.local.v1.JobState
-	48, // 59: computehop.local.v1.Job.failure:type_name -> computehop.local.v1.Failure
-	47, // 60: computehop.local.v1.Job.progress:type_name -> computehop.local.v1.JobProgress
-	2,  // 61: computehop.local.v1.JobProgress.phase:type_name -> computehop.local.v1.JobProgressPhase
-	3,  // 62: computehop.local.v1.Error.code:type_name -> computehop.local.v1.ErrorCode
-	63, // [63:63] is the sub-list for method output_type
-	63, // [63:63] is the sub-list for method input_type
-	63, // [63:63] is the sub-list for extension type_name
-	63, // [63:63] is the sub-list for extension extendee
-	0,  // [0:63] is the sub-list for field type_name
+	5,  // 29: computehop.local.v1.PingResponse.role:type_name -> computehop.local.v1.DeviceRole
+	45, // 30: computehop.local.v1.SubmitJobRequest.spec:type_name -> computehop.local.v1.JobSpec
+	46, // 31: computehop.local.v1.SubmitJobResponse.job:type_name -> computehop.local.v1.Job
+	46, // 32: computehop.local.v1.GetJobResponse.job:type_name -> computehop.local.v1.Job
+	1,  // 33: computehop.local.v1.ListJobsRequest.states:type_name -> computehop.local.v1.JobState
+	46, // 34: computehop.local.v1.ListJobsResponse.jobs:type_name -> computehop.local.v1.Job
+	46, // 35: computehop.local.v1.CancelJobResponse.job:type_name -> computehop.local.v1.Job
+	46, // 36: computehop.local.v1.ReadJobLogsResponse.job:type_name -> computehop.local.v1.Job
+	25, // 37: computehop.local.v1.ReadJobLogsResponse.records:type_name -> computehop.local.v1.JobLogRecord
+	4,  // 38: computehop.local.v1.JobLogRecord.stream:type_name -> computehop.local.v1.JobLogStream
+	44, // 39: computehop.local.v1.ListDevicesResponse.devices:type_name -> computehop.local.v1.NearbyDevice
+	9,  // 40: computehop.local.v1.ListDevicesResponse.discovery_state:type_name -> computehop.local.v1.DiscoveryState
+	43, // 41: computehop.local.v1.ListDevicesResponse.trusted_devices:type_name -> computehop.local.v1.TrustedDevice
+	42, // 42: computehop.local.v1.BeginPairingResponse.pairing:type_name -> computehop.local.v1.Pairing
+	42, // 43: computehop.local.v1.ListPairingsResponse.pairings:type_name -> computehop.local.v1.Pairing
+	42, // 44: computehop.local.v1.ConfirmPairingResponse.pairing:type_name -> computehop.local.v1.Pairing
+	42, // 45: computehop.local.v1.RejectPairingResponse.pairing:type_name -> computehop.local.v1.Pairing
+	43, // 46: computehop.local.v1.ListTrustedDevicesResponse.devices:type_name -> computehop.local.v1.TrustedDevice
+	43, // 47: computehop.local.v1.UnpairDeviceResponse.device:type_name -> computehop.local.v1.TrustedDevice
+	5,  // 48: computehop.local.v1.Pairing.peer_role:type_name -> computehop.local.v1.DeviceRole
+	7,  // 49: computehop.local.v1.Pairing.direction:type_name -> computehop.local.v1.PairingDirection
+	8,  // 50: computehop.local.v1.Pairing.state:type_name -> computehop.local.v1.PairingState
+	5,  // 51: computehop.local.v1.TrustedDevice.role:type_name -> computehop.local.v1.DeviceRole
+	6,  // 52: computehop.local.v1.TrustedDevice.trust_state:type_name -> computehop.local.v1.DeviceTrustState
+	10, // 53: computehop.local.v1.TrustedDevice.connectivity_state:type_name -> computehop.local.v1.ConnectivityState
+	5,  // 54: computehop.local.v1.NearbyDevice.role:type_name -> computehop.local.v1.DeviceRole
+	6,  // 55: computehop.local.v1.NearbyDevice.trust_state:type_name -> computehop.local.v1.DeviceTrustState
+	50, // 56: computehop.local.v1.JobSpec.environment:type_name -> computehop.local.v1.JobSpec.EnvironmentEntry
+	0,  // 57: computehop.local.v1.JobSpec.executor:type_name -> computehop.local.v1.Executor
+	45, // 58: computehop.local.v1.Job.spec:type_name -> computehop.local.v1.JobSpec
+	1,  // 59: computehop.local.v1.Job.state:type_name -> computehop.local.v1.JobState
+	48, // 60: computehop.local.v1.Job.failure:type_name -> computehop.local.v1.Failure
+	47, // 61: computehop.local.v1.Job.progress:type_name -> computehop.local.v1.JobProgress
+	2,  // 62: computehop.local.v1.JobProgress.phase:type_name -> computehop.local.v1.JobProgressPhase
+	3,  // 63: computehop.local.v1.Error.code:type_name -> computehop.local.v1.ErrorCode
+	64, // [64:64] is the sub-list for method output_type
+	64, // [64:64] is the sub-list for method input_type
+	64, // [64:64] is the sub-list for extension type_name
+	64, // [64:64] is the sub-list for extension extendee
+	0,  // [0:64] is the sub-list for field type_name
 }
 
 func init() { file_computehop_local_v1_local_proto_init() }

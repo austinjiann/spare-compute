@@ -417,7 +417,12 @@ func TestDoctorCommandReportsOfflinePairedWorker(t *testing.T) {
 						t.Fatalf("first request = %#v", request)
 					}
 					return &localv1.Response{Result: &localv1.Response_Ping{
-						Ping: &localv1.PingResponse{DaemonVersion: "dev"},
+						Ping: &localv1.PingResponse{
+							DaemonVersion: "dev",
+							DeviceId:      string(identity.ID()),
+							DeviceName:    "Austin MacBook 1",
+							Role:          localv1.DeviceRole_DEVICE_ROLE_ORCHESTRATOR,
+						},
 					}}, nil
 				case 2:
 					if request.GetListDevices() == nil {
@@ -442,6 +447,7 @@ func TestDoctorCommandReportsOfflinePairedWorker(t *testing.T) {
 	}
 	for _, want := range []string{
 		"Daemon: ok (computehopd dev)",
+		"Device: Austin MacBook 1 (orchestrator, " + identity.ID().Short() + ")",
 		"LAN discovery: available",
 		"Paired devices: 1 active, 0 revoked",
 		"Reachable workers: 0",
@@ -685,6 +691,46 @@ func TestPairConfirmInfersTheOnlyActionableRequest(t *testing.T) {
 	}
 	if got := stdout.String(); got != "Confirmed Gaming PC locally; state: waiting.\n" {
 		t.Fatalf("stdout = %q", got)
+	}
+}
+
+func TestStatusCommandPrintsLocalDeviceIdentity(t *testing.T) {
+	identity, err := device.GenerateIdentity(bytes.NewReader(bytes.Repeat([]byte{20}, 64)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout,
+		stderr: &bytes.Buffer{},
+		getwd:  func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+				if request.GetPing() == nil {
+					t.Fatalf("request = %#v", request)
+				}
+				return &localv1.Response{Result: &localv1.Response_Ping{
+					Ping: &localv1.PingResponse{
+						DaemonVersion: "dev",
+						DeviceId:      string(identity.ID()),
+						DeviceName:    "Austin MacBook 1",
+						Role:          localv1.DeviceRole_DEVICE_ROLE_ORCHESTRATOR,
+					},
+				}}, nil
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"status"})
+	if err := command.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"computehopd dev ready",
+		"Device: Austin MacBook 1 (orchestrator, " + identity.ID().Short() + ")",
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
+		}
 	}
 }
 

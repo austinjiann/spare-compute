@@ -892,6 +892,12 @@ public nonisolated struct Computehop_Local_V1_PingResponse: Sendable {
 
   public var daemonVersion: String = String()
 
+  public var deviceID: String = String()
+
+  public var deviceName: String = String()
+
+  public var role: Computehop_Local_V1_DeviceRole = .unspecified
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
@@ -2260,7 +2266,7 @@ nonisolated extension Computehop_Local_V1_PingRequest: SwiftProtobuf.Message, Sw
 
 nonisolated extension Computehop_Local_V1_PingResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".PingResponse"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}daemon_version\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}daemon_version\0\u{3}device_id\0\u{3}device_name\0\u{1}role\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -2269,6 +2275,9 @@ nonisolated extension Computehop_Local_V1_PingResponse: SwiftProtobuf.Message, S
       // enabled. https://github.com/apple/swift-protobuf/issues/1034
       switch fieldNumber {
       case 1: try { try decoder.decodeSingularStringField(value: &self.daemonVersion) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.deviceID) }()
+      case 3: try { try decoder.decodeSingularStringField(value: &self.deviceName) }()
+      case 4: try { try decoder.decodeSingularEnumField(value: &self.role) }()
       default: break
       }
     }
@@ -2278,11 +2287,23 @@ nonisolated extension Computehop_Local_V1_PingResponse: SwiftProtobuf.Message, S
     if !self.daemonVersion.isEmpty {
       try visitor.visitSingularStringField(value: self.daemonVersion, fieldNumber: 1)
     }
+    if !self.deviceID.isEmpty {
+      try visitor.visitSingularStringField(value: self.deviceID, fieldNumber: 2)
+    }
+    if !self.deviceName.isEmpty {
+      try visitor.visitSingularStringField(value: self.deviceName, fieldNumber: 3)
+    }
+    if self.role != .unspecified {
+      try visitor.visitSingularEnumField(value: self.role, fieldNumber: 4)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
   public static func ==(lhs: Computehop_Local_V1_PingResponse, rhs: Computehop_Local_V1_PingResponse) -> Bool {
     if lhs.daemonVersion != rhs.daemonVersion {return false}
+    if lhs.deviceID != rhs.deviceID {return false}
+    if lhs.deviceName != rhs.deviceName {return false}
+    if lhs.role != rhs.role {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

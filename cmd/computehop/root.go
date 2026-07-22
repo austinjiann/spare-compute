@@ -533,8 +533,10 @@ func newStatusCommand(
 			if ping == nil {
 				return fmt.Errorf("%w: missing ping result", ErrInvalidDaemonResponse)
 			}
-			_, err = fmt.Fprintf(stdout, "computehopd %s ready\n", ping.GetDaemonVersion())
-			return err
+			if _, err := fmt.Fprintf(stdout, "computehopd %s ready\n", ping.GetDaemonVersion()); err != nil {
+				return err
+			}
+			return printPingDeviceLine(stdout, ping)
 		},
 	}
 }
@@ -577,6 +579,9 @@ func newDoctorCommand(
 			if _, err := fmt.Fprintf(stdout, "Daemon: ok (computehopd %s)\n", ping.GetDaemonVersion()); err != nil {
 				return err
 			}
+			if err := printPingDeviceLine(stdout, ping); err != nil {
+				return err
+			}
 
 			response, err = client.Call(command.Context(), &localv1.Request{
 				Operation: &localv1.Request_ListDevices{ListDevices: &localv1.ListDevicesRequest{}},
@@ -590,6 +595,46 @@ func newDoctorCommand(
 			}
 			return printDoctorDevices(stdout, result)
 		},
+	}
+}
+
+func printPingDeviceLine(stdout io.Writer, ping *localv1.PingResponse) error {
+	line, err := pingDeviceLine(ping)
+	if err != nil || line == "" {
+		return err
+	}
+	_, err = fmt.Fprintln(stdout, line)
+	return err
+}
+
+func pingDeviceLine(ping *localv1.PingResponse) (string, error) {
+	if ping.GetDeviceId() == "" && ping.GetDeviceName() == "" &&
+		ping.GetRole() == localv1.DeviceRole_DEVICE_ROLE_UNSPECIFIED {
+		return "", nil
+	}
+	if ping.GetDeviceId() == "" || ping.GetDeviceName() == "" ||
+		ping.GetRole() == localv1.DeviceRole_DEVICE_ROLE_UNSPECIFIED {
+		return "", fmt.Errorf("%w: incomplete ping device identity", ErrInvalidDaemonResponse)
+	}
+	id, err := device.ParseID(ping.GetDeviceId())
+	if err != nil {
+		return "", fmt.Errorf("%w: invalid ping device ID", ErrInvalidDaemonResponse)
+	}
+	role, err := pingRoleLabel(ping.GetRole())
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("Device: %s (%s, %s)", ping.GetDeviceName(), role, id.Short()), nil
+}
+
+func pingRoleLabel(role localv1.DeviceRole) (string, error) {
+	switch role {
+	case localv1.DeviceRole_DEVICE_ROLE_WORKER:
+		return string(device.RoleWorker), nil
+	case localv1.DeviceRole_DEVICE_ROLE_ORCHESTRATOR:
+		return string(device.RoleOrchestrator), nil
+	default:
+		return "", fmt.Errorf("%w: invalid ping device role", ErrInvalidDaemonResponse)
 	}
 }
 

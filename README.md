@@ -105,10 +105,11 @@ go run ./cmd/computehop --state-dir "$computehop_state_dir" run -o result.txt sh
 go run ./cmd/computehop --state-dir "$computehop_state_dir" artifacts <job-id>
 ```
 
-`computehop doctor` is the quickest manual smoke-check. It verifies that the
-local daemon is reachable, summarizes LAN discovery, paired-device counts,
-reachable workers, and nearby unpaired devices, then prints the next command to
-run for the current state.
+`computehop status` and `computehop doctor` also print the local daemon's
+device name, role, and short device ID when available. `doctor` is the quickest
+manual smoke-check: it verifies that the local daemon is reachable, summarizes
+LAN discovery, paired-device counts, reachable workers, and nearby unpaired
+devices, then prints the next command to run for the current state.
 
 After pairing a currently nearby worker, explicit remote job control uses the
 same commands with a device selector:

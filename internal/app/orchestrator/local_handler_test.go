@@ -77,6 +77,31 @@ func TestLocalHandlerPing(t *testing.T) {
 	}
 }
 
+func TestLocalHandlerPingIncludesLocalDevice(t *testing.T) {
+	identity, err := device.GenerateIdentity(bytes.NewReader(bytes.Repeat([]byte{21}, 64)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler, err := NewLocalHandlerWithLocalDevice(
+		stubJobController{}, stubPairedJobController{}, stubDeviceController{},
+		stubPairingController{},
+		LocalDeviceInfo{DeviceID: identity.ID(), Name: "Austin MacBook 1", Role: device.RoleOrchestrator},
+		"test-version",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := handler.Handle(context.Background(), &localv1.Request{
+		Operation: &localv1.Request_Ping{Ping: &localv1.PingRequest{}},
+	})
+	ping := response.GetPing()
+	if ping.GetDeviceId() != string(identity.ID()) ||
+		ping.GetDeviceName() != "Austin MacBook 1" ||
+		ping.GetRole() != localv1.DeviceRole_DEVICE_ROLE_ORCHESTRATOR {
+		t.Fatalf("ping = %#v", ping)
+	}
+}
+
 func TestLocalHandlerListsDiscoveryHealth(t *testing.T) {
 	handler, err := NewLocalHandler(stubJobController{}, stubPairedJobController{}, stubDeviceController{
 		list: func(context.Context) (device.DiscoverySnapshot, error) {
