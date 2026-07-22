@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -378,6 +379,224 @@ func TestDevicesCommandShowsRemotePathForOfflineLANPeer(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, want := range []string{"Remote PC", "remote", "direct (STUN)", "2026-07-22T07:00:00Z"} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
+		}
+	}
+}
+
+func TestDoctorCommandReportsOfflinePairedWorker(t *testing.T) {
+	identity, err := device.GenerateIdentity(bytes.NewReader(bytes.Repeat([]byte{14}, 64)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pairID, err := trust.NewPairID(bytes.NewReader(bytes.Repeat([]byte{15}, 16)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	updatedAt := time.Date(2026, time.July, 22, 9, 0, 0, 0, time.UTC)
+	trusted, err := mapper.TrustedPeerToProto(trust.Peer{
+		PairID: pairID, DeviceID: identity.ID(), PublicKey: identity.PublicKey(),
+		Name: "Gaming PC", Role: device.RoleWorker, State: trust.StateActive,
+		PairedAt: updatedAt.Add(-time.Hour), UpdatedAt: updatedAt,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var calls int
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+				calls++
+				switch calls {
+				case 1:
+					if request.GetPing() == nil {
+						t.Fatalf("first request = %#v", request)
+					}
+					return &localv1.Response{Result: &localv1.Response_Ping{
+						Ping: &localv1.PingResponse{DaemonVersion: "dev"},
+					}}, nil
+				case 2:
+					if request.GetListDevices() == nil {
+						t.Fatalf("second request = %#v", request)
+					}
+					return &localv1.Response{Result: &localv1.Response_ListDevices{
+						ListDevices: &localv1.ListDevicesResponse{
+							DiscoveryState: localv1.DiscoveryState_DISCOVERY_STATE_AVAILABLE,
+							TrustedDevices: []*localv1.TrustedDevice{trusted},
+						},
+					}}, nil
+				default:
+					t.Fatalf("unexpected call %d", calls)
+					return nil, nil
+				}
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"doctor"})
+	if err := command.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"Daemon: ok (computehopd dev)",
+		"LAN discovery: available",
+		"Paired devices: 1 active, 0 revoked",
+		"Reachable workers: 0",
+		"1 paired worker(s) exist but are not reachable right now.",
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
+		}
+	}
+}
+
+func TestDoctorCommandSuggestsRemoteSmokeTestForConnectedWorker(t *testing.T) {
+	identity, err := device.GenerateIdentity(bytes.NewReader(bytes.Repeat([]byte{16}, 64)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pairID, err := trust.NewPairID(bytes.NewReader(bytes.Repeat([]byte{17}, 16)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	updatedAt := time.Date(2026, time.July, 22, 9, 30, 0, 0, time.UTC)
+	trusted, err := mapper.TrustedPeerToProto(trust.Peer{
+		PairID: pairID, DeviceID: identity.ID(), PublicKey: identity.PublicKey(),
+		Name: "Gaming PC", Role: device.RoleWorker, State: trust.StateActive,
+		PairedAt: updatedAt.Add(-time.Hour), UpdatedAt: updatedAt,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	presenceID, err := device.NewPresenceID(bytes.NewReader(bytes.Repeat([]byte{19}, 16)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	trusted.ConnectivityState = localv1.ConnectivityState_CONNECTIVITY_STATE_CONNECTED
+	trusted.ConnectivityPath = "host"
+	trusted.ConnectivityUpdatedAtUnixNano = updatedAt.UnixNano()
+
+	var calls int
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+				calls++
+				switch calls {
+				case 1:
+					return &localv1.Response{Result: &localv1.Response_Ping{
+						Ping: &localv1.PingResponse{DaemonVersion: "dev"},
+					}}, nil
+				case 2:
+					return &localv1.Response{Result: &localv1.Response_ListDevices{
+						ListDevices: &localv1.ListDevicesResponse{
+							DiscoveryState: localv1.DiscoveryState_DISCOVERY_STATE_AVAILABLE,
+							TrustedDevices: []*localv1.TrustedDevice{trusted},
+							Devices: []*localv1.NearbyDevice{{
+								PresenceId: string(presenceID), Name: "Gaming PC",
+								Role:      localv1.DeviceRole_DEVICE_ROLE_WORKER,
+								Addresses: []string{"192.0.2.20"}, Port: 47823,
+								LastSeenAtUnixNano: updatedAt.UnixNano(),
+								TrustState:         localv1.DeviceTrustState_DEVICE_TRUST_STATE_UNPAIRED,
+							}},
+						},
+					}}, nil
+				default:
+					t.Fatalf("unexpected call %d", calls)
+					return nil, nil
+				}
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"doctor"})
+	if err := command.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"Reachable workers: 1 (Gaming PC)",
+		"Nearby unpaired devices: 0",
+		"computehop run --on " + identity.ID().Short() + " hostname",
+		"computehop jobs --on " + identity.ID().Short(),
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
+		}
+	}
+}
+
+func TestDoctorCommandSuggestsPairingNearbyWorker(t *testing.T) {
+	presenceID, err := device.NewPresenceID(bytes.NewReader(bytes.Repeat([]byte{18}, 16)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := time.Date(2026, time.July, 22, 10, 0, 0, 0, time.UTC)
+	var calls int
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+				calls++
+				switch calls {
+				case 1:
+					return &localv1.Response{Result: &localv1.Response_Ping{
+						Ping: &localv1.PingResponse{DaemonVersion: "dev"},
+					}}, nil
+				case 2:
+					return &localv1.Response{Result: &localv1.Response_ListDevices{
+						ListDevices: &localv1.ListDevicesResponse{
+							DiscoveryState: localv1.DiscoveryState_DISCOVERY_STATE_AVAILABLE,
+							Devices: []*localv1.NearbyDevice{{
+								PresenceId: string(presenceID), Name: "Gaming PC",
+								Role:      localv1.DeviceRole_DEVICE_ROLE_WORKER,
+								Addresses: []string{"192.0.2.20"}, Port: 47823,
+								LastSeenAtUnixNano: seen.UnixNano(),
+								TrustState:         localv1.DeviceTrustState_DEVICE_TRUST_STATE_UNPAIRED,
+							}},
+						},
+					}}, nil
+				default:
+					t.Fatalf("unexpected call %d", calls)
+					return nil, nil
+				}
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"doctor"})
+	if err := command.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"Nearby unpaired devices: 1",
+		"computehop pair \"Gaming PC\"",
+		"computehop pair confirm",
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
+		}
+	}
+}
+
+func TestDoctorCommandPrintsDaemonRecoveryBeforeConnectionError(t *testing.T) {
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			return nil, errors.New("daemon down")
+		},
+	})
+	command.SetArgs([]string{"doctor"})
+	if err := command.Execute(); err == nil || !strings.Contains(err.Error(), "daemon down") {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	for _, want := range []string{
+		"Daemon: not reachable",
+		"go run ./cmd/computehopd --role orchestrator --device-name \"This Mac\"",
+	} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
 		}

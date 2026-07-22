@@ -54,6 +54,7 @@ func newRootCommand(dependencies dependencies) *cobra.Command {
 
 	root.AddCommand(newVersionCommand(dependencies.stdout))
 	root.AddCommand(newStatusCommand(dependencies.stdout, clientForCommand))
+	root.AddCommand(newDoctorCommand(dependencies.stdout, clientForCommand))
 	root.AddCommand(newDevicesCommand(dependencies.stdout, dependencies.stderr, clientForCommand))
 	root.AddCommand(newPairCommand(dependencies.stdout, clientForCommand))
 	root.AddCommand(newUnpairCommand(dependencies.stdout, clientForCommand))
@@ -536,6 +537,213 @@ func newStatusCommand(
 			return err
 		},
 	}
+}
+
+func newDoctorCommand(
+	stdout io.Writer,
+	clientForCommand func() (caller, error),
+) *cobra.Command {
+	return &cobra.Command{
+		Use:   "doctor",
+		Short: "Explain local daemon and device readiness",
+		Args:  cobra.NoArgs,
+		RunE: func(command *cobra.Command, _ []string) error {
+			client, err := clientForCommand()
+			if err != nil {
+				if _, writeErr := fmt.Fprintln(stdout, "Daemon: not reachable"); writeErr != nil {
+					return writeErr
+				}
+				if _, writeErr := fmt.Fprintln(stdout, "\nNext:"); writeErr != nil {
+					return writeErr
+				}
+				if _, writeErr := fmt.Fprintln(
+					stdout,
+					"- Open the ComputeHop app, or run: go run ./cmd/computehopd --role orchestrator --device-name \"This Mac\"",
+				); writeErr != nil {
+					return writeErr
+				}
+				return err
+			}
+			response, err := client.Call(command.Context(), &localv1.Request{
+				Operation: &localv1.Request_Ping{Ping: &localv1.PingRequest{}},
+			})
+			if err != nil {
+				return err
+			}
+			ping := response.GetPing()
+			if ping == nil {
+				return fmt.Errorf("%w: missing ping result", ErrInvalidDaemonResponse)
+			}
+			if _, err := fmt.Fprintf(stdout, "Daemon: ok (computehopd %s)\n", ping.GetDaemonVersion()); err != nil {
+				return err
+			}
+
+			response, err = client.Call(command.Context(), &localv1.Request{
+				Operation: &localv1.Request_ListDevices{ListDevices: &localv1.ListDevicesRequest{}},
+			})
+			if err != nil {
+				return err
+			}
+			result := response.GetListDevices()
+			if result == nil {
+				return fmt.Errorf("%w: missing device list result", ErrInvalidDaemonResponse)
+			}
+			return printDoctorDevices(stdout, result)
+		},
+	}
+}
+
+type doctorWorker struct {
+	name     string
+	selector string
+}
+
+func printDoctorDevices(stdout io.Writer, result *localv1.ListDevicesResponse) error {
+	nearbyDevices := make([]nearbyDeviceView, 0, len(result.GetDevices()))
+	nearbyByKey := make(map[string]int)
+	for _, message := range result.GetDevices() {
+		nearby, err := nearbyViewFromProto(message)
+		if err != nil {
+			return fmt.Errorf("%w: %v", ErrInvalidDaemonResponse, err)
+		}
+		nearbyDevices = append(nearbyDevices, nearby)
+		nearbyByKey[deviceDisplayKey(nearby.name, nearby.role)]++
+	}
+
+	activePairs := 0
+	revokedPairs := 0
+	pairedWorkers := 0
+	offlineWorkers := 0
+	activePeerKeys := make(map[string]int)
+	reachableWorkers := make([]doctorWorker, 0)
+	for _, message := range result.GetTrustedDevices() {
+		peer, err := mapper.TrustedPeerFromProto(message)
+		if err != nil {
+			return fmt.Errorf("%w: %v", ErrInvalidDaemonResponse, err)
+		}
+		key := deviceDisplayKey(peer.Name, string(peer.Role))
+		switch peer.State {
+		case trust.StateActive:
+			activePairs++
+			activePeerKeys[key]++
+		case trust.StateRevoked:
+			revokedPairs++
+		}
+		if peer.State != trust.StateActive || peer.Role != device.RoleWorker {
+			continue
+		}
+		pairedWorkers++
+		reachable := nearbyByKey[key] > 0
+		if message.GetConnectivityState() == localv1.ConnectivityState_CONNECTIVITY_STATE_CONNECTED {
+			reachable = true
+		}
+		if reachable {
+			reachableWorkers = append(reachableWorkers, doctorWorker{
+				name:     peer.Name,
+				selector: peer.DeviceID.Short(),
+			})
+		} else {
+			offlineWorkers++
+		}
+	}
+	unpairedNearbyDevices := make([]nearbyDeviceView, 0, len(nearbyDevices))
+	for _, nearby := range nearbyDevices {
+		if activePeerKeys[deviceDisplayKey(nearby.name, nearby.role)] > 0 {
+			continue
+		}
+		unpairedNearbyDevices = append(unpairedNearbyDevices, nearby)
+	}
+
+	if _, err := fmt.Fprintf(stdout, "LAN discovery: %s\n", doctorDiscoveryLabel(result)); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(stdout, "Paired devices: %d active, %d revoked\n", activePairs, revokedPairs); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(
+		stdout,
+		"Reachable workers: %d%s\n",
+		len(reachableWorkers),
+		doctorWorkerNames(reachableWorkers),
+	); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(stdout, "Nearby unpaired devices: %d\n", len(unpairedNearbyDevices)); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(stdout, "\nNext:"); err != nil {
+		return err
+	}
+	switch {
+	case len(reachableWorkers) > 0:
+		selector := reachableWorkers[0].selector
+		if _, err := fmt.Fprintf(stdout, "- Run a smoke test: computehop run --on %s hostname\n", selector); err != nil {
+			return err
+		}
+		_, err := fmt.Fprintf(stdout, "- Watch it: computehop jobs --on %s\n", selector)
+		return err
+	case len(unpairedNearbyDevices) > 0:
+		if _, err := fmt.Fprintf(
+			stdout,
+			"- Pair the first nearby device: computehop pair %s\n",
+			strconv.Quote(unpairedNearbyDevices[0].name),
+		); err != nil {
+			return err
+		}
+		_, err := fmt.Fprintln(stdout, "- After comparing the code on both devices, run on both: computehop pair confirm")
+		return err
+	case pairedWorkers > 0:
+		if _, err := fmt.Fprintf(stdout, "- %d paired worker(s) exist but are not reachable right now.\n", offlineWorkers); err != nil {
+			return err
+		}
+		_, err := fmt.Fprintln(stdout, "- Start computehopd on the worker, then run: computehop devices")
+		return err
+	case result.GetDiscoveryState() == localv1.DiscoveryState_DISCOVERY_STATE_STARTING:
+		_, err := fmt.Fprintln(stdout, "- Wait a few seconds, then run: computehop devices")
+		return err
+	default:
+		if _, err := fmt.Fprintln(
+			stdout,
+			"- Start ComputeHop on another computer on the same LAN: go run ./cmd/computehopd --role worker --device-name \"Gaming PC\"",
+		); err != nil {
+			return err
+		}
+		_, err := fmt.Fprintln(stdout, "- Then run: computehop devices")
+		return err
+	}
+}
+
+func doctorDiscoveryLabel(result *localv1.ListDevicesResponse) string {
+	switch result.GetDiscoveryState() {
+	case localv1.DiscoveryState_DISCOVERY_STATE_STARTING:
+		return "starting"
+	case localv1.DiscoveryState_DISCOVERY_STATE_AVAILABLE:
+		return "available"
+	case localv1.DiscoveryState_DISCOVERY_STATE_UNAVAILABLE:
+		if result.GetDiscoveryError() != "" {
+			return "unavailable (" + result.GetDiscoveryError() + ")"
+		}
+		return "unavailable"
+	default:
+		return "unknown"
+	}
+}
+
+func doctorWorkerNames(workers []doctorWorker) string {
+	if len(workers) == 0 {
+		return ""
+	}
+	names := make([]string, 0, min(len(workers), 3))
+	for index, worker := range workers {
+		if index >= 3 {
+			break
+		}
+		names = append(names, worker.name)
+	}
+	if len(workers) > len(names) {
+		names = append(names, fmt.Sprintf("+%d more", len(workers)-len(names)))
+	}
+	return " (" + strings.Join(names, ", ") + ")"
 }
 
 func newRunCommand(
