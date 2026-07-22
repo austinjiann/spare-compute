@@ -98,7 +98,39 @@ func submitSmokeTestRefusesAmbiguousWorkersWithoutSelection() async {
     await model.submitSmokeTest()
 
     #expect(await client.lastSubmittedExecutable() == nil)
-    #expect(model.lastError == "That worker is no longer nearby. Refresh and choose an available device.")
+    #expect(model.lastError == "Auto worker works only when exactly one connected worker is available. Choose a worker from Run on.")
+}
+
+@Test
+@MainActor
+func submitSmokeTestExplainsWhenNoWorkerIsConnected() async {
+    let client = RecordingDaemonClient(devices: [])
+    let model = AppModel(client: client)
+    model.daemon = daemonSummary()
+    model.devices = []
+
+    #expect(!model.canSubmitSmokeTest)
+
+    await model.submitSmokeTest()
+
+    #expect(await client.lastSubmittedExecutable() == nil)
+    #expect(model.lastError == "No connected worker is available. Connect a nearby worker first, or run on This Mac.")
+}
+
+@Test
+@MainActor
+func submitCommandExplainsWhenSelectedWorkerDisappears() async {
+    let client = RecordingDaemonClient(devices: [])
+    let model = AppModel(client: client)
+    model.daemon = daemonSummary()
+    model.devices = []
+    model.runTargetID = "missing-worker-id"
+    model.commandInput = "hostname"
+
+    await model.submitCommand()
+
+    #expect(await client.lastSubmittedExecutable() == nil)
+    #expect(model.lastError == "The selected worker is no longer reachable. Refresh and choose another run target.")
 }
 
 @Test
@@ -154,7 +186,7 @@ func connectNearbyWorkerRefusesAmbiguousNearbyWorkers() async {
     await model.connectNearbyWorker()
 
     #expect(await client.lastPairingSelector() == nil)
-	#expect(model.lastError == "Connect Nearby Worker works only when exactly one nearby worker is available. Refresh and choose one from Devices.")
+    #expect(model.lastError == "Connect Nearby Worker works only when exactly one nearby worker is available. Refresh and choose one from Devices.")
 }
 
 @Test

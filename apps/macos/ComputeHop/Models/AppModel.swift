@@ -7,14 +7,20 @@ protocol ClipboardWriting {
 
 enum AppActionError: LocalizedError {
     case nearbyWorkerAmbiguous
-    case targetUnavailable
+    case noRunnableWorker
+    case automaticWorkerAmbiguous
+    case selectedWorkerUnavailable
 
     var errorDescription: String? {
         switch self {
         case .nearbyWorkerAmbiguous:
             return "Connect Nearby Worker works only when exactly one nearby worker is available. Refresh and choose one from Devices."
-        case .targetUnavailable:
-            return "That worker is no longer nearby. Refresh and choose an available device."
+        case .noRunnableWorker:
+            return "No connected worker is available. Connect a nearby worker first, or run on This Mac."
+        case .automaticWorkerAmbiguous:
+            return "Auto worker works only when exactly one connected worker is available. Choose a worker from Run on."
+        case .selectedWorkerUnavailable:
+            return "The selected worker is no longer reachable. Refresh and choose another run target."
         }
     }
 }
@@ -68,7 +74,7 @@ final class AppModel {
 
     var canConnectNearbyWorker: Bool { pairableWorkers.count == 1 }
 
-    var canSubmitSmokeTest: Bool { smokeTestTarget() != nil }
+    var canSubmitSmokeTest: Bool { (try? smokeTestTarget()) != nil }
 
     var isRemoteRunTargetSelected: Bool { !runTargetID.isEmpty }
 
@@ -185,10 +191,10 @@ final class AppModel {
             let automaticTarget = isAutomaticRunTargetSelected
             let targetDevice = automaticTarget ? nil : runnableDevices.first { $0.id == runTargetID }
             if automaticTarget && !canRunAutomatically {
-                throw AppActionError.targetUnavailable
+                throw automaticWorkerSelectionError()
             }
             if !runTargetID.isEmpty && !automaticTarget && targetDevice == nil {
-                throw AppActionError.targetUnavailable
+                throw AppActionError.selectedWorkerUnavailable
             }
             let targetName = automaticTarget ? "Auto worker" : targetDevice?.name ?? "This Mac"
             let directory = workingDirectory.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -222,9 +228,7 @@ final class AppModel {
 
     func submitSmokeTest() async {
         await perform("smoke-test") {
-            guard let target = smokeTestTarget() else {
-                throw AppActionError.targetUnavailable
-            }
+            let target = try smokeTestTarget()
             let submitted = try await client.submitJob(
                 executable: "hostname",
                 arguments: [],
@@ -315,15 +319,19 @@ final class AppModel {
         selectedJobLogsTruncated = true
     }
 
-    private func smokeTestTarget() -> (selector: String, name: String)? {
+    private func smokeTestTarget() throws -> (selector: String, name: String) {
         if isAutomaticRunTargetSelected || runTargetID.isEmpty {
-            guard canRunAutomatically else { return nil }
+            guard canRunAutomatically else { throw automaticWorkerSelectionError() }
             return (Self.automaticWorkerTargetID, "Auto worker")
         }
         guard let device = runnableDevices.first(where: { $0.id == runTargetID }) else {
-            return nil
+            throw AppActionError.selectedWorkerUnavailable
         }
         return (device.id, device.name)
+    }
+
+    private func automaticWorkerSelectionError() -> AppActionError {
+        runnableDevices.isEmpty ? .noRunnableWorker : .automaticWorkerAmbiguous
     }
 
     private func perform(_ action: String, operation: () async throws -> Void) async {
