@@ -143,10 +143,11 @@ trusted peers with matching LAN presence and collapses duplicate same-name LAN
 records for a single connected peer so stale daemon restarts do not look like
 extra unpaired computers. `connect` is the
 friendlier pairing entry point: run it with no arguments for the next connection
-step, `connect nearby` to start trust setup only when exactly one nearby
-unpaired worker is visible, `connect <device>` when you need to choose
-explicitly, and `connect confirm` on both devices after the verification code
-matches. `connect auto` remains a compatibility alias for `connect nearby`.
+step, including any waiting verification code, `connect nearby` to start trust
+setup only when exactly one nearby unpaired worker is visible, `connect
+<device>` when you need to choose explicitly, and `connect confirm` on both
+devices after the verification code matches. `connect auto` remains a
+compatibility alias for `connect nearby`.
 If a second daemon is started while the first one is still using the local
 socket or ComputeHop network port, `computehopd` now reports that another daemon
 appears to be running and points the user to `computehop status` instead of
@@ -232,7 +233,8 @@ need to choose among multiple devices. Both local CLIs then show the same
 connection-bound verification code. Compare it exactly and run
 `computehop connect confirm` on both machines; the CLI infers
 the request when only one is actionable, tells you when the other machine still
-needs confirmation, and asks for an ID only if there is ambiguity. A worker
+needs confirmation, asks for an ID only if there is ambiguity, and shows waiting
+requests first when you run plain `computehop connect`. A worker
 stores at most one connected orchestrator pin, while the
 orchestrator may store multiple workers. `computehop disconnect` durably revokes the
 selected local pin; connecting again is explicit. `computehop unpair` remains a

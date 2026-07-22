@@ -2440,26 +2440,41 @@ func TestConnectCommandWithoutDeviceSuggestsNearbyWorker(t *testing.T) {
 		t.Fatal(err)
 	}
 	seen := time.Date(2026, time.July, 22, 11, 0, 0, 0, time.UTC)
+	var calls int
 	var stdout bytes.Buffer
 	command := newRootCommand(dependencies{
 		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
 		newClient: func(string) (caller, error) {
 			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
-				if request.GetListDevices() == nil {
-					t.Fatalf("request = %#v", request)
+				calls++
+				switch calls {
+				case 1:
+					if request.GetListPairings() == nil {
+						t.Fatalf("first request = %#v", request)
+					}
+					return &localv1.Response{Result: &localv1.Response_ListPairings{
+						ListPairings: &localv1.ListPairingsResponse{},
+					}}, nil
+				case 2:
+					if request.GetListDevices() == nil {
+						t.Fatalf("second request = %#v", request)
+					}
+					return &localv1.Response{Result: &localv1.Response_ListDevices{
+						ListDevices: &localv1.ListDevicesResponse{
+							DiscoveryState: localv1.DiscoveryState_DISCOVERY_STATE_AVAILABLE,
+							Devices: []*localv1.NearbyDevice{{
+								PresenceId: string(presenceID), Name: "Gaming PC",
+								Role:      localv1.DeviceRole_DEVICE_ROLE_WORKER,
+								Addresses: []string{"192.0.2.20"}, Port: 47823,
+								LastSeenAtUnixNano: seen.UnixNano(),
+								TrustState:         localv1.DeviceTrustState_DEVICE_TRUST_STATE_UNPAIRED,
+							}},
+						},
+					}}, nil
+				default:
+					t.Fatalf("unexpected call %d", calls)
+					return nil, nil
 				}
-				return &localv1.Response{Result: &localv1.Response_ListDevices{
-					ListDevices: &localv1.ListDevicesResponse{
-						DiscoveryState: localv1.DiscoveryState_DISCOVERY_STATE_AVAILABLE,
-						Devices: []*localv1.NearbyDevice{{
-							PresenceId: string(presenceID), Name: "Gaming PC",
-							Role:      localv1.DeviceRole_DEVICE_ROLE_WORKER,
-							Addresses: []string{"192.0.2.20"}, Port: 47823,
-							LastSeenAtUnixNano: seen.UnixNano(),
-							TrustState:         localv1.DeviceTrustState_DEVICE_TRUST_STATE_UNPAIRED,
-						}},
-					},
-				}}, nil
 			}}, nil
 		},
 	})
@@ -2475,6 +2490,51 @@ func TestConnectCommandWithoutDeviceSuggestsNearbyWorker(t *testing.T) {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
 		}
+	}
+	if calls != 2 {
+		t.Fatalf("calls = %d", calls)
+	}
+}
+
+func TestConnectCommandWithoutDeviceShowsWaitingPairingBeforeDevices(t *testing.T) {
+	value := cliPairingForTest(t)
+	message, err := mapper.PairingToProto(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+				if request.GetListPairings() == nil {
+					t.Fatalf("request = %#v", request)
+				}
+				return &localv1.Response{Result: &localv1.Response_ListPairings{
+					ListPairings: &localv1.ListPairingsResponse{Pairings: []*localv1.Pairing{message}},
+				}}, nil
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"connect"})
+	if err := command.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"Connection request waiting",
+		value.ID.Short(),
+		value.PeerName,
+		string(value.Verification),
+		"Compare the exact code on both devices",
+		"computehop connect confirm",
+		"computehop connect reject",
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
+		}
+	}
+	if strings.Contains(stdout.String(), "LAN discovery") {
+		t.Fatalf("stdout fell through to device guidance: %q", stdout.String())
 	}
 }
 

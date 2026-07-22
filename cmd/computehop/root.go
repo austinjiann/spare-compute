@@ -1059,17 +1059,7 @@ func newConnectCommand(
 				return err
 			}
 			if len(arguments) == 0 {
-				response, err := client.Call(command.Context(), &localv1.Request{
-					Operation: &localv1.Request_ListDevices{ListDevices: &localv1.ListDevicesRequest{}},
-				})
-				if err != nil {
-					return err
-				}
-				result := response.GetListDevices()
-				if result == nil {
-					return fmt.Errorf("%w: missing device list result", ErrInvalidDaemonResponse)
-				}
-				return printDoctorDevices(stdout, result)
+				return printConnectStatus(command, stdout, client)
 			}
 			var value trust.Pairing
 			if isConnectAutoSelector(arguments[0]) {
@@ -1086,6 +1076,27 @@ func newConnectCommand(
 	command.AddCommand(newPairDecisionCommand(stdout, clientForCommand, true))
 	command.AddCommand(newPairDecisionCommand(stdout, clientForCommand, false))
 	return command
+}
+
+func printConnectStatus(command *cobra.Command, stdout io.Writer, client caller) error {
+	pairings, err := waitingPairings(command.Context(), client, false)
+	if err != nil {
+		return err
+	}
+	if len(pairings) > 0 {
+		return printWaitingConnectPairings(stdout, pairings)
+	}
+	response, err := client.Call(command.Context(), &localv1.Request{
+		Operation: &localv1.Request_ListDevices{ListDevices: &localv1.ListDevicesRequest{}},
+	})
+	if err != nil {
+		return err
+	}
+	result := response.GetListDevices()
+	if result == nil {
+		return fmt.Errorf("%w: missing device list result", ErrInvalidDaemonResponse)
+	}
+	return printDoctorDevices(stdout, result)
 }
 
 func beginPairing(ctx context.Context, client caller, deviceSelector string) (trust.Pairing, error) {
@@ -1211,6 +1222,78 @@ func listPairings(command *cobra.Command, stdout io.Writer, client caller) error
 	return writer.Flush()
 }
 
+func waitingPairings(ctx context.Context, client caller, needsLocalConfirmation bool) ([]trust.Pairing, error) {
+	response, err := client.Call(ctx, &localv1.Request{
+		Operation: &localv1.Request_ListPairings{ListPairings: &localv1.ListPairingsRequest{}},
+	})
+	if err != nil {
+		return nil, err
+	}
+	result := response.GetListPairings()
+	if result == nil {
+		return nil, fmt.Errorf("%w: missing pairing list result", ErrInvalidDaemonResponse)
+	}
+	pairings := make([]trust.Pairing, 0, len(result.GetPairings()))
+	for _, message := range result.GetPairings() {
+		value, err := mapper.PairingFromProto(message)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %v", ErrInvalidDaemonResponse, err)
+		}
+		if value.State == trust.PairingWaiting && (!needsLocalConfirmation || !value.LocalConfirmed) {
+			pairings = append(pairings, value)
+		}
+	}
+	return pairings, nil
+}
+
+func printWaitingConnectPairings(stdout io.Writer, pairings []trust.Pairing) error {
+	if _, err := fmt.Fprintln(stdout, "Connection request waiting"); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(stdout); err != nil {
+		return err
+	}
+	writer := tabwriter.NewWriter(stdout, 0, 4, 2, ' ', 0)
+	if _, err := fmt.Fprintln(writer, "ID\tDEVICE\tCODE\tLOCAL\tREMOTE\tEXPIRES"); err != nil {
+		return err
+	}
+	for _, value := range pairings {
+		if _, err := fmt.Fprintf(
+			writer, "%s\t%s\t%s\t%s\t%s\t%s\n",
+			value.ID.Short(), value.PeerName, value.Verification,
+			yesNo(value.LocalConfirmed), yesNo(value.RemoteConfirmed),
+			value.ExpiresAt.Format(time.RFC3339),
+		); err != nil {
+			return err
+		}
+	}
+	if err := writer.Flush(); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(stdout, "\nNext:"); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(stdout, "- Compare the exact code on both devices. Do not confirm if it differs."); err != nil {
+		return err
+	}
+	if len(pairings) == 1 {
+		if pairings[0].LocalConfirmed {
+			_, err := fmt.Fprintln(stdout, "- This device is already confirmed. Finish on the other device with: computehop connect confirm")
+			return err
+		}
+		if _, err := fmt.Fprintln(stdout, "- If it matches, run on this device: computehop connect confirm"); err != nil {
+			return err
+		}
+		_, err := fmt.Fprintln(stdout, "- If it does not match, run: computehop connect reject")
+		return err
+	}
+	if _, err := fmt.Fprintln(stdout, "- If one code matches, choose it with: computehop connect confirm <id>"); err != nil {
+		return err
+	}
+	_, err := fmt.Fprintln(stdout, "- If one code does not match, reject it with: computehop connect reject <id>")
+	return err
+}
+
 func newPairDecisionCommand(
 	stdout io.Writer,
 	clientForCommand func() (caller, error),
@@ -1296,25 +1379,9 @@ func printConfirmationResult(stdout io.Writer, command *cobra.Command, value tru
 }
 
 func inferPairingSelector(command *cobra.Command, client caller, confirmed bool) (string, error) {
-	response, err := client.Call(command.Context(), &localv1.Request{
-		Operation: &localv1.Request_ListPairings{ListPairings: &localv1.ListPairingsRequest{}},
-	})
+	candidates, err := waitingPairings(command.Context(), client, confirmed)
 	if err != nil {
 		return "", err
-	}
-	result := response.GetListPairings()
-	if result == nil {
-		return "", fmt.Errorf("%w: missing pairing list result", ErrInvalidDaemonResponse)
-	}
-	candidates := make([]trust.Pairing, 0, len(result.GetPairings()))
-	for _, message := range result.GetPairings() {
-		value, err := mapper.PairingFromProto(message)
-		if err != nil {
-			return "", fmt.Errorf("%w: %v", ErrInvalidDaemonResponse, err)
-		}
-		if value.State == trust.PairingWaiting && (!confirmed || !value.LocalConfirmed) {
-			candidates = append(candidates, value)
-		}
 	}
 	if len(candidates) == 1 {
 		return string(candidates[0].ID), nil
