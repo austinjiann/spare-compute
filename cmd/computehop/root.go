@@ -57,6 +57,7 @@ func newRootCommand(dependencies dependencies) *cobra.Command {
 	root.AddCommand(newStatusCommand(dependencies.stdout, clientForCommand))
 	root.AddCommand(newDoctorCommand(dependencies.stdout, clientForCommand))
 	root.AddCommand(newDevicesCommand(dependencies.stdout, dependencies.stderr, clientForCommand))
+	root.AddCommand(newConnectCommand(dependencies.stdout, clientForCommand))
 	root.AddCommand(newPairCommand(dependencies.stdout, clientForCommand))
 	root.AddCommand(newUnpairCommand(dependencies.stdout, clientForCommand))
 	root.AddCommand(newRunCommand(dependencies.stdout, dependencies.getwd, clientForCommand))
@@ -303,6 +304,56 @@ func newPairCommand(
 	return command
 }
 
+func newConnectCommand(
+	stdout io.Writer,
+	clientForCommand func() (caller, error),
+) *cobra.Command {
+	command := &cobra.Command{
+		Use:   "connect [device]",
+		Short: "Connect another computer",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(command *cobra.Command, arguments []string) error {
+			client, err := clientForCommand()
+			if err != nil {
+				return err
+			}
+			if len(arguments) == 0 {
+				response, err := client.Call(command.Context(), &localv1.Request{
+					Operation: &localv1.Request_ListDevices{ListDevices: &localv1.ListDevicesRequest{}},
+				})
+				if err != nil {
+					return err
+				}
+				result := response.GetListDevices()
+				if result == nil {
+					return fmt.Errorf("%w: missing device list result", ErrInvalidDaemonResponse)
+				}
+				return printDoctorDevices(stdout, result)
+			}
+			response, err := client.Call(command.Context(), &localv1.Request{
+				Operation: &localv1.Request_BeginPairing{BeginPairing: &localv1.BeginPairingRequest{
+					DeviceSelector: arguments[0],
+				}},
+			})
+			if err != nil {
+				return err
+			}
+			result := response.GetBeginPairing()
+			if result == nil {
+				return fmt.Errorf("%w: missing begin-pairing result", ErrInvalidDaemonResponse)
+			}
+			value, err := mapper.PairingFromProto(result.GetPairing())
+			if err != nil {
+				return fmt.Errorf("%w: %v", ErrInvalidDaemonResponse, err)
+			}
+			return printPairingInstructionsWithConfirm(stdout, value, "computehop connect confirm")
+		},
+	}
+	command.AddCommand(newPairDecisionCommand(stdout, clientForCommand, true))
+	command.AddCommand(newPairDecisionCommand(stdout, clientForCommand, false))
+	return command
+}
+
 func listPairings(command *cobra.Command, stdout io.Writer, client caller) error {
 	response, err := client.Call(command.Context(), &localv1.Request{
 		Operation: &localv1.Request_ListPairings{ListPairings: &localv1.ListPairingsRequest{}},
@@ -432,15 +483,18 @@ func inferPairingSelector(command *cobra.Command, client caller, confirmed bool)
 		verb = "confirm"
 	}
 	if len(candidates) == 0 {
-		return "", fmt.Errorf("no pairing request is ready to %s; run 'computehop pair' to inspect requests", verb)
+		return "", fmt.Errorf(
+			"no pairing request is ready to %s; run '%s' to inspect device readiness",
+			verb, command.Parent().CommandPath(),
+		)
 	}
 	choices := make([]string, len(candidates))
 	for index, candidate := range candidates {
 		choices[index] = fmt.Sprintf("%s (%s)", candidate.PeerName, candidate.ID.Short())
 	}
 	return "", fmt.Errorf(
-		"more than one pairing can be %sed: %s; choose one with 'computehop pair %s <id>'",
-		verb, strings.Join(choices, ", "), verb,
+		"more than one pairing can be %sed: %s; choose one with '%s <id>'",
+		verb, strings.Join(choices, ", "), command.CommandPath(),
 	)
 }
 
@@ -479,6 +533,10 @@ func newUnpairCommand(
 }
 
 func printPairingInstructions(stdout io.Writer, value trust.Pairing) error {
+	return printPairingInstructionsWithConfirm(stdout, value, "computehop pair confirm")
+}
+
+func printPairingInstructionsWithConfirm(stdout io.Writer, value trust.Pairing, confirmCommand string) error {
 	if _, err := fmt.Fprintf(stdout, "Pairing request %s opened with %s.\n", value.ID.Short(), value.PeerName); err != nil {
 		return err
 	}
@@ -488,7 +546,7 @@ func printPairingInstructions(stdout io.Writer, value trust.Pairing) error {
 	if _, err := fmt.Fprintln(stdout, "Compare this exact code on both devices. Do not confirm if it differs."); err != nil {
 		return err
 	}
-	_, err := fmt.Fprintln(stdout, "If the codes match, run this on both devices: computehop pair confirm")
+	_, err := fmt.Fprintf(stdout, "If the codes match, run this on both devices: %s\n", confirmCommand)
 	return err
 }
 
@@ -731,12 +789,12 @@ func printDoctorDevices(stdout io.Writer, result *localv1.ListDevicesResponse) e
 	case len(unpairedNearbyDevices) > 0:
 		if _, err := fmt.Fprintf(
 			stdout,
-			"- Pair the first nearby device: computehop pair %s\n",
+			"- Connect to the first nearby device: computehop connect %s\n",
 			strconv.Quote(unpairedNearbyDevices[0].name),
 		); err != nil {
 			return err
 		}
-		_, err := fmt.Fprintln(stdout, "- After comparing the code on both devices, run on both: computehop pair confirm")
+		_, err := fmt.Fprintln(stdout, "- After comparing the code on both devices, run on both: computehop connect confirm")
 		return err
 	case pairedWorkers > 0:
 		if _, err := fmt.Fprintf(stdout, "- %d paired worker(s) exist but are not reachable right now.\n", offlineWorkers); err != nil {

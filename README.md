@@ -93,6 +93,9 @@ Then use the same state directory in another terminal:
 go run ./cmd/computehop --state-dir "$computehop_state_dir" status
 go run ./cmd/computehop --state-dir "$computehop_state_dir" doctor
 go run ./cmd/computehop --state-dir "$computehop_state_dir" devices
+go run ./cmd/computehop --state-dir "$computehop_state_dir" connect
+go run ./cmd/computehop --state-dir "$computehop_state_dir" connect <device-name-or-session>
+go run ./cmd/computehop --state-dir "$computehop_state_dir" connect confirm
 go run ./cmd/computehop --state-dir "$computehop_state_dir" pair <device-name-or-session>
 go run ./cmd/computehop --state-dir "$computehop_state_dir" pair
 go run ./cmd/computehop --state-dir "$computehop_state_dir" pair confirm
@@ -110,7 +113,10 @@ go run ./cmd/computehop --state-dir "$computehop_state_dir" artifacts <job-id>
 device name, role, and short device ID when available. `doctor` is the quickest
 manual smoke-check: it verifies that the local daemon is reachable, summarizes
 LAN discovery, paired-device counts, reachable workers, and nearby unpaired
-devices, then prints the next command to run for the current state.
+devices, then prints the next command to run for the current state. `connect`
+is the friendlier pairing entry point: run it with no arguments for the next
+connection step, `connect <device>` to start trust setup, and `connect confirm`
+on both devices after the verification code matches.
 
 After pairing a currently nearby worker, explicit remote job control uses the
 same commands with a device selector:

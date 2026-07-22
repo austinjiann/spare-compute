@@ -810,8 +810,8 @@ func TestDoctorCommandSuggestsPairingNearbyWorker(t *testing.T) {
 	}
 	for _, want := range []string{
 		"Nearby unpaired devices: 1",
-		"computehop pair \"Gaming PC\"",
-		"computehop pair confirm",
+		"computehop connect \"Gaming PC\"",
+		"computehop connect confirm",
 	} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
@@ -838,6 +838,138 @@ func TestDoctorCommandPrintsDaemonRecoveryBeforeConnectionError(t *testing.T) {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
 		}
+	}
+}
+
+func TestConnectCommandWithoutDeviceSuggestsNearbyWorker(t *testing.T) {
+	presenceID, err := device.NewPresenceID(bytes.NewReader(bytes.Repeat([]byte{22}, 16)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := time.Date(2026, time.July, 22, 11, 0, 0, 0, time.UTC)
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+				if request.GetListDevices() == nil {
+					t.Fatalf("request = %#v", request)
+				}
+				return &localv1.Response{Result: &localv1.Response_ListDevices{
+					ListDevices: &localv1.ListDevicesResponse{
+						DiscoveryState: localv1.DiscoveryState_DISCOVERY_STATE_AVAILABLE,
+						Devices: []*localv1.NearbyDevice{{
+							PresenceId: string(presenceID), Name: "Gaming PC",
+							Role:      localv1.DeviceRole_DEVICE_ROLE_WORKER,
+							Addresses: []string{"192.0.2.20"}, Port: 47823,
+							LastSeenAtUnixNano: seen.UnixNano(),
+							TrustState:         localv1.DeviceTrustState_DEVICE_TRUST_STATE_UNPAIRED,
+						}},
+					},
+				}}, nil
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"connect"})
+	if err := command.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"LAN discovery: available",
+		"Nearby unpaired devices: 1",
+		"computehop connect \"Gaming PC\"",
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
+		}
+	}
+}
+
+func TestConnectCommandBeginsPairingWithConnectInstructions(t *testing.T) {
+	value := cliPairingForTest(t)
+	message, err := mapper.PairingToProto(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+				if got := request.GetBeginPairing().GetDeviceSelector(); got != "Gaming PC" {
+					t.Fatalf("device selector = %q", got)
+				}
+				return &localv1.Response{Result: &localv1.Response_BeginPairing{
+					BeginPairing: &localv1.BeginPairingResponse{Pairing: message},
+				}}, nil
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"connect", "Gaming PC"})
+	if err := command.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		value.ID.Short(), value.PeerName, string(value.Verification),
+		"Compare this exact code on both devices", "computehop connect confirm",
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
+		}
+	}
+	if strings.Contains(stdout.String(), "computehop pair confirm") {
+		t.Fatalf("stdout used pair instructions instead of connect: %q", stdout.String())
+	}
+}
+
+func TestConnectConfirmInfersTheOnlyActionableRequest(t *testing.T) {
+	value := cliPairingForTest(t)
+	waiting, err := mapper.PairingToProto(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	confirmedValue := value
+	confirmedValue.LocalConfirmed = true
+	confirmed, err := mapper.PairingToProto(confirmedValue)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var calls int
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+				calls++
+				switch calls {
+				case 1:
+					if request.GetListPairings() == nil {
+						t.Fatalf("first request = %#v", request)
+					}
+					return &localv1.Response{Result: &localv1.Response_ListPairings{
+						ListPairings: &localv1.ListPairingsResponse{Pairings: []*localv1.Pairing{waiting}},
+					}}, nil
+				case 2:
+					if got := request.GetConfirmPairing().GetPairingSelector(); got != string(value.ID) {
+						t.Fatalf("pairing selector = %q", got)
+					}
+					return &localv1.Response{Result: &localv1.Response_ConfirmPairing{
+						ConfirmPairing: &localv1.ConfirmPairingResponse{Pairing: confirmed},
+					}}, nil
+				default:
+					t.Fatalf("unexpected call %d", calls)
+					return nil, nil
+				}
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"connect", "confirm"})
+	if err := command.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if got := stdout.String(); got != "Confirmed Gaming PC locally; state: waiting.\n" {
+		t.Fatalf("stdout = %q", got)
 	}
 }
 
