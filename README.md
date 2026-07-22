@@ -13,7 +13,8 @@ so later job-specific operations can route by job ID alone. Newly paired
 devices also derive private connectivity material, and the standalone hosted
 service can exchange short-lived encrypted presence and signaling payloads.
 A buildable SwiftUI menu-bar client now talks to the daemon over authenticated
-local IPC and presents device, pairing, and job controls. A provider-neutral
+local IPC and presents device, pairing, native job submission, reconnectable
+output, and cancellation controls. A provider-neutral
 one-VPS stack packages rendezvous, automatic HTTPS, STUN, and authenticated
 TURN. Daemon rendezvous clients, ICE path selection, and relay traffic are not
 wired up yet, so actual jobs remain LAN-only.
@@ -132,7 +133,10 @@ To launch the development menu-bar app against the default daemon state:
 swift run ComputeHop
 ```
 
-The app and generated Swift protocol models build with `swift build` and test
-with `swift test`. See [`apps/macos/README.md`](apps/macos/README.md) for the
-current packaging boundary. See [`deploy/vps/README.md`](deploy/vps/README.md)
-for the one-VPS staging setup to use after purchasing a host.
+The app can submit a native command to this Mac or a paired nearby worker and
+read its durable output directly in the menu. Quotes only group literal
+arguments; the app does not silently invoke a shell. The app and generated
+Swift protocol models build with `swift build` and test with `swift test`. See
+[`apps/macos/README.md`](apps/macos/README.md) for the current packaging
+boundary. See [`deploy/vps/README.md`](deploy/vps/README.md) for the one-VPS
+staging setup to use after purchasing a host.

@@ -85,16 +85,36 @@ struct JobSummary: Identifiable, Sendable {
     let state: String
     let terminal: Bool
     let updatedAt: Date
+    let target: String
 
-    init(_ value: Computehop_Local_V1_Job) {
+    init(_ value: Computehop_Local_V1_Job, target: String = "This Mac") {
         id = value.id
         command = ([value.spec.executable] + value.spec.arguments).joined(separator: " ")
         state = jobStateLabel(value.state)
         terminal = [.succeeded, .failed, .cancelled, .rejected, .lost].contains(value.state)
         updatedAt = Date(timeIntervalSince1970: Double(value.updatedAtUnixNano) / 1_000_000_000)
+        self.target = target
     }
 
     var shortID: String { String(id.prefix(8)) }
+}
+
+struct JobLogRecordSummary: Sendable {
+    let sequence: UInt64
+    let stream: String
+    let text: String
+
+    init(_ value: Computehop_Local_V1_JobLogRecord) {
+        sequence = value.sequence
+        stream = value.stream == .stderr ? "stderr" : "stdout"
+        text = String(decoding: value.data, as: UTF8.self)
+    }
+}
+
+struct JobLogPage: Sendable {
+    let job: JobSummary
+    let records: [JobLogRecordSummary]
+    let hasMore: Bool
 }
 
 struct PairingSummary: Identifiable, Sendable {

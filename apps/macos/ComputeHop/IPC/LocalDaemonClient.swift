@@ -125,7 +125,61 @@ actor LocalDaemonClient {
         guard case .listJobs(let jobs)? = response.result else {
             throw LocalDaemonError.invalidResponse("missing job list")
         }
-        return jobs.jobs.map(JobSummary.init)
+        return jobs.jobs.map { JobSummary($0) }
+    }
+
+    func getJob(id: String, target: String = "This Mac") async throws -> JobSummary {
+        var operation = Computehop_Local_V1_GetJobRequest()
+        operation.jobID = id
+        let response = try await call(.getJob(operation))
+        guard case .getJob(let result)? = response.result, result.hasJob else {
+            throw LocalDaemonError.invalidResponse("missing job")
+        }
+        return JobSummary(result.job, target: target)
+    }
+
+    func submitJob(
+        executable: String,
+        arguments: [String],
+        workingDirectory: String,
+        deviceSelector: String,
+        target: String
+    ) async throws -> JobSummary {
+        var spec = Computehop_Local_V1_JobSpec()
+        spec.executable = executable
+        spec.arguments = arguments
+        spec.workingDirectory = workingDirectory
+        spec.executor = .native
+
+        var operation = Computehop_Local_V1_SubmitJobRequest()
+        operation.spec = spec
+        operation.deviceSelector = deviceSelector
+        let response = try await call(.submitJob(operation))
+        guard case .submitJob(let result)? = response.result, result.hasJob else {
+            throw LocalDaemonError.invalidResponse("missing submitted job")
+        }
+        return JobSummary(result.job, target: target)
+    }
+
+    func readJobLogs(
+        id: String,
+        afterSequence: UInt64,
+        limit: UInt32 = 32,
+        target: String = "This Mac"
+    ) async throws -> JobLogPage {
+        var operation = Computehop_Local_V1_ReadJobLogsRequest()
+        operation.jobID = id
+        operation.afterSequence = afterSequence
+        operation.limit = limit
+        let response = try await call(.readJobLogs(operation))
+        guard case .readJobLogs(let result)? = response.result, result.hasJob else {
+            throw LocalDaemonError.invalidResponse("missing job logs")
+        }
+        return JobLogPage(
+            job: JobSummary(result.job, target: target),
+            records: result.records.map(JobLogRecordSummary.init),
+            hasMore: result.hasMore_p
+        )
     }
 
     func listPairings() async throws -> [PairingSummary] {

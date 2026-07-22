@@ -35,6 +35,9 @@ struct MenuContentView: View {
             Divider()
             PairingSection(model: model)
             DevicesSection(model: model)
+            Divider()
+            RunJobSection(model: model)
+            Divider()
             JobsSection(model: model)
             Divider()
 

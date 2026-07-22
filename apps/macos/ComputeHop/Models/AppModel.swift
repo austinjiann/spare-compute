@@ -1,10 +1,20 @@
 import Foundation
 import Observation
 
+enum AppActionError: LocalizedError {
+    case targetUnavailable
+
+    var errorDescription: String? {
+        "That worker is no longer nearby. Refresh and choose an available device."
+    }
+}
+
 @Observable
 @MainActor
 final class AppModel {
     private let client: LocalDaemonClient
+    private var trackedRemoteJobs: [String: String] = [:]
+    private var nextLogSequence: UInt64 = 0
 
     var daemonVersion: String?
     var devices: [DeviceSummary] = []
@@ -13,12 +23,25 @@ final class AppModel {
     var lastError: String?
     var isRefreshing = false
     var actionInProgress: String?
+    var commandInput = ""
+    var workingDirectory = ""
+    var runTargetID = ""
+    var selectedJobID: String?
+    var selectedJobLogs = ""
+    var selectedJobLogsTruncated = false
+    var isLoadingLogs = false
 
     init(client: LocalDaemonClient = LocalDaemonClient()) {
         self.client = client
     }
 
     var isConnected: Bool { daemonVersion != nil }
+
+    var runnableDevices: [DeviceSummary] {
+        devices.filter {
+            $0.trust == "Paired" && $0.availability == .nearby && $0.role == "Worker"
+        }
+    }
 
     func refreshLoop() async {
         await refresh()
@@ -41,9 +64,21 @@ final class AppModel {
             let snapshot = try await (version, newDevices, newJobs, newPairings)
             daemonVersion = snapshot.0
             devices = snapshot.1
-            jobs = snapshot.2
+            var refreshedJobs = snapshot.2
+            for (id, target) in trackedRemoteJobs where !refreshedJobs.contains(where: { $0.id == id }) {
+                if let remoteJob = try? await client.getJob(id: id, target: target) {
+                    refreshedJobs.append(remoteJob)
+                }
+            }
+            jobs = refreshedJobs.sorted { $0.updatedAt > $1.updatedAt }
             pairings = snapshot.3
+            if !runTargetID.isEmpty && !runnableDevices.contains(where: { $0.id == runTargetID }) {
+                runTargetID = ""
+            }
             lastError = nil
+            if selectedJobID != nil {
+                await refreshSelectedLogs()
+            }
         } catch {
             daemonVersion = nil
             lastError = error.localizedDescription
@@ -72,6 +107,93 @@ final class AppModel {
         await perform("cancel-\(job.id)") {
             try await client.cancelJob(id: job.id)
         }
+    }
+
+    func submitCommand() async {
+        await perform("submit-job") {
+            let arguments = try CommandInput.parse(commandInput)
+            let executable = arguments[0]
+            let targetDevice = runnableDevices.first { $0.id == runTargetID }
+            if !runTargetID.isEmpty && targetDevice == nil {
+                throw AppActionError.targetUnavailable
+            }
+            let targetName = targetDevice?.name ?? "This Mac"
+            let directory = workingDirectory.trimmingCharacters(in: .whitespacesAndNewlines)
+            let effectiveDirectory = runTargetID.isEmpty && directory.isEmpty
+                ? FileManager.default.homeDirectoryForCurrentUser.path
+                : directory
+            let submitted = try await client.submitJob(
+                executable: executable,
+                arguments: Array(arguments.dropFirst()),
+                workingDirectory: effectiveDirectory,
+                deviceSelector: targetDevice?.id ?? "",
+                target: targetName
+            )
+            if targetDevice != nil {
+                trackedRemoteJobs[submitted.id] = targetName
+            }
+            jobs.removeAll { $0.id == submitted.id }
+            jobs.insert(submitted, at: 0)
+            selectedJobID = submitted.id
+            selectedJobLogs = ""
+            selectedJobLogsTruncated = false
+            nextLogSequence = 0
+            commandInput = ""
+        }
+    }
+
+    func showLogs(for job: JobSummary) async {
+        if selectedJobID != job.id {
+            selectedJobID = job.id
+            selectedJobLogs = ""
+            selectedJobLogsTruncated = false
+            nextLogSequence = 0
+        }
+        await refreshSelectedLogs()
+    }
+
+    func closeLogs() {
+        selectedJobID = nil
+        selectedJobLogs = ""
+        selectedJobLogsTruncated = false
+        nextLogSequence = 0
+    }
+
+    private func refreshSelectedLogs() async {
+        guard let selectedJobID, !isLoadingLogs else { return }
+        isLoadingLogs = true
+        defer { isLoadingLogs = false }
+        do {
+            let target = jobs.first(where: { $0.id == selectedJobID })?.target ?? "This Mac"
+            var pagesRead = 0
+            var hasMore = true
+            while hasMore && pagesRead < 8 {
+                let page = try await client.readJobLogs(
+                    id: selectedJobID,
+                    afterSequence: nextLogSequence,
+                    target: target
+                )
+                if let jobIndex = jobs.firstIndex(where: { $0.id == selectedJobID }) {
+                    jobs[jobIndex] = page.job
+                }
+                for record in page.records {
+                    selectedJobLogs.append(record.text)
+                    nextLogSequence = max(nextLogSequence, record.sequence)
+                }
+                hasMore = page.hasMore
+                pagesRead += 1
+                trimLogsIfNeeded()
+            }
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    private func trimLogsIfNeeded() {
+        let maximumCharacters = 128 * 1024
+        guard selectedJobLogs.count > maximumCharacters else { return }
+        selectedJobLogs = String(selectedJobLogs.suffix(maximumCharacters))
+        selectedJobLogsTruncated = true
     }
 
     private func perform(_ action: String, operation: () async throws -> Void) async {
