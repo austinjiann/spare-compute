@@ -21,7 +21,7 @@ Last updated: 2026-07-22.
 | Device pairing and trust | Complete | QUIC/TLS pairing, two-sided verification codes, persistent Ed25519 identity pins, revocation, and re-pairing. |
 | Explicit remote execution | Complete | Submit to a selected paired LAN worker, observe durable state and logs, and cancel remotely. |
 | Durable remote job routing | Complete | Remember the pinned worker that accepted each remote job so job-specific operations reconnect by ID without another device selector. |
-| Hosted rendezvous foundation | Complete | Derive rotating anonymous pair credentials and exchange bounded, encrypted, expiring presence and signaling payloads through a standalone service. |
+| Hosted rendezvous foundation | Complete | Derive rotating anonymous pair credentials and exchange bounded, route-bound, end-to-end encrypted, expiring presence and signaling payloads through a standalone service and HTTPS client. |
 | One-VPS staging deployment | In progress | Provider-neutral Compose stack, Caddy HTTPS edge, authenticated coturn relay, bounded ports/quotas, secrets, firewall bootstrap, health checks, and rollback runbook are ready; buying the VPS and forced-relay validation remain. |
 | CLI and physical Mac validation | In progress | Friendlier `--on` and no-`--` command syntax, inferred pairing confirmation, and merged trusted/nearby presentation are implemented; physical macOS-to-macOS discovery, pairing, execution, restart recovery, logs, and cancellation passed. Windows/Linux remain. |
 | macOS menu-bar foundation | In progress | SwiftUI `MenuBarExtra`, generated SwiftProtobuf v3 models, authenticated Unix-socket IPC, device/pairing controls, native job submission, reconnectable output, and cancellation build and pass real Swift-to-Go ping and job tests; an ad-hoc app bundle and per-user launchd installer are ready for development. |
@@ -1220,11 +1220,15 @@ connectivity secret during confirmed pairing, persists it only on the two
 devices, rotates anonymous route credentials every five minutes, and adds a
 bounded in-memory rendezvous/signaling service. The service sees only opaque
 route IDs, credential digests, endpoint roles, timing, and encrypted payloads.
+The client now enforces HTTPS, refuses redirects, bounds responses, maps typed
+service errors, and encrypts payloads with authenticated role, direction,
+generation, and rotating-route context so stored ciphertext cannot be replayed
+in a later credential window.
 The current deployment slice adds a one-VPS staging stack with Caddy automatic
 HTTPS and an authenticated coturn STUN/TURN service using a bounded relay port
 range and Docker secret. The containers have been built and locally smoke
-tested, but the live VPS has not been purchased and the service is not connected
-to either daemon yet. Existing pairings without connectivity material must be
+tested, but the live VPS has not been purchased and the client is not supervised
+by either daemon yet. Existing pairings without connectivity material must be
 explicitly re-paired before later cross-network testing.
 
 - Deploy a staging rendezvous service, STUN endpoints, and TURN relays before

@@ -11,13 +11,14 @@ follow, and cancel a durable job on a paired worker that is currently reachable
 on the same LAN. It also remembers which pinned worker accepted each remote job
 so later job-specific operations can route by job ID alone. Newly paired
 devices also derive private connectivity material, and the standalone hosted
-service can exchange short-lived encrypted presence and signaling payloads.
+service and bounded HTTPS client can exchange short-lived presence and
+signaling payloads encrypted end to end with pair-scoped, route-bound keys.
 A buildable SwiftUI menu-bar client now talks to the daemon over authenticated
 local IPC and presents device, pairing, native job submission, reconnectable
 output, and cancellation controls. A provider-neutral
 one-VPS stack packages rendezvous, automatic HTTPS, STUN, and authenticated
-TURN. Daemon rendezvous clients, ICE path selection, and relay traffic are not
-wired up yet, so actual jobs remain LAN-only.
+TURN. The client is not yet supervised by either daemon, and ICE path selection
+and relay traffic are not wired up, so actual jobs remain LAN-only.
 
 See [`docs/PLAN.md`](docs/PLAN.md) for the product, architecture, security,
 execution, deployment, and launch plan.
