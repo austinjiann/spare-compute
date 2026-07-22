@@ -119,6 +119,11 @@ final class AppModel {
         return "No output captured yet for \(job.shortID). The job may still be starting or may not have written stdout/stderr."
     }
 
+    var selectedJobLogsCommand: String? {
+        guard let selectedJobID else { return nil }
+        return "computehop logs --follow \(selectedJobID)"
+    }
+
     var canSubmitCommand: Bool { runDisabledReason == nil }
 
     var runDisabledReason: String? {
@@ -175,6 +180,11 @@ final class AppModel {
 
     func copySetupGuideCommand(_ command: SetupGuideCommand, to clipboard: ClipboardWriting) {
         clipboard.write(command.value)
+    }
+
+    func copySelectedJobLogsCommand(to clipboard: ClipboardWriting) {
+        guard let selectedJobLogsCommand else { return }
+        clipboard.write(selectedJobLogsCommand)
     }
 
     func refreshLoop() async {

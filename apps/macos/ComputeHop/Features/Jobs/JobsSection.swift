@@ -1,6 +1,13 @@
 import AppKit
 import SwiftUI
 
+private struct JobClipboardWriter: ClipboardWriting {
+    func write(_ value: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(value, forType: .string)
+    }
+}
+
 struct JobsSection: View {
     let model: AppModel
 
@@ -63,6 +70,13 @@ struct JobsSection: View {
                         if model.isLoadingLogs {
                             ProgressView()
                                 .controlSize(.small)
+                        }
+                        if model.selectedJobLogsCommand != nil {
+                            Button("Copy CLI") {
+                                model.copySelectedJobLogsCommand(to: JobClipboardWriter())
+                            }
+                            .buttonStyle(.borderless)
+                            .help("Copy the Terminal command for following this job's logs.")
                         }
                         Button {
                             model.closeLogs()

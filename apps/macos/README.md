@@ -16,7 +16,8 @@ native job submission to this Mac, Auto worker when exactly one
 worker is runnable, or a paired available worker, a Smoke Test button that runs
 `hostname` remotely without uploading a project, recent jobs, reconnectable
 output with explicit no-stdout/stderr placeholders for running and finished
-jobs, cancellation, declared output paths, empty-jobs hints, and
+jobs, a copyable `computehop logs --follow <job-id>` handoff for terminal
+debugging, cancellation, declared output paths, empty-jobs hints, and
 conflict-safe artifact restoration through a native destination picker. Output
 retrieval errors explain not-ready, missing, and undeclared outputs instead of
 showing raw daemon messages. When Run is disabled, the menu explains whether

@@ -226,6 +226,18 @@ func selectedJobLogsPlaceholderExplainsRunningJobWithNoOutputYet() {
 
 @Test
 @MainActor
+func selectedJobLogsCommandFollowsSelectedJob() {
+    let model = AppModel(client: RecordingDaemonClient())
+
+    #expect(model.selectedJobLogsCommand == nil)
+
+    model.selectedJobID = "7a338fa3-7ba4-4c54-bf59-da1161f6b76f"
+
+    #expect(model.selectedJobLogsCommand == "computehop logs --follow 7a338fa3-7ba4-4c54-bf59-da1161f6b76f")
+}
+
+@Test
+@MainActor
 func submitSmokeTestUsesSelectedWorkerWhenMultipleWorkersExist() async {
     let first = runTargetDevice(id: "first-worker-id", name: "Gaming PC")
     let second = runTargetDevice(id: "second-worker-id", name: "Mini PC")
@@ -410,6 +422,29 @@ func copySetupGuideCommandDoesNothingWhenGuideHasNoCommand() {
     let clipboard = RecordingClipboard()
 
     model.copySetupGuideCommand(to: clipboard)
+
+    #expect(clipboard.value == nil)
+}
+
+@Test
+@MainActor
+func copySelectedJobLogsCommandCopiesFollowCommand() {
+    let model = AppModel(client: RecordingDaemonClient())
+    let clipboard = RecordingClipboard()
+    model.selectedJobID = "7a338fa3-7ba4-4c54-bf59-da1161f6b76f"
+
+    model.copySelectedJobLogsCommand(to: clipboard)
+
+    #expect(clipboard.value == "computehop logs --follow 7a338fa3-7ba4-4c54-bf59-da1161f6b76f")
+}
+
+@Test
+@MainActor
+func copySelectedJobLogsCommandDoesNothingWithoutSelection() {
+    let model = AppModel(client: RecordingDaemonClient())
+    let clipboard = RecordingClipboard()
+
+    model.copySelectedJobLogsCommand(to: clipboard)
 
     #expect(clipboard.value == nil)
 }
