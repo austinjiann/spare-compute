@@ -225,7 +225,9 @@ struct SetupGuideSummary: Sendable {
         pairings: [PairingSummary],
         runnableDevices: [DeviceSummary],
         workerDeviceName: String = "Gaming PC",
-        workerCacheSize: String = ""
+        workerCacheSize: String = "",
+        vpsConnectivityDomain: String = "connect.example.com",
+        vpsTurnDomain: String = "turn.example.com"
     ) -> SetupGuideSummary? {
         if !isConnected {
             return SetupGuideSummary(
@@ -274,6 +276,8 @@ struct SetupGuideSummary: Sendable {
                         value: workerSetupCommand(
                             deviceName: offlineWorkerName,
                             cacheSize: workerCacheSize,
+                            vpsConnectivityDomain: vpsConnectivityDomain,
+                            vpsTurnDomain: vpsTurnDomain,
                             vpsTemplate: true
                         )
                     ),
@@ -308,6 +312,8 @@ struct SetupGuideSummary: Sendable {
                     value: workerSetupCommand(
                         deviceName: workerDeviceName,
                         cacheSize: workerCacheSize,
+                        vpsConnectivityDomain: vpsConnectivityDomain,
+                        vpsTurnDomain: vpsTurnDomain,
                         vpsTemplate: true
                     )
                 ),
@@ -318,11 +324,15 @@ struct SetupGuideSummary: Sendable {
     private static func workerSetupCommand(
         deviceName: String,
         cacheSize: String = "",
+        vpsConnectivityDomain: String = "connect.example.com",
+        vpsTurnDomain: String = "turn.example.com",
         lanOnly: Bool = false,
         vpsTemplate: Bool = false
     ) -> String {
         let trimmedDeviceName = deviceName.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedCacheSize = cacheSize.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedConnectivityDomain = vpsConnectivityDomain.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedTurnDomain = vpsTurnDomain.trimmingCharacters(in: .whitespacesAndNewlines)
         var parts = [
             "computehop",
             "setup",
@@ -339,9 +349,9 @@ struct SetupGuideSummary: Sendable {
         if vpsTemplate {
             parts.append(contentsOf: [
                 "--connectivity-domain",
-                "connect.example.com",
+                shellArgument(trimmedConnectivityDomain.isEmpty ? "connect.example.com" : trimmedConnectivityDomain),
                 "--turn-domain",
-                "turn.example.com",
+                shellArgument(trimmedTurnDomain.isEmpty ? "turn.example.com" : trimmedTurnDomain),
             ])
         }
         return parts.joined(separator: " ")

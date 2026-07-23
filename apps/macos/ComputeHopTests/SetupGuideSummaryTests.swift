@@ -155,14 +155,45 @@ func setupGuideUsesConfiguredWorkerSetupDefaults() {
         pairings: [],
         runnableDevices: [],
         workerDeviceName: "Studio Mini",
-        workerCacheSize: "80GiB"
+        workerCacheSize: "80GiB",
+        vpsConnectivityDomain: "connect.computehop.dev",
+        vpsTurnDomain: "turn.computehop.dev"
     )
 
     #expect(guide?.command == "computehop setup worker --device-name 'Studio Mini' --cache-size 80GiB")
     #expect(guide?.commands.map(\.value) == [
         "computehop setup worker --device-name 'Studio Mini' --cache-size 80GiB",
         "computehop setup worker --device-name 'Studio Mini' --cache-size 80GiB --lan-only",
-        "computehop setup worker --device-name 'Studio Mini' --cache-size 80GiB --connectivity-domain connect.example.com --turn-domain turn.example.com",
+        "computehop setup worker --device-name 'Studio Mini' --cache-size 80GiB --connectivity-domain connect.computehop.dev --turn-domain turn.computehop.dev",
+    ])
+}
+
+@Test
+func setupGuideUsesConfiguredVPSDomainsForLANOnlyRecovery() {
+    let worker = DeviceSummary(
+        id: "lan-only-worker",
+        name: "Studio Mini",
+        role: "Worker",
+        trust: "Paired",
+        availability: .offline,
+        path: "LAN only",
+        address: nil,
+        canPair: false
+    )
+
+    let guide = SetupGuideSummary.make(
+        isConnected: true,
+        devices: [worker],
+        pairings: [],
+        runnableDevices: [],
+        workerCacheSize: "80GiB",
+        vpsConnectivityDomain: "connect.computehop.dev",
+        vpsTurnDomain: "turn.computehop.dev"
+    )
+
+    #expect(guide?.commands.map(\.value) == [
+        "computehop devices",
+        "computehop setup worker --device-name 'Studio Mini' --cache-size 80GiB --connectivity-domain connect.computehop.dev --turn-domain turn.computehop.dev",
     ])
 }
 

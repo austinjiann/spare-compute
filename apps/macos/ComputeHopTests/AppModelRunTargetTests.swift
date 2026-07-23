@@ -321,7 +321,9 @@ func notificationSettingLoadsAndPersistsThroughStore() {
 func setupDefaultsLoadPersistAndUpdateSetupGuide() {
     let store = RecordingSettingsStore(
         workerSetupDeviceName: "Studio Mini",
-        workerSetupCacheSize: "80GiB"
+        workerSetupCacheSize: "80GiB",
+        vpsConnectivityDomain: "connect.computehop.dev",
+        vpsTurnDomain: "turn.computehop.dev"
     )
     let model = AppModel(
         client: RecordingDaemonClient(),
@@ -332,14 +334,22 @@ func setupDefaultsLoadPersistAndUpdateSetupGuide() {
 
     #expect(model.workerSetupDeviceName == "Studio Mini")
     #expect(model.workerSetupCacheSize == "80GiB")
+    #expect(model.vpsConnectivityDomain == "connect.computehop.dev")
+    #expect(model.vpsTurnDomain == "turn.computehop.dev")
     #expect(model.setupGuide?.command == "computehop setup worker --device-name 'Studio Mini' --cache-size 80GiB")
+    #expect(model.setupGuide?.commands.last?.value == "computehop setup worker --device-name 'Studio Mini' --cache-size 80GiB --connectivity-domain connect.computehop.dev --turn-domain turn.computehop.dev")
 
     model.workerSetupDeviceName = "Render Box"
     model.workerSetupCacheSize = "120GiB"
+    model.vpsConnectivityDomain = "connect.renderbox.test"
+    model.vpsTurnDomain = "turn.renderbox.test"
 
     #expect(store.savedWorkerNames == ["Render Box"])
     #expect(store.savedCacheSizes == ["120GiB"])
+    #expect(store.savedConnectivityDomains == ["connect.renderbox.test"])
+    #expect(store.savedTurnDomains == ["turn.renderbox.test"])
     #expect(model.setupGuide?.command == "computehop setup worker --device-name 'Render Box' --cache-size 120GiB")
+    #expect(model.setupGuide?.commands.last?.value == "computehop setup worker --device-name 'Render Box' --cache-size 120GiB --connectivity-domain connect.renderbox.test --turn-domain turn.renderbox.test")
 }
 
 @Test
@@ -689,18 +699,26 @@ private final class RecordingSettingsStore: AppSettingsStoring {
     var jobCompletionNotificationsEnabled: Bool
     var workerSetupDeviceName: String
     var workerSetupCacheSize: String
+    var vpsConnectivityDomain: String
+    var vpsTurnDomain: String
     var savedNotificationValues: [Bool] = []
     var savedWorkerNames: [String] = []
     var savedCacheSizes: [String] = []
+    var savedConnectivityDomains: [String] = []
+    var savedTurnDomains: [String] = []
 
     init(
         jobCompletionNotificationsEnabled: Bool = true,
         workerSetupDeviceName: String = "Gaming PC",
-        workerSetupCacheSize: String = ""
+        workerSetupCacheSize: String = "",
+        vpsConnectivityDomain: String = "connect.example.com",
+        vpsTurnDomain: String = "turn.example.com"
     ) {
         self.jobCompletionNotificationsEnabled = jobCompletionNotificationsEnabled
         self.workerSetupDeviceName = workerSetupDeviceName
         self.workerSetupCacheSize = workerSetupCacheSize
+        self.vpsConnectivityDomain = vpsConnectivityDomain
+        self.vpsTurnDomain = vpsTurnDomain
     }
 
     func setJobCompletionNotificationsEnabled(_ enabled: Bool) {
@@ -716,6 +734,16 @@ private final class RecordingSettingsStore: AppSettingsStoring {
     func setWorkerSetupCacheSize(_ value: String) {
         workerSetupCacheSize = value
         savedCacheSizes.append(value)
+    }
+
+    func setVPSConnectivityDomain(_ value: String) {
+        vpsConnectivityDomain = value
+        savedConnectivityDomains.append(value)
+    }
+
+    func setVPSTurnDomain(_ value: String) {
+        vpsTurnDomain = value
+        savedTurnDomains.append(value)
     }
 }
 

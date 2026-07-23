@@ -76,6 +76,16 @@ final class AppModel {
             settingsStore.setWorkerSetupCacheSize(workerSetupCacheSize)
         }
     }
+    var vpsConnectivityDomain: String {
+        didSet {
+            settingsStore.setVPSConnectivityDomain(vpsConnectivityDomain)
+        }
+    }
+    var vpsTurnDomain: String {
+        didSet {
+            settingsStore.setVPSTurnDomain(vpsTurnDomain)
+        }
+    }
 
     init(
         client: LocalDaemonClientProtocol = LocalDaemonClient(),
@@ -88,6 +98,8 @@ final class AppModel {
         jobCompletionNotificationsEnabled = settingsStore.jobCompletionNotificationsEnabled
         workerSetupDeviceName = settingsStore.workerSetupDeviceName
         workerSetupCacheSize = settingsStore.workerSetupCacheSize
+        vpsConnectivityDomain = settingsStore.vpsConnectivityDomain
+        vpsTurnDomain = settingsStore.vpsTurnDomain
     }
 
     var daemonVersion: String? { daemon?.version }
@@ -246,7 +258,9 @@ final class AppModel {
             pairings: pairings,
             runnableDevices: runnableDevices,
             workerDeviceName: workerSetupDeviceName,
-            workerCacheSize: workerSetupCacheSize
+            workerCacheSize: workerSetupCacheSize,
+            vpsConnectivityDomain: vpsConnectivityDomain,
+            vpsTurnDomain: vpsTurnDomain
         )
     }
 

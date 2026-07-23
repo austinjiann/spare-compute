@@ -5,9 +5,13 @@ protocol AppSettingsStoring {
     var jobCompletionNotificationsEnabled: Bool { get }
     var workerSetupDeviceName: String { get }
     var workerSetupCacheSize: String { get }
+    var vpsConnectivityDomain: String { get }
+    var vpsTurnDomain: String { get }
     func setJobCompletionNotificationsEnabled(_ enabled: Bool)
     func setWorkerSetupDeviceName(_ value: String)
     func setWorkerSetupCacheSize(_ value: String)
+    func setVPSConnectivityDomain(_ value: String)
+    func setVPSTurnDomain(_ value: String)
 }
 
 final class UserDefaultsAppSettingsStore: AppSettingsStoring {
@@ -15,6 +19,8 @@ final class UserDefaultsAppSettingsStore: AppSettingsStoring {
     private let notificationsKey = "jobCompletionNotificationsEnabled"
     private let workerSetupDeviceNameKey = "workerSetupDeviceName"
     private let workerSetupCacheSizeKey = "workerSetupCacheSize"
+    private let vpsConnectivityDomainKey = "vpsConnectivityDomain"
+    private let vpsTurnDomainKey = "vpsTurnDomain"
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -36,6 +42,16 @@ final class UserDefaultsAppSettingsStore: AppSettingsStoring {
         defaults.string(forKey: workerSetupCacheSizeKey) ?? ""
     }
 
+    var vpsConnectivityDomain: String {
+        let value = defaults.string(forKey: vpsConnectivityDomainKey) ?? ""
+        return value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "connect.example.com" : value
+    }
+
+    var vpsTurnDomain: String {
+        let value = defaults.string(forKey: vpsTurnDomainKey) ?? ""
+        return value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "turn.example.com" : value
+    }
+
     func setJobCompletionNotificationsEnabled(_ enabled: Bool) {
         defaults.set(enabled, forKey: notificationsKey)
     }
@@ -46,5 +62,13 @@ final class UserDefaultsAppSettingsStore: AppSettingsStoring {
 
     func setWorkerSetupCacheSize(_ value: String) {
         defaults.set(value, forKey: workerSetupCacheSizeKey)
+    }
+
+    func setVPSConnectivityDomain(_ value: String) {
+        defaults.set(value, forKey: vpsConnectivityDomainKey)
+    }
+
+    func setVPSTurnDomain(_ value: String) {
+        defaults.set(value, forKey: vpsTurnDomainKey)
     }
 }
