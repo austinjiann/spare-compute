@@ -2,16 +2,13 @@ name: CI
 
 on:
   pull_request:
-  push:
-    branches:
-      - main
 
 permissions:
   contents: read
 
 jobs:
-  quality:
-    name: Go quality
+  pr-check:
+    name: PR check
     runs-on: ubuntu-latest
 
     steps:
@@ -24,76 +21,5 @@ jobs:
           go-version-file: .go-version
           cache: true
 
-      - name: Check formatting
-        shell: bash
-        run: test -z "$(gofmt -l .)"
-
-      - name: Vet
-        run: go vet ./...
-
-      - name: Validate VPS stack
-        run: make deploy-check
-
-  test:
-    name: Go / ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-          - macos-latest
-          - ubuntu-latest
-          - windows-latest
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-
-      - name: Set up Go
-        uses: actions/setup-go@v7
-        with:
-          go-version-file: .go-version
-          cache: true
-
-      - name: Test
-        run: go test ./...
-
-  race:
-    name: Go race detector
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-
-      - name: Set up Go
-        uses: actions/setup-go@v7
-        with:
-          go-version-file: .go-version
-          cache: true
-
-      - name: Test with race detector
-        run: go test -race ./...
-
-  swift:
-    name: macOS menu bar
-    runs-on: macos-latest
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-
-      - name: Set up Go
-        uses: actions/setup-go@v7
-        with:
-          go-version-file: .go-version
-          cache: true
-
-      - name: Build
-        run: swift build
-
-      - name: Test
-        run: swift test
-
-      - name: Build macOS app bundle
-        run: make macos-package
+      - name: Run PR validation
+        run: make pr-check

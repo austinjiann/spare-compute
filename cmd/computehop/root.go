@@ -30,6 +30,15 @@ var (
 	ErrInvalidDaemonResponse  = errors.New("invalid response from computehopd")
 )
 
+const (
+	exampleWorkerDeviceName   = "Gaming PC"
+	exampleConnectivityDomain = "connect.example.com"
+	exampleTurnDomain         = "turn.example.com"
+	exampleOperatorEmail      = "admin@example.com"
+	exampleVPSPublicIP        = "203.0.113.10"
+	exampleWorkerCacheSize    = "40GiB"
+)
+
 type nearbyDeviceView struct {
 	presenceID   device.PresenceID
 	name         string
@@ -358,8 +367,8 @@ func devicesNextStepLines(summary devicesNextStepSummary) []string {
 		}
 	case summary.lanOnlyOfflineWorkers > 0:
 		return []string{
-			"Put LAN-only workers on the same LAN, or reinstall them with VPS connectivity after the VPS is ready.",
-			"VPS worker template: computehop setup worker --device-name 'Gaming PC' --connectivity-domain connect.example.com --turn-domain turn.example.com",
+			"Put LAN-only workers on the same LAN.",
+			"Advanced cross-network setup starts with: computehop setup vps",
 		}
 	case summary.connectingWorkers > 0:
 		return []string{
@@ -368,12 +377,12 @@ func devicesNextStepLines(summary devicesNextStepSummary) []string {
 		}
 	case summary.offlineWorkers > 0 || summary.revokedWorkerRecords > 0 || summary.hasDevices:
 		return []string{
-			"Start ComputeHop on the worker, put both devices on the same LAN, or check VPS connectivity.",
+			"Start ComputeHop on the worker or put both devices on the same LAN.",
 			"Look for setup issues: computehop doctor",
 		}
 	default:
 		return []string{
-			"Install a worker on another Mac: computehop setup worker --device-name 'Gaming PC'",
+			"Install a worker on another Mac: " + exampleSetupCommand(device.RoleWorker),
 			"Then connect it from this Mac: computehop connect nearby",
 		}
 	}
@@ -451,13 +460,13 @@ func newSetupCommand(stdout io.Writer) *cobra.Command {
 		Long: strings.TrimSpace(`Print first-run commands without requiring the ComputeHop daemon.
 
 Use this before the app is installed, when the daemon is stopped, or when you
-want the exact commands for another Mac or the one-VPS staging stack.`),
+want the exact install command for this Mac or a worker Mac. Advanced subcommands
+cover LAN-only installs and the self-hosted VPS connectivity stack.`),
 		Example: strings.TrimSpace(`computehop setup
 computehop setup orchestrator
 computehop setup worker --device-name "Gaming PC"
 computehop setup worker --device-name "Gaming PC" --lan-only
-computehop setup vps --connectivity-domain connect.example.com --turn-domain turn.example.com --email admin@example.com --public-ip 203.0.113.10
-computehop setup worker --device-name "Gaming PC" --connectivity-domain connect.example.com --turn-domain turn.example.com --turn-server "turn:turn.example.com:3478?transport=udp" --turn-username "1800000000:computehop" --turn-password "secret"`),
+computehop setup vps --connectivity-domain connect.example.com --turn-domain turn.example.com --email admin@example.com --public-ip 203.0.113.10`),
 		Args: cobra.NoArgs,
 		RunE: func(*cobra.Command, []string) error {
 			return printSetupGuide(stdout)
@@ -483,8 +492,7 @@ for scripts or generated setup instructions.`),
 		Example: strings.TrimSpace(`computehop setup mac
 computehop setup mac --role worker --device-name "Gaming PC" --cache-size 40GiB
 computehop setup mac --role worker --device-name "Gaming PC" --lan-only
-computehop setup mac --role orchestrator --connectivity-domain connect.example.com --turn-domain turn.example.com
-computehop setup mac --role worker --device-name "Gaming PC" --connectivity-domain connect.example.com --turn-domain turn.example.com --turn-server "turn:turn.example.com:3478?transport=udp" --turn-username "1800000000:computehop" --turn-password "secret"`),
+computehop setup mac --role orchestrator --connectivity-domain connect.example.com --turn-domain turn.example.com`),
 		Args: cobra.NoArgs,
 		RunE: func(*cobra.Command, []string) error {
 			if err := options.validate(); err != nil {
@@ -524,16 +532,19 @@ func newSetupMacRoleCommand(stdout io.Writer, role device.Role) *cobra.Command {
 func setupRoleExample(role device.Role) string {
 	switch role {
 	case device.RoleWorker:
-		return strings.TrimSpace(`computehop setup worker --device-name "Gaming PC"
-computehop setup worker --device-name "Gaming PC" --cache-size 40GiB
-computehop setup worker --device-name "Gaming PC" --lan-only
-computehop setup worker --device-name "Gaming PC" --connectivity-domain connect.example.com --turn-domain turn.example.com
-computehop setup worker --device-name "Gaming PC" --connectivity-domain connect.example.com --turn-domain turn.example.com --turn-server "turn:turn.example.com:3478?transport=udp" --turn-username "1800000000:computehop" --turn-password "secret"`)
+		return strings.Join([]string{
+			exampleHelpSetupCommand(device.RoleWorker),
+			exampleHelpSetupCommand(device.RoleWorker) + " --cache-size " + exampleWorkerCacheSize,
+			exampleHelpSetupCommand(device.RoleWorker) + " --lan-only",
+			exampleHelpSetupCommand(device.RoleWorker) + " --connectivity-domain " + exampleConnectivityDomain + " --turn-domain " + exampleTurnDomain,
+		}, "\n")
 	default:
-		return strings.TrimSpace(`computehop setup orchestrator
-computehop setup orchestrator --cache-size 40GiB
-computehop setup orchestrator --lan-only
-computehop setup orchestrator --connectivity-domain connect.example.com --turn-domain turn.example.com`)
+		return strings.Join([]string{
+			exampleHelpSetupCommand(device.RoleOrchestrator),
+			exampleHelpSetupCommand(device.RoleOrchestrator) + " --cache-size " + exampleWorkerCacheSize,
+			exampleHelpSetupCommand(device.RoleOrchestrator) + " --lan-only",
+			exampleHelpSetupCommand(device.RoleOrchestrator) + " --connectivity-domain " + exampleConnectivityDomain + " --turn-domain " + exampleTurnDomain,
+		}, "\n")
 	}
 }
 
@@ -541,8 +552,8 @@ func newSetupVPSCommand(stdout io.Writer) *cobra.Command {
 	options := defaultVPSSetupOptions()
 	command := &cobra.Command{
 		Use:   "vps",
-		Short: "Print the one-VPS deployment checklist",
-		Long: strings.TrimSpace(`Print a provider-neutral one-VPS checklist.
+		Short: "Print the advanced one-VPS deployment checklist",
+		Long: strings.TrimSpace(`Print a provider-neutral one-VPS checklist for advanced cross-network testing.
 
 The VPS runs the public rendezvous service, HTTPS edge, and authenticated TURN
 relay for devices that are no longer on the same LAN. The command only prints
@@ -564,11 +575,11 @@ computehop setup vps --connectivity-domain connect.example.com --turn-domain tur
 func addMacSetupFlags(command *cobra.Command, options *macSetupOptions) {
 	command.Flags().StringVar(&options.deviceName, "device-name", "", "human-readable device name")
 	command.Flags().StringVar(&options.cacheSize, "cache-size", "", "verified content cache limit, for example 40GiB")
-	command.Flags().StringVar(&options.connectivityDomain, "connectivity-domain", "", "public HTTPS domain from the one-VPS setup")
-	command.Flags().StringVar(&options.turnDomain, "turn-domain", "", "public STUN/TURN domain from the one-VPS setup")
-	command.Flags().StringVar(&options.turnServer, "turn-server", "", "TURN relay URI printed by deploy/vps/turn-credentials.sh")
-	command.Flags().StringVar(&options.turnUsername, "turn-username", "", "short-lived TURN username printed by deploy/vps/turn-credentials.sh")
-	command.Flags().StringVar(&options.turnPassword, "turn-password", "", "short-lived TURN password printed by deploy/vps/turn-credentials.sh")
+	command.Flags().StringVar(&options.connectivityDomain, "connectivity-domain", "", "advanced: public HTTPS domain from the one-VPS setup")
+	command.Flags().StringVar(&options.turnDomain, "turn-domain", "", "advanced: public STUN/TURN domain from the one-VPS setup")
+	command.Flags().StringVar(&options.turnServer, "turn-server", "", "advanced: TURN relay URI printed by deploy/vps/turn-credentials.sh")
+	command.Flags().StringVar(&options.turnUsername, "turn-username", "", "advanced: short-lived TURN username printed by deploy/vps/turn-credentials.sh")
+	command.Flags().StringVar(&options.turnPassword, "turn-password", "", "advanced: short-lived TURN password printed by deploy/vps/turn-credentials.sh")
 	command.Flags().BoolVar(&options.lanOnly, "lan-only", false, "install without hosted rendezvous, ICE, or TURN")
 }
 
@@ -697,7 +708,7 @@ func (options macSetupOptions) installCommand() string {
 	if deviceName != "" {
 		parts = append(parts, "--device-name", deviceName)
 	} else if role == string(device.RoleWorker) {
-		parts = append(parts, "--device-name", "Gaming PC")
+		parts = append(parts, "--device-name", exampleWorkerDeviceName)
 	}
 	if strings.TrimSpace(options.cacheSize) != "" {
 		parts = append(parts, "--cache-size", options.cacheSize)
@@ -736,7 +747,7 @@ func (options macSetupOptions) customizeCommand() string {
 	}
 	deviceName := strings.TrimSpace(options.deviceName)
 	if deviceName == "" && role == string(device.RoleWorker) {
-		deviceName = "Gaming PC"
+		deviceName = exampleWorkerDeviceName
 	}
 	parts := append([]string(nil), options.customizeBase...)
 	if len(parts) == 0 {
@@ -778,20 +789,12 @@ func (options macSetupOptions) customizeCommand() string {
 	return strings.Join(escaped, " ")
 }
 
-func (options macSetupOptions) vpsReminderCommand() string {
-	withVPS := options
-	withVPS.lanOnly = false
-	withVPS.connectivityDomain = "connect.example.com"
-	withVPS.turnDomain = "turn.example.com"
-	return withVPS.customizeCommand()
-}
-
 func defaultVPSSetupOptions() vpsSetupOptions {
 	return vpsSetupOptions{
-		connectivityDomain: "connect.example.com",
-		turnDomain:         "turn.example.com",
-		email:              "admin@example.com",
-		publicIP:           "203.0.113.10",
+		connectivityDomain: exampleConnectivityDomain,
+		turnDomain:         exampleTurnDomain,
+		email:              exampleOperatorEmail,
+		publicIP:           exampleVPSPublicIP,
 	}
 }
 
@@ -824,7 +827,8 @@ func (options vpsSetupOptions) orchestratorInstallCommand() string {
 
 func (options vpsSetupOptions) workerInstallCommand() string {
 	return fmt.Sprintf(
-		"./packaging/macos/install.sh --role worker --device-name \"Gaming PC\" --connectivity-url %s --stun-server %s",
+		"./packaging/macos/install.sh --role worker --device-name %s --connectivity-url %s --stun-server %s",
+		shellArg(exampleWorkerDeviceName),
 		shellArg("https://"+options.connectivityDomain),
 		shellArg("stun:"+options.turnDomain+":3478"),
 	)
@@ -842,11 +846,29 @@ func (options vpsSetupOptions) orchestratorSetupCommand() string {
 func (options vpsSetupOptions) workerSetupCommand() string {
 	return macSetupOptions{
 		role:               string(device.RoleWorker),
-		deviceName:         "Gaming PC",
+		deviceName:         exampleWorkerDeviceName,
 		connectivityDomain: options.connectivityDomain,
 		turnDomain:         options.turnDomain,
 		customizeBase:      []string{"computehop", "setup", "worker"},
 	}.customizeCommand()
+}
+
+func exampleHelpSetupCommand(role device.Role) string {
+	if role == device.RoleWorker {
+		return "computehop setup worker --device-name " + strconv.Quote(exampleWorkerDeviceName)
+	}
+	return "computehop setup " + string(role)
+}
+
+func exampleSetupCommand(role device.Role) string {
+	options := macSetupOptions{
+		role:          string(role),
+		customizeBase: []string{"computehop", "setup", string(role)},
+	}
+	if role == device.RoleWorker {
+		options.deviceName = exampleWorkerDeviceName
+	}
+	return options.customizeCommand()
 }
 
 func shellArg(value string) string {
@@ -860,39 +882,38 @@ func shellArg(value string) string {
 }
 
 func printSetupGuide(stdout io.Writer) error {
-	vpsDefaults := defaultVPSSetupOptions()
 	lines := []string{
 		"ComputeHop setup",
 		"",
-		"1. Print the exact macOS install command for this computer:",
-		"   computehop setup orchestrator",
-		"   computehop setup worker --device-name \"Gaming PC\"",
-		"   # Advanced equivalent: computehop setup mac --role worker --device-name \"Gaming PC\"",
+		"Happy path:",
 		"",
-		"2. Check this computer:",
+		"1. Install this Mac as the orchestrator:",
+		"   computehop setup orchestrator",
 		"   computehop doctor",
 		"",
-		"3. Install a worker on another Mac on the same LAN:",
+		"2. Install a worker on another Mac on the same LAN:",
 		"   computehop setup worker --device-name \"Gaming PC\"",
-		"   # Development-only alternative: go run ./cmd/computehopd --role worker --device-name \"Gaming PC\"",
 		"",
-		"4. Connect devices:",
-		"   computehop connect",
+		"3. Connect once while both devices are nearby:",
 		"   computehop connect nearby",
-		"   computehop connect <device>",
+		"   # Compare the code, then run on both devices:",
 		"   computehop connect confirm",
 		"",
-		"5. Run a smoke test:",
+		"4. Test the worker:",
 		"   computehop smoke",
 		"",
-		"After buying the VPS:",
+		"Useful next commands:",
+		"   computehop devices",
+		"   computehop run --on auto --no-project hostname",
+		"   computehop run --on auto -C . --follow cargo test",
+		"",
+		"Advanced:",
+		"   computehop setup mac --role worker --device-name \"Gaming PC\" --lan-only",
 		"   computehop setup vps",
-		"   sudo ./deploy/vps/bootstrap-ubuntu.sh",
-		"   " + vpsDefaults.rootInitCommand(),
-		"   docker compose --project-directory deploy/vps config --quiet",
-		"   docker compose --project-directory deploy/vps up -d --build",
-		"   ./deploy/vps/verify.sh",
-		"   ./deploy/vps/turn-credentials.sh",
+		"   # Use VPS/TURN only after same-LAN setup works.",
+		"",
+		"Development-only daemon:",
+		"   go run ./cmd/computehopd --role worker --device-name \"Gaming PC\"",
 	}
 	for _, line := range lines {
 		if _, err := fmt.Fprintln(stdout, line); err != nil {
@@ -914,6 +935,25 @@ func printMacSetupGuide(stdout io.Writer, options macSetupOptions) error {
 		"",
 		"After install:",
 		"   computehop doctor",
+	}
+	if options.lanOnly {
+		lines = append(lines,
+			"",
+			"Mode:",
+			"   LAN-only. Keep the two devices on the same network.",
+		)
+	} else if strings.TrimSpace(options.connectivityDomain) != "" {
+		lines = append(lines,
+			"",
+			"Mode:",
+			"   Same-LAN first, with configured cross-network connectivity.",
+		)
+	} else {
+		lines = append(lines,
+			"",
+			"Mode:",
+			"   Same-LAN first. Add the VPS later only if you need cross-network workers.",
+		)
 	}
 	if strings.TrimSpace(options.role) == string(device.RoleWorker) {
 		lines = append(lines,
@@ -939,8 +979,9 @@ func printMacSetupGuide(stdout io.Writer, options macSetupOptions) error {
 	if strings.TrimSpace(options.connectivityDomain) == "" {
 		lines = append(lines,
 			"",
-			"After buying the VPS, rerun with:",
-			"   "+options.vpsReminderCommand(),
+			"Advanced cross-network setup:",
+			"   computehop setup vps",
+			"   # Then rerun this setup command with --connectivity-domain and --turn-domain.",
 		)
 	}
 	for _, line := range lines {

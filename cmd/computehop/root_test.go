@@ -1365,7 +1365,7 @@ func TestDevicesCommandShowsLANOnlyForDisabledRemoteConnectivity(t *testing.T) {
 	if err := command.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"LAN Worker", "offline", "LAN only", "same LAN", "computehop setup worker --device-name 'Gaming PC' --connectivity-domain connect.example.com --turn-domain turn.example.com"} {
+	for _, want := range []string{"LAN Worker", "offline", "LAN only", "same LAN", "Advanced cross-network setup starts with: computehop setup vps"} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
 		}
@@ -1822,18 +1822,16 @@ func TestSetupCommandPrintsFirstRunChecklistWithoutDaemon(t *testing.T) {
 	}
 	for _, want := range []string{
 		"ComputeHop setup",
+		"Happy path",
 		"computehop setup orchestrator",
 		"computehop setup worker --device-name \"Gaming PC\"",
-		"Advanced equivalent: computehop setup mac --role worker --device-name \"Gaming PC\"",
 		"computehop doctor",
-		"Development-only alternative: go run ./cmd/computehopd --role worker",
+		"Development-only daemon",
+		"go run ./cmd/computehopd --role worker",
 		"computehop connect nearby",
-		"computehop connect <device>",
 		"computehop smoke",
-		"./deploy/vps/init.sh --connectivity-domain connect.example.com",
-		"docker compose --project-directory deploy/vps up -d --build",
-		"./deploy/vps/verify.sh",
-		"./deploy/vps/turn-credentials.sh",
+		"computehop setup vps",
+		"Use VPS/TURN only after same-LAN setup works.",
 	} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
@@ -1892,7 +1890,7 @@ func TestSetupSubcommandHelpShowsExamplesWithoutDaemon(t *testing.T) {
 				"Print the exact macOS installer command for a worker Mac",
 				"computehop setup worker --device-name \"Gaming PC\" --cache-size 40GiB",
 				"computehop setup worker --device-name \"Gaming PC\" --lan-only",
-				"--turn-server \"turn:turn.example.com:3478?transport=udp\"",
+				"computehop setup worker --device-name \"Gaming PC\" --connectivity-domain connect.example.com --turn-domain turn.example.com",
 			},
 		},
 		{
@@ -1902,7 +1900,7 @@ func TestSetupSubcommandHelpShowsExamplesWithoutDaemon(t *testing.T) {
 				"flag-based form of setup orchestrator and setup worker",
 				"computehop setup mac --role worker --device-name \"Gaming PC\" --cache-size 40GiB",
 				"computehop setup mac --role worker --device-name \"Gaming PC\" --lan-only",
-				"--turn-username \"1800000000:computehop\"",
+				"computehop setup mac --role orchestrator --connectivity-domain connect.example.com --turn-domain turn.example.com",
 			},
 		},
 		{
@@ -1958,7 +1956,8 @@ func TestSetupMacCommandPrintsDefaultOrchestratorInstallWithoutDaemon(t *testing
 		"computehop doctor",
 		"computehop connect nearby",
 		"computehop smoke",
-		"After buying the VPS",
+		"Same-LAN first",
+		"Advanced cross-network setup",
 	} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
@@ -2017,7 +2016,8 @@ func TestSetupRoleAliasesPrintInstallWithoutDaemon(t *testing.T) {
 				"computehop setup worker --device-name 'Austin Gaming PC' --cache-size 40GiB",
 				"./packaging/macos/install.sh --role worker --device-name 'Austin Gaming PC' --cache-size 40GiB",
 				"Confirm on this worker",
-				"computehop setup worker --device-name 'Austin Gaming PC' --cache-size 40GiB --connectivity-domain connect.example.com --turn-domain turn.example.com",
+				"Same-LAN first",
+				"computehop setup vps",
 			},
 		},
 		{
@@ -2026,7 +2026,8 @@ func TestSetupRoleAliasesPrintInstallWithoutDaemon(t *testing.T) {
 			want: []string{
 				"computehop setup orchestrator --lan-only",
 				"./packaging/macos/install.sh --role orchestrator --lan-only",
-				"computehop setup orchestrator --connectivity-domain connect.example.com --turn-domain turn.example.com",
+				"LAN-only",
+				"computehop setup vps",
 			},
 		},
 	}
@@ -2169,7 +2170,8 @@ func TestSetupMacCommandInterpolatesLANOnlyWithoutDaemon(t *testing.T) {
 	for _, want := range []string{
 		"computehop setup mac --role worker --device-name 'Gaming PC' --lan-only",
 		"./packaging/macos/install.sh --role worker --device-name 'Gaming PC' --lan-only",
-		"computehop setup mac --role worker --device-name 'Gaming PC' --connectivity-domain connect.example.com --turn-domain turn.example.com",
+		"LAN-only",
+		"computehop setup vps",
 	} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)

@@ -27,11 +27,18 @@ struct SettingsSection: View {
                     .textFieldStyle(.roundedBorder)
                 TextField("Cache size, for example: 40GiB (optional)", text: $model.workerSetupCacheSize)
                     .textFieldStyle(.roundedBorder)
-                TextField("VPS connectivity domain, for example: connect.example.com", text: $model.vpsConnectivityDomain)
-                    .textFieldStyle(.roundedBorder)
-                TextField("VPS TURN domain, for example: turn.example.com", text: $model.vpsTurnDomain)
-                    .textFieldStyle(.roundedBorder)
-                Text("These values update worker and VPS setup commands shown when no worker is connected.")
+                DisclosureGroup("Advanced VPS setup") {
+                    VStack(alignment: .leading, spacing: 4) {
+                        TextField("Connectivity domain, for example: connect.example.com", text: $model.vpsConnectivityDomain)
+                            .textFieldStyle(.roundedBorder)
+                        TextField("TURN domain, for example: turn.example.com", text: $model.vpsTurnDomain)
+                            .textFieldStyle(.roundedBorder)
+                        Text("Only needed after the one-VPS stack is ready.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Text("These values update generated worker setup commands.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

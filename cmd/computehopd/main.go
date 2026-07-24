@@ -341,16 +341,13 @@ func runWithDependencies(
 		Name:     localDevice.Name,
 		Role:     localDevice.Role,
 	}
-	var handler *orchestrator.LocalHandler
-	if remoteManager == nil {
-		handler, err = orchestrator.NewLocalHandlerWithLocalDevice(
-			jobService, remoteJobs, deviceService, pairingService, localDeviceInfo, version,
-		)
-	} else {
-		handler, err = orchestrator.NewLocalHandlerWithLocalDevice(
-			jobService, remoteJobs, deviceService, pairingService, localDeviceInfo, version, remoteManager,
-		)
+	var connectivityControllers []orchestrator.ConnectivityController
+	if remoteManager != nil {
+		connectivityControllers = append(connectivityControllers, remoteManager)
 	}
+	handler, err := orchestrator.NewLocalHandlerWithLocalDevice(
+		jobService, remoteJobs, deviceService, pairingService, localDeviceInfo, version, connectivityControllers...,
+	)
 	if err != nil {
 		return fmt.Errorf("initialize local IPC handler: %w", err)
 	}

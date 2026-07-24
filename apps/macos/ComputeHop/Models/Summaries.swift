@@ -224,10 +224,10 @@ struct SetupGuideSummary: Sendable {
         devices: [DeviceSummary],
         pairings: [PairingSummary],
         runnableDevices: [DeviceSummary],
-        workerDeviceName: String = "Gaming PC",
+        workerDeviceName: String = AppSettingDefaults.workerDeviceName,
         workerCacheSize: String = "",
-        vpsConnectivityDomain: String = "connect.example.com",
-        vpsTurnDomain: String = "turn.example.com"
+        vpsConnectivityDomain: String = AppSettingDefaults.vpsConnectivityDomain,
+        vpsTurnDomain: String = AppSettingDefaults.vpsTurnDomain
     ) -> SetupGuideSummary? {
         if !isConnected {
             return SetupGuideSummary(
@@ -267,7 +267,7 @@ struct SetupGuideSummary: Sendable {
             }
             let offlineWorkerName = devices.first {
                 $0.role == "Worker" && $0.trust == "Paired" && $0.availability == .offline
-            }?.name ?? "Gaming PC"
+            }?.name ?? AppSettingDefaults.workerDeviceName
             let commands = remoteDisabled
                 ? [
                     SetupGuideCommand(label: "Check devices", value: "computehop devices"),
@@ -324,8 +324,8 @@ struct SetupGuideSummary: Sendable {
     private static func workerSetupCommand(
         deviceName: String,
         cacheSize: String = "",
-        vpsConnectivityDomain: String = "connect.example.com",
-        vpsTurnDomain: String = "turn.example.com",
+        vpsConnectivityDomain: String = AppSettingDefaults.vpsConnectivityDomain,
+        vpsTurnDomain: String = AppSettingDefaults.vpsTurnDomain,
         lanOnly: Bool = false,
         vpsTemplate: Bool = false
     ) -> String {
@@ -338,7 +338,7 @@ struct SetupGuideSummary: Sendable {
             "setup",
             "worker",
             "--device-name",
-            shellArgument(trimmedDeviceName.isEmpty ? "Gaming PC" : trimmedDeviceName),
+            shellArgument(trimmedDeviceName.isEmpty ? AppSettingDefaults.workerDeviceName : trimmedDeviceName),
         ]
         if !trimmedCacheSize.isEmpty {
             parts.append(contentsOf: ["--cache-size", shellArgument(trimmedCacheSize)])
@@ -349,9 +349,9 @@ struct SetupGuideSummary: Sendable {
         if vpsTemplate {
             parts.append(contentsOf: [
                 "--connectivity-domain",
-                shellArgument(trimmedConnectivityDomain.isEmpty ? "connect.example.com" : trimmedConnectivityDomain),
+                shellArgument(trimmedConnectivityDomain.isEmpty ? AppSettingDefaults.vpsConnectivityDomain : trimmedConnectivityDomain),
                 "--turn-domain",
-                shellArgument(trimmedTurnDomain.isEmpty ? "turn.example.com" : trimmedTurnDomain),
+                shellArgument(trimmedTurnDomain.isEmpty ? AppSettingDefaults.vpsTurnDomain : trimmedTurnDomain),
             ])
         }
         return parts.joined(separator: " ")

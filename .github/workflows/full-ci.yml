@@ -1,0 +1,74 @@
+name: Full CI
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  cross-platform-go:
+    name: Go / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - macos-latest
+          - windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: .go-version
+          cache: true
+
+      - name: Test
+        run: go test ./...
+
+  race:
+    name: Go race detector
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: .go-version
+          cache: true
+
+      - name: Test with race detector
+        run: go test -race ./...
+
+  macos-menu-bar:
+    name: macOS menu bar
+    runs-on: macos-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: .go-version
+          cache: true
+
+      - name: Build Swift package
+        run: swift build
+
+      - name: Test Swift package
+        run: swift test
+
+      - name: Build macOS app bundle
+        run: make macos-package

@@ -10,6 +10,7 @@ private struct SystemClipboardWriter: ClipboardWriting {
 
 struct SetupGuideSection: View {
     let model: AppModel
+    @State private var showMoreSetupCommands = false
 
     var body: some View {
         if let guide = model.setupGuide {
@@ -20,29 +21,18 @@ struct SetupGuideSection: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                ForEach(guide.commands) { command in
-                    VStack(alignment: .leading, spacing: 3) {
-                        if guide.commands.count > 1 {
-                            Text(command.label)
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                        HStack(alignment: .top, spacing: 6) {
-                            Text(command.value)
-                                .font(.system(.caption, design: .monospaced))
-                                .lineLimit(3)
-                                .truncationMode(.middle)
-                                .textSelection(.enabled)
-                                .frame(maxWidth: 360, alignment: .leading)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 4)
-                                .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
-                            Button("Copy") {
-                                model.copySetupGuideCommand(command, to: SystemClipboardWriter())
+                if let primaryCommand = guide.commands.first {
+                    setupCommand(primaryCommand, showLabel: guide.commands.count > 1)
+                }
+                if guide.commands.count > 1 {
+                    DisclosureGroup("More setup options", isExpanded: $showMoreSetupCommands) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            ForEach(guide.commands.dropFirst()) { command in
+                                setupCommand(command, showLabel: true)
                             }
-                            .buttonStyle(.borderless)
                         }
                     }
+                    .font(.caption)
                 }
                 if model.canConnectNearbyWorker {
                     Button("Connect Nearby Worker") {
@@ -53,6 +43,31 @@ struct SetupGuideSection: View {
             }
             .padding(8)
             .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10))
+        }
+    }
+
+    private func setupCommand(_ command: SetupGuideCommand, showLabel: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            if showLabel {
+                Text(command.label)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            HStack(alignment: .top, spacing: 6) {
+                Text(command.value)
+                    .font(.system(.caption, design: .monospaced))
+                    .lineLimit(3)
+                    .truncationMode(.middle)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: 360, alignment: .leading)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 4)
+                    .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
+                Button("Copy") {
+                    model.copySetupGuideCommand(command, to: SystemClipboardWriter())
+                }
+                .buttonStyle(.borderless)
+            }
         }
     }
 }

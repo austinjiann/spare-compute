@@ -1,5 +1,11 @@
 import Foundation
 
+enum AppSettingDefaults {
+    static let workerDeviceName = "Gaming PC"
+    static let vpsConnectivityDomain = "connect.example.com"
+    static let vpsTurnDomain = "turn.example.com"
+}
+
 @MainActor
 protocol AppSettingsStoring {
     var jobCompletionNotificationsEnabled: Bool { get }
@@ -35,7 +41,9 @@ final class UserDefaultsAppSettingsStore: AppSettingsStoring {
 
     var workerSetupDeviceName: String {
         let value = defaults.string(forKey: workerSetupDeviceNameKey) ?? ""
-        return value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Gaming PC" : value
+        return value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? AppSettingDefaults.workerDeviceName
+            : value
     }
 
     var workerSetupCacheSize: String {
@@ -44,12 +52,16 @@ final class UserDefaultsAppSettingsStore: AppSettingsStoring {
 
     var vpsConnectivityDomain: String {
         let value = defaults.string(forKey: vpsConnectivityDomainKey) ?? ""
-        return value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "connect.example.com" : value
+        return value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? AppSettingDefaults.vpsConnectivityDomain
+            : value
     }
 
     var vpsTurnDomain: String {
         let value = defaults.string(forKey: vpsTurnDomainKey) ?? ""
-        return value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "turn.example.com" : value
+        return value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? AppSettingDefaults.vpsTurnDomain
+            : value
     }
 
     func setJobCompletionNotificationsEnabled(_ enabled: Bool) {
