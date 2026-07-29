@@ -39,6 +39,7 @@ type Job struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	Failure   *Failure
+	Progress  *Progress
 }
 
 // Transition is an immutable record of one accepted state change.
@@ -89,6 +90,11 @@ func (current Job) Validate() error {
 	if _, err := validateFailureForState(current.State, current.Failure); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidJob, err)
 	}
+	if current.Progress != nil {
+		if err := current.Progress.Validate(); err != nil {
+			return fmt.Errorf("%w: %w", ErrInvalidJob, err)
+		}
+	}
 	return nil
 }
 
@@ -113,6 +119,7 @@ func (current Job) Apply(to State, at time.Time, failure *Failure) (Job, Transit
 	at = at.UTC()
 	next := current
 	next.Spec = current.Spec.Clone()
+	next.Progress = cloneProgress(current.Progress)
 	next.State = to
 	next.UpdatedAt = at
 	next.Failure = storedFailure

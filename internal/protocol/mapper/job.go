@@ -34,6 +34,22 @@ var protocolToState = func() map[localv1.JobState]job.State {
 	return result
 }()
 
+var progressPhaseToProtocol = map[job.ProgressPhase]localv1.JobProgressPhase{
+	job.ProgressSnapshot: localv1.JobProgressPhase_JOB_PROGRESS_PHASE_SNAPSHOT,
+	job.ProgressUpload:   localv1.JobProgressPhase_JOB_PROGRESS_PHASE_UPLOAD,
+	job.ProgressDownload: localv1.JobProgressPhase_JOB_PROGRESS_PHASE_DOWNLOAD,
+	job.ProgressRestore:  localv1.JobProgressPhase_JOB_PROGRESS_PHASE_RESTORE,
+	job.ProgressCollect:  localv1.JobProgressPhase_JOB_PROGRESS_PHASE_COLLECT,
+}
+
+var protocolToProgressPhase = func() map[localv1.JobProgressPhase]job.ProgressPhase {
+	result := make(map[localv1.JobProgressPhase]job.ProgressPhase, len(progressPhaseToProtocol))
+	for domain, protocol := range progressPhaseToProtocol {
+		result[protocol] = domain
+	}
+	return result
+}()
+
 // SpecToProto converts a validated domain specification to its wire form.
 func SpecToProto(spec job.Spec) (*localv1.JobSpec, error) {
 	if err := spec.Validate(); err != nil {
@@ -50,6 +66,7 @@ func SpecToProto(spec job.Spec) (*localv1.JobSpec, error) {
 		Environment:      cloneMap(spec.Environment),
 		Executor:         executor,
 		ContainerImage:   spec.ContainerImage,
+		Outputs:          append([]string(nil), spec.Outputs...),
 	}, nil
 }
 
@@ -69,6 +86,7 @@ func SpecFromProto(message *localv1.JobSpec) (job.Spec, error) {
 		Environment:      cloneMap(message.GetEnvironment()),
 		Executor:         executor,
 		ContainerImage:   message.GetContainerImage(),
+		Outputs:          append([]string(nil), message.GetOutputs()...),
 	}
 	if err := spec.Validate(); err != nil {
 		return job.Spec{}, err
@@ -102,6 +120,13 @@ func JobToProto(value job.Job) (*localv1.Job, error) {
 			Message:   value.Failure.Message,
 			Retryable: value.Failure.Retryable,
 		}
+	}
+	if value.Progress != nil {
+		progress, err := ProgressToProto(*value.Progress)
+		if err != nil {
+			return nil, err
+		}
+		message.Progress = progress
 	}
 	return message, nil
 }
@@ -137,10 +162,54 @@ func JobFromProto(message *localv1.Job) (job.Job, error) {
 			Retryable: failure.GetRetryable(),
 		}
 	}
+	if progress := message.GetProgress(); progress != nil {
+		converted, err := ProgressFromProto(progress)
+		if err != nil {
+			return job.Job{}, err
+		}
+		value.Progress = &converted
+	}
 	if err := value.Validate(); err != nil {
 		return job.Job{}, err
 	}
 	return value, nil
+}
+
+// ProgressToProto maps validated progress to the local protocol.
+func ProgressToProto(progress job.Progress) (*localv1.JobProgress, error) {
+	if err := progress.Validate(); err != nil {
+		return nil, err
+	}
+	phase, ok := progressPhaseToProtocol[progress.Phase]
+	if !ok {
+		return nil, job.ErrInvalidProgress
+	}
+	return &localv1.JobProgress{
+		Phase:             phase,
+		CompletedBytes:    progress.CompletedBytes,
+		TotalBytes:        progress.TotalBytes,
+		UpdatedAtUnixNano: progress.UpdatedAt.UTC().UnixNano(),
+	}, nil
+}
+
+// ProgressFromProto validates progress received from the local protocol.
+func ProgressFromProto(message *localv1.JobProgress) (job.Progress, error) {
+	if message == nil {
+		return job.Progress{}, job.ErrInvalidProgress
+	}
+	phase, ok := protocolToProgressPhase[message.GetPhase()]
+	if !ok {
+		return job.Progress{}, fmt.Errorf("%w: protocol value %d", job.ErrInvalidProgress, message.GetPhase())
+	}
+	progress := job.Progress{
+		Phase: phase, CompletedBytes: message.GetCompletedBytes(),
+		TotalBytes: message.GetTotalBytes(),
+		UpdatedAt:  time.Unix(0, message.GetUpdatedAtUnixNano()).UTC(),
+	}
+	if err := progress.Validate(); err != nil {
+		return job.Progress{}, err
+	}
+	return progress, nil
 }
 
 // StatesFromProto converts and validates job-state filters.

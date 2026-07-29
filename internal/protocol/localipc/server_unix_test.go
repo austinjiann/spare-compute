@@ -88,6 +88,40 @@ func TestClientCancellationInterruptsBlockedResponse(t *testing.T) {
 	close(release)
 }
 
+func TestClientDisconnectCancelsDaemonRequestContext(t *testing.T) {
+	started := make(chan struct{})
+	cancelled := make(chan struct{})
+	handler := HandlerFunc(func(ctx context.Context, _ *localv1.Request) *localv1.Response {
+		close(started)
+		<-ctx.Done()
+		close(cancelled)
+		return &localv1.Response{Result: &localv1.Response_Ping{Ping: &localv1.PingResponse{}}}
+	})
+	token := []byte("correct-token")
+	server, socketPath, cancelServer, result := startServerWithHandlerForTest(t, token, handler)
+	defer stopServerForTest(t, server, cancelServer, result)
+	client, err := NewClient(socketPath, token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancelCall := context.WithCancel(context.Background())
+	callResult := make(chan error, 1)
+	go func() {
+		_, err := client.Call(ctx, &localv1.Request{
+			Operation: &localv1.Request_Ping{Ping: &localv1.PingRequest{}},
+		})
+		callResult <- err
+	}()
+	<-started
+	cancelCall()
+	select {
+	case <-cancelled:
+	case <-time.After(time.Second):
+		t.Fatal("daemon request context survived client disconnect")
+	}
+	<-callResult
+}
+
 func TestServerContainsHandlerPanic(t *testing.T) {
 	token := []byte("correct-token")
 	handler := HandlerFunc(func(context.Context, *localv1.Request) *localv1.Response {

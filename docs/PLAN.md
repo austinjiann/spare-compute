@@ -10,19 +10,25 @@ model, delivery milestones, and acceptance criteria.
 
 ### Implementation snapshot
 
-Last updated: 2026-07-20.
+Last updated: 2026-07-22.
 
 | Slice | Status | Delivered behavior |
 | --- | --- | --- |
 | Job foundation and SQLite persistence | Complete | Versioned job model, validated state transitions, migrations, and durable repositories. |
-| Local daemon, IPC, and CLI | Complete | Authenticated user-local control plane with `status`, `run`, `jobs`, `logs`, and `cancel`. |
+| Local daemon, IPC, and CLI | Complete | Authenticated user-local control plane with `status`, `doctor`, `run`, `jobs`, `logs`, and `cancel`. |
 | Durable native execution | Complete | Detached process-tree supervision, reconnectable logs, cancellation, terminal results, and daemon-restart reconciliation. |
 | Privacy-safe LAN discovery | Complete | Cross-platform mDNS presence with expiring in-memory observations and no durable identity in advertisements. |
 | Device pairing and trust | Complete | QUIC/TLS pairing, two-sided verification codes, persistent Ed25519 identity pins, revocation, and re-pairing. |
 | Explicit remote execution | Complete | Submit to a selected paired LAN worker, observe durable state and logs, and cancel remotely. |
 | Durable remote job routing | Complete | Remember the pinned worker that accepted each remote job so job-specific operations reconnect by ID without another device selector. |
-| Hosted rendezvous foundation | In progress | Derive rotating anonymous pair credentials and exchange bounded, encrypted, expiring presence and signaling payloads through a standalone service. |
-| Cross-network paths and later launch slices | Not started | Daemon rendezvous clients, ICE/STUN/TURN, project snapshots, artifacts, scheduling, adapters, menu-bar UI, packaging, and release operations. |
+| Hosted rendezvous foundation | Complete | Derive rotating anonymous pair credentials and exchange bounded, route-bound, end-to-end encrypted, expiring presence and signaling payloads through a standalone service and HTTPS client. |
+| Direct ICE path and signaling foundation | Complete | Gather bounded UDP candidates with Pion ICE, exchange versioned descriptions through pair-encrypted rendezvous presence, select orchestrator/worker paths, report routing without secrets, and carry QUIC over the selected packet connection. |
+| Supervised direct internet control | In progress | Daemons reconcile active pair records, retry encrypted rendezvous/ICE negotiation, run the identity-pinned control protocol over selected paths, prefer LAN for jobs, expose path state to CLI/Swift, and support explicit LAN-only daemon/install setup controls. Automated end-to-end and race coverage pass; physical unrelated-network and network-change validation remain. |
+| One-VPS staging deployment | In progress | Provider-neutral Compose stack, Caddy HTTPS edge, authenticated coturn relay, bounded ports/quotas, generated local env/secrets, operator-provisioned short-lived TURN credentials for single-owner relay testing, Ubuntu-only firewall/bootstrap preflights with DNS/init/Compose/verify next steps, cwd-independent verification/credential helpers with actionable preflight and running-service failures, health checks, rollback runbook, and daemon-free, root-oriented, flag-customizable `computehop setup vps` checklist with initial cost, SSH, DNS, firewall, bootstrap, and smoke-test guidance are ready; buying the VPS and forced-relay validation remain. |
+| CLI and physical Mac validation | In progress | Friendlier `--on`, `--on auto` for the single active worker, safe `connect nearby` for the single nearby unpaired worker with `connect auto` compatibility, and no-`--` command syntax, daemon-free `setup`, role shortcuts `setup orchestrator`/`setup worker`, role-aware `setup mac`, setup-helper support for short-lived TURN relay credentials, and `setup vps`, installer-first worker setup guidance, one-command `smoke`, remote `--no-project` utility runs, pre-submit remote project preparation feedback, actionable auto and explicit worker-selection errors that consistently point at `connect nearby`, example-rich help for `setup`/`status`/`devices`/`connect`/`disconnect`/`jobs`/`run`/`logs`/`cancel`/`outputs`/`smoke`, `devices`, empty `jobs` next-step guidance for setup/connect/smoke/offline states, explicit empty-log guidance, and friendly output-retrieval errors, `run --follow/--wait/--get`, `connect` as the guided pairing entry point that surfaces waiting verification requests before generic device guidance, `disconnect` as the friendly trust-revocation entry point with `unpair` compatibility, inferred and actionable pairing confirmation, first-run `doctor` guidance that points at the exact orchestrator/worker setup commands, duplicate-daemon and incompatible-daemon restart guidance, local daemon identity in status output, hidden legacy `pair` help, merged trusted/nearby presentation with friendly trust labels, LAN-only path visibility for disabled remote connectivity, and stale duplicate LAN-presence suppression are implemented; physical macOS-to-macOS discovery, pairing, execution, restart recovery, logs, and cancellation passed. Windows/Linux remain. |
+| macOS menu-bar foundation | In progress | SwiftUI `MenuBarExtra`, generated SwiftProtobuf models, authenticated Unix-socket IPC, local daemon identity, first-run next-step guidance that shows and copies normal, LAN-only, and VPS-ready worker setup commands with shell-safe device names and configurable worker name/cache and VPS domain defaults, one-click safe nearby-worker connection, device/connect controls that pair by discovered identifiers instead of display names, explicit local/other-device pairing confirmation status, LAN-only status for disabled remote connectivity, local trust revocation for paired devices, stale duplicate LAN-presence suppression for trusted devices, native job submission with This Mac, Auto worker, explicit worker targets, no-project remote utility runs, actionable run-target errors, visible Smoke Test disabled reasons, disabled Run explanations for offline daemon, empty command, invalid command quoting, and missing remote project folder states, menu-friendly incompatible-daemon and output-retrieval errors, empty-log placeholders for running and terminal jobs, copyable CLI run/log handoff commands, job-completion notifications for observed running jobs with a persisted menu setting, copyable diagnostic commands for setup/connect troubleshooting, and empty-jobs hints, a no-project remote Smoke Test action, output declarations and retrieval, reconnectable logs, cancellation, and role-specific installer handoff commands build and pass Swift/package checks; an ad-hoc app bundle, launch-agent template verification, rewritten launch-agent install validation, incompatible manual-daemon install guard, and per-user launchd installer are ready for development. |
+| Project snapshots, incremental transfer, and declared artifacts | In progress | Remote runs resolve a local project root, create bounded content-defined snapshots, upload only missing verified chunks, and execute in isolated workspaces. Workers durably collect exact declared files/directories before success; orchestrators fetch only missing verified chunks and restore without overwrites or symlink traversal. Transfer peers negotiate bounded identity/zstd chunk encoding while preserving decoded-content hashes. The persistent verified content cache is SQLite-indexed, LRU-evicted, quota-bound, and protects active jobs plus unacknowledged artifact chunks. Artifact download/restore progress is durable and visible in CLI/Swift job summaries, and `run --get` restores to the submitted working directory by default. Automated LAN/supervised-path reuse, ignore behavior, and artifact coverage pass; secrets, upload progress, byte-range resume, and physical cross-platform validation remain. |
+| Later launch slices | In progress | Direct internet control still needs physical unrelated-network and reconnect validation, and public TURN relay issuance requires a hosted entitlement boundary. Full compatibility/resource scheduling, adapters, production packaging, and release operations follow. |
 
 “Complete” here means implemented with automated coverage and merged to `main`.
 Physical multi-machine validation remains required by the launch acceptance
@@ -79,7 +85,7 @@ scp target/release/my-app .
 the user runs:
 
 ```bash
-computehop run -- cargo build --release
+computehop run cargo build --release
 ```
 
 ComputeHop selects a compatible worker, sends only missing project content, streams
@@ -362,14 +368,19 @@ without forcing large content through unary RPC calls.
   filesystem.
 - Store metadata and state in SQLite, but store project chunks, logs, and large
   artifacts as files referenced by hash.
-- Use `lukechampine.com/blake3` for content identity, FastCDC behind a small
-  internal chunker interface for content-defined boundaries, and
-  `github.com/klauspost/compress/zstd` for negotiated compression.
+- Use a fixed 256-bit content identity and deterministic FastCDC-style
+  content-defined boundaries behind small internal interfaces. The current
+  implementation uses SHA-256; negotiated zstd changes only the bounded wire
+  representation and is never part of snapshot identity.
 - Use a dedicated Git-compatible ignore matcher for `.gitignore` and
   `.computehopignore`, backed by conformance fixtures for negation, nesting, and
   platform path differences.
 - Write content to a temporary path, verify its hash, fsync when durability is
   required, and atomically rename it into the content store.
+- Index verified chunks in SQLite with access times, byte counts, and artifact
+  references so each daemon can enforce a configurable LRU quota without
+  deleting active job input or artifact output that has not been restored and
+  acknowledged.
 
 ### Native and container execution
 
@@ -529,27 +540,45 @@ orchestrator requests records after its last durable offset.
 
 ```bash
 # Discovery and trust
+computehop setup
+computehop setup orchestrator
+computehop setup worker --device-name <name>
+computehop setup mac
+computehop setup mac --role worker --device-name <name>
+computehop setup mac --role worker --device-name <name> --lan-only
+computehop setup mac --role orchestrator --connectivity-domain <domain> --turn-domain <domain>
+computehop setup vps
+computehop setup vps --connectivity-domain <domain> --turn-domain <domain> --email <email> --public-ip <ip>
+computehop doctor
 computehop devices
-computehop pair <device>
-computehop unpair <device>
+computehop connect
+computehop connect nearby
+computehop connect <device>
+computehop connect confirm
+computehop disconnect <device>
 
 # Ad hoc and saved jobs
-computehop run -- <program> [args...]
+computehop run <program> [args...]
 computehop run <job-name>
-computehop run --device <device> -- <program> [args...]
+computehop run --on auto <program> [args...]
+computehop run --on auto --no-project <program> [args...]
+computehop run --on <device> --output <relative-path> <program> [args...]
+computehop run --on <device> --output <relative-path> --follow --get <program> [args...]
+computehop smoke
+computehop smoke --on <device>
 
 # Observation and control
 computehop jobs
 computehop logs <job-id> --follow
 computehop cancel <job-id>
 computehop retry <job-id>
-computehop artifacts <job-id>
+computehop outputs <job-id>
 
 # Commands used locally on a worker
 computehop worker status
 computehop worker pause
 computehop worker resume
-computehop worker unpair
+computehop disconnect <orchestrator>
 ```
 
 `computehop run` is the single remote-job command. A separate `computehop exec` command is
@@ -692,7 +721,7 @@ Each device supports:
 The orchestrator queues a job if compatible devices exist but are temporarily
 busy. It rejects the job immediately when no known device is compatible.
 
-An explicit `--device` choice bypasses scoring but never bypasses authentication,
+An explicit `--on` choice bypasses scoring but never bypasses authentication,
 compatibility, availability, or resource-safety checks.
 
 ---
@@ -702,15 +731,17 @@ compatibility, availability, or resource-safety checks.
 ### Project-root selection
 
 - Use the Git repository root when invoked inside a Git worktree.
-- Otherwise use the current directory.
+- Otherwise use the nearest recognized project marker, then the current
+  directory when no marker exists.
 - Allow an explicit root override.
 
 ### Default inclusion rules
 
-- Include tracked files and non-ignored untracked files.
+- Include regular files that are not excluded by the active ignore rules.
 - Respect `.gitignore` and `.computehopignore`.
-- Exclude `.git` and other VCS internals unless explicitly included.
-- Preserve symlinks only when their targets remain inside the snapshot root.
+- Always exclude `.git` and ComputeHop's result-staging directory.
+- Reject symlinks and special files; portable snapshots contain regular files
+  and inferred directories only.
 - Reject absolute paths, `..` traversal, device files, sockets, and escaping
   symlinks.
 
@@ -979,11 +1010,11 @@ secret itself. The UI must warn about that limitation.
 
 - Connection path shown as `Local`, `Direct remote`, `Relayed`, or `Offline`.
 - A LAN-only privacy control that disables rendezvous and relay use.
-- Discovered and paired devices.
+- Discovered and connected devices.
 - Online, offline, paused, draining, and incompatible states.
 - CPU, memory, disk, battery, thermal, and supported GPU information.
 - Available executors, tools, services, and compatibility warnings.
-- Pair, revoke, pause, resume, and policy controls.
+- Connect, revoke, pause, resume, and policy controls.
 
 #### Jobs
 
@@ -994,7 +1025,7 @@ secret itself. The UI must warn about that limitation.
 
 #### Notifications
 
-- Pairing requests.
+- Connection requests with two-sided verification codes.
 - Job completion and failure.
 - Artifact conflicts.
 - Worker incompatibility or required setup.
@@ -1003,7 +1034,7 @@ secret itself. The UI must warn about that limitation.
 ### AirDrop-like qualities
 
 - Nearby devices appear automatically.
-- Pairing is deliberate but performed only once per device identity.
+- Connecting is deliberate but performed only once per device identity.
 - Trusted workers reconnect without prompts.
 - Commands use device names, never addresses.
 - Automatic placement is the default, while explicit selection remains easy.
@@ -1185,39 +1216,94 @@ after a daemon restart.
 
 ### Step 2: LAN discovery, trust, and explicit remote execution
 
-**Implementation status:** discovery, pairing, explicit LAN-only `run`, `jobs`,
-`logs`, and `cancel` routing through identity-pinned QUIC, and durable remote job
-placement are merged. Project contents are not transferred, so an explicitly
-supplied remote working directory must already exist on the worker. The
-checkpoint remains open until the complete flow is exercised on physical macOS,
-Windows, and Linux machines.
+**Implementation status:** discovery, pairing, daemon-free first-run `setup`,
+role shortcut macOS installer command generation with `setup orchestrator` and
+`setup worker`, role-aware macOS installer command generation with `setup mac`,
+short-lived TURN relay credential flags in the setup helpers, and
+flag-customizable one-VPS `setup vps`, first-run `doctor` with daemon-not-running and missing-worker setup command guidance,
+duplicate-daemon startup guidance for local socket or ComputeHop port conflicts,
+local daemon identity in status output, `connect` as the guided pairing entry point,
+safe `connect nearby` for the single nearby unpaired worker, actionable `connect confirm`
+messages, friendly `disconnect` with legacy `unpair` compatibility, actionable `--on auto` and explicit worker-selection failure guidance, `--on auto` for the single active worker, explicit `run`,
+remote `run --no-project` for utility commands that need no local files, one-command `smoke`,
+pre-submit remote project preparation feedback before snapshot/upload,
+`run --follow/--wait/--get`, `jobs`, `logs`, and `cancel` routing through
+identity-pinned QUIC, and durable remote job placement are
+implemented. Remote runs now transfer an immutable project
+snapshot and use an isolated worker workspace; `-C` identifies the local source
+directory and defaults to the CLI's current directory, while `--no-project`
+intentionally skips snapshot transfer. The macOS-to-macOS
+physical flow has passed discovery, pairing, execution, daemon restart recovery,
+durable log retrieval, and cancellation. The checkpoint remains open until
+Windows and Linux workers pass the same physical flow.
 
 - Advertise and browse daemon endpoints with mDNS without treating discovery as
   authentication.
 - Implement device identity creation, two-sided verification, trust storage,
   reconnect, revocation, and re-pairing.
 - Establish mutually authenticated QUIC sessions pinned to paired identities.
-- Run the existing durable job slice on an explicitly selected worker, first
-  without automatic scheduling or project transfer.
+- Run the existing durable job slice on an explicitly selected worker, then add
+  a safe `--on auto` path before full compatibility scheduling.
 - Persist remote job placement on the orchestrator so later job-specific
   operations reconnect to the correct worker by ID after daemon restarts.
 - Validate macOS-to-macOS, macOS-to-Windows, and macOS-to-Linux behavior on
   physical machines as soon as each worker build exists.
 
-**Checkpoint:** `computehop run --device <name> -- <command>` discovers a worker
-without an address, pairs it once, reconnects without prompting, streams logs,
-and rejects unpaired or revoked devices.
+**Checkpoint:** `computehop connect` first shows any waiting verification
+request and exact confirm/reject next steps, while `computehop connect nearby`
+starts trust setup only when one nearby unpaired worker is visible.
+`computehop smoke` runs a cheap hostname check against the selected worker.
+`computehop run --on auto <command>` selects the only active worker and explains
+how to connect or choose explicitly when it cannot select safely, while
+`computehop run --on <name> <command>` discovers a specific worker without an
+address, pairs it once, reconnects without prompting, streams logs, and explains
+how to list, connect, or disambiguate workers when the requested name or short
+ID is not an active paired worker.
 
 ### Step 3: Cross-network connectivity
 
-**Implementation status:** the current slice derives a separate 256-bit
+**Implementation status:** the merged foundation derives a separate 256-bit
 connectivity secret during confirmed pairing, persists it only on the two
 devices, rotates anonymous route credentials every five minutes, and adds a
 bounded in-memory rendezvous/signaling service. The service sees only opaque
 route IDs, credential digests, endpoint roles, timing, and encrypted payloads.
-It is not connected to either daemon yet and does not implement ICE, STUN, or
-TURN. Existing pairings without connectivity material must be explicitly
-re-paired before later cross-network testing.
+The client now enforces HTTPS, refuses redirects, bounds responses, maps typed
+service errors, and encrypts payloads with authenticated role, direction,
+generation, and rotating-route context so stored ciphertext cannot be replayed
+in a later credential window. A versioned encrypted presence document now
+carries bounded non-trickle ICE credentials and candidates, and an integration
+test exchanges real descriptions through the opaque service before selecting a
+working path. The Pion path primitive also carries a QUIC stream and reports
+whether ICE selected a host, server-reflexive, or relay candidate without
+exposing credentials.
+The current deployment slice adds a one-VPS staging stack with Caddy automatic
+HTTPS and an authenticated coturn STUN/TURN service using a bounded relay port
+range and Docker secret. A checked `deploy/vps/init.sh` creates the local `.env`
+file and server-only TURN shared secret after domains and a public IPv4 are
+known. A checked `deploy/vps/turn-credentials.sh` derives short-lived coturn
+REST username/password credentials from that server-only secret and prints
+friendly setup-helper commands plus direct macOS installer commands for
+single-owner forced-relay testing without copying the shared secret to clients.
+The containers have been built and locally smoke
+tested, but the live VPS has not been purchased. Daemons now reconcile active
+pair records, retry encrypted presence exchange and ICE selection, run the
+existing identity-pinned QUIC control protocol over ready paths, and make those
+paths available after LAN attempts fail. CLI and Swift surfaces report
+connecting, remote, disabled, and selected-path state, while daemon, setup, and
+macOS installer controls support an explicit LAN-only mode that refuses remote
+connectivity flags. Automated end-to-end tests cover the full
+rendezvous-to-authenticated-control lifecycle, but physical unrelated-network
+and network-change testing remain. Existing pairings without connectivity
+material must be explicitly re-paired before remote testing.
+
+An anonymous pair route proves possession of a peer-created secret, not a
+customer entitlement to consume paid relay bandwidth: anyone can create a new
+pair and route. Shared public staging and production therefore must not issue
+TURN credentials until the service can verify an expiring, revocable
+entitlement or invite and enforce per-entitlement quotas. The coturn shared
+secret remains server-only. A single-owner self-hosted environment can use the
+operator-provisioned short-lived credentials from `deploy/vps/turn-credentials.sh`
+while this service boundary is being built.
 
 - Deploy a staging rendezvous service, STUN endpoints, and TURN relays before
   implementing remote path selection in the client.
@@ -1228,7 +1314,7 @@ re-paired before later cross-network testing.
 - Run the same pinned, mutually authenticated application session over every
   path so the relay never becomes the trust boundary.
 - Add path visibility, reconnect after network changes, credential expiry,
-  relay quotas, large-transfer confirmation, and LAN-only mode.
+  relay quotas, and large-transfer confirmation.
 
 **Checkpoint:** Devices paired on a LAN can later execute, observe, reconnect,
 and cancel from unrelated networks. Forced TURN tests prove that job content is
@@ -1236,10 +1322,51 @@ still end-to-end encrypted.
 
 ### Step 4: Project snapshots, transfer, and artifact recovery
 
+**Implementation status:** project transfer and explicit artifact return are implemented end to end.
+The orchestrator prefers an enclosing Git root, falls back to the nearest known
+project marker or selected directory, applies nested `.gitignore` and
+`.computehopignore` rules, retries unstable reads, and creates a bounded,
+canonical SHA-256 manifest over deterministic content-defined chunks. The
+worker preflights its persistent verified content store, receives only missing
+chunks, re-verifies every read and upload, repairs corrupt cached entries, and
+atomically materializes a new owner-only workspace for each accepted job.
+Transfers are resumable at chunk granularity because a retried submission
+preflights the persistent cache again. Real LAN and supervised-path integration
+tests execute from the reconstructed workspace and prove that an unchanged
+second submission uploads no chunks. Peers negotiate zstd or identity per
+chunk, fall back to identity when compression saves fewer than 64 bytes, cap
+encoded and decoded sizes, and verify SHA-256 over decoded bytes. Jobs may
+declare up to 64 portable relative output files or directories. The worker
+recursively collects exact declarations
+into an immutable manifest, remains cancellable while collecting, and reports
+success only after durable publication. The orchestrator preflights its local
+content store, downloads and re-verifies only missing chunks, stages a complete
+result, and never overwrites existing files or follows destination symlinks;
+conflicts are preserved under `.computehop-conflicts`. After a full restore, the
+orchestrator acknowledges the artifact bundle so the worker may evict those
+chunks under later cache pressure. The persistent verified content cache now has
+a configurable quota, LRU pruning, startup reconciliation, snapshot
+reservations, active-use pins, and conservative protection while jobs are
+running or collecting artifacts. CLI aliases and the macOS menu expose retrieval
+after restart by durable job placement. Artifact download and local restore
+progress is persisted independently of job ownership, so the orchestrator can
+show progress for worker-owned jobs in CLI and Swift job summaries. Immediate
+`run --get` restores declared outputs to the submitted working directory by
+default while the standalone `artifacts` command keeps its isolated
+`.computehop-results/<job-id>` default for later/manual retrieval. Symlinks and
+special files are safely rejected for now rather than preserved. Upload progress,
+byte-range resume, secret delivery, and physical Windows/Linux validation remain,
+so the Step 4 checkpoint is not complete.
+
 - Add project-root resolution, ignore semantics, immutable manifests,
-  content-defined chunks, compression negotiation, and a bounded content cache.
+  content-defined chunks, negotiated compression, and a bounded content cache.
 - Preflight manifests before sending content, request only missing chunks, and
   verify every received chunk by hash.
+- Enforce a persistent content-cache quota with LRU eviction, startup
+  reconciliation, active snapshot reservations, and artifact retention until
+  successful restoration is acknowledged.
+- Persist artifact download/restore byte progress and expose it through local
+  and remote job summaries in the CLI and macOS menu bar.
 - Materialize each job into an isolated workspace and never execute directly
   from the cache.
 - Add declared artifacts, staged collection, hash verification, resumable
@@ -1283,8 +1410,29 @@ preflight rather than after a large transfer.
 
 ### Step 7: macOS product experience
 
+**Implementation status:** the SwiftUI menu-bar foundation now builds from the
+root Swift package, uses generated SwiftProtobuf models, authenticates to local
+IPC protocol v6, and presents daemon health with local identity, first-run
+next-step guidance, devices, connection confirmation, trust revocation for
+paired devices, native job submission to the Mac, Auto worker, or a paired
+available worker, local project folder selection for incremental remote
+transfer, recent jobs, reconnectable output, artifact restoration, and
+cancellation. Unit tests cover framing, ping identity mapping, Auto worker
+target submission, no-project Smoke Test submission, pairing confirmation
+guidance, revocation actions, setup guidance, invalid command-input guidance,
+empty-log placeholders, copyable CLI run/log handoffs, job-completion
+notifications and their persisted setting, diagnostic command copying,
+configurable setup/VPS defaults, and safe command parsing; a real Swift client has successfully
+pinged the Go daemon, submitted a durable native job, and read its output.
+Broader settings remain. A host-architecture
+developer app bundle now includes the menu app, CLI, and daemon; a guarded
+per-user installer configures an
+unprivileged launch agent and preserves durable state on uninstall. Developer
+ID signing, notarization, universal release binaries, upgrade handling, and
+clean-machine tests remain.
+
 - Connect the SwiftUI menu-bar app to the stable local IPC contract.
-- Add device discovery, pairing confirmation, trust and revocation, connection
+- Add device discovery, connection confirmation, trust and revocation, connection
   path, policies, job submission, logs, cancellation, history, artifacts,
   notifications, diagnostics, and cache controls.
 - Keep the app presentation-only so restarting it cannot interrupt the daemon,
@@ -1333,8 +1481,9 @@ client displays its channel in diagnostics and never silently changes channels.
 
 ### Hosted connectivity deployment
 
-1. Provision two small public hosts in different failure domains with static
-   IPv4/IPv6 addresses and sufficient outbound transfer allowance.
+1. Provision one small public staging VPS with a static IPv4 address and
+   sufficient transfer allowance. Production later requires at least two hosts
+   in different failure domains.
 2. Configure DNS for rendezvous and TURN endpoints, TLS certificates, firewall
    rules, UDP connectivity, TURN relay port ranges, and time synchronization.
 3. Deploy `computehop-connectivity` and coturn as separately supervised,

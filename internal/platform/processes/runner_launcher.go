@@ -4,7 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"strconv"
 
+	"github.com/austinjiann/spare-compute/internal/contentcache"
 	"github.com/austinjiann/spare-compute/internal/job"
 )
 
@@ -12,14 +14,18 @@ import (
 type RunnerLauncher struct {
 	executable string
 	stateDir   string
+	cacheBytes int64
 }
 
 // NewRunnerLauncher constructs the durable runner-process launcher.
-func NewRunnerLauncher(executable, stateDir string) (*RunnerLauncher, error) {
+func NewRunnerLauncher(executable, stateDir string, cacheBytes int64) (*RunnerLauncher, error) {
 	if executable == "" || stateDir == "" {
 		return nil, errors.New("runner executable and state directory are required")
 	}
-	return &RunnerLauncher{executable: executable, stateDir: stateDir}, nil
+	if err := contentcache.ValidateMaximumBytes(cacheBytes); err != nil {
+		return nil, err
+	}
+	return &RunnerLauncher{executable: executable, stateDir: stateDir, cacheBytes: cacheBytes}, nil
 }
 
 // Launch starts a runner that can outlive the orchestrator daemon.
@@ -31,6 +37,7 @@ func (launcher *RunnerLauncher) Launch(id job.ID) error {
 		launcher.executable,
 		"--runner-job", string(id),
 		"--state-dir", launcher.stateDir,
+		"--cache-size", strconv.FormatInt(launcher.cacheBytes, 10)+"B",
 	)
 	Detach(command)
 	if err := command.Start(); err != nil {

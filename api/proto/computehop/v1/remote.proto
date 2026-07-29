@@ -16,6 +16,11 @@ message RemoteRequest {
     ListJobsRequest list_jobs = 12;
     CancelJobRequest cancel_job = 13;
     ReadJobLogsRequest read_job_logs = 14;
+    CheckSnapshotRequest check_snapshot = 15;
+    PutChunkRequest put_chunk = 16;
+    GetJobArtifactsRequest get_job_artifacts = 17;
+    GetArtifactChunkRequest get_artifact_chunk = 18;
+    AcknowledgeJobArtifactsRequest acknowledge_job_artifacts = 19;
   }
 }
 
@@ -31,11 +36,95 @@ message RemoteResponse {
     ListJobsResponse list_jobs = 12;
     CancelJobResponse cancel_job = 13;
     ReadJobLogsResponse read_job_logs = 14;
+    CheckSnapshotResponse check_snapshot = 15;
+    PutChunkResponse put_chunk = 16;
+    GetJobArtifactsResponse get_job_artifacts = 17;
+    GetArtifactChunkResponse get_artifact_chunk = 18;
+    AcknowledgeJobArtifactsResponse acknowledge_job_artifacts = 19;
   }
 }
 
 message SubmitJobRequest {
   JobSpec spec = 1;
+  SnapshotManifest snapshot = 2;
+  string working_subdirectory = 3;
+}
+
+message CheckSnapshotRequest {
+  string manifest_id = 1;
+  repeated string chunk_digests = 2;
+}
+
+message CheckSnapshotResponse {
+  repeated string missing_chunk_digests = 1;
+  repeated ChunkEncoding accepted_chunk_encodings = 2;
+}
+
+message PutChunkRequest {
+  string digest = 1;
+  bytes data = 2;
+  ChunkEncoding encoding = 3;
+  uint32 uncompressed_size = 4;
+}
+
+message PutChunkResponse {
+  string digest = 1;
+}
+
+message GetJobArtifactsRequest {
+  string job_id = 1;
+}
+
+message GetJobArtifactsResponse {
+  Job job = 1;
+  SnapshotManifest artifacts = 2;
+  int64 collected_at_unix_nano = 3;
+}
+
+message GetArtifactChunkRequest {
+  string job_id = 1;
+  string digest = 2;
+  repeated ChunkEncoding accepted_encodings = 3;
+}
+
+message GetArtifactChunkResponse {
+  string digest = 1;
+  bytes data = 2;
+  ChunkEncoding encoding = 3;
+  uint32 uncompressed_size = 4;
+}
+
+message AcknowledgeJobArtifactsRequest {
+  string job_id = 1;
+}
+
+message AcknowledgeJobArtifactsResponse {
+  string job_id = 1;
+}
+
+enum ChunkEncoding {
+  CHUNK_ENCODING_UNSPECIFIED = 0;
+  CHUNK_ENCODING_IDENTITY = 1;
+  CHUNK_ENCODING_ZSTD = 2;
+}
+
+message SnapshotManifest {
+  uint32 version = 1;
+  string manifest_id = 2;
+  repeated SnapshotFile files = 3;
+  int64 total_bytes = 4;
+}
+
+message SnapshotFile {
+  string path = 1;
+  uint32 mode = 2;
+  int64 size = 3;
+  repeated SnapshotChunk chunks = 4;
+}
+
+message SnapshotChunk {
+  string digest = 1;
+  uint32 size = 2;
 }
 
 message SubmitJobResponse {
@@ -93,6 +182,7 @@ message JobSpec {
   map<string, string> environment = 4;
   Executor executor = 5;
   string container_image = 6;
+  repeated string outputs = 7;
 }
 
 message Job {
@@ -102,6 +192,14 @@ message Job {
   int64 created_at_unix_nano = 4;
   int64 updated_at_unix_nano = 5;
   Failure failure = 6;
+  JobProgress progress = 7;
+}
+
+message JobProgress {
+  JobProgressPhase phase = 1;
+  int64 completed_bytes = 2;
+  int64 total_bytes = 3;
+  int64 updated_at_unix_nano = 4;
 }
 
 message Failure {
@@ -137,6 +235,15 @@ enum JobState {
   JOB_STATE_CANCELLED = 12;
   JOB_STATE_REJECTED = 13;
   JOB_STATE_LOST = 14;
+}
+
+enum JobProgressPhase {
+  JOB_PROGRESS_PHASE_UNSPECIFIED = 0;
+  JOB_PROGRESS_PHASE_SNAPSHOT = 1;
+  JOB_PROGRESS_PHASE_UPLOAD = 2;
+  JOB_PROGRESS_PHASE_DOWNLOAD = 3;
+  JOB_PROGRESS_PHASE_RESTORE = 4;
+  JOB_PROGRESS_PHASE_COLLECT = 5;
 }
 
 enum JobLogStream {

@@ -18,9 +18,12 @@ import (
 )
 
 const (
-	ProtocolVersion    uint32 = 1
-	maximumFrameBytes         = 1 << 20
-	defaultCallTimeout        = 15 * time.Second
+	ProtocolVersion       uint32 = 6
+	maximumFrameBytes            = 1 << 20
+	defaultCallTimeout           = 15 * time.Second
+	preflightCallTimeout         = time.Minute
+	chunkCallTimeout             = 2 * time.Minute
+	snapshotSubmitTimeout        = 6 * time.Hour
 )
 
 var (
@@ -90,7 +93,7 @@ func Call(
 	callContext := ctx
 	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
 		var cancel context.CancelFunc
-		callContext, cancel = context.WithTimeout(ctx, defaultCallTimeout)
+		callContext, cancel = context.WithTimeout(ctx, operationTimeout(request))
 		defer cancel()
 	}
 	if deadline, ok := callContext.Deadline(); ok {
@@ -142,12 +145,24 @@ func Serve(ctx context.Context, stream Stream, handler Handler) {
 	if stream == nil || handler == nil {
 		return
 	}
-	if deadline, ok := ctx.Deadline(); ok {
-		_ = stream.SetDeadline(deadline)
+	readDeadline := time.Now().Add(defaultCallTimeout)
+	if deadline, ok := ctx.Deadline(); ok && deadline.Before(readDeadline) {
+		readDeadline = deadline
 	}
+	_ = stream.SetDeadline(readDeadline)
 	request := new(computehopv1.RemoteRequest)
 	if err := readMessage(stream, request); err != nil {
 		return
+	}
+	requestContext, cancel := context.WithTimeout(ctx, operationTimeout(request))
+	defer cancel()
+	go func() {
+		var unexpected [1]byte
+		_, _ = stream.Read(unexpected[:])
+		cancel()
+	}()
+	if deadline, ok := requestContext.Deadline(); ok {
+		_ = stream.SetDeadline(deadline)
 	}
 	response := &computehopv1.RemoteResponse{
 		ProtocolVersion: ProtocolVersion,
@@ -170,7 +185,7 @@ func Serve(ctx context.Context, stream Stream, handler Handler) {
 			"request operation is invalid",
 		)
 	default:
-		response = safelyHandle(ctx, handler, request)
+		response = safelyHandle(requestContext, handler, request)
 		if response == nil {
 			response = &computehopv1.RemoteResponse{Error: protocolError(
 				computehopv1.RemoteErrorCode_REMOTE_ERROR_CODE_INTERNAL,
@@ -181,6 +196,25 @@ func Serve(ctx context.Context, stream Stream, handler Handler) {
 		response.RequestId = request.GetRequestId()
 	}
 	_ = writeMessage(stream, response)
+}
+
+func operationTimeout(request *computehopv1.RemoteRequest) time.Duration {
+	if request == nil {
+		return defaultCallTimeout
+	}
+	switch operation := request.GetOperation().(type) {
+	case *computehopv1.RemoteRequest_CheckSnapshot:
+		return preflightCallTimeout
+	case *computehopv1.RemoteRequest_PutChunk:
+		return chunkCallTimeout
+	case *computehopv1.RemoteRequest_GetArtifactChunk:
+		return chunkCallTimeout
+	case *computehopv1.RemoteRequest_SubmitJob:
+		if operation.SubmitJob != nil && operation.SubmitJob.GetSnapshot() != nil {
+			return snapshotSubmitTimeout
+		}
+	}
+	return defaultCallTimeout
 }
 
 func safelyHandle(
@@ -254,7 +288,8 @@ func hasUnknownRequestFields(message *computehopv1.RemoteRequest) bool {
 	switch operation := message.GetOperation().(type) {
 	case *computehopv1.RemoteRequest_SubmitJob:
 		return operation.SubmitJob == nil || hasUnknown(operation.SubmitJob) ||
-			operation.SubmitJob.GetSpec() == nil || hasUnknown(operation.SubmitJob.GetSpec())
+			operation.SubmitJob.GetSpec() == nil || hasUnknown(operation.SubmitJob.GetSpec()) ||
+			(operation.SubmitJob.GetSnapshot() != nil && hasUnknownSnapshot(operation.SubmitJob.GetSnapshot()))
 	case *computehopv1.RemoteRequest_GetJob:
 		return operation.GetJob == nil || hasUnknown(operation.GetJob)
 	case *computehopv1.RemoteRequest_ListJobs:
@@ -263,6 +298,14 @@ func hasUnknownRequestFields(message *computehopv1.RemoteRequest) bool {
 		return operation.CancelJob == nil || hasUnknown(operation.CancelJob)
 	case *computehopv1.RemoteRequest_ReadJobLogs:
 		return operation.ReadJobLogs == nil || hasUnknown(operation.ReadJobLogs)
+	case *computehopv1.RemoteRequest_CheckSnapshot:
+		return operation.CheckSnapshot == nil || hasUnknown(operation.CheckSnapshot)
+	case *computehopv1.RemoteRequest_PutChunk:
+		return operation.PutChunk == nil || hasUnknown(operation.PutChunk)
+	case *computehopv1.RemoteRequest_GetJobArtifacts:
+		return operation.GetJobArtifacts == nil || hasUnknown(operation.GetJobArtifacts)
+	case *computehopv1.RemoteRequest_GetArtifactChunk:
+		return operation.GetArtifactChunk == nil || hasUnknown(operation.GetArtifactChunk)
 	default:
 		return true
 	}
@@ -300,11 +343,38 @@ func hasUnknownResponseFields(message *computehopv1.RemoteResponse) bool {
 			}
 		}
 		return false
+	case *computehopv1.RemoteResponse_CheckSnapshot:
+		return result.CheckSnapshot == nil || hasUnknown(result.CheckSnapshot)
+	case *computehopv1.RemoteResponse_PutChunk:
+		return result.PutChunk == nil || hasUnknown(result.PutChunk)
+	case *computehopv1.RemoteResponse_GetJobArtifacts:
+		return result.GetJobArtifacts == nil || hasUnknown(result.GetJobArtifacts) ||
+			hasUnknownJob(result.GetJobArtifacts.GetJob()) ||
+			hasUnknownSnapshot(result.GetJobArtifacts.GetArtifacts())
+	case *computehopv1.RemoteResponse_GetArtifactChunk:
+		return result.GetArtifactChunk == nil || hasUnknown(result.GetArtifactChunk)
 	case nil:
 		return message.GetError() == nil
 	default:
 		return true
 	}
+}
+
+func hasUnknownSnapshot(message *computehopv1.SnapshotManifest) bool {
+	if message == nil || hasUnknown(message) {
+		return true
+	}
+	for _, file := range message.GetFiles() {
+		if file == nil || hasUnknown(file) {
+			return true
+		}
+		for _, chunk := range file.GetChunks() {
+			if chunk == nil || hasUnknown(chunk) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func hasUnknownJob(message *computehopv1.Job) bool {

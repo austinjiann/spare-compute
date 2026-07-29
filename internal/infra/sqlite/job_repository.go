@@ -20,19 +20,24 @@ const (
 var ErrInvalidListOptions = errors.New("invalid job list options")
 
 const jobColumns = `
-	id,
-	executable,
-	arguments_json,
-	working_directory,
-	environment_json,
-	executor,
-	container_image,
-	state,
-	created_at_ns,
-	updated_at_ns,
-	failure_code,
-	failure_message,
-	failure_retryable
+	jobs.id,
+	jobs.executable,
+	jobs.arguments_json,
+	jobs.working_directory,
+	jobs.environment_json,
+	jobs.executor,
+	jobs.container_image,
+	jobs.outputs_json,
+	jobs.state,
+	jobs.created_at_ns,
+	jobs.updated_at_ns,
+	jobs.failure_code,
+	jobs.failure_message,
+	jobs.failure_retryable,
+	job_progress.phase,
+	job_progress.completed_bytes,
+	job_progress.total_bytes,
+	job_progress.updated_at_ns
 `
 
 // JobRepository persists jobs and transitions in SQLite.
@@ -41,6 +46,7 @@ type JobRepository struct {
 }
 
 var _ job.Repository = (*JobRepository)(nil)
+var _ job.ProgressRepository = (*JobRepository)(nil)
 
 // Create inserts a validated job. Duplicate IDs return job.ErrConflict.
 func (repository *JobRepository) Create(ctx context.Context, value job.Job) error {
@@ -51,7 +57,7 @@ func (repository *JobRepository) Create(ctx context.Context, value job.Job) erro
 		return fmt.Errorf("%w: new repository job must be in %s state", job.ErrInvalidJob, job.StateCreated)
 	}
 
-	arguments, environment, err := encodeSpecCollections(value.Spec)
+	arguments, environment, outputs, err := encodeSpecCollections(value.Spec)
 	if err != nil {
 		return err
 	}
@@ -66,13 +72,14 @@ func (repository *JobRepository) Create(ctx context.Context, value job.Job) erro
 			environment_json,
 			executor,
 			container_image,
+			outputs_json,
 			state,
 			created_at_ns,
 			updated_at_ns,
 			failure_code,
 			failure_message,
 			failure_retryable
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`,
 		value.ID,
 		value.Spec.Executable,
@@ -81,6 +88,7 @@ func (repository *JobRepository) Create(ctx context.Context, value job.Job) erro
 		environment,
 		value.Spec.Executor,
 		value.Spec.ContainerImage,
+		outputs,
 		value.State,
 		value.CreatedAt.UTC().UnixNano(),
 		value.UpdatedAt.UTC().UnixNano(),
@@ -103,7 +111,9 @@ func (repository *JobRepository) Get(ctx context.Context, id job.ID) (job.Job, e
 		return job.Job{}, job.ErrInvalidID
 	}
 
-	value, err := queryJob(ctx, repository.database, `SELECT `+jobColumns+` FROM jobs WHERE id = ?`, id)
+	value, err := queryJob(ctx, repository.database, `SELECT `+jobColumns+` FROM jobs
+		LEFT JOIN job_progress ON job_progress.job_id = jobs.id
+		WHERE jobs.id = ?`, id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return job.Job{}, fmt.Errorf("%w: %s", job.ErrNotFound, id)
 	}
@@ -120,7 +130,8 @@ func (repository *JobRepository) List(ctx context.Context, options job.ListOptio
 		return nil, err
 	}
 
-	query := `SELECT ` + jobColumns + ` FROM jobs`
+	query := `SELECT ` + jobColumns + ` FROM jobs
+		LEFT JOIN job_progress ON job_progress.job_id = jobs.id`
 	arguments := make([]any, 0, len(options.States)+1)
 	if len(options.States) > 0 {
 		placeholders := make([]string, len(options.States))
@@ -128,9 +139,9 @@ func (repository *JobRepository) List(ctx context.Context, options job.ListOptio
 			placeholders[index] = "?"
 			arguments = append(arguments, state)
 		}
-		query += ` WHERE state IN (` + strings.Join(placeholders, ", ") + `)`
+		query += ` WHERE jobs.state IN (` + strings.Join(placeholders, ", ") + `)`
 	}
-	query += ` ORDER BY updated_at_ns DESC, id ASC LIMIT ?`
+	query += ` ORDER BY jobs.updated_at_ns DESC, jobs.id ASC LIMIT ?`
 	arguments = append(arguments, limit)
 
 	rows, err := repository.database.QueryContext(ctx, query, arguments...)
@@ -151,6 +162,77 @@ func (repository *JobRepository) List(ctx context.Context, options job.ListOptio
 		return nil, fmt.Errorf("iterate jobs: %w", err)
 	}
 	return result, nil
+}
+
+// SetProgress upserts the latest byte-level progress for a local or remote job.
+func (repository *JobRepository) SetProgress(ctx context.Context, id job.ID, progress job.Progress) error {
+	if repository == nil || repository.database == nil {
+		return errors.New("job repository is required")
+	}
+	if !id.Valid() {
+		return job.ErrInvalidID
+	}
+	if err := progress.Validate(); err != nil {
+		return err
+	}
+	_, err := repository.database.ExecContext(ctx, `
+		INSERT INTO job_progress (
+			job_id, phase, completed_bytes, total_bytes, updated_at_ns
+		) VALUES (?, ?, ?, ?, ?)
+		ON CONFLICT (job_id) DO UPDATE SET
+			phase = excluded.phase,
+			completed_bytes = excluded.completed_bytes,
+			total_bytes = excluded.total_bytes,
+			updated_at_ns = excluded.updated_at_ns
+	`, id, progress.Phase, progress.CompletedBytes, progress.TotalBytes, progress.UpdatedAt.UTC().UnixNano())
+	if err != nil {
+		return fmt.Errorf("set job progress: %w", err)
+	}
+	return nil
+}
+
+// GetProgress returns the latest progress for a local or remote job.
+func (repository *JobRepository) GetProgress(ctx context.Context, id job.ID) (*job.Progress, error) {
+	if repository == nil || repository.database == nil {
+		return nil, errors.New("job repository is required")
+	}
+	if !id.Valid() {
+		return nil, job.ErrInvalidID
+	}
+	var (
+		phase          string
+		completedBytes int64
+		totalBytes     int64
+		updatedAtNS    int64
+	)
+	err := repository.database.QueryRowContext(ctx, `
+		SELECT phase, completed_bytes, total_bytes, updated_at_ns
+		FROM job_progress
+		WHERE job_id = ?
+	`, id).Scan(&phase, &completedBytes, &totalBytes, &updatedAtNS)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get job progress: %w", err)
+	}
+	return decodeProgressValues(phase, completedBytes, totalBytes, updatedAtNS)
+}
+
+// ClearProgress removes stale progress once an operation has completed.
+func (repository *JobRepository) ClearProgress(ctx context.Context, id job.ID) error {
+	if repository == nil || repository.database == nil {
+		return errors.New("job repository is required")
+	}
+	if !id.Valid() {
+		return job.ErrInvalidID
+	}
+	if _, err := repository.database.ExecContext(
+		ctx, "DELETE FROM job_progress WHERE job_id = ?", id,
+	); err != nil {
+		return fmt.Errorf("clear job progress: %w", err)
+	}
+	return nil
 }
 
 // ApplyTransition atomically checks the source state, updates the job, and
@@ -188,7 +270,9 @@ func applyJobTransition(
 	current, err := queryJob(
 		ctx,
 		transaction,
-		`SELECT `+jobColumns+` FROM jobs WHERE id = ?`,
+		`SELECT `+jobColumns+` FROM jobs
+		LEFT JOIN job_progress ON job_progress.job_id = jobs.id
+		WHERE jobs.id = ?`,
 		transition.JobID,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -289,12 +373,17 @@ func scanJob(scanner rowScanner) (job.Job, error) {
 		environmentJSON  string
 		executor         string
 		containerImage   string
+		outputsJSON      string
 		state            string
 		createdAtNS      int64
 		updatedAtNS      int64
 		failureCode      sql.NullString
 		failureMessage   sql.NullString
 		failureRetryable sql.NullBool
+		progressPhase    sql.NullString
+		progressDone     sql.NullInt64
+		progressTotal    sql.NullInt64
+		progressUpdated  sql.NullInt64
 	)
 
 	if err := scanner.Scan(
@@ -305,12 +394,17 @@ func scanJob(scanner rowScanner) (job.Job, error) {
 		&environmentJSON,
 		&executor,
 		&containerImage,
+		&outputsJSON,
 		&state,
 		&createdAtNS,
 		&updatedAtNS,
 		&failureCode,
 		&failureMessage,
 		&failureRetryable,
+		&progressPhase,
+		&progressDone,
+		&progressTotal,
+		&progressUpdated,
 	); err != nil {
 		return job.Job{}, err
 	}
@@ -332,8 +426,16 @@ func scanJob(scanner rowScanner) (job.Job, error) {
 	if err := json.Unmarshal([]byte(environmentJSON), &environment); err != nil {
 		return job.Job{}, fmt.Errorf("decode job environment: %w", err)
 	}
+	var outputs []string
+	if err := json.Unmarshal([]byte(outputsJSON), &outputs); err != nil {
+		return job.Job{}, fmt.Errorf("decode job outputs: %w", err)
+	}
 
 	failure, err := decodeFailure(failureCode, failureMessage, failureRetryable)
+	if err != nil {
+		return job.Job{}, err
+	}
+	progress, err := decodeProgress(progressPhase, progressDone, progressTotal, progressUpdated)
 	if err != nil {
 		return job.Job{}, err
 	}
@@ -347,11 +449,13 @@ func scanJob(scanner rowScanner) (job.Job, error) {
 			Environment:      environment,
 			Executor:         job.Executor(executor),
 			ContainerImage:   containerImage,
+			Outputs:          outputs,
 		},
 		State:     parsedState,
 		CreatedAt: time.Unix(0, createdAtNS).UTC(),
 		UpdatedAt: time.Unix(0, updatedAtNS).UTC(),
 		Failure:   failure,
+		Progress:  progress,
 	}
 	if err := value.Validate(); err != nil {
 		return job.Job{}, fmt.Errorf("validate stored job: %w", err)
@@ -359,16 +463,55 @@ func scanJob(scanner rowScanner) (job.Job, error) {
 	return value, nil
 }
 
-func encodeSpecCollections(spec job.Spec) (string, string, error) {
+func decodeProgress(
+	phase sql.NullString,
+	completedBytes sql.NullInt64,
+	totalBytes sql.NullInt64,
+	updatedAtNS sql.NullInt64,
+) (*job.Progress, error) {
+	if !phase.Valid && !completedBytes.Valid && !totalBytes.Valid && !updatedAtNS.Valid {
+		return nil, nil
+	}
+	if !phase.Valid || !completedBytes.Valid || !totalBytes.Valid || !updatedAtNS.Valid {
+		return nil, errors.New("stored job has incomplete progress fields")
+	}
+	return decodeProgressValues(phase.String, completedBytes.Int64, totalBytes.Int64, updatedAtNS.Int64)
+}
+
+func decodeProgressValues(
+	phaseValue string,
+	completedBytes int64,
+	totalBytes int64,
+	updatedAtNS int64,
+) (*job.Progress, error) {
+	phase, err := job.ParseProgressPhase(phaseValue)
+	if err != nil {
+		return nil, err
+	}
+	progress := &job.Progress{
+		Phase: phase, CompletedBytes: completedBytes, TotalBytes: totalBytes,
+		UpdatedAt: time.Unix(0, updatedAtNS).UTC(),
+	}
+	if err := progress.Validate(); err != nil {
+		return nil, err
+	}
+	return progress, nil
+}
+
+func encodeSpecCollections(spec job.Spec) (string, string, string, error) {
 	arguments, err := json.Marshal(spec.Arguments)
 	if err != nil {
-		return "", "", fmt.Errorf("encode job arguments: %w", err)
+		return "", "", "", fmt.Errorf("encode job arguments: %w", err)
 	}
 	environment, err := json.Marshal(spec.Environment)
 	if err != nil {
-		return "", "", fmt.Errorf("encode job environment: %w", err)
+		return "", "", "", fmt.Errorf("encode job environment: %w", err)
 	}
-	return string(arguments), string(environment), nil
+	outputs, err := json.Marshal(spec.Outputs)
+	if err != nil {
+		return "", "", "", fmt.Errorf("encode job outputs: %w", err)
+	}
+	return string(arguments), string(environment), string(outputs), nil
 }
 
 func encodeFailure(failure *job.Failure) (any, any, any) {

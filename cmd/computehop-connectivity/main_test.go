@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 )
@@ -39,5 +41,55 @@ func TestRunRejectsInvalidLimitsAndArguments(t *testing.T) {
 		if err := run(context.Background(), arguments, &stdout, &stderr); err == nil {
 			t.Fatalf("run(%v) accepted invalid options", arguments)
 		}
+	}
+}
+
+func TestParseOptionsUsesPlatformPort(t *testing.T) {
+	t.Setenv("PORT", "4312")
+	parsed, err := parseOptions(nil, &bytes.Buffer{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parsed.listenAddress != ":4312" {
+		t.Fatalf("listen address = %q", parsed.listenAddress)
+	}
+
+	parsed, err = parseOptions([]string{"--listen", "127.0.0.1:0"}, &bytes.Buffer{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parsed.listenAddress != "127.0.0.1:0" {
+		t.Fatalf("overridden listen address = %q", parsed.listenAddress)
+	}
+}
+
+func TestRunHealthcheck(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/healthz" {
+			t.Fatalf("path = %q", request.URL.Path)
+		}
+		_, _ = writer.Write([]byte("ok\n"))
+	}))
+	defer server.Close()
+
+	address := strings.TrimPrefix(server.URL, "http://")
+	var stdout, stderr bytes.Buffer
+	if err := run(context.Background(), []string{"--healthcheck", "--listen", address}, &stdout, &stderr); err != nil {
+		t.Fatal(err)
+	}
+	if stdout.Len() != 0 || stderr.Len() != 0 {
+		t.Fatalf("stdout = %q; stderr = %q", stdout.String(), stderr.String())
+	}
+}
+
+func TestRunHealthcheckRejectsUnhealthyResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		http.Error(writer, "unhealthy", http.StatusServiceUnavailable)
+	}))
+	defer server.Close()
+
+	address := strings.TrimPrefix(server.URL, "http://")
+	if err := run(context.Background(), []string{"--healthcheck", "--listen", address}, &bytes.Buffer{}, &bytes.Buffer{}); err == nil {
+		t.Fatal("healthcheck accepted an unhealthy response")
 	}
 }

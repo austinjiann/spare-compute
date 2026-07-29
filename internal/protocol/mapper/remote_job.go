@@ -34,6 +34,22 @@ var remoteProtocolToState = func() map[computehopv1.JobState]job.State {
 	return result
 }()
 
+var progressPhaseToRemoteProtocol = map[job.ProgressPhase]computehopv1.JobProgressPhase{
+	job.ProgressSnapshot: computehopv1.JobProgressPhase_JOB_PROGRESS_PHASE_SNAPSHOT,
+	job.ProgressUpload:   computehopv1.JobProgressPhase_JOB_PROGRESS_PHASE_UPLOAD,
+	job.ProgressDownload: computehopv1.JobProgressPhase_JOB_PROGRESS_PHASE_DOWNLOAD,
+	job.ProgressRestore:  computehopv1.JobProgressPhase_JOB_PROGRESS_PHASE_RESTORE,
+	job.ProgressCollect:  computehopv1.JobProgressPhase_JOB_PROGRESS_PHASE_COLLECT,
+}
+
+var remoteProtocolToProgressPhase = func() map[computehopv1.JobProgressPhase]job.ProgressPhase {
+	result := make(map[computehopv1.JobProgressPhase]job.ProgressPhase, len(progressPhaseToRemoteProtocol))
+	for domain, protocol := range progressPhaseToRemoteProtocol {
+		result[protocol] = domain
+	}
+	return result
+}()
+
 // SpecToRemoteProto converts a validated specification to the paired-worker protocol.
 func SpecToRemoteProto(spec job.Spec) (*computehopv1.JobSpec, error) {
 	if err := spec.Validate(); err != nil {
@@ -47,6 +63,7 @@ func SpecToRemoteProto(spec job.Spec) (*computehopv1.JobSpec, error) {
 		Executable: spec.Executable, Arguments: append([]string(nil), spec.Arguments...),
 		WorkingDirectory: spec.WorkingDirectory, Environment: cloneMap(spec.Environment),
 		Executor: executor, ContainerImage: spec.ContainerImage,
+		Outputs: append([]string(nil), spec.Outputs...),
 	}, nil
 }
 
@@ -63,6 +80,7 @@ func SpecFromRemoteProto(message *computehopv1.JobSpec) (job.Spec, error) {
 		Executable: message.GetExecutable(), Arguments: append([]string(nil), message.GetArguments()...),
 		WorkingDirectory: message.GetWorkingDirectory(), Environment: cloneMap(message.GetEnvironment()),
 		Executor: executor, ContainerImage: message.GetContainerImage(),
+		Outputs: append([]string(nil), message.GetOutputs()...),
 	}
 	if err := spec.Validate(); err != nil {
 		return job.Spec{}, err
@@ -91,6 +109,13 @@ func JobToRemoteProto(value job.Job) (*computehopv1.Job, error) {
 		message.Failure = &computehopv1.Failure{
 			Code: value.Failure.Code, Message: value.Failure.Message, Retryable: value.Failure.Retryable,
 		}
+	}
+	if value.Progress != nil {
+		progress, err := ProgressToRemoteProto(*value.Progress)
+		if err != nil {
+			return nil, err
+		}
+		message.Progress = progress
 	}
 	return message, nil
 }
@@ -122,10 +147,54 @@ func JobFromRemoteProto(message *computehopv1.Job) (job.Job, error) {
 			Code: failure.GetCode(), Message: failure.GetMessage(), Retryable: failure.GetRetryable(),
 		}
 	}
+	if progress := message.GetProgress(); progress != nil {
+		converted, err := ProgressFromRemoteProto(progress)
+		if err != nil {
+			return job.Job{}, err
+		}
+		value.Progress = &converted
+	}
 	if err := value.Validate(); err != nil {
 		return job.Job{}, err
 	}
 	return value, nil
+}
+
+// ProgressToRemoteProto maps validated progress to the paired-worker protocol.
+func ProgressToRemoteProto(progress job.Progress) (*computehopv1.JobProgress, error) {
+	if err := progress.Validate(); err != nil {
+		return nil, err
+	}
+	phase, ok := progressPhaseToRemoteProtocol[progress.Phase]
+	if !ok {
+		return nil, job.ErrInvalidProgress
+	}
+	return &computehopv1.JobProgress{
+		Phase:             phase,
+		CompletedBytes:    progress.CompletedBytes,
+		TotalBytes:        progress.TotalBytes,
+		UpdatedAtUnixNano: progress.UpdatedAt.UTC().UnixNano(),
+	}, nil
+}
+
+// ProgressFromRemoteProto validates progress received from a paired worker.
+func ProgressFromRemoteProto(message *computehopv1.JobProgress) (job.Progress, error) {
+	if message == nil {
+		return job.Progress{}, job.ErrInvalidProgress
+	}
+	phase, ok := remoteProtocolToProgressPhase[message.GetPhase()]
+	if !ok {
+		return job.Progress{}, fmt.Errorf("%w: protocol value %d", job.ErrInvalidProgress, message.GetPhase())
+	}
+	progress := job.Progress{
+		Phase: phase, CompletedBytes: message.GetCompletedBytes(),
+		TotalBytes: message.GetTotalBytes(),
+		UpdatedAt:  time.Unix(0, message.GetUpdatedAtUnixNano()).UTC(),
+	}
+	if err := progress.Validate(); err != nil {
+		return job.Progress{}, err
+	}
+	return progress, nil
 }
 
 // StatesToRemoteProto maps validated domain state filters to the worker protocol.

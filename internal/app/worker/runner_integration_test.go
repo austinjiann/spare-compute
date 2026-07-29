@@ -11,9 +11,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/austinjiann/spare-compute/internal/artifact"
+	"github.com/austinjiann/spare-compute/internal/infra/cas"
 	"github.com/austinjiann/spare-compute/internal/infra/sqlite"
 	"github.com/austinjiann/spare-compute/internal/job"
 	joblogging "github.com/austinjiann/spare-compute/internal/logging"
+	"github.com/austinjiann/spare-compute/internal/platform/paths"
 	"github.com/austinjiann/spare-compute/internal/platform/processes"
 )
 
@@ -99,12 +102,90 @@ func TestRunnerPersistsProcessStartFailure(t *testing.T) {
 	}
 }
 
+func TestRunnerCollectsDeclaredOutputsBeforeSucceeding(t *testing.T) {
+	workspace := t.TempDir()
+	harness := newRunnerHarness(t, job.Spec{
+		Executable: "/bin/sh", Arguments: []string{"-c", "mkdir -p dist; printf artifact > dist/result.txt"},
+		WorkingDirectory: workspace, Executor: job.ExecutorNative, Outputs: []string{"dist/result.txt"},
+	})
+	if err := harness.runner.Run(context.Background(), harness.job.ID); err != nil {
+		t.Fatal(err)
+	}
+	completed, err := harness.database.Jobs().Get(context.Background(), harness.job.ID)
+	if err != nil || completed.State != job.StateSucceeded {
+		t.Fatalf("completed job = %#v, %v", completed, err)
+	}
+	bundle, err := harness.artifacts.Get(context.Background(), harness.job.ID)
+	if err != nil || len(bundle.Manifest.Files) != 1 || bundle.Manifest.Files[0].Path != "dist/result.txt" {
+		t.Fatalf("artifact bundle = %#v, %v", bundle, err)
+	}
+}
+
+func TestRunnerFailsWhenDeclaredOutputIsMissing(t *testing.T) {
+	harness := newRunnerHarness(t, job.Spec{
+		Executable: "/bin/sh", Arguments: []string{"-c", "exit 0"},
+		WorkingDirectory: t.TempDir(), Executor: job.ExecutorNative, Outputs: []string{"missing.txt"},
+	})
+	if err := harness.runner.Run(context.Background(), harness.job.ID); err != nil {
+		t.Fatal(err)
+	}
+	completed, err := harness.database.Jobs().Get(context.Background(), harness.job.ID)
+	if err != nil || completed.State != job.StateFailed || completed.Failure == nil ||
+		completed.Failure.Code != "collect_artifacts" {
+		t.Fatalf("completed job = %#v, %v", completed, err)
+	}
+}
+
+func TestRunnerCancelsWhileCollectingDeclaredOutputs(t *testing.T) {
+	harness := newRunnerHarness(t, job.Spec{
+		Executable: "/bin/sh", Arguments: []string{"-c", "printf artifact > result.txt"},
+		WorkingDirectory: t.TempDir(), Executor: job.ExecutorNative, Outputs: []string{"result.txt"},
+	})
+	collector := &blockingArtifactCollector{started: make(chan struct{})}
+	harness.runner.artifacts = collector
+	result := make(chan error, 1)
+	go func() { result <- harness.runner.Run(context.Background(), harness.job.ID) }()
+	select {
+	case <-collector.started:
+	case <-time.After(5 * time.Second):
+		t.Fatal("artifact collection did not start")
+	}
+	waitForJobState(t, harness.database, harness.job.ID, job.StateCollecting)
+	requested, err := harness.service.Cancel(context.Background(), harness.job.ID)
+	if err != nil || requested.State != job.StateCollecting {
+		t.Fatalf("Cancel() = %#v, %v", requested, err)
+	}
+	select {
+	case err := <-result:
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("runner did not stop cancelled artifact collection")
+	}
+	waitForJobState(t, harness.database, harness.job.ID, job.StateCancelled)
+}
+
+type blockingArtifactCollector struct {
+	started chan struct{}
+}
+
+func (collector *blockingArtifactCollector) Collect(
+	ctx context.Context,
+	_ job.Job,
+) (artifact.Bundle, error) {
+	close(collector.started)
+	<-ctx.Done()
+	return artifact.Bundle{}, ctx.Err()
+}
+
 type runnerHarness struct {
-	database *sqlite.Database
-	logs     *joblogging.Store
-	service  *JobService
-	runner   *Runner
-	job      job.Job
+	database  *sqlite.Database
+	logs      *joblogging.Store
+	service   *JobService
+	runner    *Runner
+	artifacts *cas.ArtifactManager
+	job       job.Job
 }
 
 func newRunnerHarness(t *testing.T, spec job.Spec) runnerHarness {
@@ -117,6 +198,18 @@ func newRunnerHarness(t *testing.T, spec job.Spec) runnerHarness {
 	}
 	t.Cleanup(func() { _ = database.Close() })
 	logs, err := joblogging.NewStore(stateDir, database.Executions(), time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	contentDirectory, err := paths.ContentStoreDir(stateDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content, err := cas.New(contentDirectory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	artifacts, err := cas.NewArtifactManager(content, database.Artifacts(), time.Now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,11 +238,14 @@ func newRunnerHarness(t *testing.T, spec job.Spec) runnerHarness {
 		Now:               time.Now,
 		HeartbeatInterval: 10 * time.Millisecond,
 		StopGracePeriod:   100 * time.Millisecond,
+		Artifacts:         artifacts,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	return runnerHarness{database: database, logs: logs, service: service, runner: runner, job: queued}
+	return runnerHarness{
+		database: database, logs: logs, service: service, runner: runner, artifacts: artifacts, job: queued,
+	}
 }
 
 func waitForJobState(t *testing.T, database *sqlite.Database, id job.ID, want job.State) {

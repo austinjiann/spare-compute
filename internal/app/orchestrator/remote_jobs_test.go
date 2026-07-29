@@ -5,15 +5,20 @@ import (
 	"context"
 	"errors"
 	"net/netip"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	computehopv1 "github.com/austinjiann/spare-compute/gen/go/computehop/v1"
+	"github.com/austinjiann/spare-compute/internal/artifact"
 	"github.com/austinjiann/spare-compute/internal/device"
 	"github.com/austinjiann/spare-compute/internal/job"
 	"github.com/austinjiann/spare-compute/internal/placement"
 	"github.com/austinjiann/spare-compute/internal/protocol/mapper"
 	remoteprotocol "github.com/austinjiann/spare-compute/internal/protocol/remote"
+	"github.com/austinjiann/spare-compute/internal/snapshot"
+	"github.com/austinjiann/spare-compute/internal/transfer"
 	"github.com/austinjiann/spare-compute/internal/trust"
 )
 
@@ -86,6 +91,113 @@ func TestRemoteJobServiceRoutesOnlyThroughSelectedWorkerPin(t *testing.T) {
 	}
 }
 
+func TestRemoteJobServiceAutoSelectsSingleActiveWorker(t *testing.T) {
+	peer := activeWorkerPeer(t, 10, "Build PC")
+	nearby := nearbyWorker(t, "Build PC", 47823)
+	want := queuedJobForTest()
+	message, err := mapper.JobToRemoteProto(want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dialed := false
+	placements := newRemotePlacementStub()
+	service, err := NewRemoteJobService(RemoteDependencies{
+		Nearby: stubDeviceController{list: func(context.Context) (device.DiscoverySnapshot, error) {
+			return device.DiscoverySnapshot{Available: true, Devices: []device.NearbyDevice{nearby}}, nil
+		}},
+		Trust:      remoteTrustStub{peers: []trust.Peer{peer}},
+		Placements: placements,
+		Dialer: remoteDialerFunc(func(
+			_ context.Context,
+			target device.NearbyDevice,
+			pinned trust.Peer,
+		) (remoteprotocol.Caller, error) {
+			dialed = true
+			if target.Announcement.Name != "Build PC" || pinned.DeviceID != peer.DeviceID {
+				t.Fatalf("target = %#v; peer = %#v", target, pinned)
+			}
+			return &remoteCallerStub{call: func(
+				_ context.Context,
+				request *computehopv1.RemoteRequest,
+			) (*computehopv1.RemoteResponse, error) {
+				if request.GetSubmitJob() == nil {
+					t.Fatalf("request = %#v", request)
+				}
+				return &computehopv1.RemoteResponse{Result: &computehopv1.RemoteResponse_SubmitJob{
+					SubmitJob: &computehopv1.SubmitJobResponse{Job: message},
+				}}, nil
+			}}, nil
+		}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := service.Submit(context.Background(), "auto", want.Spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !dialed || got.ID != want.ID {
+		t.Fatalf("job = %#v; dialed = %t", got, dialed)
+	}
+	remembered, err := placements.Get(context.Background(), want.ID)
+	if err != nil || remembered.WorkerID != peer.DeviceID {
+		t.Fatalf("placement = %#v, %v", remembered, err)
+	}
+}
+
+func TestRemoteJobServiceAutoSelectorRequiresExactlyOneActiveWorker(t *testing.T) {
+	service, err := NewRemoteJobService(RemoteDependencies{
+		Nearby: stubDeviceController{},
+		Trust: remoteTrustStub{peers: []trust.Peer{
+			activeWorkerPeer(t, 12, "Build PC"),
+			activeWorkerPeer(t, 13, "Render PC"),
+		}},
+		Placements: newRemotePlacementStub(),
+		Dialer: remoteDialerFunc(func(
+			context.Context,
+			device.NearbyDevice,
+			trust.Peer,
+		) (remoteprotocol.Caller, error) {
+			t.Fatal("ambiguous automatic selection opened a remote connection")
+			return nil, nil
+		}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = service.Submit(context.Background(), "auto", queuedJobForTest().Spec)
+	if !errors.Is(err, trust.ErrConflict) ||
+		!strings.Contains(err.Error(), "computehop devices") ||
+		!strings.Contains(err.Error(), "computehop run --on <device> ...") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestRemoteJobServiceAutoSelectorExplainsNoActiveWorkers(t *testing.T) {
+	service, err := NewRemoteJobService(RemoteDependencies{
+		Nearby:     stubDeviceController{},
+		Trust:      remoteTrustStub{},
+		Placements: newRemotePlacementStub(),
+		Dialer: remoteDialerFunc(func(
+			context.Context,
+			device.NearbyDevice,
+			trust.Peer,
+		) (remoteprotocol.Caller, error) {
+			t.Fatal("empty automatic selection opened a remote connection")
+			return nil, nil
+		}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = service.Submit(context.Background(), "auto", queuedJobForTest().Spec)
+	if !errors.Is(err, ErrRemoteWorkerUnavailable) ||
+		!strings.Contains(err.Error(), "computehop connect nearby") ||
+		!strings.Contains(err.Error(), "computehop devices") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
 func TestRemoteJobServiceRequiresAnActiveNearbyPin(t *testing.T) {
 	peer := activeWorkerPeer(t, 9, "Offline PC")
 	service, err := NewRemoteJobService(RemoteDependencies{
@@ -107,6 +219,389 @@ func TestRemoteJobServiceRequiresAnActiveNearbyPin(t *testing.T) {
 	_, err = service.List(context.Background(), "Offline PC", job.ListOptions{Limit: 10})
 	if !errors.Is(err, ErrRemoteWorkerUnavailable) {
 		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestRemoteJobServiceFallsBackToSupervisedPathWithoutLAN(t *testing.T) {
+	peer := activeWorkerPeer(t, 11, "Remote PC")
+	want := queuedJobForTest()
+	message, err := mapper.JobToRemoteProto(want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	remoteDialed := false
+	service, err := NewRemoteJobService(RemoteDependencies{
+		Nearby:     stubDeviceController{},
+		Trust:      remoteTrustStub{peers: []trust.Peer{peer}},
+		Placements: newRemotePlacementStub(),
+		Dialer: remoteDialerFunc(func(
+			context.Context,
+			device.NearbyDevice,
+			trust.Peer,
+		) (remoteprotocol.Caller, error) {
+			t.Fatal("LAN dialer received an absent observation")
+			return nil, nil
+		}),
+		Remote: pairedRemoteDialerFunc(func(
+			_ context.Context,
+			pinned trust.Peer,
+		) (remoteprotocol.Caller, error) {
+			remoteDialed = true
+			if pinned.DeviceID != peer.DeviceID {
+				t.Fatalf("peer = %#v", pinned)
+			}
+			return &remoteCallerStub{call: func(
+				_ context.Context,
+				request *computehopv1.RemoteRequest,
+			) (*computehopv1.RemoteResponse, error) {
+				if request.GetListJobs() == nil {
+					t.Fatalf("request = %#v", request)
+				}
+				return &computehopv1.RemoteResponse{Result: &computehopv1.RemoteResponse_ListJobs{
+					ListJobs: &computehopv1.ListJobsResponse{Jobs: []*computehopv1.Job{message}},
+				}}, nil
+			}}, nil
+		}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	jobs, err := service.List(context.Background(), "Remote PC", job.ListOptions{Limit: 10})
+	if err != nil || !remoteDialed || len(jobs) != 1 || jobs[0].ID != want.ID {
+		t.Fatalf("List() = %#v, %v; remote dialed = %t", jobs, err, remoteDialed)
+	}
+}
+
+func TestRemoteJobServiceTransfersOnlyMissingSnapshotChunks(t *testing.T) {
+	peer := activeWorkerPeer(t, 17, "Build PC")
+	contents := bytes.Repeat([]byte("package main\n"), 8_192)
+	digest := snapshot.Sum(contents)
+	manifest := snapshot.Manifest{
+		Version: snapshot.ManifestVersion,
+		Files: []snapshot.File{{
+			Path: "src/main.go", Mode: 0o644, Size: int64(len(contents)),
+			Chunks: []snapshot.Chunk{{Digest: digest, Size: uint32(len(contents))}},
+		}},
+		TotalBytes: int64(len(contents)),
+	}
+	want := queuedJobForTest()
+	want.Spec.WorkingDirectory = "/worker/jobs/workspace/src"
+	jobMessage, err := mapper.JobToRemoteProto(want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cached := false
+	uploads := 0
+	submissions := 0
+	service, err := NewRemoteJobService(RemoteDependencies{
+		Nearby: stubDeviceController{}, Trust: remoteTrustStub{peers: []trust.Peer{peer}},
+		Placements: newRemotePlacementStub(),
+		Dialer: remoteDialerFunc(func(context.Context, device.NearbyDevice, trust.Peer) (remoteprotocol.Caller, error) {
+			t.Fatal("absent LAN path was dialed")
+			return nil, nil
+		}),
+		Remote: pairedRemoteDialerFunc(func(context.Context, trust.Peer) (remoteprotocol.Caller, error) {
+			return &remoteCallerStub{call: func(
+				_ context.Context,
+				request *computehopv1.RemoteRequest,
+			) (*computehopv1.RemoteResponse, error) {
+				switch request.GetOperation().(type) {
+				case *computehopv1.RemoteRequest_CheckSnapshot:
+					missing := []string(nil)
+					if !cached {
+						missing = []string{string(digest)}
+					}
+					return &computehopv1.RemoteResponse{Result: &computehopv1.RemoteResponse_CheckSnapshot{
+						CheckSnapshot: &computehopv1.CheckSnapshotResponse{
+							MissingChunkDigests: missing,
+							AcceptedChunkEncodings: []computehopv1.ChunkEncoding{
+								computehopv1.ChunkEncoding_CHUNK_ENCODING_ZSTD,
+								computehopv1.ChunkEncoding_CHUNK_ENCODING_IDENTITY,
+							},
+						},
+					}}, nil
+				case *computehopv1.RemoteRequest_PutChunk:
+					put := request.GetPutChunk()
+					encoding, mapErr := mapper.ChunkEncodingFromRemoteProto(put.GetEncoding())
+					decoded, decodeErr := transfer.DecodeChunk(transfer.Chunk{
+						Encoding: encoding, Data: put.GetData(), UncompressedSize: put.GetUncompressedSize(),
+					})
+					if put.GetEncoding() != computehopv1.ChunkEncoding_CHUNK_ENCODING_ZSTD ||
+						mapErr != nil || decodeErr != nil || put.GetDigest() != string(digest) ||
+						!bytes.Equal(decoded, contents) {
+						t.Fatalf("put request = %#v", put)
+					}
+					uploads++
+					cached = true
+					return &computehopv1.RemoteResponse{Result: &computehopv1.RemoteResponse_PutChunk{
+						PutChunk: &computehopv1.PutChunkResponse{Digest: string(digest)},
+					}}, nil
+				case *computehopv1.RemoteRequest_SubmitJob:
+					submitted := request.GetSubmitJob()
+					if submitted.GetSnapshot() == nil || submitted.GetWorkingSubdirectory() != "src" ||
+						submitted.GetSpec().GetWorkingDirectory() != "" {
+						t.Fatalf("submit request = %#v", submitted)
+					}
+					submissions++
+					return &computehopv1.RemoteResponse{Result: &computehopv1.RemoteResponse_SubmitJob{
+						SubmitJob: &computehopv1.SubmitJobResponse{Job: jobMessage},
+					}}, nil
+				default:
+					t.Fatalf("unexpected request = %#v", request)
+					return nil, nil
+				}
+			}}, nil
+		}),
+		Snapshots: projectSnapshotterStub{result: snapshot.Result{
+			Root: "/local/project", WorkingSubdirectory: "src", Manifest: manifest,
+		}},
+		Content: snapshotContentStub{contents: map[snapshot.Digest][]byte{digest: contents}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	spec := want.Spec.Clone()
+	spec.WorkingDirectory = "/local/project/src"
+	for run := 0; run < 2; run++ {
+		if _, err := service.Submit(context.Background(), "Build PC", spec); err != nil {
+			t.Fatalf("Submit(%d) error = %v", run, err)
+		}
+	}
+	if uploads != 1 || submissions != 2 {
+		t.Fatalf("uploads = %d, submissions = %d", uploads, submissions)
+	}
+}
+
+func TestRemoteJobServiceSkipsSnapshotForEmptyWorkingDirectory(t *testing.T) {
+	peer := activeWorkerPeer(t, 18, "Utility PC")
+	want := queuedJobForTest()
+	want.Spec.WorkingDirectory = ""
+	message, err := mapper.JobToRemoteProto(want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	submissions := 0
+	service, err := NewRemoteJobService(RemoteDependencies{
+		Nearby: stubDeviceController{}, Trust: remoteTrustStub{peers: []trust.Peer{peer}},
+		Placements: newRemotePlacementStub(),
+		Dialer: remoteDialerFunc(func(context.Context, device.NearbyDevice, trust.Peer) (remoteprotocol.Caller, error) {
+			t.Fatal("absent LAN path was dialed")
+			return nil, nil
+		}),
+		Remote: pairedRemoteDialerFunc(func(context.Context, trust.Peer) (remoteprotocol.Caller, error) {
+			return &remoteCallerStub{call: func(
+				_ context.Context,
+				request *computehopv1.RemoteRequest,
+			) (*computehopv1.RemoteResponse, error) {
+				submit := request.GetSubmitJob()
+				if submit == nil {
+					t.Fatalf("request = %#v", request)
+				}
+				if submit.GetSnapshot() != nil ||
+					submit.GetWorkingSubdirectory() != "" ||
+					submit.GetSpec().GetWorkingDirectory() != "" {
+					t.Fatalf("submit request = %#v", submit)
+				}
+				submissions++
+				return &computehopv1.RemoteResponse{Result: &computehopv1.RemoteResponse_SubmitJob{
+					SubmitJob: &computehopv1.SubmitJobResponse{Job: message},
+				}}, nil
+			}}, nil
+		}),
+		Snapshots: projectSnapshotterStub{err: errors.New("snapshot should not be built")},
+		Content:   snapshotContentStub{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := service.Submit(context.Background(), "Utility PC", want.Spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if submissions != 1 || got.ID != want.ID {
+		t.Fatalf("submissions = %d; job = %#v", submissions, got)
+	}
+}
+
+func TestRemoteJobServiceDownloadsOnlyMissingArtifactChunksAndRestores(t *testing.T) {
+	peer := activeWorkerPeer(t, 23, "Render PC")
+	contents := bytes.Repeat([]byte("rendered output\n"), 8_192)
+	digest := snapshot.Sum(contents)
+	wireChunk, err := transfer.EncodeChunk(contents, []transfer.ChunkEncoding{transfer.EncodingZstd})
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest := snapshot.Manifest{
+		Version: snapshot.ManifestVersion,
+		Files: []snapshot.File{{
+			Path: "dist/render.png", Mode: 0o644, Size: int64(len(contents)),
+			Chunks: []snapshot.Chunk{{Digest: digest, Size: uint32(len(contents))}},
+		}},
+		TotalBytes: int64(len(contents)),
+	}
+	manifestMessage, err := mapper.ManifestToRemoteProto(manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := queuedJobForTest()
+	want.State = job.StateSucceeded
+	want.Spec.Outputs = []string{"dist/render.png"}
+	jobMessage, err := mapper.JobToRemoteProto(want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	placements := newRemotePlacementStub()
+	if err := placements.Create(context.Background(), placement.Placement{
+		JobID: want.ID, WorkerID: peer.DeviceID, PlacedAt: want.CreatedAt,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	cached := false
+	downloads := 0
+	restores := 0
+	acknowledgments := 0
+	progress := newRemoteProgressStub()
+	destination := filepath.Join(t.TempDir(), "results")
+	service, err := NewRemoteJobService(RemoteDependencies{
+		Nearby: stubDeviceController{}, Trust: remoteTrustStub{peers: []trust.Peer{peer}},
+		Placements: placements, Progress: progress,
+		Dialer: remoteDialerFunc(func(context.Context, device.NearbyDevice, trust.Peer) (remoteprotocol.Caller, error) {
+			return nil, errors.New("no LAN path")
+		}),
+		Remote: pairedRemoteDialerFunc(func(context.Context, trust.Peer) (remoteprotocol.Caller, error) {
+			return &remoteCallerStub{call: func(
+				_ context.Context,
+				request *computehopv1.RemoteRequest,
+			) (*computehopv1.RemoteResponse, error) {
+				switch request.GetOperation().(type) {
+				case *computehopv1.RemoteRequest_GetJobArtifacts:
+					return &computehopv1.RemoteResponse{Result: &computehopv1.RemoteResponse_GetJobArtifacts{
+						GetJobArtifacts: &computehopv1.GetJobArtifactsResponse{
+							Job: jobMessage, Artifacts: manifestMessage,
+							CollectedAtUnixNano: time.Unix(1_900_000_000, 0).UnixNano(),
+						},
+					}}, nil
+				case *computehopv1.RemoteRequest_GetArtifactChunk:
+					downloads++
+					if request.GetGetArtifactChunk().GetDigest() != string(digest) ||
+						len(request.GetGetArtifactChunk().GetAcceptedEncodings()) != 2 {
+						t.Fatalf("chunk request = %#v", request.GetGetArtifactChunk())
+					}
+					return &computehopv1.RemoteResponse{Result: &computehopv1.RemoteResponse_GetArtifactChunk{
+						GetArtifactChunk: &computehopv1.GetArtifactChunkResponse{
+							Digest: string(digest), Data: wireChunk.Data,
+							Encoding:         computehopv1.ChunkEncoding_CHUNK_ENCODING_ZSTD,
+							UncompressedSize: wireChunk.UncompressedSize,
+						},
+					}}, nil
+				case *computehopv1.RemoteRequest_AcknowledgeJobArtifacts:
+					acknowledgments++
+					if request.GetAcknowledgeJobArtifacts().GetJobId() != string(want.ID) {
+						t.Fatalf("acknowledgment request = %#v", request.GetAcknowledgeJobArtifacts())
+					}
+					return &computehopv1.RemoteResponse{Result: &computehopv1.RemoteResponse_AcknowledgeJobArtifacts{
+						AcknowledgeJobArtifacts: &computehopv1.AcknowledgeJobArtifactsResponse{JobId: string(want.ID)},
+					}}, nil
+				default:
+					t.Fatalf("unexpected request = %#v", request)
+					return nil, nil
+				}
+			}}, nil
+		}),
+		ArtifactContent: artifactContentStub{
+			missing: func(_ context.Context, digests []snapshot.Digest) ([]snapshot.Digest, error) {
+				if len(digests) != 1 || digests[0] != digest {
+					t.Fatalf("digests = %#v", digests)
+				}
+				if cached {
+					return nil, nil
+				}
+				return []snapshot.Digest{digest}, nil
+			},
+			put: func(_ context.Context, got snapshot.Digest, data []byte) error {
+				if got != digest || !bytes.Equal(data, contents) {
+					t.Fatalf("Put(%s, %q)", got, data)
+				}
+				cached = true
+				return nil
+			},
+		},
+		Artifacts: artifactRestorerStub{restore: func(
+			_ context.Context,
+			bundle artifact.Bundle,
+			gotDestination string,
+		) (artifact.RestoreResult, error) {
+			restores++
+			if bundle.JobID != want.ID || gotDestination != destination {
+				t.Fatalf("Restore(%s, %q)", bundle.JobID, gotDestination)
+			}
+			return artifact.RestoreResult{Destination: destination, Restored: []string{"dist/render.png"}}, nil
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for attempt := 0; attempt < 2; attempt++ {
+		result, err := service.FetchArtifacts(context.Background(), "", want.ID, destination)
+		if err != nil || len(result.Restored) != 1 {
+			t.Fatalf("FetchArtifacts(%d) = %#v, %v", attempt, result, err)
+		}
+	}
+	if downloads != 1 || restores != 2 || acknowledgments != 2 {
+		t.Fatalf("downloads = %d, restores = %d, acknowledgments = %d", downloads, restores, acknowledgments)
+	}
+	if !progress.saw(job.ProgressDownload) || !progress.saw(job.ProgressRestore) || progress.clears != 2 {
+		t.Fatalf("progress history = %#v, clears = %d", progress.history, progress.clears)
+	}
+}
+
+func TestRemoteJobServiceOverlaysLocalTransferProgress(t *testing.T) {
+	peer := activeWorkerPeer(t, 24, "Render PC")
+	want := queuedJobForTest()
+	message, err := mapper.JobToRemoteProto(want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	placements := newRemotePlacementStub()
+	if err := placements.Create(context.Background(), placement.Placement{
+		JobID: want.ID, WorkerID: peer.DeviceID, PlacedAt: want.CreatedAt,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	progress := newRemoteProgressStub()
+	if err := progress.SetProgress(context.Background(), want.ID, job.Progress{
+		Phase: job.ProgressDownload, CompletedBytes: 10, TotalBytes: 20,
+		UpdatedAt: want.UpdatedAt.Add(time.Second),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewRemoteJobService(RemoteDependencies{
+		Nearby: stubDeviceController{}, Trust: remoteTrustStub{peers: []trust.Peer{peer}},
+		Placements: placements, Progress: progress,
+		Dialer: remoteDialerFunc(func(context.Context, device.NearbyDevice, trust.Peer) (remoteprotocol.Caller, error) {
+			return nil, errors.New("no LAN path")
+		}),
+		Remote: pairedRemoteDialerFunc(func(context.Context, trust.Peer) (remoteprotocol.Caller, error) {
+			return &remoteCallerStub{call: func(
+				context.Context,
+				*computehopv1.RemoteRequest,
+			) (*computehopv1.RemoteResponse, error) {
+				return &computehopv1.RemoteResponse{Result: &computehopv1.RemoteResponse_GetJob{
+					GetJob: &computehopv1.GetJobResponse{Job: message},
+				}}, nil
+			}}, nil
+		}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := service.Get(context.Background(), "", want.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Progress == nil || got.Progress.Phase != job.ProgressDownload ||
+		got.Progress.CompletedBytes != 10 || got.Progress.TotalBytes != 20 {
+		t.Fatalf("progress = %#v", got.Progress)
 	}
 }
 
@@ -177,8 +672,66 @@ func (function remoteDialerFunc) DialRemote(
 	return function(ctx, target, peer)
 }
 
+type pairedRemoteDialerFunc func(context.Context, trust.Peer) (remoteprotocol.Caller, error)
+
+func (function pairedRemoteDialerFunc) DialRemotePeer(
+	ctx context.Context,
+	peer trust.Peer,
+) (remoteprotocol.Caller, error) {
+	return function(ctx, peer)
+}
+
 type remoteCallerStub struct {
 	call func(context.Context, *computehopv1.RemoteRequest) (*computehopv1.RemoteResponse, error)
+}
+
+type projectSnapshotterStub struct {
+	result snapshot.Result
+	err    error
+}
+
+func (stub projectSnapshotterStub) Build(context.Context, string) (snapshot.Result, error) {
+	return stub.result, stub.err
+}
+
+type snapshotContentStub struct {
+	contents map[snapshot.Digest][]byte
+}
+
+type artifactContentStub struct {
+	missing func(context.Context, []snapshot.Digest) ([]snapshot.Digest, error)
+	put     func(context.Context, snapshot.Digest, []byte) error
+}
+
+func (stub artifactContentStub) Missing(
+	ctx context.Context,
+	digests []snapshot.Digest,
+) ([]snapshot.Digest, error) {
+	return stub.missing(ctx, digests)
+}
+
+func (stub artifactContentStub) Put(ctx context.Context, digest snapshot.Digest, data []byte) error {
+	return stub.put(ctx, digest, data)
+}
+
+type artifactRestorerStub struct {
+	restore func(context.Context, artifact.Bundle, string) (artifact.RestoreResult, error)
+}
+
+func (stub artifactRestorerStub) Restore(
+	ctx context.Context,
+	bundle artifact.Bundle,
+	destination string,
+) (artifact.RestoreResult, error) {
+	return stub.restore(ctx, bundle, destination)
+}
+
+func (stub snapshotContentStub) Read(_ context.Context, digest snapshot.Digest) ([]byte, error) {
+	contents, ok := stub.contents[digest]
+	if !ok {
+		return nil, errors.New("missing local content")
+	}
+	return append([]byte(nil), contents...), nil
 }
 
 func (caller *remoteCallerStub) Call(
@@ -241,6 +794,51 @@ func (stub *remotePlacementStub) Get(_ context.Context, id job.ID) (placement.Pl
 		return placement.Placement{}, placement.ErrNotFound
 	}
 	return value, nil
+}
+
+type remoteProgressStub struct {
+	values  map[job.ID]job.Progress
+	history []job.Progress
+	clears  int
+}
+
+func newRemoteProgressStub() *remoteProgressStub {
+	return &remoteProgressStub{values: make(map[job.ID]job.Progress)}
+}
+
+func (stub *remoteProgressStub) SetProgress(_ context.Context, id job.ID, progress job.Progress) error {
+	if !id.Valid() {
+		return job.ErrInvalidID
+	}
+	if err := progress.Validate(); err != nil {
+		return err
+	}
+	stub.values[id] = progress
+	stub.history = append(stub.history, progress)
+	return nil
+}
+
+func (stub *remoteProgressStub) GetProgress(_ context.Context, id job.ID) (*job.Progress, error) {
+	progress, ok := stub.values[id]
+	if !ok {
+		return nil, nil
+	}
+	return &progress, nil
+}
+
+func (stub *remoteProgressStub) ClearProgress(_ context.Context, id job.ID) error {
+	delete(stub.values, id)
+	stub.clears++
+	return nil
+}
+
+func (stub *remoteProgressStub) saw(phase job.ProgressPhase) bool {
+	for _, progress := range stub.history {
+		if progress.Phase == phase {
+			return true
+		}
+	}
+	return false
 }
 
 func activeWorkerPeer(t *testing.T, seed byte, name string) trust.Peer {

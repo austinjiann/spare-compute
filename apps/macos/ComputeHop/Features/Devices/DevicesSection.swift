@@ -1,0 +1,65 @@
+import SwiftUI
+
+struct DevicesSection: View {
+    let model: AppModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Devices")
+                .font(.headline)
+            if model.devices.isEmpty {
+                Text("No nearby or connected devices")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(model.devices) { device in
+                    HStack(spacing: 8) {
+                        Image(systemName: device.availability == .offline ? "circle" : "circle.fill")
+                            .font(.system(size: 8))
+                            .foregroundStyle(availabilityColor(device.availability))
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(device.name)
+                            Text("\(device.role) · \(device.trustDisplay) · \(device.shortID)")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        if device.canPair {
+                            Button("Connect") {
+                                Task { await model.connect(device) }
+                            }
+                            .disabled(model.actionInProgress != nil)
+                        } else if device.canDisconnect {
+                            Text(statusText(for: device))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Button("Disconnect") {
+                                Task { await model.disconnect(device) }
+                            }
+                            .disabled(model.actionInProgress != nil)
+                        } else {
+                            Text(statusText(for: device))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func availabilityColor(_ availability: DeviceSummary.Availability) -> Color {
+        switch availability {
+        case .nearby: return .green
+        case .remote: return .blue
+        case .connecting: return .orange
+        case .offline: return .secondary
+        }
+    }
+
+    private func statusText(for device: DeviceSummary) -> String {
+        [device.availability.rawValue, device.path, device.address]
+            .compactMap { $0 }
+            .joined(separator: " · ")
+    }
+}

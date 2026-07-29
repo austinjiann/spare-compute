@@ -11,7 +11,10 @@ import (
 	localv1 "github.com/austinjiann/spare-compute/gen/go/computehop/local/v1"
 )
 
-const defaultRequestTimeout = 15 * time.Second
+const (
+	defaultRequestTimeout = 15 * time.Second
+	submitRequestTimeout  = 6 * time.Hour
+)
 
 var (
 	ErrInvalidClient      = errors.New("invalid local IPC client")
@@ -66,7 +69,11 @@ func (client *Client) Call(ctx context.Context, request *localv1.Request) (*loca
 	callContext := ctx
 	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
 		var cancel context.CancelFunc
-		callContext, cancel = context.WithTimeout(ctx, client.timeout)
+		timeout := client.timeout
+		if isLongOperation(request) && timeout == defaultRequestTimeout {
+			timeout = submitRequestTimeout
+		}
+		callContext, cancel = context.WithTimeout(ctx, timeout)
 		defer cancel()
 	}
 
@@ -108,6 +115,10 @@ func (client *Client) Call(ctx context.Context, request *localv1.Request) (*loca
 		return nil, &RemoteError{Code: failure.GetCode(), Message: failure.GetMessage()}
 	}
 	return response, nil
+}
+
+func isLongOperation(request *localv1.Request) bool {
+	return request.GetSubmitJob() != nil || request.GetFetchArtifacts() != nil
 }
 
 func newRequestID() (string, error) {

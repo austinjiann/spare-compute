@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/austinjiann/spare-compute/internal/portablepath"
 )
 
 // Executor identifies the execution environment required by a job.
@@ -25,7 +27,10 @@ type Spec struct {
 	Environment      map[string]string
 	Executor         Executor
 	ContainerImage   string
+	Outputs          []string
 }
+
+const MaximumOutputs = 64
 
 // Validate checks the technology-independent parts of a job specification.
 func (spec Spec) Validate() error {
@@ -54,6 +59,24 @@ func (spec Spec) Validate() error {
 		}
 	}
 
+	if len(spec.Outputs) > MaximumOutputs {
+		return fmt.Errorf("%w: outputs cannot exceed %d", ErrInvalidSpec, MaximumOutputs)
+	}
+	outputs := make(map[string]struct{}, len(spec.Outputs))
+	for index, output := range spec.Outputs {
+		if portablepath.Validate(output) != nil {
+			return fmt.Errorf("%w: output %d is not a portable relative path", ErrInvalidSpec, index)
+		}
+		key := portablepath.Key(output)
+		if reservedOutputPath(key) {
+			return fmt.Errorf("%w: output %q uses a reserved path", ErrInvalidSpec, output)
+		}
+		if _, exists := outputs[key]; exists {
+			return fmt.Errorf("%w: duplicate output %q", ErrInvalidSpec, output)
+		}
+		outputs[key] = struct{}{}
+	}
+
 	switch spec.Executor {
 	case ExecutorNative:
 		if spec.ContainerImage != "" {
@@ -77,6 +100,7 @@ func (spec Spec) Validate() error {
 func (spec Spec) Clone() Spec {
 	clone := spec
 	clone.Arguments = append([]string(nil), spec.Arguments...)
+	clone.Outputs = append([]string(nil), spec.Outputs...)
 	if spec.Environment != nil {
 		clone.Environment = make(map[string]string, len(spec.Environment))
 		for name, value := range spec.Environment {
@@ -84,6 +108,15 @@ func (spec Spec) Clone() Spec {
 		}
 	}
 	return clone
+}
+
+func reservedOutputPath(value string) bool {
+	for _, segment := range strings.Split(value, "/") {
+		if segment == ".git" || segment == ".computehop-results" || segment == ".computehop-conflicts" {
+			return true
+		}
+	}
+	return false
 }
 
 func containsNUL(value string) bool {

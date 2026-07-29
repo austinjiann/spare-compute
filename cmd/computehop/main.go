@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -25,6 +26,36 @@ type dependencies struct {
 	newClient func(string) (caller, error)
 }
 
+type localDaemonCaller struct {
+	client *localipc.Client
+}
+
+func (value localDaemonCaller) Call(ctx context.Context, request *localv1.Request) (*localv1.Response, error) {
+	response, err := value.client.Call(ctx, request)
+	if err == nil {
+		return response, nil
+	}
+	return nil, localDaemonCallError(err)
+}
+
+func localDaemonCallError(err error) error {
+	var remoteError *localipc.RemoteError
+	if errors.As(err, &remoteError) || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return err
+	}
+	if errors.Is(err, localipc.ErrMismatchedResponse) {
+		return fmt.Errorf(
+			"%w; restart ComputeHop or reinstall from this checkout, then run 'computehop doctor'",
+			ErrDaemonProtocolMismatch,
+		)
+	}
+	return fmt.Errorf(
+		"%w; run 'computehop doctor' for setup help: %v",
+		ErrDaemonNotRunning,
+		err,
+	)
+}
+
 func main() {
 	command := newRootCommand(dependencies{
 		stdout: os.Stdout,
@@ -40,7 +71,7 @@ func main() {
 	}
 }
 
-func daemonClient(stateDir string) (*localipc.Client, error) {
+func daemonClient(stateDir string) (caller, error) {
 	var err error
 	if stateDir == "" {
 		stateDir, err = paths.StateDir()
@@ -54,11 +85,21 @@ func daemonClient(stateDir string) (*localipc.Client, error) {
 	}
 	token, err := permissions.LoadCapabilityToken(tokenPath)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf(
+				"%w; run 'computehop doctor' for setup help",
+				ErrDaemonNotRunning,
+			)
+		}
 		return nil, fmt.Errorf("load local daemon credentials: %w", err)
 	}
 	socketPath, err := paths.LocalSocketPath(stateDir)
 	if err != nil {
 		return nil, err
 	}
-	return localipc.NewClient(socketPath, token)
+	client, err := localipc.NewClient(socketPath, token)
+	if err != nil {
+		return nil, err
+	}
+	return localDaemonCaller{client: client}, nil
 }

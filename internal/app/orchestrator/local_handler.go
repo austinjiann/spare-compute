@@ -9,6 +9,9 @@ import (
 	localv1 "github.com/austinjiann/spare-compute/gen/go/computehop/local/v1"
 	computehopv1 "github.com/austinjiann/spare-compute/gen/go/computehop/v1"
 	"github.com/austinjiann/spare-compute/internal/app/worker"
+	"github.com/austinjiann/spare-compute/internal/artifact"
+	"github.com/austinjiann/spare-compute/internal/connectivity/remoteconn"
+	"github.com/austinjiann/spare-compute/internal/contentcache"
 	"github.com/austinjiann/spare-compute/internal/device"
 	"github.com/austinjiann/spare-compute/internal/job"
 	joblogging "github.com/austinjiann/spare-compute/internal/logging"
@@ -24,6 +27,8 @@ var (
 	ErrMissingRemoteController  = errors.New("local handler remote job controller is required")
 	ErrMissingDeviceController  = errors.New("local handler device controller is required")
 	ErrMissingPairingController = errors.New("local handler pairing controller is required")
+	ErrInvalidConnectivity      = errors.New("local handler accepts at most one connectivity controller")
+	ErrInvalidLocalDevice       = errors.New("invalid local handler device info")
 )
 
 // JobController is the narrow application boundary exposed over local IPC.
@@ -44,6 +49,16 @@ type PairedJobController interface {
 	ReadLogs(context.Context, string, job.ID, uint64, int) (worker.JobLogs, error)
 }
 
+// LocalArtifactController restores outputs owned by this daemon.
+type LocalArtifactController interface {
+	RestoreArtifacts(context.Context, job.ID, string) (artifact.RestoreResult, error)
+}
+
+// PairedArtifactController fetches and restores outputs owned by a paired worker.
+type PairedArtifactController interface {
+	FetchArtifacts(context.Context, string, job.ID, string) (artifact.RestoreResult, error)
+}
+
 // DeviceController is the narrow nearby-device boundary exposed over local IPC.
 type DeviceController interface {
 	ListNearby(context.Context) (device.DiscoverySnapshot, error)
@@ -59,13 +74,35 @@ type PairingController interface {
 	Unpair(context.Context, string) (trust.Peer, error)
 }
 
+// ConnectivityController exposes secret-free reachability state for local UI.
+type ConnectivityController interface {
+	States() []remoteconn.State
+}
+
+// LocalDeviceInfo is the secret-free local daemon identity exposed to local UI.
+type LocalDeviceInfo struct {
+	DeviceID device.ID
+	Name     string
+	Role     device.Role
+}
+
+func (info LocalDeviceInfo) Validate() error {
+	if !info.DeviceID.Valid() || device.ValidateName(info.Name) != nil ||
+		(info.Role != device.RoleWorker && info.Role != device.RoleOrchestrator) {
+		return ErrInvalidLocalDevice
+	}
+	return nil
+}
+
 // LocalHandler maps authenticated protocol requests to application use cases.
 type LocalHandler struct {
-	jobs     JobController
-	remote   PairedJobController
-	devices  DeviceController
-	pairings PairingController
-	version  string
+	jobs         JobController
+	remote       PairedJobController
+	devices      DeviceController
+	pairings     PairingController
+	connectivity ConnectivityController
+	local        LocalDeviceInfo
+	version      string
 }
 
 // NewLocalHandler constructs the local orchestrator control handler.
@@ -75,6 +112,7 @@ func NewLocalHandler(
 	devices DeviceController,
 	pairings PairingController,
 	version string,
+	connectivity ...ConnectivityController,
 ) (*LocalHandler, error) {
 	if jobs == nil {
 		return nil, ErrMissingJobController
@@ -88,16 +126,63 @@ func NewLocalHandler(
 	if pairings == nil {
 		return nil, ErrMissingPairingController
 	}
-	return &LocalHandler{jobs: jobs, remote: remote, devices: devices, pairings: pairings, version: version}, nil
+	if len(connectivity) > 1 {
+		return nil, ErrInvalidConnectivity
+	}
+	var connectivityController ConnectivityController
+	if len(connectivity) == 1 {
+		connectivityController = connectivity[0]
+	}
+	return &LocalHandler{
+		jobs: jobs, remote: remote, devices: devices, pairings: pairings,
+		connectivity: connectivityController, version: version,
+	}, nil
+}
+
+// NewLocalHandlerWithLocalDevice constructs a local control handler that can
+// identify the local daemon in health/status responses.
+func NewLocalHandlerWithLocalDevice(
+	jobs JobController,
+	remote PairedJobController,
+	devices DeviceController,
+	pairings PairingController,
+	local LocalDeviceInfo,
+	version string,
+	connectivity ...ConnectivityController,
+) (*LocalHandler, error) {
+	handler, err := NewLocalHandler(jobs, remote, devices, pairings, version, connectivity...)
+	if err != nil {
+		return nil, err
+	}
+	if err := handler.SetLocalDevice(local); err != nil {
+		return nil, err
+	}
+	return handler, nil
+}
+
+// SetLocalDevice updates the secret-free local daemon identity exposed over
+// authenticated local IPC.
+func (handler *LocalHandler) SetLocalDevice(local LocalDeviceInfo) error {
+	if err := local.Validate(); err != nil {
+		return err
+	}
+	handler.local = local
+	return nil
 }
 
 // Handle executes one already-authenticated local request.
 func (handler *LocalHandler) Handle(ctx context.Context, request *localv1.Request) *localv1.Response {
 	switch operation := request.GetOperation().(type) {
 	case *localv1.Request_Ping:
-		return &localv1.Response{Result: &localv1.Response_Ping{Ping: &localv1.PingResponse{
+		ping := &localv1.PingResponse{
 			DaemonVersion: handler.version,
-		}}}
+		}
+		if handler.local.Name != "" {
+			ping.DeviceId = string(handler.local.DeviceID)
+			ping.DeviceName = handler.local.Name
+			ping.Role = localDeviceRoleToProto(handler.local.Role)
+		}
+		return &localv1.Response{Result: &localv1.Response_Ping{Ping: ping}}
 	case *localv1.Request_SubmitJob:
 		return handler.submit(ctx, operation.SubmitJob)
 	case *localv1.Request_GetJob:
@@ -122,9 +207,69 @@ func (handler *LocalHandler) Handle(ctx context.Context, request *localv1.Reques
 		return handler.listTrustedDevices(ctx, operation.ListTrustedDevices)
 	case *localv1.Request_UnpairDevice:
 		return handler.unpairDevice(ctx, operation.UnpairDevice)
+	case *localv1.Request_FetchArtifacts:
+		return handler.fetchArtifacts(ctx, operation.FetchArtifacts)
 	default:
 		return failureResponse(localv1.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "unsupported local operation")
 	}
+}
+
+func localDeviceRoleToProto(role device.Role) localv1.DeviceRole {
+	switch role {
+	case device.RoleWorker:
+		return localv1.DeviceRole_DEVICE_ROLE_WORKER
+	case device.RoleOrchestrator:
+		return localv1.DeviceRole_DEVICE_ROLE_ORCHESTRATOR
+	default:
+		return localv1.DeviceRole_DEVICE_ROLE_UNSPECIFIED
+	}
+}
+
+func (handler *LocalHandler) fetchArtifacts(
+	ctx context.Context,
+	request *localv1.FetchArtifactsRequest,
+) *localv1.Response {
+	if request == nil || request.GetDestination() == "" {
+		return failureResponse(localv1.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "artifact destination is required")
+	}
+	id, err := job.ParseID(request.GetJobId())
+	if err != nil {
+		return errorResponse(err)
+	}
+	remoteOperation, err := handler.shouldRouteRemotely(ctx, request.GetDeviceSelector(), id)
+	if err != nil {
+		return errorResponse(err)
+	}
+	var result artifact.RestoreResult
+	if remoteOperation {
+		controller, ok := handler.remote.(PairedArtifactController)
+		if !ok {
+			return errorResponse(worker.ErrArtifactsDisabled)
+		}
+		result, err = controller.FetchArtifacts(
+			ctx, request.GetDeviceSelector(), id, request.GetDestination(),
+		)
+	} else {
+		controller, ok := handler.jobs.(LocalArtifactController)
+		if !ok {
+			return errorResponse(worker.ErrArtifactsDisabled)
+		}
+		result, err = controller.RestoreArtifacts(ctx, id, request.GetDestination())
+	}
+	if err != nil {
+		return errorResponse(err)
+	}
+	result = artifact.NormalizeResult(result)
+	if err := result.Validate(); err != nil {
+		return errorResponse(err)
+	}
+	return &localv1.Response{Result: &localv1.Response_FetchArtifacts{
+		FetchArtifacts: &localv1.FetchArtifactsResponse{
+			Destination:       result.Destination,
+			RestoredFileCount: uint32(len(result.Restored)),
+			ConflictFileCount: uint32(len(result.Conflicts)),
+		},
+	}}
 }
 
 func (handler *LocalHandler) listDevices(
@@ -146,7 +291,7 @@ func (handler *LocalHandler) listDevices(
 	if err != nil {
 		return errorResponse(err)
 	}
-	message.TrustedDevices, err = trustedPeersToProto(trusted)
+	message.TrustedDevices, err = handler.trustedPeersToProto(trusted)
 	if err != nil {
 		return errorResponse(err)
 	}
@@ -235,7 +380,7 @@ func (handler *LocalHandler) listTrustedDevices(
 	if err != nil {
 		return errorResponse(err)
 	}
-	messages, err := trustedPeersToProto(values)
+	messages, err := handler.trustedPeersToProto(values)
 	if err != nil {
 		return errorResponse(err)
 	}
@@ -261,16 +406,56 @@ func (handler *LocalHandler) unpairDevice(ctx context.Context, request *localv1.
 	}}
 }
 
-func trustedPeersToProto(values []trust.Peer) ([]*localv1.TrustedDevice, error) {
+func (handler *LocalHandler) trustedPeersToProto(values []trust.Peer) ([]*localv1.TrustedDevice, error) {
 	messages := make([]*localv1.TrustedDevice, len(values))
+	states := make(map[device.ID]remoteconn.State)
+	if handler.connectivity != nil {
+		for _, state := range handler.connectivity.States() {
+			states[state.DeviceID] = state
+		}
+	}
 	var err error
 	for index, value := range values {
 		messages[index], err = mapper.TrustedPeerToProto(value)
 		if err != nil {
 			return nil, err
 		}
+		applyConnectivityState(messages[index], value, states[value.DeviceID], handler.connectivity != nil)
 	}
 	return messages, nil
+}
+
+func applyConnectivityState(
+	message *localv1.TrustedDevice,
+	peer trust.Peer,
+	state remoteconn.State,
+	enabled bool,
+) {
+	if message == nil {
+		return
+	}
+	if !enabled || peer.State != trust.StateActive {
+		message.ConnectivityState = localv1.ConnectivityState_CONNECTIVITY_STATE_DISABLED
+		return
+	}
+	if !peer.ConnectivitySecret.Valid() {
+		message.ConnectivityState = localv1.ConnectivityState_CONNECTIVITY_STATE_UNAVAILABLE
+		message.ConnectivityError = "re-pair this device to enable remote connectivity"
+		return
+	}
+	switch state.Status {
+	case remoteconn.StatusConnected:
+		message.ConnectivityState = localv1.ConnectivityState_CONNECTIVITY_STATE_CONNECTED
+	case remoteconn.StatusUnavailable:
+		message.ConnectivityState = localv1.ConnectivityState_CONNECTIVITY_STATE_UNAVAILABLE
+	default:
+		message.ConnectivityState = localv1.ConnectivityState_CONNECTIVITY_STATE_CONNECTING
+	}
+	message.ConnectivityPath = state.PathKind
+	message.ConnectivityError = state.LastError
+	if !state.UpdatedAt.IsZero() {
+		message.ConnectivityUpdatedAtUnixNano = state.UpdatedAt.UTC().UnixNano()
+	}
 }
 
 func (handler *LocalHandler) readLogs(
@@ -491,25 +676,32 @@ func errorResponse(err error) *localv1.Response {
 		errors.Is(err, job.ErrInvalidJob),
 		errors.Is(err, job.ErrInvalidState),
 		errors.Is(err, job.ErrInvalidTransition),
+		errors.Is(err, job.ErrInvalidProgress),
 		errors.Is(err, joblogging.ErrInvalidPage),
 		errors.Is(err, joblogging.ErrInvalidRecord),
 		errors.Is(err, trust.ErrInvalidPairID),
 		errors.Is(err, trust.ErrInvalidPairing),
 		errors.Is(err, trust.ErrInvalidPeer),
-		errors.Is(err, device.ErrInvalidID):
+		errors.Is(err, device.ErrInvalidID),
+		errors.Is(err, artifact.ErrInvalidBundle),
+		errors.Is(err, artifact.ErrInvalidDestination):
 		code = localv1.ErrorCode_ERROR_CODE_INVALID_ARGUMENT
 		message = err.Error()
 	case errors.Is(err, job.ErrNotFound), errors.Is(err, joblogging.ErrNotFound),
 		errors.Is(err, trust.ErrNotFound), errors.Is(err, trust.ErrPairingNotFound),
-		errors.Is(err, ErrNearbyDeviceNotFound):
+		errors.Is(err, ErrNearbyDeviceNotFound), errors.Is(err, artifact.ErrNotFound):
 		code = localv1.ErrorCode_ERROR_CODE_NOT_FOUND
 		message = err.Error()
-	case errors.Is(err, job.ErrConflict), errors.Is(err, trust.ErrConflict),
-		errors.Is(err, ErrNearbyDeviceAmbiguous):
+	case errors.Is(err, job.ErrConflict), errors.Is(err, trust.ErrConflict), errors.Is(err, artifact.ErrConflict),
+		errors.Is(err, ErrNearbyDeviceAmbiguous), errors.Is(err, contentcache.ErrQuotaExceeded),
+		errors.Is(err, contentcache.ErrReservationLimit):
 		code = localv1.ErrorCode_ERROR_CODE_CONFLICT
 		message = err.Error()
 	case errors.Is(err, worker.ErrJobTerminal):
 		code = localv1.ErrorCode_ERROR_CODE_JOB_TERMINAL
+		message = err.Error()
+	case errors.Is(err, worker.ErrArtifactsDisabled), errors.Is(err, worker.ErrArtifactsNotReady):
+		code = localv1.ErrorCode_ERROR_CODE_CONFLICT
 		message = err.Error()
 	case errors.Is(err, trust.ErrPairingUnavailable):
 		code = localv1.ErrorCode_ERROR_CODE_PAIRING_UNAVAILABLE

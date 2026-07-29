@@ -8,15 +8,22 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"os"
 	"os/signal"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/austinjiann/spare-compute/internal/app/orchestrator"
 	pairingapp "github.com/austinjiann/spare-compute/internal/app/pairing"
 	"github.com/austinjiann/spare-compute/internal/app/worker"
+	"github.com/austinjiann/spare-compute/internal/connectivity/icepath"
+	"github.com/austinjiann/spare-compute/internal/connectivity/remoteconn"
+	"github.com/austinjiann/spare-compute/internal/connectivity/rendezvous"
+	"github.com/austinjiann/spare-compute/internal/contentcache"
 	"github.com/austinjiann/spare-compute/internal/device"
+	"github.com/austinjiann/spare-compute/internal/infra/cas"
 	"github.com/austinjiann/spare-compute/internal/infra/discovery/mdns"
 	identityinfra "github.com/austinjiann/spare-compute/internal/infra/identity"
 	"github.com/austinjiann/spare-compute/internal/infra/sqlite"
@@ -28,18 +35,26 @@ import (
 	"github.com/austinjiann/spare-compute/internal/platform/processes"
 	"github.com/austinjiann/spare-compute/internal/protocol/localipc"
 	"github.com/austinjiann/spare-compute/internal/session"
+	"github.com/austinjiann/spare-compute/internal/snapshot"
 	"github.com/austinjiann/spare-compute/internal/trust"
 )
 
 var version = "dev"
 
 type options struct {
-	stateDir    string
-	checkOnly   bool
-	showVersion bool
-	runnerJob   string
-	deviceName  string
-	role        string
+	stateDir        string
+	checkOnly       bool
+	showVersion     bool
+	runnerJob       string
+	deviceName      string
+	role            string
+	lanOnly         bool
+	connectivityURL string
+	stunServers     stringValues
+	turnServers     stringValues
+	turnUsername    string
+	turnPassword    string
+	cacheBytes      int64
 }
 
 type runtimeDependencies struct {
@@ -108,6 +123,29 @@ func runWithDependencies(
 	if err != nil {
 		return fmt.Errorf("initialize durable job logs: %w", err)
 	}
+	contentDirectory, err := paths.ContentStoreDir(stateDir)
+	if err != nil {
+		return err
+	}
+	contentStore, err := cas.NewManaged(ctx, cas.Config{
+		Root: contentDirectory, Index: database.ContentCache(),
+		MaximumBytes: parsed.cacheBytes, Now: time.Now,
+	})
+	if err != nil {
+		return fmt.Errorf("initialize project content store: %w", err)
+	}
+	workspaceStore, err := cas.NewWorkspaceStore(stateDir, contentStore)
+	if err != nil {
+		return fmt.Errorf("initialize job workspaces: %w", err)
+	}
+	projectSnapshots, err := snapshot.NewBuilder(contentStore)
+	if err != nil {
+		return fmt.Errorf("initialize project snapshotter: %w", err)
+	}
+	artifactManager, err := cas.NewArtifactManager(contentStore, database.Artifacts(), time.Now)
+	if err != nil {
+		return fmt.Errorf("initialize job artifacts: %w", err)
+	}
 
 	jobService, err := worker.NewJobService(worker.Dependencies{
 		Jobs:       database.Jobs(),
@@ -115,6 +153,8 @@ func runWithDependencies(
 		Logs:       logStore,
 		GenerateID: job.NewID,
 		Now:        time.Now,
+		Snapshots:  workspaceStore,
+		Artifacts:  artifactManager,
 	})
 	if err != nil {
 		return fmt.Errorf("initialize worker job service: %w", err)
@@ -134,6 +174,7 @@ func runWithDependencies(
 			},
 			RunnerPID: os.Getpid,
 			Now:       time.Now,
+			Artifacts: artifactManager,
 		})
 		if err != nil {
 			return fmt.Errorf("initialize native runner: %w", err)
@@ -199,7 +240,7 @@ func runWithDependencies(
 		fmt.Sprintf(":%d", mdns.DefaultPort), localDevice, database.Trust(),
 	)
 	if err != nil {
-		return fmt.Errorf("initialize pairing endpoint: %w", err)
+		return daemonStartupError("initialize pairing endpoint", err)
 	}
 	defer pairingEndpoint.Close()
 	if pairingEndpoint.Port() == 0 {
@@ -238,9 +279,46 @@ func runWithDependencies(
 	if err != nil {
 		return fmt.Errorf("initialize remote worker handler: %w", err)
 	}
+	var remoteManager *remoteconn.Manager
+	if parsed.connectivityURL != "" {
+		concreteEndpoint, ok := pairingEndpoint.(*quictransport.Endpoint)
+		if !ok {
+			return errors.New("initialize remote connectivity: endpoint does not support selected packet paths")
+		}
+		client, err := rendezvous.NewClient(rendezvous.ClientConfig{BaseURL: parsed.connectivityURL})
+		if err != nil {
+			return fmt.Errorf("initialize rendezvous client: %w", err)
+		}
+		iceServers := make([]icepath.Server, 0, len(parsed.stunServers)+len(parsed.turnServers))
+		for _, uri := range parsed.stunServers {
+			iceServers = append(iceServers, icepath.Server{URI: uri})
+		}
+		for _, uri := range parsed.turnServers {
+			iceServers = append(iceServers, icepath.Server{
+				URI: uri, Username: parsed.turnUsername, Password: parsed.turnPassword,
+			})
+		}
+		remoteManager, err = remoteconn.NewManager(remoteconn.Config{
+			LocalRole: localRole, Trust: database.Trust(), Client: client,
+			ICE: icepath.Config{Servers: iceServers},
+			NewPath: func(connection net.PacketConn, remote net.Addr) (remoteconn.Path, error) {
+				return concreteEndpoint.NewRemotePath(connection, remote)
+			},
+			Now: time.Now,
+			ReportError: func(id device.ID, err error) {
+				logger.Warn("remote connectivity unavailable", "device_id", id.Short(), "error", err)
+			},
+		})
+		if err != nil {
+			return fmt.Errorf("initialize remote connectivity: %w", err)
+		}
+	}
 	remoteJobs, err := orchestrator.NewRemoteJobService(orchestrator.RemoteDependencies{
 		Nearby: deviceService, Trust: database.Trust(),
-		Placements: database.Placements(), Dialer: pairingEndpoint,
+		Placements: database.Placements(), Progress: database.Jobs(),
+		Dialer: pairingEndpoint, Remote: remoteManager,
+		Snapshots: projectSnapshots, Content: contentStore,
+		ArtifactContent: contentStore, Artifacts: artifactManager,
 	})
 	if err != nil {
 		return fmt.Errorf("initialize remote job service: %w", err)
@@ -258,13 +336,24 @@ func runWithDependencies(
 	if err != nil {
 		return err
 	}
-	handler, err := orchestrator.NewLocalHandler(jobService, remoteJobs, deviceService, pairingService, version)
+	localDeviceInfo := orchestrator.LocalDeviceInfo{
+		DeviceID: localDevice.Identity.ID(),
+		Name:     localDevice.Name,
+		Role:     localDevice.Role,
+	}
+	var connectivityControllers []orchestrator.ConnectivityController
+	if remoteManager != nil {
+		connectivityControllers = append(connectivityControllers, remoteManager)
+	}
+	handler, err := orchestrator.NewLocalHandlerWithLocalDevice(
+		jobService, remoteJobs, deviceService, pairingService, localDeviceInfo, version, connectivityControllers...,
+	)
 	if err != nil {
 		return fmt.Errorf("initialize local IPC handler: %w", err)
 	}
 	server, err := localipc.NewServer(socketPath, token, handler)
 	if err != nil {
-		return fmt.Errorf("initialize local IPC server: %w", err)
+		return daemonStartupError("initialize local IPC server", err)
 	}
 	defer server.Close()
 
@@ -277,7 +366,7 @@ func runWithDependencies(
 		if err != nil {
 			return fmt.Errorf("resolve daemon executable: %w", err)
 		}
-		launcher, err := processes.NewRunnerLauncher(executable, stateDir)
+		launcher, err := processes.NewRunnerLauncher(executable, stateDir, parsed.cacheBytes)
 		if err != nil {
 			return fmt.Errorf("initialize runner launcher: %w", err)
 		}
@@ -304,11 +393,14 @@ func runWithDependencies(
 		"device", deviceName,
 		"device_id", localIdentity.ID().Short(),
 		"role", localRole,
+		"lan_only", parsed.lanOnly,
+		"remote_connectivity", remoteManager != nil,
+		"cache_limit_bytes", parsed.cacheBytes,
 		"version", version,
 	)
 	serveContext, stopServing := context.WithCancel(ctx)
 	defer stopServing()
-	backgroundResult := make(chan error, 3)
+	backgroundResult := make(chan error, 4)
 	backgroundCount := 2
 	go func() {
 		backgroundResult <- deviceService.Run(serveContext)
@@ -329,6 +421,13 @@ func runWithDependencies(
 			stopServing()
 		}()
 	}
+	if remoteManager != nil {
+		backgroundCount++
+		go func() {
+			backgroundResult <- remoteManager.Run(serveContext, remoteHandler)
+			stopServing()
+		}()
+	}
 	serveErr := server.Serve(serveContext)
 	stopServing()
 	var backgroundErr error
@@ -345,8 +444,23 @@ func runWithDependencies(
 	return nil
 }
 
+func daemonStartupError(stage string, err error) error {
+	if errors.Is(err, localipc.ErrDaemonAlreadyRunning) || addressAlreadyInUse(err) {
+		return fmt.Errorf(
+			"%s: another ComputeHop daemon already appears to be running; run 'computehop status' to use it, or stop the existing terminal or launch agent before starting another daemon: %w",
+			stage,
+			err,
+		)
+	}
+	return fmt.Errorf("%s: %w", stage, err)
+}
+
+func addressAlreadyInUse(err error) bool {
+	return err != nil && strings.Contains(strings.ToLower(err.Error()), "address already in use")
+}
+
 func parseOptions(arguments []string, stderr io.Writer) (options, error) {
-	var parsed options
+	parsed := options{cacheBytes: contentcache.DefaultMaximumBytes}
 	flags := flag.NewFlagSet("computehopd", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	flags.StringVar(&parsed.stateDir, "state-dir", "", "directory for durable local state")
@@ -355,6 +469,35 @@ func parseOptions(arguments []string, stderr io.Writer) (options, error) {
 	flags.StringVar(&parsed.runnerJob, "runner-job", "", "run one internally dispatched job")
 	flags.StringVar(&parsed.deviceName, "device-name", "", "human-readable LAN device name")
 	flags.StringVar(&parsed.role, "role", "", "device role: orchestrator or worker")
+	flags.BoolVar(
+		&parsed.lanOnly,
+		"lan-only",
+		false,
+		"disable hosted rendezvous, ICE, and TURN; use same-LAN discovery only",
+	)
+	flags.StringVar(
+		&parsed.connectivityURL,
+		"connectivity-url",
+		"",
+		"HTTPS URL of the optional ComputeHop rendezvous service",
+	)
+	flags.Var(
+		&parsed.stunServers,
+		"stun-server",
+		"STUN URI used for direct internet paths; may be repeated",
+	)
+	flags.Var(
+		&parsed.turnServers,
+		"turn-server",
+		"TURN URI used for relay fallback; may be repeated",
+	)
+	flags.StringVar(&parsed.turnUsername, "turn-username", "", "TURN username for all configured TURN servers")
+	flags.StringVar(&parsed.turnPassword, "turn-password", "", "TURN password for all configured TURN servers")
+	flags.Var(
+		&byteSizeValue{target: &parsed.cacheBytes},
+		"cache-size",
+		"maximum verified content cache size (for example 20GiB or 512MB)",
+	)
 	if err := flags.Parse(arguments); err != nil {
 		return options{}, err
 	}
@@ -364,7 +507,38 @@ func parseOptions(arguments []string, stderr io.Writer) (options, error) {
 	if parsed.runnerJob != "" && (parsed.checkOnly || parsed.showVersion) {
 		return options{}, errors.New("--runner-job cannot be combined with --check or --version")
 	}
+	serverCount := len(parsed.stunServers) + len(parsed.turnServers)
+	if parsed.lanOnly && (parsed.connectivityURL != "" || serverCount > 0 || parsed.turnUsername != "" || parsed.turnPassword != "") {
+		return options{}, errors.New("--lan-only cannot be combined with remote connectivity flags")
+	}
+	if (parsed.connectivityURL == "") != (serverCount == 0) {
+		return options{}, errors.New("--connectivity-url and at least one --stun-server or --turn-server must be supplied together")
+	}
+	if len(parsed.turnServers) > 0 && (parsed.turnUsername == "" || parsed.turnPassword == "") {
+		return options{}, errors.New("--turn-server requires --turn-username and --turn-password")
+	}
+	if len(parsed.turnServers) == 0 && (parsed.turnUsername != "" || parsed.turnPassword != "") {
+		return options{}, errors.New("--turn-username and --turn-password require --turn-server")
+	}
+	if err := contentcache.ValidateMaximumBytes(parsed.cacheBytes); err != nil {
+		return options{}, fmt.Errorf("--cache-size: %w", err)
+	}
 	return parsed, nil
+}
+
+type stringValues []string
+
+func (values *stringValues) String() string {
+	return strings.Join(*values, ",")
+}
+
+func (values *stringValues) Set(value string) error {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return errors.New("server URI must not be empty")
+	}
+	*values = append(*values, value)
+	return nil
 }
 
 func configuredRole(value string) (device.Role, error) {

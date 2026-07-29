@@ -24,6 +24,8 @@ type Database struct {
 	executions *ExecutionRepository
 	trust      *TrustRepository
 	placements *PlacementRepository
+	artifacts  *ArtifactRepository
+	cache      *ContentCacheRepository
 }
 
 // Open creates or opens a local ComputeHop database and applies all migrations.
@@ -69,7 +71,19 @@ func Open(ctx context.Context, path string) (*Database, error) {
 	result.executions = &ExecutionRepository{database: database}
 	result.trust = &TrustRepository{database: database}
 	result.placements = &PlacementRepository{database: database}
+	result.artifacts = &ArtifactRepository{database: database}
+	result.cache = &ContentCacheRepository{database: database}
 	return result, nil
+}
+
+// ContentCache returns the daemon's durable content-cache index.
+func (database *Database) ContentCache() *ContentCacheRepository {
+	return database.cache
+}
+
+// Artifacts returns the worker's durable collected-output repository.
+func (database *Database) Artifacts() *ArtifactRepository {
+	return database.artifacts
 }
 
 // Placements returns the orchestrator's durable remote job routing repository.

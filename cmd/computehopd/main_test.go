@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"net"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -119,6 +120,74 @@ func TestRunStopsWhenContextIsCancelled(t *testing.T) {
 	}
 	if logs := stderr.String(); !strings.Contains(logs, "computehopd started") || !strings.Contains(logs, "computehopd stopped") {
 		t.Fatalf("daemon lifecycle logs = %q", logs)
+	}
+}
+
+func TestRunExplainsDuplicateDaemonNetworkPort(t *testing.T) {
+	stateDir := shortStateDir(t)
+	var stdout, stderr bytes.Buffer
+	err := runWithDependencies(
+		context.Background(),
+		[]string{"--state-dir", stateDir},
+		&stdout,
+		&stderr,
+		runtimeDependencies{
+			pairingEndpoint: func(string, session.LocalDevice, trust.Repository) (session.Endpoint, error) {
+				return nil, errors.New("listen udp :47823: bind: address already in use")
+			},
+		},
+	)
+	assertDuplicateDaemonError(t, err, "initialize pairing endpoint")
+}
+
+func TestRunExplainsDuplicateDaemonLocalIPC(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows local IPC uses named pipes")
+	}
+	stateDir := shortStateDir(t)
+	if err := permissions.EnsurePrivateDirectory(stateDir); err != nil {
+		t.Fatal(err)
+	}
+	socketPath, err := paths.LocalSocketPath(stateDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	listener, err := net.Listen("unix", socketPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	defer os.Remove(socketPath)
+
+	var stdout, stderr bytes.Buffer
+	err = runWithDependencies(
+		context.Background(),
+		[]string{"--state-dir", stateDir},
+		&stdout,
+		&stderr,
+		runtimeDependencies{
+			disableDispatcher: true,
+			discovery:         idleTestDiscovery{},
+			pairingEndpoint:   idlePairingEndpointFactory,
+		},
+	)
+	assertDuplicateDaemonError(t, err, "initialize local IPC server")
+}
+
+func assertDuplicateDaemonError(t *testing.T, err error, stage string) {
+	t.Helper()
+	if err == nil {
+		t.Fatal("run() error = nil")
+	}
+	for _, want := range []string{
+		stage,
+		"another ComputeHop daemon already appears to be running",
+		"computehop status",
+		"stop the existing terminal or launch agent",
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("error %q does not contain %q", err.Error(), want)
+		}
 	}
 }
 
@@ -333,6 +402,95 @@ func TestRunRejectsUnexpectedArguments(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	if err := run(context.Background(), []string{"unexpected"}, &stdout, &stderr); err == nil {
 		t.Fatalf("run() error = nil")
+	}
+}
+
+func TestParseOptionsAcceptsFriendlyRemoteConnectivityFlags(t *testing.T) {
+	parsed, err := parseOptions([]string{
+		"--connectivity-url", "https://connect.example.com",
+		"--stun-server", "stun:turn-a.example.com:3478",
+		"--stun-server", "stun:turn-b.example.com:3478",
+		"--turn-server", "turn:turn.example.com:3478?transport=udp",
+		"--turn-username", "1800000000:computehop",
+		"--turn-password", "secret",
+	}, &bytes.Buffer{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parsed.connectivityURL != "https://connect.example.com" || len(parsed.stunServers) != 2 ||
+		len(parsed.turnServers) != 1 || parsed.turnUsername != "1800000000:computehop" ||
+		parsed.turnPassword != "secret" {
+		t.Fatalf("parsed = %#v", parsed)
+	}
+}
+
+func TestParseOptionsAcceptsExplicitLANOnlyMode(t *testing.T) {
+	parsed, err := parseOptions([]string{"--lan-only"}, &bytes.Buffer{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !parsed.lanOnly || parsed.connectivityURL != "" || len(parsed.stunServers) != 0 ||
+		len(parsed.turnServers) != 0 {
+		t.Fatalf("parsed = %#v", parsed)
+	}
+}
+
+func TestParseOptionsUsesAndValidatesFriendlyCacheSize(t *testing.T) {
+	defaults, err := parseOptions(nil, &bytes.Buffer{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if defaults.cacheBytes != 20<<30 {
+		t.Fatalf("default cache bytes = %d", defaults.cacheBytes)
+	}
+	parsed, err := parseOptions([]string{"--cache-size", "1.5GiB"}, &bytes.Buffer{})
+	if err != nil || parsed.cacheBytes != 3<<29 {
+		t.Fatalf("cache bytes = %d, %v", parsed.cacheBytes, err)
+	}
+	if _, err := parseOptions([]string{"--cache-size", "512KiB"}, &bytes.Buffer{}); err == nil {
+		t.Fatal("undersized cache was accepted")
+	}
+}
+
+func TestParseOptionsRejectsPartialRemoteConnectivityFlags(t *testing.T) {
+	if _, err := parseOptions(
+		[]string{"--stun-server", "stun:turn.example.com:3478"}, &bytes.Buffer{},
+	); err == nil {
+		t.Fatal("standalone --stun-server was accepted")
+	}
+	if _, err := parseOptions(
+		[]string{"--turn-server", "turn:turn.example.com:3478"}, &bytes.Buffer{},
+	); err == nil {
+		t.Fatal("standalone --turn-server was accepted")
+	}
+	if _, err := parseOptions(
+		[]string{"--connectivity-url", "https://connect.example.com"}, &bytes.Buffer{},
+	); err == nil {
+		t.Fatal("standalone --connectivity-url was accepted")
+	}
+	if _, err := parseOptions([]string{"--stun-server", ""}, &bytes.Buffer{}); err == nil {
+		t.Fatal("empty --stun-server was accepted")
+	}
+	if _, err := parseOptions([]string{
+		"--connectivity-url", "https://connect.example.com",
+		"--turn-server", "turn:turn.example.com:3478",
+	}, &bytes.Buffer{}); err == nil {
+		t.Fatal("TURN server without credentials was accepted")
+	}
+	if _, err := parseOptions([]string{
+		"--connectivity-url", "https://connect.example.com",
+		"--stun-server", "stun:turn.example.com:3478",
+		"--turn-username", "1800000000:computehop",
+		"--turn-password", "secret",
+	}, &bytes.Buffer{}); err == nil {
+		t.Fatal("TURN credentials without TURN server were accepted")
+	}
+	if _, err := parseOptions([]string{
+		"--lan-only",
+		"--connectivity-url", "https://connect.example.com",
+		"--stun-server", "stun:turn.example.com:3478",
+	}, &bytes.Buffer{}); err == nil {
+		t.Fatal("--lan-only with remote connectivity flags was accepted")
 	}
 }
 

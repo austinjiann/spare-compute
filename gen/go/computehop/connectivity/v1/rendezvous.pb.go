@@ -325,6 +325,154 @@ func (x *Presence) GetExpiresAtUnixNano() int64 {
 	return 0
 }
 
+// EndpointPresencePayload is the versioned plaintext inside encrypted presence.
+// The hosted service must never receive or decode this message.
+type EndpointPresencePayload struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	ProtocolVersion   uint32                 `protobuf:"varint,1,opt,name=protocol_version,json=protocolVersion,proto3" json:"protocol_version,omitempty"`
+	Generation        uint64                 `protobuf:"varint,2,opt,name=generation,proto3" json:"generation,omitempty"`
+	SessionId         []byte                 `protobuf:"bytes,3,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	CreatedAtUnixNano int64                  `protobuf:"varint,4,opt,name=created_at_unix_nano,json=createdAtUnixNano,proto3" json:"created_at_unix_nano,omitempty"`
+	ExpiresAtUnixNano int64                  `protobuf:"varint,5,opt,name=expires_at_unix_nano,json=expiresAtUnixNano,proto3" json:"expires_at_unix_nano,omitempty"`
+	Ice               *ICEPathDescription    `protobuf:"bytes,6,opt,name=ice,proto3" json:"ice,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *EndpointPresencePayload) Reset() {
+	*x = EndpointPresencePayload{}
+	mi := &file_computehop_connectivity_v1_rendezvous_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EndpointPresencePayload) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EndpointPresencePayload) ProtoMessage() {}
+
+func (x *EndpointPresencePayload) ProtoReflect() protoreflect.Message {
+	mi := &file_computehop_connectivity_v1_rendezvous_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EndpointPresencePayload.ProtoReflect.Descriptor instead.
+func (*EndpointPresencePayload) Descriptor() ([]byte, []int) {
+	return file_computehop_connectivity_v1_rendezvous_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *EndpointPresencePayload) GetProtocolVersion() uint32 {
+	if x != nil {
+		return x.ProtocolVersion
+	}
+	return 0
+}
+
+func (x *EndpointPresencePayload) GetGeneration() uint64 {
+	if x != nil {
+		return x.Generation
+	}
+	return 0
+}
+
+func (x *EndpointPresencePayload) GetSessionId() []byte {
+	if x != nil {
+		return x.SessionId
+	}
+	return nil
+}
+
+func (x *EndpointPresencePayload) GetCreatedAtUnixNano() int64 {
+	if x != nil {
+		return x.CreatedAtUnixNano
+	}
+	return 0
+}
+
+func (x *EndpointPresencePayload) GetExpiresAtUnixNano() int64 {
+	if x != nil {
+		return x.ExpiresAtUnixNano
+	}
+	return 0
+}
+
+func (x *EndpointPresencePayload) GetIce() *ICEPathDescription {
+	if x != nil {
+		return x.Ice
+	}
+	return nil
+}
+
+// ICEPathDescription contains the short-lived credentials and bounded,
+// non-trickle candidate set for one ICE connection attempt.
+type ICEPathDescription struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	UsernameFragment string                 `protobuf:"bytes,1,opt,name=username_fragment,json=usernameFragment,proto3" json:"username_fragment,omitempty"`
+	Password         string                 `protobuf:"bytes,2,opt,name=password,proto3" json:"password,omitempty"`
+	Candidates       []string               `protobuf:"bytes,3,rep,name=candidates,proto3" json:"candidates,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *ICEPathDescription) Reset() {
+	*x = ICEPathDescription{}
+	mi := &file_computehop_connectivity_v1_rendezvous_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ICEPathDescription) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ICEPathDescription) ProtoMessage() {}
+
+func (x *ICEPathDescription) ProtoReflect() protoreflect.Message {
+	mi := &file_computehop_connectivity_v1_rendezvous_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ICEPathDescription.ProtoReflect.Descriptor instead.
+func (*ICEPathDescription) Descriptor() ([]byte, []int) {
+	return file_computehop_connectivity_v1_rendezvous_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *ICEPathDescription) GetUsernameFragment() string {
+	if x != nil {
+		return x.UsernameFragment
+	}
+	return ""
+}
+
+func (x *ICEPathDescription) GetPassword() string {
+	if x != nil {
+		return x.Password
+	}
+	return ""
+}
+
+func (x *ICEPathDescription) GetCandidates() []string {
+	if x != nil {
+		return x.Candidates
+	}
+	return nil
+}
+
 // SendSignalRequest queues one bounded, end-to-end encrypted signaling frame
 // for the other endpoint in this pair route.
 type SendSignalRequest struct {
@@ -339,7 +487,7 @@ type SendSignalRequest struct {
 
 func (x *SendSignalRequest) Reset() {
 	*x = SendSignalRequest{}
-	mi := &file_computehop_connectivity_v1_rendezvous_proto_msgTypes[3]
+	mi := &file_computehop_connectivity_v1_rendezvous_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -351,7 +499,7 @@ func (x *SendSignalRequest) String() string {
 func (*SendSignalRequest) ProtoMessage() {}
 
 func (x *SendSignalRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_computehop_connectivity_v1_rendezvous_proto_msgTypes[3]
+	mi := &file_computehop_connectivity_v1_rendezvous_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -364,7 +512,7 @@ func (x *SendSignalRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SendSignalRequest.ProtoReflect.Descriptor instead.
 func (*SendSignalRequest) Descriptor() ([]byte, []int) {
-	return file_computehop_connectivity_v1_rendezvous_proto_rawDescGZIP(), []int{3}
+	return file_computehop_connectivity_v1_rendezvous_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *SendSignalRequest) GetProtocolVersion() uint32 {
@@ -405,7 +553,7 @@ type SendSignalResponse struct {
 
 func (x *SendSignalResponse) Reset() {
 	*x = SendSignalResponse{}
-	mi := &file_computehop_connectivity_v1_rendezvous_proto_msgTypes[4]
+	mi := &file_computehop_connectivity_v1_rendezvous_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -417,7 +565,7 @@ func (x *SendSignalResponse) String() string {
 func (*SendSignalResponse) ProtoMessage() {}
 
 func (x *SendSignalResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_computehop_connectivity_v1_rendezvous_proto_msgTypes[4]
+	mi := &file_computehop_connectivity_v1_rendezvous_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -430,7 +578,7 @@ func (x *SendSignalResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SendSignalResponse.ProtoReflect.Descriptor instead.
 func (*SendSignalResponse) Descriptor() ([]byte, []int) {
-	return file_computehop_connectivity_v1_rendezvous_proto_rawDescGZIP(), []int{4}
+	return file_computehop_connectivity_v1_rendezvous_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *SendSignalResponse) GetSequence() uint64 {
@@ -459,7 +607,7 @@ type PollSignalsRequest struct {
 
 func (x *PollSignalsRequest) Reset() {
 	*x = PollSignalsRequest{}
-	mi := &file_computehop_connectivity_v1_rendezvous_proto_msgTypes[5]
+	mi := &file_computehop_connectivity_v1_rendezvous_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -471,7 +619,7 @@ func (x *PollSignalsRequest) String() string {
 func (*PollSignalsRequest) ProtoMessage() {}
 
 func (x *PollSignalsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_computehop_connectivity_v1_rendezvous_proto_msgTypes[5]
+	mi := &file_computehop_connectivity_v1_rendezvous_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -484,7 +632,7 @@ func (x *PollSignalsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PollSignalsRequest.ProtoReflect.Descriptor instead.
 func (*PollSignalsRequest) Descriptor() ([]byte, []int) {
-	return file_computehop_connectivity_v1_rendezvous_proto_rawDescGZIP(), []int{5}
+	return file_computehop_connectivity_v1_rendezvous_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *PollSignalsRequest) GetProtocolVersion() uint32 {
@@ -526,7 +674,7 @@ type PollSignalsResponse struct {
 
 func (x *PollSignalsResponse) Reset() {
 	*x = PollSignalsResponse{}
-	mi := &file_computehop_connectivity_v1_rendezvous_proto_msgTypes[6]
+	mi := &file_computehop_connectivity_v1_rendezvous_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -538,7 +686,7 @@ func (x *PollSignalsResponse) String() string {
 func (*PollSignalsResponse) ProtoMessage() {}
 
 func (x *PollSignalsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_computehop_connectivity_v1_rendezvous_proto_msgTypes[6]
+	mi := &file_computehop_connectivity_v1_rendezvous_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -551,7 +699,7 @@ func (x *PollSignalsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PollSignalsResponse.ProtoReflect.Descriptor instead.
 func (*PollSignalsResponse) Descriptor() ([]byte, []int) {
-	return file_computehop_connectivity_v1_rendezvous_proto_rawDescGZIP(), []int{6}
+	return file_computehop_connectivity_v1_rendezvous_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *PollSignalsResponse) GetSignals() []*Signal {
@@ -588,7 +736,7 @@ type Signal struct {
 
 func (x *Signal) Reset() {
 	*x = Signal{}
-	mi := &file_computehop_connectivity_v1_rendezvous_proto_msgTypes[7]
+	mi := &file_computehop_connectivity_v1_rendezvous_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -600,7 +748,7 @@ func (x *Signal) String() string {
 func (*Signal) ProtoMessage() {}
 
 func (x *Signal) ProtoReflect() protoreflect.Message {
-	mi := &file_computehop_connectivity_v1_rendezvous_proto_msgTypes[7]
+	mi := &file_computehop_connectivity_v1_rendezvous_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -613,7 +761,7 @@ func (x *Signal) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Signal.ProtoReflect.Descriptor instead.
 func (*Signal) Descriptor() ([]byte, []int) {
-	return file_computehop_connectivity_v1_rendezvous_proto_rawDescGZIP(), []int{7}
+	return file_computehop_connectivity_v1_rendezvous_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *Signal) GetSequence() uint64 {
@@ -661,7 +809,7 @@ type ErrorResponse struct {
 
 func (x *ErrorResponse) Reset() {
 	*x = ErrorResponse{}
-	mi := &file_computehop_connectivity_v1_rendezvous_proto_msgTypes[8]
+	mi := &file_computehop_connectivity_v1_rendezvous_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -673,7 +821,7 @@ func (x *ErrorResponse) String() string {
 func (*ErrorResponse) ProtoMessage() {}
 
 func (x *ErrorResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_computehop_connectivity_v1_rendezvous_proto_msgTypes[8]
+	mi := &file_computehop_connectivity_v1_rendezvous_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -686,7 +834,7 @@ func (x *ErrorResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ErrorResponse.ProtoReflect.Descriptor instead.
 func (*ErrorResponse) Descriptor() ([]byte, []int) {
-	return file_computehop_connectivity_v1_rendezvous_proto_rawDescGZIP(), []int{8}
+	return file_computehop_connectivity_v1_rendezvous_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *ErrorResponse) GetCode() RendezvousErrorCode {
@@ -724,7 +872,23 @@ const file_computehop_connectivity_v1_rendezvous_proto_rawDesc = "" +
 	"generation\x18\x02 \x01(\x04R\n" +
 	"generation\x12+\n" +
 	"\x11encrypted_payload\x18\x03 \x01(\fR\x10encryptedPayload\x12/\n" +
-	"\x14expires_at_unix_nano\x18\x04 \x01(\x03R\x11expiresAtUnixNano\"\xf5\x01\n" +
+	"\x14expires_at_unix_nano\x18\x04 \x01(\x03R\x11expiresAtUnixNano\"\xa7\x02\n" +
+	"\x17EndpointPresencePayload\x12)\n" +
+	"\x10protocol_version\x18\x01 \x01(\rR\x0fprotocolVersion\x12\x1e\n" +
+	"\n" +
+	"generation\x18\x02 \x01(\x04R\n" +
+	"generation\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x03 \x01(\fR\tsessionId\x12/\n" +
+	"\x14created_at_unix_nano\x18\x04 \x01(\x03R\x11createdAtUnixNano\x12/\n" +
+	"\x14expires_at_unix_nano\x18\x05 \x01(\x03R\x11expiresAtUnixNano\x12@\n" +
+	"\x03ice\x18\x06 \x01(\v2..computehop.connectivity.v1.ICEPathDescriptionR\x03ice\"}\n" +
+	"\x12ICEPathDescription\x12+\n" +
+	"\x11username_fragment\x18\x01 \x01(\tR\x10usernameFragment\x12\x1a\n" +
+	"\bpassword\x18\x02 \x01(\tR\bpassword\x12\x1e\n" +
+	"\n" +
+	"candidates\x18\x03 \x03(\tR\n" +
+	"candidates\"\xf5\x01\n" +
 	"\x11SendSignalRequest\x12)\n" +
 	"\x10protocol_version\x18\x01 \x01(\rR\x0fprotocolVersion\x12@\n" +
 	"\x06sender\x18\x02 \x01(\x0e2(.computehop.connectivity.v1.EndpointRoleR\x06sender\x12F\n" +
@@ -778,35 +942,38 @@ func file_computehop_connectivity_v1_rendezvous_proto_rawDescGZIP() []byte {
 }
 
 var file_computehop_connectivity_v1_rendezvous_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_computehop_connectivity_v1_rendezvous_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_computehop_connectivity_v1_rendezvous_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_computehop_connectivity_v1_rendezvous_proto_goTypes = []any{
 	(EndpointRole)(0),               // 0: computehop.connectivity.v1.EndpointRole
 	(RendezvousErrorCode)(0),        // 1: computehop.connectivity.v1.RendezvousErrorCode
 	(*PublishPresenceRequest)(nil),  // 2: computehop.connectivity.v1.PublishPresenceRequest
 	(*PublishPresenceResponse)(nil), // 3: computehop.connectivity.v1.PublishPresenceResponse
 	(*Presence)(nil),                // 4: computehop.connectivity.v1.Presence
-	(*SendSignalRequest)(nil),       // 5: computehop.connectivity.v1.SendSignalRequest
-	(*SendSignalResponse)(nil),      // 6: computehop.connectivity.v1.SendSignalResponse
-	(*PollSignalsRequest)(nil),      // 7: computehop.connectivity.v1.PollSignalsRequest
-	(*PollSignalsResponse)(nil),     // 8: computehop.connectivity.v1.PollSignalsResponse
-	(*Signal)(nil),                  // 9: computehop.connectivity.v1.Signal
-	(*ErrorResponse)(nil),           // 10: computehop.connectivity.v1.ErrorResponse
+	(*EndpointPresencePayload)(nil), // 5: computehop.connectivity.v1.EndpointPresencePayload
+	(*ICEPathDescription)(nil),      // 6: computehop.connectivity.v1.ICEPathDescription
+	(*SendSignalRequest)(nil),       // 7: computehop.connectivity.v1.SendSignalRequest
+	(*SendSignalResponse)(nil),      // 8: computehop.connectivity.v1.SendSignalResponse
+	(*PollSignalsRequest)(nil),      // 9: computehop.connectivity.v1.PollSignalsRequest
+	(*PollSignalsResponse)(nil),     // 10: computehop.connectivity.v1.PollSignalsResponse
+	(*Signal)(nil),                  // 11: computehop.connectivity.v1.Signal
+	(*ErrorResponse)(nil),           // 12: computehop.connectivity.v1.ErrorResponse
 }
 var file_computehop_connectivity_v1_rendezvous_proto_depIdxs = []int32{
-	0, // 0: computehop.connectivity.v1.PublishPresenceRequest.role:type_name -> computehop.connectivity.v1.EndpointRole
-	4, // 1: computehop.connectivity.v1.PublishPresenceResponse.peer:type_name -> computehop.connectivity.v1.Presence
-	0, // 2: computehop.connectivity.v1.Presence.role:type_name -> computehop.connectivity.v1.EndpointRole
-	0, // 3: computehop.connectivity.v1.SendSignalRequest.sender:type_name -> computehop.connectivity.v1.EndpointRole
-	0, // 4: computehop.connectivity.v1.SendSignalRequest.recipient:type_name -> computehop.connectivity.v1.EndpointRole
-	0, // 5: computehop.connectivity.v1.PollSignalsRequest.recipient:type_name -> computehop.connectivity.v1.EndpointRole
-	9, // 6: computehop.connectivity.v1.PollSignalsResponse.signals:type_name -> computehop.connectivity.v1.Signal
-	0, // 7: computehop.connectivity.v1.Signal.sender:type_name -> computehop.connectivity.v1.EndpointRole
-	1, // 8: computehop.connectivity.v1.ErrorResponse.code:type_name -> computehop.connectivity.v1.RendezvousErrorCode
-	9, // [9:9] is the sub-list for method output_type
-	9, // [9:9] is the sub-list for method input_type
-	9, // [9:9] is the sub-list for extension type_name
-	9, // [9:9] is the sub-list for extension extendee
-	0, // [0:9] is the sub-list for field type_name
+	0,  // 0: computehop.connectivity.v1.PublishPresenceRequest.role:type_name -> computehop.connectivity.v1.EndpointRole
+	4,  // 1: computehop.connectivity.v1.PublishPresenceResponse.peer:type_name -> computehop.connectivity.v1.Presence
+	0,  // 2: computehop.connectivity.v1.Presence.role:type_name -> computehop.connectivity.v1.EndpointRole
+	6,  // 3: computehop.connectivity.v1.EndpointPresencePayload.ice:type_name -> computehop.connectivity.v1.ICEPathDescription
+	0,  // 4: computehop.connectivity.v1.SendSignalRequest.sender:type_name -> computehop.connectivity.v1.EndpointRole
+	0,  // 5: computehop.connectivity.v1.SendSignalRequest.recipient:type_name -> computehop.connectivity.v1.EndpointRole
+	0,  // 6: computehop.connectivity.v1.PollSignalsRequest.recipient:type_name -> computehop.connectivity.v1.EndpointRole
+	11, // 7: computehop.connectivity.v1.PollSignalsResponse.signals:type_name -> computehop.connectivity.v1.Signal
+	0,  // 8: computehop.connectivity.v1.Signal.sender:type_name -> computehop.connectivity.v1.EndpointRole
+	1,  // 9: computehop.connectivity.v1.ErrorResponse.code:type_name -> computehop.connectivity.v1.RendezvousErrorCode
+	10, // [10:10] is the sub-list for method output_type
+	10, // [10:10] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_computehop_connectivity_v1_rendezvous_proto_init() }
@@ -820,7 +987,7 @@ func file_computehop_connectivity_v1_rendezvous_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_computehop_connectivity_v1_rendezvous_proto_rawDesc), len(file_computehop_connectivity_v1_rendezvous_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   9,
+			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

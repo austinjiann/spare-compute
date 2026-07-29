@@ -7,6 +7,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/austinjiann/spare-compute/internal/artifact"
 	"github.com/austinjiann/spare-compute/internal/execution"
 	"github.com/austinjiann/spare-compute/internal/job"
 	joblogging "github.com/austinjiann/spare-compute/internal/logging"
@@ -45,6 +46,12 @@ type RunnerDependencies struct {
 	Now               func() time.Time
 	HeartbeatInterval time.Duration
 	StopGracePeriod   time.Duration
+	Artifacts         ArtifactCollector
+}
+
+// ArtifactCollector snapshots and durably publishes declared job outputs.
+type ArtifactCollector interface {
+	Collect(context.Context, job.Job) (artifact.Bundle, error)
 }
 
 // Runner owns one claimed native process until a durable terminal result exists.
@@ -57,6 +64,7 @@ type Runner struct {
 	now               func() time.Time
 	heartbeatInterval time.Duration
 	stopGracePeriod   time.Duration
+	artifacts         ArtifactCollector
 }
 
 // NewRunner validates and constructs a supervised native runner.
@@ -83,6 +91,7 @@ func NewRunner(dependencies RunnerDependencies) (*Runner, error) {
 		now:               dependencies.Now,
 		heartbeatInterval: dependencies.HeartbeatInterval,
 		stopGracePeriod:   dependencies.StopGracePeriod,
+		artifacts:         dependencies.Artifacts,
 	}, nil
 }
 
@@ -102,6 +111,9 @@ func (runner *Runner) Run(ctx context.Context, id job.ID) error {
 	}
 
 	completion, runErr := runner.runClaimed(ctx, current, pid, writer)
+	if completion.Kind() == execution.CompletionSucceeded && len(current.Spec.Outputs) > 0 {
+		completion, runErr = runner.collectDeclaredArtifacts(ctx, current.ID, pid)
+	}
 	closeErr := writer.Close()
 	if closeErr != nil && completion.Failure == nil && !completion.Cancelled {
 		completion = failedCompletion(runner.now(), "close_logs", "close durable job logs", closeErr, completion.ExitCode, completion.TerminationSignal)
@@ -113,6 +125,72 @@ func (runner *Runner) Run(ctx context.Context, id job.ID) error {
 		return errors.Join(runErr, closeErr, fmt.Errorf("persist job completion: %w", err))
 	}
 	return errors.Join(runErr, closeErr)
+}
+
+func (runner *Runner) collectDeclaredArtifacts(
+	ctx context.Context,
+	id job.ID,
+	runnerPID int,
+) (execution.Completion, error) {
+	if runner.artifacts == nil {
+		return failedCompletion(
+			runner.now(), "artifacts_unavailable", "collect declared outputs",
+			errors.New("artifact collection is not configured"), nil, "",
+		), nil
+	}
+	current, err := runner.jobs.Get(ctx, id)
+	if err != nil {
+		return failedCompletion(runner.now(), "load_job", "load job before artifact collection", err, nil, ""), err
+	}
+	_, transition, err := current.Apply(job.StateCollecting, runner.now(), nil)
+	if err != nil {
+		return failedCompletion(runner.now(), "begin_collection", "begin artifact collection", err, nil, ""), err
+	}
+	collecting, err := runner.jobs.ApplyTransition(ctx, transition)
+	if err != nil {
+		return failedCompletion(runner.now(), "begin_collection", "persist artifact collection state", err, nil, ""), err
+	}
+	collectContext, cancel := context.WithCancel(ctx)
+	defer cancel()
+	collected := make(chan error, 1)
+	go func() {
+		_, collectErr := runner.artifacts.Collect(collectContext, collecting)
+		collected <- collectErr
+	}()
+	ticker := time.NewTicker(runner.heartbeatInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case collectErr := <-collected:
+			if collectErr != nil {
+				return failedCompletion(
+					runner.now(), "collect_artifacts", "collect declared outputs", collectErr, nil, "",
+				), nil
+			}
+			return execution.Completion{At: runner.now().UTC(), ExitCode: intPointer(0)}, nil
+		case <-ticker.C:
+			if err := runner.executions.Heartbeat(ctx, id, runnerPID, runner.now()); err != nil {
+				cancel()
+				<-collected
+				return failedCompletion(runner.now(), "heartbeat", "persist artifact collection heartbeat", err, nil, ""), err
+			}
+			requested, err := runner.executions.CancellationRequested(ctx, id, runnerPID)
+			if err != nil {
+				cancel()
+				<-collected
+				return failedCompletion(runner.now(), "check_cancellation", "poll artifact cancellation", err, nil, ""), err
+			}
+			if requested {
+				cancel()
+				<-collected
+				return execution.Completion{At: runner.now().UTC(), Cancelled: true}, nil
+			}
+		case <-ctx.Done():
+			cancel()
+			<-collected
+			return failedCompletion(runner.now(), "runner_stopped", "runner stopped during artifact collection", ctx.Err(), nil, ""), ctx.Err()
+		}
+	}
 }
 
 func (runner *Runner) runClaimed(
