@@ -960,7 +960,10 @@ function validateRunReadiness(selected, planned, outputs = []) {
 function declaredOutputs() {
   const input = document.getElementById("outputs-input");
   const seen = new Set();
-  state.settings.artifacts = input.value;
+  if (state.settings.artifacts !== input.value) {
+    state.settings.artifacts = input.value;
+    saveSettings();
+  }
   return input.value
     .split(",")
     .map((value) => value.trim())
