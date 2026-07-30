@@ -5,7 +5,10 @@ const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
 const protobuf = require("protobufjs");
+const { splitCommandLine } = require("./command-line");
 const { LocalDaemonClient } = require("./local-daemon");
+const { planControlCenterTask } = require("./planner-service");
+const { jobStartRequestForPlan } = require("./run-request");
 
 const protoPath = path.resolve(
   __dirname,
@@ -211,13 +214,30 @@ test("LocalDaemonClient sends job listing, logs, cancellation, and output fetch 
   });
 
   const client = new LocalDaemonClient({ stateDirectory });
+  const project = path.join(stateDirectory, "project");
+  await fs.mkdir(project);
+  await fs.writeFile(path.join(project, "Makefile"), "macos-package:\n\tpackaging/macos/build.sh\n");
+  const planned = await planControlCenterTask({
+    task: "package the app",
+    projectRoot: project
+  });
+  const jobRequest = jobStartRequestForPlan({
+    plan: planned.plan,
+    device: {
+      id: "worker-1",
+      name: "Gaming PC"
+    },
+    projectRoot: project,
+    outputs: []
+  });
+  const argv = splitCommandLine(jobRequest.command);
 
   const submitted = await client.submitJob({
-    executable: "make",
-    arguments: ["pr-check"],
-    workingDirectory: "/Users/austin/project",
-    outputs: ["dist"],
-    deviceSelector: "worker-1"
+    executable: argv[0],
+    arguments: argv.slice(1),
+    workingDirectory: jobRequest.workingDirectory,
+    outputs: jobRequest.outputs,
+    deviceSelector: jobRequest.deviceID
   });
   const jobs = await client.listJobs({ deviceSelector: "worker-1", limit: 3 });
   const logs = await client.readJobLogs("job-1", { deviceSelector: "worker-1", afterSequence: 4, limit: 5 });
@@ -232,9 +252,9 @@ test("LocalDaemonClient sends job listing, logs, cancellation, and output fetch 
   assert.equal(outputs.restoredFileCount, 2);
   assert.equal(received[0].submitJob.deviceSelector, "worker-1");
   assert.equal(received[0].submitJob.spec.executable, "make");
-  assert.deepEqual(received[0].submitJob.spec.arguments, ["pr-check"]);
-  assert.equal(received[0].submitJob.spec.workingDirectory, "/Users/austin/project");
-  assert.deepEqual(received[0].submitJob.spec.outputs, ["dist"]);
+  assert.deepEqual(received[0].submitJob.spec.arguments, ["macos-package"]);
+  assert.equal(received[0].submitJob.spec.workingDirectory, project);
+  assert.deepEqual(received[0].submitJob.spec.outputs, ["dist/macos/ComputeHop.app"]);
   assert.equal(received[1].listJobs.deviceSelector, "worker-1");
   assert.equal(received[1].listJobs.limit, 3);
   assert.equal(Number(received[2].readJobLogs.afterSequence), 4);
