@@ -85,8 +85,9 @@ Current scope:
   selected;
 - does not silently substitute the development checkout as the working directory
   when the UI says no project is selected;
-- keeps projectless utility jobs, including connection tests, projectless even
-  when a project folder is selected, unless outputs are declared;
+- keeps projectless utility jobs projectless when a project folder is selected
+  unless outputs are declared; connection tests always stay projectless and
+  ignore output-return settings;
 - tells the user when a remote project run is snapshotting/uploading before the
   job is submitted;
 - stores Control Center preferences in the app user-data directory, with

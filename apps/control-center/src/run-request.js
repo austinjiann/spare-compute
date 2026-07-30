@@ -16,10 +16,33 @@
       return "";
     }
     const plan = request.plan || {};
-    const outputs = Array.isArray(request.outputs)
-      ? request.outputs.map((value) => String(value || "").trim()).filter(Boolean)
-      : [];
+    const outputs = jobOutputsForPlan(request);
     return plan.requiresProject || outputs.length > 0 ? projectRoot : "";
+  }
+
+  function jobOutputsForPlan(request = {}) {
+    const plan = request.plan || {};
+    if (plan.ignoreDeclaredOutputs) {
+      return [];
+    }
+    return normalizeOutputs(request.outputs);
+  }
+
+  function normalizeOutputs(outputs) {
+    if (!Array.isArray(outputs)) {
+      return [];
+    }
+    const seen = new Set();
+    const normalized = [];
+    outputs.forEach((value) => {
+      const output = String(value || "").trim();
+      if (!output || seen.has(output)) {
+        return;
+      }
+      seen.add(output);
+      normalized.push(output);
+    });
+    return normalized;
   }
 
   function cleanPath(value) {
@@ -27,6 +50,7 @@
   }
 
   return {
+    jobOutputsForPlan,
     jobWorkingDirectoryForPlan,
     runWorkingDirectory
   };

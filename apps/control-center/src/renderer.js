@@ -34,7 +34,7 @@ let runInFlight = false;
 const pendingActions = new Set();
 const { addAutomaticWorkerTarget } = window.computeHopDeviceTargets;
 const { disallowedWorkMessage, filterAllowedSuggestions } = window.computeHopWorkPolicy;
-const { jobWorkingDirectoryForPlan } = window.computeHopRunRequest;
+const { jobOutputsForPlan, jobWorkingDirectoryForPlan } = window.computeHopRunRequest;
 
 function defaultLocalDevice() {
   return state.localDevice || {
@@ -876,7 +876,8 @@ async function testSelectedDevice() {
     command: "hostname",
     detail: "Runs on the selected computer and prints its hostname.",
     requiresProject: false,
-    projectRoot: ""
+    projectRoot: "",
+    ignoreDeclaredOutputs: true
   };
   state.plannedTask = planned;
   renderPlanPreview();
@@ -886,7 +887,7 @@ async function testSelectedDevice() {
 async function startPlannedJob(planned, selected) {
   const output = document.getElementById("job-output");
   const button = document.getElementById("run-job");
-  const outputs = declaredOutputs();
+  const outputs = jobOutputsForPlan({ plan: planned, outputs: declaredOutputs() });
   const readinessError = validateRunReadiness(selected, planned, outputs);
   if (readinessError) {
     showJobOutput(readinessError, false);

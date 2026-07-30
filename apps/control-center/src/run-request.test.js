@@ -1,6 +1,6 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { jobWorkingDirectoryForPlan, runWorkingDirectory } = require("./run-request");
+const { jobOutputsForPlan, jobWorkingDirectoryForPlan, runWorkingDirectory } = require("./run-request");
 
 test("runWorkingDirectory preserves an explicit project folder", () => {
   assert.equal(runWorkingDirectory({ workingDirectory: "/Users/austin/project" }), "/Users/austin/project");
@@ -42,6 +42,17 @@ test("jobWorkingDirectoryForPlan keeps a project for declared outputs", () => {
   );
 });
 
+test("jobWorkingDirectoryForPlan ignores outputs for connection tests", () => {
+  assert.equal(
+    jobWorkingDirectoryForPlan({
+      projectRoot: "/Users/austin/project",
+      plan: { requiresProject: false, ignoreDeclaredOutputs: true },
+      outputs: ["dist"]
+    }),
+    ""
+  );
+});
+
 test("jobWorkingDirectoryForPlan stays empty without a selected project", () => {
   assert.equal(
     jobWorkingDirectoryForPlan({
@@ -50,5 +61,22 @@ test("jobWorkingDirectoryForPlan stays empty without a selected project", () => 
       outputs: ["dist"]
     }),
     ""
+  );
+});
+
+test("jobOutputsForPlan normalizes declared outputs", () => {
+  assert.deepEqual(jobOutputsForPlan({ outputs: [" dist ", "", "report", "dist"] }), [
+    "dist",
+    "report"
+  ]);
+});
+
+test("jobOutputsForPlan drops outputs when the plan opts out", () => {
+  assert.deepEqual(
+    jobOutputsForPlan({
+      plan: { ignoreDeclaredOutputs: true },
+      outputs: ["dist"]
+    }),
+    []
   );
 });
