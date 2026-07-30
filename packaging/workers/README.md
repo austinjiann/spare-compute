@@ -26,6 +26,11 @@ computehop setup workers --target windows --device-name "Gaming PC"
 computehop setup workers --connectivity-domain connect.example.com --turn-domain turn.example.com
 ```
 
+The Linux and Windows installer check paths validate LAN-only, rendezvous, STUN,
+and TURN flag combinations before writing files or creating a login service.
+Bad copy/paste setup commands fail during `--check`/`-Check` instead of leaving a
+broken background worker behind.
+
 Outputs are written to `dist/workers/`:
 
 - `ComputeHop-worker-linux-amd64.tar.gz`
