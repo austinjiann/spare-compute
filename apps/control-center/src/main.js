@@ -9,7 +9,10 @@ const {
 } = require("./local-daemon");
 const { startDaemon } = require("./daemon-launcher");
 const { formatCommandLine, splitCommandLine } = require("./command-line");
-const { planTask, suggestTasks } = require("./planner");
+const {
+  planControlCenterTask,
+  suggestControlCenterTasks
+} = require("./planner-service");
 const { appRuntimeInfo, normalizeDaemonRole } = require("./runtime-info");
 const { remotePreparationMessage } = require("./run-feedback");
 const { jobOutputsForPlan, runWorkingDirectory } = require("./run-request");
@@ -161,14 +164,14 @@ ipcMain.handle("project:choose", async () => {
 });
 
 ipcMain.handle("planner:plan", async (_event, request) => {
-  return planTask({
+  return planControlCenterTask({
     task: request?.task,
     projectRoot: request?.projectRoot || ""
   });
 });
 
 ipcMain.handle("planner:suggest", async (_event, request) => {
-  return suggestTasks({
+  return suggestControlCenterTasks({
     projectRoot: request?.projectRoot || ""
   });
 });

@@ -2,8 +2,9 @@
 
 This is the larger settings surface for ComputeHop. The macOS menu bar should
 stay small: status, device picker, and quick task entry. Device sync, allowed
-work, project sync, and relay settings belong here. Any external/LLM planner
-settings should only appear here after that planner exists.
+work, project sync, relay settings, and optional AI planner configuration belong
+here. The current AI planner path is environment-configured until OS credential
+storage exists.
 
 Run it in development:
 
@@ -58,8 +59,14 @@ Current scope:
   worker can have different Builds/Tests/Docker/AI/Video/Exact-command policy;
 - plans plain-language tasks such as "run tests", "build the app", and
   "check CI" into one safe command using local project rules;
-- uses deterministic local planning rules for now; no API key or LLM provider is
-  required by the current Control Center;
+- uses deterministic local planning first, so no API key is required for normal
+  Check/Test/Build/Lint/Docker planning;
+- can fall back to an optional OpenAI Responses API planner for tasks local
+  rules cannot map when `OPENAI_API_KEY` is present; set
+  `COMPUTEHOP_OPENAI_MODEL` to override the default model;
+- keeps AI-planned unknown commands behind the same disabled-by-default
+  **Exact commands** allowance and rejects shell operators, multiline commands,
+  privilege escalation, and destructive removal before preview;
 - maps lint/style requests to conventional Go, Rust, or Python quality commands
   when no package script or Makefile target exists;
 - maps Docker/Compose build requests to `docker build .` or
@@ -141,6 +148,5 @@ npm --prefix apps/control-center test
 npm --prefix apps/control-center run package:dir
 ```
 
-Next step: add an optional LLM planner that can explain and compose more complex
-multi-step work while keeping the same explicit command preview before
-submission.
+Next step: store optional AI planner credentials in the OS credential store
+instead of relying on process environment variables.

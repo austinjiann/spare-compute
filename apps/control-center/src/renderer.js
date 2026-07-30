@@ -1003,7 +1003,7 @@ async function createPlan(task) {
       projectRoot: state.settings.projectRoot || ""
     });
     if (!response.ok) {
-      showJobOutput(response.error || "Could not plan that task.", false);
+      showJobOutput(plannerErrorMessage(response), false);
       state.plannedTask = null;
       renderPlanPreview();
       renderRunControls();
@@ -1021,6 +1021,14 @@ async function createPlan(task) {
     renderRunControls();
     return null;
   }
+}
+
+function plannerErrorMessage(response) {
+  const base = response?.error || "Could not plan that task.";
+  const aiError = response?.aiPlanner?.attempted && response.aiPlanner.error
+    ? ` AI planner: ${response.aiPlanner.error}`
+    : "";
+  return `${base}${aiError}`;
 }
 
 function renderPlanPreview() {
