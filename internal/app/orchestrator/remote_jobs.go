@@ -755,7 +755,7 @@ func (service *RemoteJobService) resolveTrustedWorker(ctx context.Context, selec
 		return trust.Peer{}, err
 	}
 	if isAutomaticWorkerSelector(selector) {
-		return resolveAutomaticWorker(peers)
+		return service.resolveAutomaticWorker(ctx, peers)
 	}
 	matches := make([]trust.Peer, 0, 1)
 	for _, peer := range peers {
@@ -784,27 +784,58 @@ func isAutomaticWorkerSelector(selector string) bool {
 	}
 }
 
-func resolveAutomaticWorker(peers []trust.Peer) (trust.Peer, error) {
-	candidates := make([]trust.Peer, 0, 1)
+func (service *RemoteJobService) resolveAutomaticWorker(ctx context.Context, peers []trust.Peer) (trust.Peer, error) {
+	candidates := make([]rankedAutomaticWorker, 0, 1)
+	scores := service.nearbyResourceScores(ctx)
 	for _, peer := range peers {
 		if peer.State == trust.StateActive && peer.Role == device.RoleWorker {
-			candidates = append(candidates, peer)
+			candidates = append(candidates, rankedAutomaticWorker{
+				peer:  peer,
+				score: scores[peer.Name],
+			})
 		}
 	}
-	switch len(candidates) {
-	case 0:
+	if len(candidates) == 0 {
 		return trust.Peer{}, fmt.Errorf(
 			"%w: no active paired worker is available for --on auto; run 'computehop connect nearby' when one nearby worker is visible, or run 'computehop devices' to choose a worker",
 			ErrRemoteWorkerUnavailable,
 		)
-	case 1:
-		return candidates[0], nil
-	default:
-		return trust.Peer{}, fmt.Errorf(
-			"%w: more than one active paired worker is available for --on auto; run 'computehop devices', then choose one with 'computehop run --on <device> ...'",
-			trust.ErrConflict,
-		)
 	}
+	sort.Slice(candidates, func(left, right int) bool {
+		if candidates[left].score != candidates[right].score {
+			return candidates[left].score > candidates[right].score
+		}
+		return string(candidates[left].peer.DeviceID) < string(candidates[right].peer.DeviceID)
+	})
+	return candidates[0].peer, nil
+}
+
+type rankedAutomaticWorker struct {
+	peer  trust.Peer
+	score uint64
+}
+
+func (service *RemoteJobService) nearbyResourceScores(ctx context.Context) map[string]uint64 {
+	scores := make(map[string]uint64)
+	snapshot, err := service.nearby.ListNearby(ctx)
+	if err != nil {
+		return scores
+	}
+	for _, nearby := range snapshot.Devices {
+		announcement := nearby.Announcement
+		if announcement.Role != device.RoleWorker || !announcement.EndpointReady {
+			continue
+		}
+		score := automaticWorkerResourceScore(announcement)
+		if score > scores[announcement.Name] {
+			scores[announcement.Name] = score
+		}
+	}
+	return scores
+}
+
+func automaticWorkerResourceScore(announcement device.Announcement) uint64 {
+	return uint64(announcement.LogicalCPUCount)*1_000 + announcement.TotalMemoryBytes/(1<<30)
 }
 
 func (service *RemoteJobService) nearbyCandidates(ctx context.Context, peer trust.Peer) ([]device.NearbyDevice, error) {

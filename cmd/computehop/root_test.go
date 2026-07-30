@@ -2759,7 +2759,7 @@ func TestCoreCommandHelpShowsFriendlyExamplesWithoutDaemon(t *testing.T) {
 				"run [--on auto|device]",
 				"computehop run --on auto cargo build --release",
 				"computehop run --on auto --no-project hostname",
-				"single active paired worker",
+				"best active paired worker",
 				"--on string",
 			},
 		},

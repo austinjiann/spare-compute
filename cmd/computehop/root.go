@@ -2301,7 +2301,7 @@ func newRunCommand(
 		Short: "Run a background command here or on a paired worker",
 		Long: "Run submits a native background process.\n\n" +
 			"Without --on, the command runs on this computer. With --on auto, ComputeHop\n" +
-			"uses the single active paired worker. With --on <device>, it targets a named\n" +
+			"chooses the best active paired worker. With --on <device>, it targets a named\n" +
 			"or short-ID paired worker. Declare outputs with -o and add --get when you want\n" +
 			"the CLI to wait for success and restore those outputs immediately.",
 		Example: strings.Join([]string{
@@ -2724,9 +2724,9 @@ func newJobsCommand(
 		Short: "List durable jobs",
 		Long: strings.TrimSpace(`List recent durable jobs known to this daemon.
 
-Without --on, jobs lists jobs stored on this computer. Use --on auto when there
-is exactly one active paired worker, or pass a worker name/device ID to inspect
-that worker directly.`),
+Without --on, jobs lists jobs stored on this computer. Use --on auto to inspect
+the best active paired worker, or pass a worker name/device ID to inspect that
+worker directly.`),
 		Example: strings.TrimSpace(`computehop jobs
 computehop jobs --on auto
 computehop jobs --on "Gaming PC" --limit 25`),
@@ -3076,7 +3076,7 @@ func addDeviceSelectorFlags(command *cobra.Command, destination *string) {
 }
 
 func addDeviceSelectorFlagsWithDefault(command *cobra.Command, destination *string, defaultValue string) {
-	command.Flags().StringVar(destination, "on", defaultValue, "paired worker name, device ID, or auto (single active worker)")
+	command.Flags().StringVar(destination, "on", defaultValue, "paired worker name, device ID, or auto (best active worker)")
 	command.Flags().StringVar(destination, "device", defaultValue, "paired worker name, device ID, or auto (legacy alias for --on)")
 	_ = command.Flags().MarkHidden("device")
 }

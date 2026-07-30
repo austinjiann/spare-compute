@@ -146,31 +146,93 @@ func TestRemoteJobServiceAutoSelectsSingleActiveWorker(t *testing.T) {
 	}
 }
 
-func TestRemoteJobServiceAutoSelectorRequiresExactlyOneActiveWorker(t *testing.T) {
+func TestRemoteJobServiceAutoSelectorChoosesHighestResourceWorker(t *testing.T) {
+	buildPeer := activeWorkerPeer(t, 12, "Build PC")
+	renderPeer := activeWorkerPeer(t, 13, "Render PC")
+	want := queuedJobForTest()
+	message, err := mapper.JobToRemoteProto(want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	placements := newRemotePlacementStub()
 	service, err := NewRemoteJobService(RemoteDependencies{
-		Nearby: stubDeviceController{},
-		Trust: remoteTrustStub{peers: []trust.Peer{
-			activeWorkerPeer(t, 12, "Build PC"),
-			activeWorkerPeer(t, 13, "Render PC"),
+		Nearby: stubDeviceController{list: func(context.Context) (device.DiscoverySnapshot, error) {
+			return device.DiscoverySnapshot{Available: true, Devices: []device.NearbyDevice{
+				nearbyWorkerWithResources(t, "Build PC", 47823, 8, 16<<30),
+				nearbyWorkerWithResources(t, "Render PC", 47824, 32, 64<<30),
+			}}, nil
 		}},
+		Trust: remoteTrustStub{peers: []trust.Peer{
+			buildPeer,
+			renderPeer,
+		}},
+		Placements: placements,
+		Dialer: remoteDialerFunc(func(
+			_ context.Context,
+			target device.NearbyDevice,
+			pinned trust.Peer,
+		) (remoteprotocol.Caller, error) {
+			if target.Announcement.Name != "Render PC" || pinned.DeviceID != renderPeer.DeviceID {
+				t.Fatalf("target = %#v; peer = %#v", target, pinned)
+			}
+			return &remoteCallerStub{call: func(
+				_ context.Context,
+				request *computehopv1.RemoteRequest,
+			) (*computehopv1.RemoteResponse, error) {
+				if request.GetSubmitJob() == nil {
+					t.Fatalf("request = %#v", request)
+				}
+				return &computehopv1.RemoteResponse{Result: &computehopv1.RemoteResponse_SubmitJob{
+					SubmitJob: &computehopv1.SubmitJobResponse{Job: message},
+				}}, nil
+			}}, nil
+		}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := service.Submit(context.Background(), "auto", want.Spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.ID != want.ID {
+		t.Fatalf("job = %#v", got)
+	}
+	remembered, err := placements.Get(context.Background(), want.ID)
+	if err != nil || remembered.WorkerID != renderPeer.DeviceID {
+		t.Fatalf("placement = %#v, %v", remembered, err)
+	}
+}
+
+func TestRemoteJobServiceAutoSelectorBreaksTiesByStableDeviceID(t *testing.T) {
+	left := activeWorkerPeer(t, 12, "Build PC")
+	right := activeWorkerPeer(t, 13, "Render PC")
+	want := left
+	if string(right.DeviceID) < string(left.DeviceID) {
+		want = right
+	}
+	service, err := NewRemoteJobService(RemoteDependencies{
+		Nearby:     stubDeviceController{},
+		Trust:      remoteTrustStub{peers: []trust.Peer{left, right}},
 		Placements: newRemotePlacementStub(),
 		Dialer: remoteDialerFunc(func(
 			context.Context,
 			device.NearbyDevice,
 			trust.Peer,
 		) (remoteprotocol.Caller, error) {
-			t.Fatal("ambiguous automatic selection opened a remote connection")
+			t.Fatal("tie-break resolution should not open a remote connection")
 			return nil, nil
 		}),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = service.Submit(context.Background(), "auto", queuedJobForTest().Spec)
-	if !errors.Is(err, trust.ErrConflict) ||
-		!strings.Contains(err.Error(), "computehop devices") ||
-		!strings.Contains(err.Error(), "computehop run --on <device> ...") {
-		t.Fatalf("error = %v", err)
+	got, err := service.resolveTrustedWorker(context.Background(), "auto")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.DeviceID != want.DeviceID {
+		t.Fatalf("worker = %s, want %s", got.DeviceID.Short(), want.DeviceID.Short())
 	}
 }
 
@@ -928,4 +990,18 @@ func nearbyWorker(t *testing.T, name string, port uint16) device.NearbyDevice {
 		SeenAt: now, ExpiresAt: now.Add(time.Minute),
 	}
 	return device.NearbyDevice{Observation: observation, FirstSeenAt: now}
+}
+
+func nearbyWorkerWithResources(
+	t *testing.T,
+	name string,
+	port uint16,
+	logicalCPUCount uint32,
+	totalMemoryBytes uint64,
+) device.NearbyDevice {
+	t.Helper()
+	nearby := nearbyWorker(t, name, port)
+	nearby.Announcement.LogicalCPUCount = logicalCPUCount
+	nearby.Announcement.TotalMemoryBytes = totalMemoryBytes
+	return nearby
 }

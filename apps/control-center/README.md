@@ -87,11 +87,11 @@ Current scope:
   preferring repository validation targets such as `make pr-check` and package
   targets such as `make macos-archive` or `make macos-package` when present;
 - preserves OS hints such as "on Windows", "on Linux", or "on macOS" in the
-  plan, selects the single matching connected worker when that is unambiguous,
+  plan, selects the best matching connected worker when that is safe,
   and blocks submission when the selected computer advertises the wrong OS;
 - preserves architecture hints such as "on Apple Silicon", "on arm64", or
   "on x64" using the daemon's advertised architecture, with the same
-  unambiguous-worker selection and pre-submit mismatch checks;
+  resource-scored worker selection and pre-submit mismatch checks;
 - uses each device's Allow settings as an early scheduling hint, so if the
   selected computer has a work category turned off but a connected worker
   allows it, the plan can move to the best compatible worker before submission;
