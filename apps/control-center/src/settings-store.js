@@ -7,12 +7,9 @@ function defaultSettings() {
   return {
     projectRoot: "",
     artifacts: "",
-    ignoreHeavyFolders: true,
     lanDiscovery: true,
-    remoteRelay: false,
     askBeforeRun: true,
     daemonRole: "orchestrator",
-    aiProvider: "off",
     syncedDevices: {},
     capabilities: {
       builds: true,
@@ -55,12 +52,9 @@ function normalizeSettings(settings = {}) {
   return {
     projectRoot: stringSetting(source.projectRoot, defaults.projectRoot),
     artifacts: stringSetting(source.artifacts, defaults.artifacts),
-    ignoreHeavyFolders: booleanSetting(source.ignoreHeavyFolders, defaults.ignoreHeavyFolders),
     lanDiscovery: booleanSetting(source.lanDiscovery, defaults.lanDiscovery),
-    remoteRelay: booleanSetting(source.remoteRelay, defaults.remoteRelay),
     askBeforeRun: booleanSetting(source.askBeforeRun, defaults.askBeforeRun),
     daemonRole: normalizeDaemonRole(source.daemonRole, defaults.daemonRole),
-    aiProvider: normalizeAIProvider(source.aiProvider, defaults.aiProvider),
     syncedDevices: booleanMapSetting(source.syncedDevices),
     capabilities: {
       builds: booleanSetting(capabilities.builds, defaults.capabilities.builds),
@@ -100,10 +94,6 @@ function booleanMapSetting(value) {
 
 function normalizeDaemonRole(value, fallback) {
   return value === "worker" || value === "orchestrator" ? value : fallback;
-}
-
-function normalizeAIProvider(value, fallback) {
-  return value === "off" || value === "openai" || value === "local" ? value : fallback;
 }
 
 function isObject(value) {

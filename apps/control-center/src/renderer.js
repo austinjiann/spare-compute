@@ -78,7 +78,6 @@ document.getElementById("clear-project").addEventListener("click", clearProject)
 
 bindCheckbox("lanDiscovery", document.getElementById("lan-discovery"));
 bindCheckbox("askBeforeRun", document.getElementById("ask-before-run"));
-bindSetting("aiProvider", document.getElementById("ai-provider"));
 bindSetting("daemonRole", document.getElementById("daemon-role"));
 bindSetting("artifacts", document.getElementById("outputs-input"));
 
@@ -1251,7 +1250,6 @@ async function hydrateSettings() {
 function renderSettingsControls() {
   document.getElementById("lan-discovery").checked = state.settings.lanDiscovery !== false;
   document.getElementById("ask-before-run").checked = state.settings.askBeforeRun !== false;
-  document.getElementById("ai-provider").value = state.settings.aiProvider || "off";
   document.getElementById("daemon-role").value = state.settings.daemonRole || "orchestrator";
   document.getElementById("outputs-input").value = state.settings.artifacts || "";
 }
@@ -1284,12 +1282,9 @@ function defaultSettings() {
   return {
     projectRoot: "",
     artifacts: "",
-    ignoreHeavyFolders: true,
     lanDiscovery: true,
-    remoteRelay: false,
     askBeforeRun: true,
     daemonRole: "orchestrator",
-    aiProvider: "off",
     syncedDevices: {},
     capabilities: {
       builds: true,

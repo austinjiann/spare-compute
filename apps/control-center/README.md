@@ -53,6 +53,8 @@ Current scope:
   cannot be selected, used by Auto worker, or used as run targets;
 - plans plain-language tasks such as "run tests", "build the app", and
   "check CI" into one safe command using local project rules;
+- uses deterministic local planning rules for now; no API key or LLM provider is
+  required by the current Control Center;
 - maps lint/style requests to conventional Go, Rust, or Python quality commands
   when no package script or Makefile target exists;
 - maps Docker/Compose build requests to `docker build .` or
