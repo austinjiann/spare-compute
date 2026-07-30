@@ -16,6 +16,7 @@ Print the copy/paste setup checklist:
 computehop setup workers
 computehop setup workers --target linux --device-name "Home Server"
 computehop setup workers --target windows --device-name "Gaming PC"
+computehop setup workers --connectivity-domain connect.example.com --turn-domain turn.example.com
 ```
 
 Outputs are written to `dist/workers/`:
@@ -47,7 +48,7 @@ cd ComputeHop-worker-linux-amd64
 For a per-user systemd service:
 
 ```bash
-COMPUTEHOP_DEVICE_NAME="Gaming PC" ./install-systemd-user.sh
+COMPUTEHOP_DEVICE_NAME="Gaming PC" ./install-systemd-user.sh --lan-only
 ```
 
 ## Windows worker
@@ -58,13 +59,20 @@ Copy the `.zip` and `.sha256` to the Windows machine, then in PowerShell:
 Get-FileHash .\ComputeHop-worker-windows-amd64.zip -Algorithm SHA256
 Expand-Archive .\ComputeHop-worker-windows-amd64.zip .
 cd .\ComputeHop-worker-windows-amd64
-.\run-worker.ps1 -DeviceName "Gaming PC" --lan-only
+.\run-worker.ps1 -DeviceName "Gaming PC" -LanOnly
 ```
 
 For a per-user scheduled task:
 
 ```powershell
-.\install-scheduled-task.ps1 -DeviceName "Gaming PC"
+.\install-scheduled-task.ps1 -DeviceName "Gaming PC" -LanOnly
+```
+
+For cross-network workers, deploy the VPS first, then use the exact command
+printed by:
+
+```bash
+computehop setup workers --connectivity-domain connect.example.com --turn-domain turn.example.com
 ```
 
 ## Pair from the Mac

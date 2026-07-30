@@ -566,10 +566,12 @@ func newSetupWorkersCommand(stdout io.Writer) *cobra.Command {
 
 Use this when the Mac is the orchestrator and another computer should run as a
 worker. This command only prints the package and pairing checklist; it does not
-install anything or require the daemon.`),
+install anything or require the daemon. Same-LAN mode is the default; pass VPS
+connectivity flags after deploying the rendezvous/TURN stack.`),
 		Example: strings.TrimSpace(`computehop setup workers
 computehop setup workers --target linux --device-name "Home Server"
-computehop setup workers --target windows --device-name "Gaming PC"`),
+computehop setup workers --target windows --device-name "Gaming PC"
+computehop setup workers --connectivity-domain connect.example.com --turn-domain turn.example.com`),
 		Args: cobra.NoArgs,
 		RunE: func(*cobra.Command, []string) error {
 			if err := options.validate(); err != nil {
@@ -580,6 +582,12 @@ computehop setup workers --target windows --device-name "Gaming PC"`),
 	}
 	command.Flags().StringVar(&options.deviceName, "device-name", options.deviceName, "human-readable worker device name")
 	command.Flags().StringVar(&options.target, "target", options.target, "worker target: all, linux, or windows")
+	command.Flags().StringVar(&options.connectivityDomain, "connectivity-domain", "", "advanced: public HTTPS domain from the one-VPS setup")
+	command.Flags().StringVar(&options.turnDomain, "turn-domain", "", "advanced: public STUN/TURN domain from the one-VPS setup")
+	command.Flags().StringVar(&options.turnServer, "turn-server", "", "advanced: TURN relay URI printed by deploy/vps/turn-credentials.sh")
+	command.Flags().StringVar(&options.turnUsername, "turn-username", "", "advanced: short-lived TURN username printed by deploy/vps/turn-credentials.sh")
+	command.Flags().StringVar(&options.turnPassword, "turn-password", "", "advanced: short-lived TURN password printed by deploy/vps/turn-credentials.sh")
+	command.Flags().BoolVar(&options.lanOnly, "lan-only", false, "print LAN-only worker commands even when remote connectivity is not configured")
 	return command
 }
 
@@ -644,8 +652,14 @@ type vpsSetupOptions struct {
 }
 
 type workerPackageSetupOptions struct {
-	deviceName string
-	target     string
+	deviceName         string
+	target             string
+	lanOnly            bool
+	connectivityDomain string
+	turnDomain         string
+	turnServer         string
+	turnUsername       string
+	turnPassword       string
 }
 
 type macSetupOptions struct {
@@ -675,12 +689,39 @@ func (options macSetupOptions) validate() error {
 	default:
 		return errors.New("--role must be orchestrator or worker")
 	}
-	connectivityDomain := strings.TrimSpace(options.connectivityDomain)
-	turnDomain := strings.TrimSpace(options.turnDomain)
-	turnServer := strings.TrimSpace(options.turnServer)
-	turnUsername := strings.TrimSpace(options.turnUsername)
-	turnPassword := strings.TrimSpace(options.turnPassword)
-	if options.lanOnly && (connectivityDomain != "" || turnDomain != "" || turnServer != "" || turnUsername != "" || turnPassword != "") {
+	if err := validateSetupConnectivity(
+		options.lanOnly,
+		options.connectivityDomain,
+		options.turnDomain,
+		options.turnServer,
+		options.turnUsername,
+		options.turnPassword,
+	); err != nil {
+		return err
+	}
+	if strings.TrimSpace(options.cacheSize) == "" {
+		return nil
+	}
+	if err := validateSetupCacheSize(options.cacheSize); err != nil {
+		return fmt.Errorf("--cache-size: %w", err)
+	}
+	return nil
+}
+
+func validateSetupConnectivity(
+	lanOnly bool,
+	connectivityDomain string,
+	turnDomain string,
+	turnServer string,
+	turnUsername string,
+	turnPassword string,
+) error {
+	connectivityDomain = strings.TrimSpace(connectivityDomain)
+	turnDomain = strings.TrimSpace(turnDomain)
+	turnServer = strings.TrimSpace(turnServer)
+	turnUsername = strings.TrimSpace(turnUsername)
+	turnPassword = strings.TrimSpace(turnPassword)
+	if lanOnly && (connectivityDomain != "" || turnDomain != "" || turnServer != "" || turnUsername != "" || turnPassword != "") {
 		return errors.New("--lan-only cannot be combined with VPS, STUN, or TURN flags")
 	}
 	if connectivityDomain == "" && (turnDomain != "" || turnServer != "" || turnUsername != "" || turnPassword != "") {
@@ -698,22 +739,101 @@ func (options macSetupOptions) validate() error {
 	if turnServer == "" && (turnUsername != "" || turnPassword != "") {
 		return errors.New("--turn-username and --turn-password require --turn-server")
 	}
-	if strings.TrimSpace(options.cacheSize) == "" {
-		return nil
-	}
-	if err := validateSetupCacheSize(options.cacheSize); err != nil {
-		return fmt.Errorf("--cache-size: %w", err)
-	}
 	return nil
 }
 
 func (options workerPackageSetupOptions) validate() error {
 	switch strings.ToLower(strings.TrimSpace(options.target)) {
 	case "all", "linux", "windows":
-		return nil
 	default:
 		return errors.New("--target must be all, linux, or windows")
 	}
+	if err := validateSetupConnectivity(
+		options.lanOnly,
+		options.connectivityDomain,
+		options.turnDomain,
+		options.turnServer,
+		options.turnUsername,
+		options.turnPassword,
+	); err != nil {
+		return err
+	}
+	return nil
+}
+
+func workerPackageDaemonArgs(options workerPackageSetupOptions) []string {
+	if options.lanOnly || strings.TrimSpace(options.connectivityDomain) == "" {
+		return []string{"--lan-only"}
+	}
+	args := []string{
+		"--connectivity-url", "https://" + strings.TrimSpace(options.connectivityDomain),
+	}
+	if strings.TrimSpace(options.turnDomain) != "" {
+		args = append(args, "--stun-server", "stun:"+strings.TrimSpace(options.turnDomain)+":3478")
+	}
+	if strings.TrimSpace(options.turnServer) != "" {
+		args = append(
+			args,
+			"--turn-server", strings.TrimSpace(options.turnServer),
+			"--turn-username", strings.TrimSpace(options.turnUsername),
+			"--turn-password", strings.TrimSpace(options.turnPassword),
+		)
+	}
+	return args
+}
+
+func shellArgs(values []string) string {
+	if len(values) == 0 {
+		return ""
+	}
+	escaped := make([]string, len(values))
+	for index, value := range values {
+		escaped[index] = shellArg(value)
+	}
+	return strings.Join(escaped, " ")
+}
+
+func workerPackagePowerShellArgs(options workerPackageSetupOptions) []string {
+	if options.lanOnly || strings.TrimSpace(options.connectivityDomain) == "" {
+		return []string{"-LanOnly"}
+	}
+	args := []string{
+		"-ConnectivityUrl", "https://" + strings.TrimSpace(options.connectivityDomain),
+	}
+	if strings.TrimSpace(options.turnDomain) != "" {
+		args = append(args, "-StunServer", "stun:"+strings.TrimSpace(options.turnDomain)+":3478")
+	}
+	if strings.TrimSpace(options.turnServer) != "" {
+		args = append(
+			args,
+			"-TurnServer", strings.TrimSpace(options.turnServer),
+			"-TurnUsername", strings.TrimSpace(options.turnUsername),
+			"-TurnPassword", strings.TrimSpace(options.turnPassword),
+		)
+	}
+	return args
+}
+
+func powershellOptionArgs(values []string) string {
+	if len(values) == 0 {
+		return ""
+	}
+	escaped := make([]string, len(values))
+	for index, value := range values {
+		if strings.HasPrefix(value, "-") && value != "-" {
+			escaped[index] = value
+			continue
+		}
+		escaped[index] = powershellArg(value)
+	}
+	return strings.Join(escaped, " ")
+}
+
+func appendCommandArgs(command string, encodedArgs string) string {
+	if strings.TrimSpace(encodedArgs) == "" {
+		return command
+	}
+	return command + " " + encodedArgs
 }
 
 func validateSetupCacheSize(encoded string) error {
@@ -1016,11 +1136,17 @@ func printWorkerPackageSetupGuide(stdout io.Writer, options workerPackageSetupOp
 	if target == "" {
 		target = "all"
 	}
+	daemonArgs := workerPackageDaemonArgs(options)
+	encodedShellArgs := shellArgs(daemonArgs)
+	encodedPowerShellArgs := powershellOptionArgs(workerPackagePowerShellArgs(options))
 	lines := []string{
 		"ComputeHop Linux/Windows worker setup",
 		"",
 		"Goal:",
 		"   run another computer as a worker controlled by the Mac orchestrator.",
+		"",
+		"Mode:",
+		"   " + workerPackageModeLabel(options),
 		"",
 		"0. On the Mac checkout, build copyable worker packages:",
 		"   make worker-archives",
@@ -1035,10 +1161,10 @@ func printWorkerPackageSetupGuide(stdout io.Writer, options workerPackageSetupOp
 			"   sha256sum -c ComputeHop-worker-linux-amd64.tar.gz.sha256",
 			"   tar -xzf ComputeHop-worker-linux-amd64.tar.gz",
 			"   cd ComputeHop-worker-linux-amd64",
-			"   COMPUTEHOP_DEVICE_NAME="+shellArg(deviceName)+" ./run-worker.sh --lan-only",
+			"   COMPUTEHOP_DEVICE_NAME="+shellArg(deviceName)+" "+appendCommandArgs("./run-worker.sh", encodedShellArgs),
 			"",
 			"Linux optional login service:",
-			"   COMPUTEHOP_DEVICE_NAME="+shellArg(deviceName)+" ./install-systemd-user.sh",
+			"   COMPUTEHOP_DEVICE_NAME="+shellArg(deviceName)+" "+appendCommandArgs("./install-systemd-user.sh", encodedShellArgs),
 			"",
 		)
 	}
@@ -1050,10 +1176,10 @@ func printWorkerPackageSetupGuide(stdout io.Writer, options workerPackageSetupOp
 			"   # Compare that hash with ComputeHop-worker-windows-amd64.zip.sha256.",
 			"   Expand-Archive .\\ComputeHop-worker-windows-amd64.zip .",
 			"   cd .\\ComputeHop-worker-windows-amd64",
-			"   .\\run-worker.ps1 -DeviceName "+powershellArg(deviceName)+" --lan-only",
+			"   "+appendCommandArgs(".\\run-worker.ps1 -DeviceName "+powershellArg(deviceName), encodedPowerShellArgs),
 			"",
 			"Windows optional login task:",
-			"   .\\install-scheduled-task.ps1 -DeviceName "+powershellArg(deviceName),
+			"   "+appendCommandArgs(".\\install-scheduled-task.ps1 -DeviceName "+powershellArg(deviceName), encodedPowerShellArgs),
 			"",
 		)
 	}
@@ -1099,6 +1225,16 @@ func printWorkerPackageSetupGuide(stdout io.Writer, options workerPackageSetupOp
 		}
 	}
 	return nil
+}
+
+func workerPackageModeLabel(options workerPackageSetupOptions) string {
+	if strings.TrimSpace(options.connectivityDomain) == "" || options.lanOnly {
+		return "LAN-only. Pair and run while both devices are on the same network."
+	}
+	if strings.TrimSpace(options.turnServer) != "" {
+		return "VPS rendezvous, STUN, and authenticated TURN relay."
+	}
+	return "VPS rendezvous and STUN. LAN is still preferred when available."
 }
 
 func printMacSetupGuide(stdout io.Writer, options macSetupOptions) error {

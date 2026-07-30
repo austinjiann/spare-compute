@@ -83,6 +83,11 @@ Same-LAN quick start:
 4. Confirm on both devices with: computehop connect confirm
 5. From the Mac orchestrator, run: computehop smoke
 
+Remote access after pairing:
+Run 'computehop setup workers --connectivity-domain ... --turn-domain ...' on
+the Mac orchestrator and use the printed worker command or login installer
+arguments after the VPS stack is ready.
+
 The worker stores local state in ComputeHop's per-user state directory for this
 operating system. Pairings and job history survive restarts.
 EOF

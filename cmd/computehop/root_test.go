@@ -1980,10 +1980,10 @@ func TestSetupWorkersCommandPrintsLinuxAndWindowsPackageChecklistWithoutDaemon(t
 		"make worker-archives",
 		"ComputeHop-worker-linux-amd64.tar.gz.sha256",
 		"COMPUTEHOP_DEVICE_NAME='Austin Gaming PC' ./run-worker.sh --lan-only",
-		"COMPUTEHOP_DEVICE_NAME='Austin Gaming PC' ./install-systemd-user.sh",
+		"COMPUTEHOP_DEVICE_NAME='Austin Gaming PC' ./install-systemd-user.sh --lan-only",
 		"ComputeHop-worker-windows-amd64.zip",
-		".\\run-worker.ps1 -DeviceName 'Austin Gaming PC' --lan-only",
-		".\\install-scheduled-task.ps1 -DeviceName 'Austin Gaming PC'",
+		".\\run-worker.ps1 -DeviceName 'Austin Gaming PC' -LanOnly",
+		".\\install-scheduled-task.ps1 -DeviceName 'Austin Gaming PC' -LanOnly",
 		"computehop connect nearby",
 		"./bin/computehop connect confirm",
 		".\\bin\\computehop.exe connect confirm",
@@ -2021,7 +2021,7 @@ func TestSetupWorkersCommandCanPrintTargetSpecificChecklist(t *testing.T) {
 			target: "windows",
 			want: []string{
 				"Windows worker:",
-				".\\run-worker.ps1 -DeviceName 'HomeServer' --lan-only",
+				".\\run-worker.ps1 -DeviceName 'HomeServer' -LanOnly",
 				"Confirm the same code on the Windows worker:",
 			},
 			omit: []string{
@@ -2058,6 +2058,74 @@ func TestSetupWorkersCommandCanPrintTargetSpecificChecklist(t *testing.T) {
 	}
 }
 
+func TestSetupWorkersCommandPrintsRemoteConnectivityArguments(t *testing.T) {
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			t.Fatal("setup workers should not require a daemon client")
+			return nil, nil
+		},
+	})
+	command.SetArgs([]string{
+		"setup", "workers",
+		"--target", "linux",
+		"--device-name", "Home Server",
+		"--connectivity-domain", "connect.example.com",
+		"--turn-domain", "turn.example.com",
+	})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	for _, want := range []string{
+		"VPS rendezvous and STUN",
+		"COMPUTEHOP_DEVICE_NAME='Home Server' ./run-worker.sh --connectivity-url https://connect.example.com --stun-server stun:turn.example.com:3478",
+		"COMPUTEHOP_DEVICE_NAME='Home Server' ./install-systemd-user.sh --connectivity-url https://connect.example.com --stun-server stun:turn.example.com:3478",
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
+		}
+	}
+	if strings.Contains(stdout.String(), "--lan-only") {
+		t.Fatalf("remote worker setup should not include --lan-only: %q", stdout.String())
+	}
+}
+
+func TestSetupWorkersCommandPrintsTurnRelayArguments(t *testing.T) {
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			t.Fatal("setup workers should not require a daemon client")
+			return nil, nil
+		},
+	})
+	command.SetArgs([]string{
+		"setup", "workers",
+		"--target", "windows",
+		"--device-name", "Gaming PC",
+		"--connectivity-domain", "connect.example.com",
+		"--turn-server", "turn:turn.example.com:3478?transport=udp",
+		"--turn-username", "1800000000:computehop",
+		"--turn-password", "relay secret",
+	})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	for _, want := range []string{
+		"VPS rendezvous, STUN, and authenticated TURN relay",
+		".\\run-worker.ps1 -DeviceName 'Gaming PC' -ConnectivityUrl 'https://connect.example.com' -TurnServer 'turn:turn.example.com:3478?transport=udp' -TurnUsername '1800000000:computehop' -TurnPassword 'relay secret'",
+		".\\install-scheduled-task.ps1 -DeviceName 'Gaming PC' -ConnectivityUrl 'https://connect.example.com' -TurnServer 'turn:turn.example.com:3478?transport=udp' -TurnUsername '1800000000:computehop' -TurnPassword 'relay secret'",
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
+		}
+	}
+	if strings.Contains(stdout.String(), "--lan-only") {
+		t.Fatalf("TURN worker setup should not include --lan-only: %q", stdout.String())
+	}
+}
+
 func TestSetupWorkersCommandRejectsInvalidTargetWithoutDaemon(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	command := newRootCommand(dependencies{
@@ -2074,6 +2142,55 @@ func TestSetupWorkersCommandRejectsInvalidTargetWithoutDaemon(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "--target must be all, linux, or windows") {
 		t.Fatalf("error %q does not explain invalid target", err)
+	}
+}
+
+func TestSetupWorkersCommandRejectsInvalidConnectivityWithoutDaemon(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{
+			name: "lan only with remote flags",
+			args: []string{"setup", "workers", "--lan-only", "--connectivity-domain", "connect.example.com", "--turn-domain", "turn.example.com"},
+			want: "--lan-only cannot be combined",
+		},
+		{
+			name: "turn domain without connectivity",
+			args: []string{"setup", "workers", "--turn-domain", "turn.example.com"},
+			want: "--connectivity-domain is required",
+		},
+		{
+			name: "connectivity without route",
+			args: []string{"setup", "workers", "--connectivity-domain", "connect.example.com"},
+			want: "--connectivity-domain requires --turn-domain or --turn-server",
+		},
+		{
+			name: "turn without credentials",
+			args: []string{"setup", "workers", "--connectivity-domain", "connect.example.com", "--turn-server", "turn:turn.example.com:3478"},
+			want: "--turn-server requires --turn-username and --turn-password",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			command := newRootCommand(dependencies{
+				stdout: &stdout, stderr: &stderr, getwd: func() (string, error) { return "", nil },
+				newClient: func(string) (caller, error) {
+					t.Fatal("setup workers validation should not require a daemon client")
+					return nil, nil
+				},
+			})
+			command.SetArgs(test.args)
+			err := command.Execute()
+			if err == nil {
+				t.Fatal("Execute() error = nil, want validation error")
+			}
+			if !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("error %q does not contain %q", err, test.want)
+			}
+		})
 	}
 }
 
