@@ -50,6 +50,15 @@ For a named worker Mac:
 ./packaging/macos/install.sh --role worker --device-name "Gaming Mac"
 ```
 
+If you already built or copied a `ComputeHop.app` bundle and this installer
+script is available, pass the app explicitly to avoid rebuilding from the
+checkout:
+
+```bash
+./packaging/macos/install.sh --app /path/to/ComputeHop.app --check --role worker --device-name "Gaming Mac"
+./packaging/macos/install.sh --app /path/to/ComputeHop.app --role worker --device-name "Gaming Mac"
+```
+
 The daemon keeps a verified content cache for project chunks and returned
 artifacts. It defaults to 20GiB and can be tuned during install:
 

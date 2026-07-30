@@ -12,8 +12,10 @@ turn_password=""
 cache_size=""
 lan_only=false
 check_only=false
+app_source=""
 usage() {
-    echo "Usage: packaging/macos/install.sh [--check] [--no-open] [--role orchestrator|worker] [--lan-only]" >&2
+    echo "Usage: packaging/macos/install.sh [--check] [--no-open] [--app /path/to/ComputeHop.app]" >&2
+    echo "       [--role orchestrator|worker] [--lan-only]" >&2
     echo "       [--device-name NAME] [--cache-size SIZE]" >&2
     echo "       [--connectivity-url HTTPS_URL --stun-server STUN_URI]" >&2
     echo "       [--turn-server TURN_URI --turn-username USER --turn-password PASSWORD]" >&2
@@ -28,6 +30,11 @@ while [ "$#" -gt 0 ]; do
             check_only=true
             open_app=false
             shift
+            ;;
+        --app)
+            [ "$#" -ge 2 ] || { usage; exit 1; }
+            app_source=$2
+            shift 2
             ;;
         --role)
             [ "$#" -ge 2 ] || { usage; exit 1; }
@@ -140,8 +147,21 @@ cleanup() {
 }
 trap cleanup EXIT HUP INT TERM
 
-"$script_dir/build.sh" "$temporary_dir"
-built_app="$temporary_dir/ComputeHop.app"
+if [ -n "$app_source" ]; then
+    case "$app_source" in
+        /*) ;;
+        *) app_source="$(CDPATH= cd -- "$(dirname -- "$app_source")" && pwd -P)/$(basename -- "$app_source")" ;;
+    esac
+    if [ ! -d "$app_source" ]; then
+        echo "--app must point at an existing ComputeHop.app bundle." >&2
+        exit 1
+    fi
+    "$script_dir/verify.sh" "$app_source" >/dev/null
+    built_app="$app_source"
+else
+    "$script_dir/build.sh" "$temporary_dir"
+    built_app="$temporary_dir/ComputeHop.app"
+fi
 built_cli="$built_app/Contents/Resources/bin/computehop"
 
 user_id=$(id -u)
@@ -289,6 +309,7 @@ if [ "$check_only" = true ]; then
     else
         echo "Install check passed."
     fi
+    echo "Would use app bundle: $built_app"
     echo "Would install app: $app_target"
     echo "Would install CLI link: $cli_target -> $expected_cli_target"
     echo "Would install launch agent: $HOME/Library/LaunchAgents/$service_label.plist"

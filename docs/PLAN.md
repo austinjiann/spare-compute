@@ -1508,7 +1508,8 @@ per-user installer configures an
 unprivileged launch agent, preserves durable state on uninstall, and supports a
 non-mutating install check that validates the app bundle, install targets,
 selected role/connectivity flags, and rewritten LaunchAgent before touching the
-user account. Developer
+user account; copied app bundles can be installed with `install.sh --app`
+without rebuilding from the checkout. Developer
 ID signing, notarization, universal release binaries, upgrade handling, and
 clean-machine tests remain.
 

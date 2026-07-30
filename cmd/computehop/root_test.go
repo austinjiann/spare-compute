@@ -1967,6 +1967,7 @@ func TestSetupSmokeCommandPrintsPackageChecklistWithoutDaemon(t *testing.T) {
 		"make macos-package",
 		"make install-macos-check",
 		"./packaging/macos/install.sh --check --role worker --device-name 'Gaming PC' --lan-only",
+		"./packaging/macos/install.sh --app /path/to/ComputeHop.app --check --role worker --device-name 'Gaming PC' --lan-only",
 		"computehop connect nearby",
 		"computehop smoke",
 		"computehop run --on auto --no-project --follow hostname",
