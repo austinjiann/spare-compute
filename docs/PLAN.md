@@ -1458,8 +1458,9 @@ substituting the development checkout when no project is selected, keeps project
 utility jobs from snapshotting selected projects, and blocks project-style remote runs until
 a project folder is selected for transfer. AI-planned commands are still
 previewed, mapped through the same per-device allowed-work policy, and rejected
-before preview when they contain shell operators, multiline commands, privilege
-escalation, or destructive removal. The optional OpenAI key can be saved from
+before preview when they contain shell operators, multiline commands, shell
+wrappers, obvious interactive commands, privilege escalation, or destructive
+removal. The optional OpenAI key can be saved from
 the app using Electron `safeStorage` encryption where available, with
 environment variables retained as a fallback. It can also start the local daemon
 from the app in development and

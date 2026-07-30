@@ -1,4 +1,5 @@
 const { commandNeedsProject } = require("./planner");
+const { splitCommandLine } = require("./command-line");
 const { capabilityForCommand } = require("./work-policy");
 
 const defaultOpenAIBaseURL = "https://api.openai.com/v1";
@@ -253,8 +254,14 @@ function detectedLabels(profile = {}) {
 
 function unsafeCommandReason(command) {
   const value = cleanString(command);
+  const parsed = safeSplitCommandLine(value);
+  const executable = String(parsed.parts[0] || "").toLowerCase();
+  const args = parsed.parts.slice(1).map((part) => String(part || "").toLowerCase());
   if (/[\r\n]/.test(value)) {
     return "multiple lines are not allowed";
+  }
+  if (parsed.error) {
+    return "invalid command quoting is not allowed";
   }
   if (/(^|\s)(sudo|su)(\s|$)/.test(value)) {
     return "privilege escalation is not allowed";
@@ -262,10 +269,33 @@ function unsafeCommandReason(command) {
   if (/(^|\s)rm\s+(-[^\s]*[rf][^\s]*|-[^\s]*[fr][^\s]*)(\s|$)/.test(value)) {
     return "recursive or forced removal is not allowed";
   }
+  if (
+    ["bash", "sh", "zsh", "fish", "pwsh", "powershell", "powershell.exe"].includes(executable) &&
+    args.some((arg) => arg === "-c" || arg === "-lc" || arg === "-command")
+  ) {
+    return "shell wrapper commands are not allowed";
+  }
+  if ((executable === "cmd" || executable === "cmd.exe") && args.includes("/c")) {
+    return "shell wrapper commands are not allowed";
+  }
+  if (["ssh", "vim", "vi", "nano", "emacs", "less", "more", "top", "htop"].includes(executable)) {
+    return "interactive commands are not allowed";
+  }
+  if (executable === "tail" && args.includes("-f")) {
+    return "interactive commands are not allowed";
+  }
   if (/[;&|<>`]/.test(value) || /\$\(/.test(value)) {
     return "shell operators are not allowed";
   }
   return "";
+}
+
+function safeSplitCommandLine(command) {
+  try {
+    return { parts: splitCommandLine(command), error: "" };
+  } catch (error) {
+    return { parts: [], error: error?.message || "invalid command" };
+  }
 }
 
 function normalizeCapability(value) {

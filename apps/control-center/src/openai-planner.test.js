@@ -166,6 +166,12 @@ test("unsafeCommandReason catches shell features the native runner does not supp
   assert.match(unsafeCommandReason("go test ./... && say done"), /shell operators/);
   assert.match(unsafeCommandReason("echo hi | cat"), /shell operators/);
   assert.match(unsafeCommandReason("echo $(whoami)"), /shell operators/);
+  assert.match(unsafeCommandReason("bash -lc \"go test ./...\""), /shell wrapper/);
+  assert.match(unsafeCommandReason("pwsh -Command \"npm test\""), /shell wrapper/);
+  assert.match(unsafeCommandReason("cmd /c npm test"), /shell wrapper/);
+  assert.match(unsafeCommandReason("ssh desktop hostname"), /interactive/);
+  assert.match(unsafeCommandReason("tail -f app.log"), /interactive/);
+  assert.match(unsafeCommandReason("echo \"unfinished"), /quoting/);
   assert.equal(unsafeCommandReason("go test ./..."), "");
 });
 

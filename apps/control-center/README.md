@@ -69,7 +69,8 @@ Current scope:
   environment variables as a fallback;
 - keeps AI-planned unknown commands behind the same disabled-by-default
   **Exact commands** allowance and rejects shell operators, multiline commands,
-  privilege escalation, and destructive removal before preview;
+  shell-wrapper commands, obvious interactive commands, privilege escalation,
+  and destructive removal before preview;
 - maps lint/style requests to conventional Go, Rust, or Python quality commands
   when no package script or Makefile target exists;
 - maps Docker/Compose build requests to `docker build .` or
