@@ -719,7 +719,7 @@ func errorResponse(err error) *localv1.Response {
 		message = err.Error()
 	case errors.Is(err, job.ErrConflict), errors.Is(err, trust.ErrConflict), errors.Is(err, artifact.ErrConflict),
 		errors.Is(err, ErrNearbyDeviceAmbiguous), errors.Is(err, contentcache.ErrQuotaExceeded),
-		errors.Is(err, contentcache.ErrReservationLimit):
+		errors.Is(err, contentcache.ErrReservationLimit), errors.Is(err, ErrRemoteWorkerIncompatible):
 		code = localv1.ErrorCode_ERROR_CODE_CONFLICT
 		message = err.Error()
 	case errors.Is(err, worker.ErrJobTerminal):

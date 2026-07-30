@@ -461,6 +461,15 @@ func TestLocalHandlerMapsErrors(t *testing.T) {
 	if got := accepted.GetError().GetMessage(); !strings.Contains(got, "is running on Gaming PC") {
 		t.Fatalf("accepted remote job message = %q", got)
 	}
+
+	incompatible := errorResponse(fmt.Errorf(
+		"%w: Node PC does not report go",
+		ErrRemoteWorkerIncompatible,
+	))
+	if incompatible.GetError().GetCode() != localv1.ErrorCode_ERROR_CODE_CONFLICT ||
+		!strings.Contains(incompatible.GetError().GetMessage(), "does not report go") {
+		t.Fatalf("incompatible worker response = %#v", incompatible.GetError())
+	}
 }
 
 func TestLocalHandlerRejectsOversizedList(t *testing.T) {

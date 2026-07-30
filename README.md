@@ -117,7 +117,9 @@ make macos-archive
 
 - Workers must already have the tools needed by the job, such as Go, Node,
   Docker, FFmpeg, or Ollama. Daemons now report common installed tools as
-  scheduling/UI hints, but ComputeHop does not install missing tools.
+  scheduling/UI hints, and remote submission avoids workers that explicitly
+  report the planned executable is missing before uploading a project. ComputeHop
+  does not install missing tools.
 - Native execution is implemented; container/sandbox execution is future work.
 - LAN pairing/discovery is the default path. VPS/relay setup exists for staging
   but still needs production validation.

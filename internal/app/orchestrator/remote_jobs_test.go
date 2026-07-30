@@ -54,6 +54,8 @@ func TestRemoteJobServiceRoutesOnlyThroughSelectedWorkerPin(t *testing.T) {
 				request *computehopv1.RemoteRequest,
 			) (*computehopv1.RemoteResponse, error) {
 				switch request.GetOperation().(type) {
+				case *computehopv1.RemoteRequest_GetWorkerStatus:
+					return workerStatusResponse("linux", "amd64", 8, 16<<30, "echo"), nil
 				case *computehopv1.RemoteRequest_SubmitJob:
 					if request.GetSubmitJob().GetSpec().GetExecutable() != "echo" {
 						t.Fatalf("request = %#v", request)
@@ -122,7 +124,7 @@ func TestRemoteJobServiceAutoSelectsSingleActiveWorker(t *testing.T) {
 				request *computehopv1.RemoteRequest,
 			) (*computehopv1.RemoteResponse, error) {
 				if request.GetGetWorkerStatus() != nil {
-					return workerStatusResponse("linux", "amd64", 8, 16<<30), nil
+					return workerStatusResponse("linux", "amd64", 8, 16<<30, "echo"), nil
 				}
 				if request.GetSubmitJob() == nil {
 					t.Fatalf("request = %#v", request)
@@ -181,10 +183,10 @@ func TestRemoteJobServiceAutoSelectorChoosesHighestResourceWorker(t *testing.T) 
 			) (*computehopv1.RemoteResponse, error) {
 				if request.GetGetWorkerStatus() != nil {
 					if pinned.DeviceID == buildPeer.DeviceID {
-						return workerStatusResponse("linux", "amd64", 8, 16<<30), nil
+						return workerStatusResponse("linux", "amd64", 8, 16<<30, "echo"), nil
 					}
 					if pinned.DeviceID == renderPeer.DeviceID {
-						return workerStatusResponse("linux", "amd64", 32, 64<<30), nil
+						return workerStatusResponse("linux", "amd64", 32, 64<<30, "echo"), nil
 					}
 					t.Fatalf("status target = %#v; peer = %#v", target, pinned)
 				}
@@ -258,6 +260,102 @@ func TestRemoteJobServiceAutoSelectorUsesAuthenticatedWorkerStatus(t *testing.T)
 	}
 	if got.DeviceID != renderPeer.DeviceID {
 		t.Fatalf("worker = %s, want %s", got.DeviceID.Short(), renderPeer.DeviceID.Short())
+	}
+}
+
+func TestRemoteJobServiceAutoSubmitSkipsWorkersMissingPlannedTool(t *testing.T) {
+	buildPeer := activeWorkerPeer(t, 12, "Build PC")
+	renderPeer := activeWorkerPeer(t, 13, "Render PC")
+	want := queuedJobForTest()
+	want.Spec.Executable = "go"
+	want.Spec.Arguments = []string{"test", "./..."}
+	message, err := mapper.JobToRemoteProto(want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewRemoteJobService(RemoteDependencies{
+		Nearby: stubDeviceController{list: func(context.Context) (device.DiscoverySnapshot, error) {
+			return device.DiscoverySnapshot{Available: true, Devices: []device.NearbyDevice{
+				nearbyWorkerWithResources(t, "Build PC", 47823, 64, 128<<30),
+				nearbyWorkerWithResources(t, "Render PC", 47824, 8, 16<<30),
+			}}, nil
+		}},
+		Trust:      remoteTrustStub{peers: []trust.Peer{buildPeer, renderPeer}},
+		Placements: newRemotePlacementStub(),
+		Dialer: remoteDialerFunc(func(
+			_ context.Context,
+			_ device.NearbyDevice,
+			pinned trust.Peer,
+		) (remoteprotocol.Caller, error) {
+			return &remoteCallerStub{call: func(
+				_ context.Context,
+				request *computehopv1.RemoteRequest,
+			) (*computehopv1.RemoteResponse, error) {
+				if request.GetGetWorkerStatus() != nil {
+					if pinned.DeviceID == buildPeer.DeviceID {
+						return workerStatusResponse("linux", "amd64", 64, 128<<30, "node"), nil
+					}
+					if pinned.DeviceID == renderPeer.DeviceID {
+						return workerStatusResponse("linux", "amd64", 8, 16<<30, "go"), nil
+					}
+				}
+				if request.GetSubmitJob() == nil || pinned.DeviceID != renderPeer.DeviceID {
+					t.Fatalf("request = %#v; peer = %s", request, pinned.DeviceID.Short())
+				}
+				return &computehopv1.RemoteResponse{Result: &computehopv1.RemoteResponse_SubmitJob{
+					SubmitJob: &computehopv1.SubmitJobResponse{Job: message},
+				}}, nil
+			}}, nil
+		}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := service.Submit(context.Background(), "auto", want.Spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.ID != want.ID {
+		t.Fatalf("job = %#v", got)
+	}
+}
+
+func TestRemoteJobServiceSubmitRejectsSelectedWorkerMissingPlannedToolBeforeSnapshot(t *testing.T) {
+	peer := activeWorkerPeer(t, 14, "Node PC")
+	service, err := NewRemoteJobService(RemoteDependencies{
+		Nearby:     stubDeviceController{},
+		Trust:      remoteTrustStub{peers: []trust.Peer{peer}},
+		Placements: newRemotePlacementStub(),
+		Dialer: remoteDialerFunc(func(context.Context, device.NearbyDevice, trust.Peer) (remoteprotocol.Caller, error) {
+			t.Fatal("absent LAN path was dialed")
+			return nil, nil
+		}),
+		Remote: pairedRemoteDialerFunc(func(context.Context, trust.Peer) (remoteprotocol.Caller, error) {
+			return &remoteCallerStub{call: func(
+				_ context.Context,
+				request *computehopv1.RemoteRequest,
+			) (*computehopv1.RemoteResponse, error) {
+				if request.GetGetWorkerStatus() == nil {
+					t.Fatalf("request = %#v", request)
+				}
+				return workerStatusResponse("linux", "amd64", 8, 16<<30, "node"), nil
+			}}, nil
+		}),
+		Snapshots: projectSnapshotterStub{err: errors.New("snapshot should not be built")},
+		Content:   snapshotContentStub{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	spec := queuedJobForTest().Spec.Clone()
+	spec.Executable = "go"
+	spec.Arguments = []string{"test", "./..."}
+	spec.WorkingDirectory = "/local/project"
+	_, err = service.Submit(context.Background(), "Node PC", spec)
+	if !errors.Is(err, ErrRemoteWorkerIncompatible) ||
+		!strings.Contains(err.Error(), "Node PC does not report go") ||
+		!strings.Contains(err.Error(), "install go") {
+		t.Fatalf("error = %v", err)
 	}
 }
 
@@ -508,6 +606,8 @@ func TestRemoteJobServiceTransfersOnlyMissingSnapshotChunks(t *testing.T) {
 				request *computehopv1.RemoteRequest,
 			) (*computehopv1.RemoteResponse, error) {
 				switch request.GetOperation().(type) {
+				case *computehopv1.RemoteRequest_GetWorkerStatus:
+					return workerStatusResponse("linux", "amd64", 8, 16<<30, "echo"), nil
 				case *computehopv1.RemoteRequest_CheckSnapshot:
 					missing := []string(nil)
 					if !cached {
@@ -595,6 +695,9 @@ func TestRemoteJobServiceSkipsSnapshotForEmptyWorkingDirectory(t *testing.T) {
 				_ context.Context,
 				request *computehopv1.RemoteRequest,
 			) (*computehopv1.RemoteResponse, error) {
+				if request.GetGetWorkerStatus() != nil {
+					return workerStatusResponse("linux", "amd64", 8, 16<<30, "echo"), nil
+				}
 				submit := request.GetSubmitJob()
 				if submit == nil {
 					t.Fatalf("request = %#v", request)
