@@ -364,6 +364,7 @@ async function runDaemonJobStream(runID, jobRequest, argv) {
         sendRunEvent(record.webContents, runID, {
           type: "finished",
           ok: jobSucceeded(page.job),
+          job: mapJob(page.job, submitDeviceSelector),
           text: `Job ${jobStateLabel(page.job)}.`
         });
         return;

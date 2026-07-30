@@ -1130,6 +1130,10 @@ function handleJobEvent(event) {
   }
 
   if (event.type === "finished") {
+    if (event.job) {
+      upsertJob(event.job);
+      renderJobs();
+    }
     if (event.text) {
       appendJobOutput(`\n${event.text}`);
     }
