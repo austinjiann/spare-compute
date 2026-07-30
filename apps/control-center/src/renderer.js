@@ -9,6 +9,7 @@ const state = {
   selectedJobLogText: "",
   selectedJobLogTruncated: false,
   selectedJobLogFailed: false,
+  outputRestorePromptedJobIDs: new Set(),
   taskSuggestions: [],
   loadingTaskSuggestions: false,
   runtime: {
@@ -50,6 +51,10 @@ const {
   jobStartRequestForPlan,
   runReadinessError
 } = window.computeHopRunRequest;
+const {
+  outputRestoreDefaultPath,
+  shouldOfferOutputRestore
+} = window.computeHopOutputRestore;
 
 function defaultLocalDevice() {
   return state.localDevice || {
@@ -439,7 +444,7 @@ async function cancelListedJob(job) {
 async function fetchJobOutputs(job) {
   try {
     const destination = await window.computeHop.chooseOutputDestination({
-      defaultPath: job.workingDirectory || state.settings.projectRoot || ""
+      defaultPath: outputRestoreDefaultPath(job, state.settings)
     });
     if (!destination) {
       return;
@@ -1274,7 +1279,22 @@ function handleJobEvent(event) {
     state.currentRunID = null;
     renderRunControls();
     void refreshJobs();
+    maybeOfferOutputRestore(event);
   }
+}
+
+function maybeOfferOutputRestore(event) {
+  const job = event?.job || null;
+  const jobID = String(job?.id || "");
+  if (!shouldOfferOutputRestore({
+    ok: event?.ok,
+    job,
+    alreadyOffered: state.outputRestorePromptedJobIDs.has(jobID)
+  })) {
+    return;
+  }
+  state.outputRestorePromptedJobIDs.add(jobID);
+  void fetchJobOutputs(job);
 }
 
 function appendJobOutput(text) {

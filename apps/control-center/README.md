@@ -110,6 +110,9 @@ Current scope:
   manual **Bring back** paths remain additive;
 - defaults output restore prompts to the job's submitted project folder, so
   switching projects after a job finishes does not redirect the restore flow;
+- prompts to restore declared or inferred outputs immediately after a
+  UI-submitted job succeeds, while keeping the **Outputs** button available for
+  later retrieval;
 - cancels running jobs through daemon IPC;
 - recovers the Run button when a stop request races with an already-finished or
   no-longer-tracked run;
@@ -144,8 +147,9 @@ Manual two-computer check:
    worker's hostname in the job output and adds a succeeded recent job.
 6. Choose a project, enter `run tests` or an exact command such as
    `go test ./...`, preview the plan, then run it on the selected worker.
-7. If outputs were declared before submission, use **Outputs** on the succeeded
-   job row to restore them to a chosen local folder.
+7. If outputs were declared or inferred before submission, Control Center asks
+   where to save them after the job succeeds. The **Outputs** button remains
+   available on the succeeded job row for later retrieval.
 
 Known current boundary: GitHub Actions checks may fail before runner startup if
 the GitHub account billing/spending limit blocks Actions minutes. That does not
