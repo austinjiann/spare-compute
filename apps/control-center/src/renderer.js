@@ -63,7 +63,8 @@ const {
   deviceKind,
   deviceLabel,
   deviceType,
-  isSyncManagedDevice
+  isSyncManagedDevice,
+  workerReadinessSummary
 } = window.computeHopDeviceStatus;
 const { shouldAutoStartDaemon } = window.computeHopDaemonAutostart;
 const { disallowedWorkMessage, filterAllowedSuggestions } = window.computeHopWorkPolicy;
@@ -103,6 +104,7 @@ document.getElementById("refresh-devices").addEventListener("click", refreshDevi
 document.getElementById("refresh-jobs").addEventListener("click", refreshJobs);
 document.getElementById("start-daemon").addEventListener("click", startDaemon);
 document.getElementById("background-action").addEventListener("click", installBackgroundService);
+document.getElementById("worker-readiness-action").addEventListener("click", performWorkerReadinessAction);
 document.getElementById("run-job").addEventListener("click", runSelectedJob);
 document.getElementById("test-device").addEventListener("click", testSelectedDevice);
 document.getElementById("command-input").addEventListener("keydown", (event) => {
@@ -126,6 +128,7 @@ bindSetting("daemonRole", document.getElementById("daemon-role"));
 bindSetting("artifacts", document.getElementById("outputs-input"));
 
 renderCapabilities();
+renderWorkerReadiness();
 renderTaskSuggestions();
 renderPlanPreview();
 renderRunControls();
@@ -187,6 +190,7 @@ async function refreshDevices() {
     renderDaemonCard();
     renderDevices();
     renderPairings();
+    renderWorkerReadiness();
     button.disabled = false;
     button.textContent = "Refresh";
     refreshInFlight = false;
@@ -227,6 +231,7 @@ async function startDaemon() {
     button.disabled = false;
     button.textContent = "Start";
     renderDaemonCard();
+    renderWorkerReadiness();
   }
 }
 
@@ -238,6 +243,80 @@ function renderDaemonCard() {
   button.disabled = state.startingDaemon;
   button.textContent = state.startingDaemon ? "Starting" : "Start";
   role.disabled = state.startingDaemon;
+}
+
+function renderWorkerReadiness() {
+  const summary = currentWorkerReadinessSummary();
+  const dot = document.getElementById("worker-readiness-dot");
+  const title = document.getElementById("worker-readiness-title");
+  const detail = document.getElementById("worker-readiness-detail");
+  const action = document.getElementById("worker-readiness-action");
+
+  dot.className = `readiness-dot ${summary.kind || ""}`;
+  title.textContent = summary.title || "Checking workers";
+  detail.textContent = summary.detail || "";
+  action.classList.toggle("hidden", !summary.actionLabel);
+  action.textContent = summary.actionLabel || "";
+  action.dataset.actionKind = summary.actionKind || "";
+  action.dataset.deviceId = summary.deviceID || "";
+  action.disabled = readinessActionDisabled(summary);
+}
+
+function currentWorkerReadinessSummary() {
+  return workerReadinessSummary({
+    daemonAvailable: state.daemonAvailable,
+    lanDiscovery: state.settings.lanDiscovery !== false,
+    devices: state.devices,
+    pairings: state.pairings,
+    selectedDeviceID: state.selectedDeviceID
+  });
+}
+
+async function performWorkerReadinessAction() {
+  const summary = currentWorkerReadinessSummary();
+  switch (summary.actionKind) {
+    case "start-daemon":
+      await startDaemon();
+      return;
+    case "test-worker":
+      await testSelectedDevice();
+      return;
+    case "connect-device": {
+      const device = state.devices.find((candidate) => candidate.id === summary.deviceID);
+      if (device) {
+        await connectDevice(device);
+      }
+      return;
+    }
+    case "refresh":
+      await refreshDevices();
+      return;
+    default:
+      return;
+  }
+}
+
+function readinessActionKey(summary) {
+  if (summary?.actionKind === "connect-device" && summary.deviceID) {
+    return `device:${summary.deviceID}`;
+  }
+  return "";
+}
+
+function readinessActionDisabled(summary) {
+  if (!summary?.actionKind) {
+    return true;
+  }
+  if (summary.actionKind === "start-daemon") {
+    return state.startingDaemon;
+  }
+  if (summary.actionKind === "test-worker") {
+    return runInFlight;
+  }
+  if (summary.actionKind === "refresh") {
+    return refreshInFlight;
+  }
+  return pendingActions.has(readinessActionKey(summary));
 }
 
 async function refreshLaunchAgentStatus() {
@@ -387,6 +466,7 @@ async function refreshDaemonStatusOnly({ button, error, status }) {
     renderDaemonCard();
     renderDevices();
     renderPairings();
+    renderWorkerReadiness();
     button.disabled = false;
     button.textContent = "Refresh";
     refreshInFlight = false;
@@ -832,6 +912,7 @@ function renderDevices() {
     list.append(row);
   });
   renderCapabilities();
+  renderWorkerReadiness();
   renderRunControls();
 }
 
@@ -995,6 +1076,7 @@ function renderPairings() {
     card.append(copy, actions);
     list.append(card);
   });
+  renderWorkerReadiness();
 }
 
 async function connectDevice(device) {
@@ -1046,6 +1128,7 @@ function recomputeDeviceTargets() {
   state.devices = mergeDevices([defaultLocalDevice()], remoteDevices);
   renderDevices();
   renderRunControls();
+  renderWorkerReadiness();
 }
 
 async function confirmPairing(pairing) {
@@ -1067,6 +1150,7 @@ async function performDeviceAction(key, action) {
   pendingActions.add(key);
   renderDevices();
   renderPairings();
+  renderWorkerReadiness();
   try {
     await action();
     error.classList.add("hidden");
@@ -1077,6 +1161,7 @@ async function performDeviceAction(key, action) {
     pendingActions.delete(key);
     renderDevices();
     renderPairings();
+    renderWorkerReadiness();
   }
 }
 
@@ -1199,6 +1284,7 @@ async function startPlannedJob(planned, selected) {
   state.currentRunID = null;
   button.disabled = true;
   button.textContent = "Starting";
+  renderWorkerReadiness();
   const jobRequest = jobStartRequestForPlan({
     plan: planned,
     device: selected,
@@ -1218,6 +1304,7 @@ async function startPlannedJob(planned, selected) {
     showJobOutput(error.message || "Run failed.", false);
     runInFlight = false;
     state.currentRunID = null;
+    renderWorkerReadiness();
     renderRunControls();
   }
 }
@@ -1452,6 +1539,7 @@ function handleJobEvent(event) {
     output.classList.toggle("failure", !event.ok);
     runInFlight = false;
     state.currentRunID = null;
+    renderWorkerReadiness();
     renderRunControls();
     void refreshJobs();
     maybeOfferOutputRestore(event);

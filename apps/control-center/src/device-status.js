@@ -160,6 +160,166 @@
     return "";
   }
 
+  function workerReadinessSummary(request = {}) {
+    const devices = Array.isArray(request.devices) ? request.devices : [];
+    const pairings = Array.isArray(request.pairings) ? request.pairings : [];
+    const selectedDeviceID = String(request.selectedDeviceID || "").trim();
+
+    if (request.daemonAvailable === false) {
+      return summary(
+        "daemon-off",
+        "ComputeHop is off",
+        "Start it to find workers and run tasks.",
+        "Start",
+        "start-daemon"
+      );
+    }
+
+    if (request.lanDiscovery === false) {
+      return summary(
+        "discovery-off",
+        "Nearby discovery off",
+        "Turn on discovery to find workers on this network.",
+        "Refresh",
+        "refresh"
+      );
+    }
+
+    const selected = devices.find((device) => device.id === selectedDeviceID);
+    if (isRunnableWorker(selected)) {
+      return summary(
+        "ready",
+        "Worker ready",
+        `${selected.name || "Selected worker"} can run tasks.`,
+        "Test",
+        "test-worker"
+      );
+    }
+
+    const connectedWorkers = devices.filter(isRunnableWorker);
+    if (connectedWorkers.length === 1) {
+      const worker = connectedWorkers[0];
+      return summary(
+        "ready",
+        "Worker ready",
+        `${worker.name || "A worker"} can run tasks.`,
+        "Test",
+        "test-worker",
+        worker.id
+      );
+    }
+    if (connectedWorkers.length > 1) {
+      return summary(
+        "choose-worker",
+        "Workers ready",
+        "Choose the computer you want to use.",
+        "",
+        ""
+      );
+    }
+
+    const waitingPairing = pairings.find((pairing) => pairing.state === "waiting");
+    if (waitingPairing) {
+      const peer = waitingPairing.peerName || "the other computer";
+      return summary(
+        "pairing",
+        "Pairing waiting",
+        waitingPairing.localConfirmed
+          ? `Waiting for ${peer}.`
+          : `Confirm the code for ${peer} below.`,
+        "",
+        ""
+      );
+    }
+
+    const nearbyWorkers = devices.filter(isPairableWorker);
+    if (nearbyWorkers.length === 1) {
+      const worker = nearbyWorkers[0];
+      return summary(
+        "nearby",
+        "Worker nearby",
+        `Connect to ${worker.name || "this worker"}.`,
+        "Connect",
+        "connect-device",
+        worker.id
+      );
+    }
+    if (nearbyWorkers.length > 1) {
+      return summary(
+        "nearby",
+        "Workers nearby",
+        "Choose one below to connect.",
+        "",
+        ""
+      );
+    }
+
+    const offlineWorkers = devices.filter(isOfflineTrustedWorker);
+    if (offlineWorkers.length > 0) {
+      const first = offlineWorkers[0];
+      return summary(
+        "offline",
+        "Worker offline",
+        `Open ComputeHop on ${first.name || "the worker"} or put both computers on the same network.`,
+        "Refresh",
+        "refresh"
+      );
+    }
+
+    return summary(
+      "none",
+      "No workers yet",
+      "Open ComputeHop on another computer on this network.",
+      "Refresh",
+      "refresh"
+    );
+  }
+
+  function isRunnableWorker(device = {}) {
+    return (
+      device &&
+      device.id !== "local" &&
+      device.id !== "auto" &&
+      device.role === "worker" &&
+      device.synced !== false &&
+      device.trustState === "paired" &&
+      availabilityLabel(device) === "Connected"
+    );
+  }
+
+  function isPairableWorker(device = {}) {
+    return (
+      device &&
+      device.id !== "local" &&
+      device.id !== "auto" &&
+      device.role === "worker" &&
+      availabilityLabel(device) === "Nearby" &&
+      (device.trustState === "unpaired" || device.connection === "not connected")
+    );
+  }
+
+  function isOfflineTrustedWorker(device = {}) {
+    return (
+      device &&
+      device.id !== "local" &&
+      device.id !== "auto" &&
+      device.role === "worker" &&
+      device.trustState === "paired" &&
+      availabilityLabel(device) === "Offline"
+    );
+  }
+
+  function summary(kind, title, detail, actionLabel, actionKind, deviceID = "") {
+    return {
+      kind,
+      title,
+      detail,
+      actionLabel,
+      actionKind,
+      deviceID
+    };
+  }
+
   return {
     availabilityLabel,
     connectionDetail,
@@ -168,6 +328,7 @@
     deviceLabel,
     deviceType,
     friendlyConnectionError,
-    isSyncManagedDevice
+    isSyncManagedDevice,
+    workerReadinessSummary
   };
 }));

@@ -151,6 +151,61 @@ small {
   font-weight: 720;
 }
 
+.readiness-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 13px;
+  min-height: 70px;
+  padding: 13px 14px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.065);
+}
+
+.readiness-dot {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--muted);
+  box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.06);
+}
+
+.readiness-dot.ready {
+  background: var(--green);
+  box-shadow: 0 0 0 5px rgba(112, 225, 123, 0.12);
+}
+
+.readiness-dot.nearby,
+.readiness-dot.pairing,
+.readiness-dot.choose-worker {
+  background: var(--orange);
+  box-shadow: 0 0 0 5px rgba(255, 196, 107, 0.12);
+}
+
+.readiness-dot.offline,
+.readiness-dot.daemon-off,
+.readiness-dot.discovery-off {
+  background: rgba(255, 255, 255, 0.38);
+}
+
+.readiness-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.readiness-copy strong,
+.readiness-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.readiness-copy strong {
+  font-size: 16px;
+  font-weight: 740;
+}
+
 .background-actions {
   display: flex;
   align-items: center;

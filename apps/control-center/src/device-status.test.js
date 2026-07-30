@@ -4,7 +4,8 @@ const {
   availabilityLabel,
   connectionPathLabel,
   deviceLabel,
-  friendlyConnectionError
+  friendlyConnectionError,
+  workerReadinessSummary
 } = require("./device-status");
 
 test("availabilityLabel does not mark offline trusted workers as nearby", () => {
@@ -65,3 +66,143 @@ test("friendlyConnectionError summarizes actionable offline reasons", () => {
   assert.equal(friendlyConnectionError("remote connectivity is disabled"), "remote access off");
   assert.equal(friendlyConnectionError("dial timeout"), "connection timed out");
 });
+
+test("workerReadinessSummary reports daemon and discovery blockers", () => {
+  assert.deepEqual(
+    workerReadinessSummary({ daemonAvailable: false }),
+    {
+      kind: "daemon-off",
+      title: "ComputeHop is off",
+      detail: "Start it to find workers and run tasks.",
+      actionLabel: "Start",
+      actionKind: "start-daemon",
+      deviceID: ""
+    }
+  );
+
+  assert.equal(workerReadinessSummary({ lanDiscovery: false }).kind, "discovery-off");
+});
+
+test("workerReadinessSummary reports ready workers", () => {
+  const worker = connectedWorker("Austin MacBook 2", "worker-1");
+
+  assert.deepEqual(
+    workerReadinessSummary({
+      daemonAvailable: true,
+      devices: [localDevice(), worker],
+      selectedDeviceID: "local"
+    }),
+    {
+      kind: "ready",
+      title: "Worker ready",
+      detail: "Austin MacBook 2 can run tasks.",
+      actionLabel: "Test",
+      actionKind: "test-worker",
+      deviceID: "worker-1"
+    }
+  );
+
+  assert.equal(
+    workerReadinessSummary({
+      daemonAvailable: true,
+      devices: [localDevice(), connectedWorker("Gaming PC", "worker-2")],
+      selectedDeviceID: "worker-2"
+    }).deviceID,
+    ""
+  );
+
+  assert.equal(
+    workerReadinessSummary({
+      daemonAvailable: true,
+      devices: [localDevice(), worker, connectedWorker("Gaming PC", "worker-2")]
+    }).kind,
+    "choose-worker"
+  );
+});
+
+test("workerReadinessSummary reports pairing and nearby workers", () => {
+  assert.deepEqual(
+    workerReadinessSummary({
+      daemonAvailable: true,
+      devices: [localDevice()],
+      pairings: [{
+        peerName: "Gaming PC",
+        state: "waiting",
+        localConfirmed: false
+      }]
+    }),
+    {
+      kind: "pairing",
+      title: "Pairing waiting",
+      detail: "Confirm the code for Gaming PC below.",
+      actionLabel: "",
+      actionKind: "",
+      deviceID: ""
+    }
+  );
+
+  assert.deepEqual(
+    workerReadinessSummary({
+      daemonAvailable: true,
+      devices: [localDevice(), nearbyWorker("Home Server", "presence-1")]
+    }),
+    {
+      kind: "nearby",
+      title: "Worker nearby",
+      detail: "Connect to Home Server.",
+      actionLabel: "Connect",
+      actionKind: "connect-device",
+      deviceID: "presence-1"
+    }
+  );
+});
+
+test("workerReadinessSummary reports offline and empty worker states", () => {
+  assert.equal(
+    workerReadinessSummary({
+      daemonAvailable: true,
+      devices: [localDevice(), { ...connectedWorker("Gaming PC", "worker-1"), availability: "offline", connection: "not connected" }]
+    }).kind,
+    "offline"
+  );
+
+  assert.equal(
+    workerReadinessSummary({
+      daemonAvailable: true,
+      devices: [localDevice()]
+    }).kind,
+    "none"
+  );
+});
+
+function localDevice() {
+  return {
+    id: "local",
+    name: "This Mac",
+    role: "orchestrator",
+    connection: "active",
+    availability: "local"
+  };
+}
+
+function connectedWorker(name, id) {
+  return {
+    id,
+    name,
+    role: "worker",
+    trustState: "paired",
+    connection: "active",
+    availability: "remote"
+  };
+}
+
+function nearbyWorker(name, id) {
+  return {
+    id,
+    name,
+    role: "worker",
+    trustState: "unpaired",
+    connection: "not connected",
+    availability: "nearby"
+  };
+}
