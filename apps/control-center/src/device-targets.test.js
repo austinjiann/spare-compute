@@ -4,7 +4,8 @@ const {
   addAutomaticWorkerTarget,
   automaticWorkerID,
   concreteDeviceID,
-  isSingleAutoCandidate
+  isSingleAutoCandidate,
+  singleConnectedWorkerTarget
 } = require("./device-targets");
 
 test("addAutomaticWorkerTarget inserts Auto worker for exactly one connected worker", () => {
@@ -102,6 +103,27 @@ test("concreteDeviceID resolves Auto worker to its backing worker", () => {
   assert.equal(concreteDeviceID({ id: automaticWorkerID }), automaticWorkerID);
   assert.equal(concreteDeviceID(connectedWorker("Worker", "worker-1")), "worker-1");
   assert.equal(concreteDeviceID(null), "local");
+});
+
+test("singleConnectedWorkerTarget returns an automatic target only when unambiguous", () => {
+  const single = singleConnectedWorkerTarget([
+    localDevice(),
+    connectedWorker("Austin MacBook 2", "worker-1")
+  ]);
+
+  assert.equal(single.id, automaticWorkerID);
+  assert.equal(single.workerID, "worker-1");
+  assert.equal(single.workerName, "Austin MacBook 2");
+
+  assert.equal(singleConnectedWorkerTarget([
+    localDevice(),
+    connectedWorker("Austin MacBook 2", "worker-1"),
+    connectedWorker("Gaming PC", "worker-2")
+  ]), null);
+  assert.equal(singleConnectedWorkerTarget([
+    localDevice(),
+    { ...connectedWorker("Offline worker", "worker-1"), availability: "offline" }
+  ]), null);
 });
 
 function localDevice() {

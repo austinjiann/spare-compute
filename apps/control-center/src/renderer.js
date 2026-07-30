@@ -53,7 +53,11 @@ let refreshInFlight = false;
 let jobsRefreshInFlight = false;
 let runInFlight = false;
 const pendingActions = new Set();
-const { addAutomaticWorkerTarget, concreteDeviceID } = window.computeHopDeviceTargets;
+const {
+  addAutomaticWorkerTarget,
+  concreteDeviceID,
+  singleConnectedWorkerTarget
+} = window.computeHopDeviceTargets;
 const {
   availabilityLabel,
   deviceKind,
@@ -1166,12 +1170,12 @@ async function testSelectedDevice() {
     return;
   }
 
-  const selected = selectedDevice();
+  const selected = smokeTestDevice();
   const planned = {
     source: "test connection",
     title: "Test connection",
     command: "hostname",
-    detail: "Runs on the selected computer and prints its hostname.",
+    detail: smokeTestDetail(selected),
     requiresProject: false,
     projectRoot: "",
     ignoreDeclaredOutputs: true
@@ -1490,6 +1494,7 @@ function renderRunControls() {
   const runButton = document.getElementById("run-job");
   const testButton = document.getElementById("test-device");
   const task = document.getElementById("command-input").value.trim();
+  const testTarget = smokeTestDevice(selected);
 
   target.textContent = runTargetLabel(selected);
   projectLabel.textContent = state.settings.projectRoot
@@ -1503,9 +1508,34 @@ function renderRunControls() {
   } else {
     runButton.textContent = "Run";
   }
-  testButton.textContent = selected && selected.id === "local" ? "Test Mac" : "Test worker";
-  testButton.disabled = runInFlight || !state.daemonAvailable || !selected || !canRunOn(selected);
+  testButton.textContent = testTarget && testTarget.id !== "local" ? "Test worker" : "Test Mac";
+  testButton.title = smokeTestTitle(testTarget);
+  testButton.disabled = runInFlight || !state.daemonAvailable || !testTarget || !canRunOn(testTarget);
   runButton.disabled = !runInFlight && (!state.daemonAvailable || !selected || !canRunOn(selected));
+}
+
+function smokeTestDevice(selected = selectedDevice()) {
+  if (selected && selected.id !== "local" && canRunOn(selected)) {
+    return selected;
+  }
+  return singleConnectedWorkerTarget(state.devices) || selected;
+}
+
+function smokeTestDetail(device) {
+  if (device && device.id !== "local") {
+    return `Runs on ${device.workerName || device.name || "the worker"} and prints its hostname.`;
+  }
+  return "Runs on this Mac and prints its hostname.";
+}
+
+function smokeTestTitle(device) {
+  if (!device || !canRunOn(device)) {
+    return "Start ComputeHop and connect a worker first.";
+  }
+  if (device.id !== "local") {
+    return `Run a quick hostname test on ${device.workerName || device.name || "the worker"}.`;
+  }
+  return "Run a quick hostname test on this Mac.";
 }
 
 function jobsUnavailableMessage(device) {
