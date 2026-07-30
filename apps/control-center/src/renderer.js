@@ -86,6 +86,13 @@ const {
   shouldOfferOutputRestore
 } = window.computeHopOutputRestore;
 const {
+  pendingPairingRunMatchesTarget,
+  pendingPairingRunTarget,
+  pendingRunAfterPairing,
+  runControlCanRecover: canRecoverRunControl,
+  workerTargetActionRequest: recoveryWorkerTargetActionRequest
+} = window.computeHopRunRecovery;
+const {
   initialRunMessage,
   runSummaryLines
 } = window.computeHopRunSummary;
@@ -1394,26 +1401,7 @@ async function testSelectedDevice() {
 }
 
 function rememberPendingRunAfterPairing(plan, worker) {
-  state.pendingRunAfterPairing = {
-    plan,
-    workerID: concreteDeviceID(worker),
-    task: plan?.source || plan?.title || plan?.command || "this task"
-  };
-}
-
-function pendingPairingRunTarget(pending = state.pendingRunAfterPairing) {
-  if (!pending?.workerID) {
-    return null;
-  }
-  return (
-    workerRunTargetForAction(state.devices, pending.workerID) ||
-    state.devices.find((device) => concreteDeviceID(device) === pending.workerID && canRunOn(device)) ||
-    null
-  );
-}
-
-function pendingPairingRunMatchesTarget(pending, target) {
-  return Boolean(pending?.workerID && target && concreteDeviceID(target) === pending.workerID);
+  state.pendingRunAfterPairing = pendingRunAfterPairing(plan, worker);
 }
 
 async function resumePendingRunAfterPairing(target = null) {
@@ -1423,7 +1411,7 @@ async function resumePendingRunAfterPairing(target = null) {
   }
   const runTarget = pendingPairingRunMatchesTarget(pending, target)
     ? target
-    : pendingPairingRunTarget(pending);
+    : pendingPairingRunTarget(pending, state.devices, { isRunnable: canRunOn });
   if (!runTarget || !canRunOn(runTarget)) {
     return;
   }
@@ -1933,18 +1921,7 @@ function currentRunControlBlocker(selected = selectedDevice()) {
 }
 
 function workerTargetActionRequest(plan) {
-  if (String(plan?.targetPreference || "").trim() !== "worker") {
-    return {};
-  }
-  const pairable = state.devices.filter(isPairable);
-  if (pairable.length !== 1) {
-    return {};
-  }
-  return {
-    workerTargetActionKind: "connect-device",
-    workerTargetActionLabel: "Connect",
-    workerTargetDeviceID: pairable[0].id
-  };
+  return recoveryWorkerTargetActionRequest(plan, state.devices, { isPairable });
 }
 
 function runControlBlockerDisablesRun(blocker) {
@@ -1952,17 +1929,10 @@ function runControlBlockerDisablesRun(blocker) {
 }
 
 function runControlCanRecover(blocker) {
-  if (!blocker?.message) {
-    return false;
-  }
-  if (blocker.actionKind === "choose-project") {
-    return true;
-  }
-  if (blocker.actionKind === "connect-device") {
-    const target = runStatusActionDevice(blocker);
-    return Boolean(target && isPairable(target));
-  }
-  return false;
+  return canRecoverRunControl(blocker, {
+    actionDevice: runStatusActionDevice(blocker),
+    isPairable
+  });
 }
 
 function runStatusActionDisabled(blocker) {
