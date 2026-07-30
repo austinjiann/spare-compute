@@ -26,6 +26,9 @@ const state = {
   startingDaemon: false,
   loadingJobs: false,
   loadingLogs: false,
+  runtimeLoaded: false,
+  settingsHydrated: false,
+  autoStartAttempted: false,
   aiPlannerStatus: {
     configured: false,
     source: "",
@@ -39,6 +42,7 @@ let jobsRefreshInFlight = false;
 let runInFlight = false;
 const pendingActions = new Set();
 const { addAutomaticWorkerTarget, concreteDeviceID } = window.computeHopDeviceTargets;
+const { shouldAutoStartDaemon } = window.computeHopDaemonAutostart;
 const { disallowedWorkMessage, filterAllowedSuggestions } = window.computeHopWorkPolicy;
 const {
   jobOutputsForPlan,
@@ -168,6 +172,7 @@ async function refreshDevices() {
     if (state.daemonAvailable) {
       void refreshJobs();
     }
+    maybeAutoStartDaemon();
   }
 }
 
@@ -229,6 +234,9 @@ async function loadAppInfo() {
     applyDaemonRoleOptions();
   } catch {
     applyDaemonRoleOptions();
+  } finally {
+    state.runtimeLoaded = true;
+    maybeAutoStartDaemon();
   }
 }
 
@@ -1260,6 +1268,8 @@ function bindSetting(key, input) {
 
 async function hydrateSettings() {
   if (!window.computeHop.loadSettings) {
+    state.settingsHydrated = true;
+    maybeAutoStartDaemon();
     return;
   }
 
@@ -1278,7 +1288,18 @@ async function hydrateSettings() {
   } catch {
     // Keep the localStorage/default bootstrap settings if app-side settings
     // cannot be read. Saves still retry through the normal save path.
+  } finally {
+    state.settingsHydrated = true;
+    maybeAutoStartDaemon();
   }
+}
+
+function maybeAutoStartDaemon() {
+  if (!shouldAutoStartDaemon(state)) {
+    return;
+  }
+  state.autoStartAttempted = true;
+  void startDaemon();
 }
 
 function renderSettingsControls() {
