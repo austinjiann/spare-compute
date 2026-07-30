@@ -14,17 +14,16 @@ npm run dev
 
 Current scope:
 
-- reads devices from `computehop devices` when the CLI is installed;
-- falls back to `go run ./cmd/computehop devices` from the repo during local dev;
-- runs selected commands through `computehop run --follow`;
-- streams stdout/stderr into the window while the command is running;
-- lets the user cancel the durable job when its submitted job ID has been
-  observed, falling back to stopping the local follow process;
+- connects directly to the local ComputeHop daemon over the owner-only local IPC
+  socket;
+- reads trusted and nearby devices from the daemon;
+- submits selected commands as durable native jobs;
+- polls daemon job logs and streams stdout/stderr into the window;
+- cancels running jobs through daemon IPC;
 - targets This Mac by default, or a selected connected worker;
-- uses `--no-project` for remote utility commands until a project folder is
+- skips project sync for remote utility commands until a project folder is
   selected;
 - stores UI-only settings in browser local storage for now.
 
-Next step: replace CLI shell-out with daemon-native IPC for device discovery,
-job submission, cancellation, log streaming, project selection, and persisted
-settings.
+Next step: add a real planner that can turn plain-language tasks into a preview
+of safe commands before submission.

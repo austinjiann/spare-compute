@@ -7,9 +7,13 @@
   "scripts": {
     "dev": "electron .",
     "start": "electron .",
-    "lint": "node --check src/main.js && node --check src/preload.js && node --check src/renderer.js"
+    "lint": "node --check src/main.js && node --check src/preload.js && node --check src/renderer.js && node --check src/local-daemon.js",
+    "test": "node --test src/*.test.js"
   },
   "devDependencies": {
     "electron": "^43.2.0"
+  },
+  "dependencies": {
+    "protobufjs": "^8.7.1"
   }
 }
