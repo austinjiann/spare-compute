@@ -128,12 +128,22 @@ func TestBuildResolvesProjectAppliesNestedIgnoreRulesAndStoresChunks(t *testing.
 	root := t.TempDir()
 	writeSnapshotTestFile(t, filepath.Join(root, ".git", "config"), []byte("ignored"), 0o644)
 	writeSnapshotTestFile(t, filepath.Join(root, ".gitignore"), []byte("*.tmp\nbuild/\n!keep.tmp\n!.git/\n!.computehop-results/\n!.computehop-conflicts/\n"), 0o644)
-	writeSnapshotTestFile(t, filepath.Join(root, ".computehopignore"), []byte("!special.tmp\nprivate.txt\n"), 0o644)
+	writeSnapshotTestFile(t, filepath.Join(root, ".computehopignore"), []byte("!special.tmp\n!.env.example\nprivate.txt\n"), 0o644)
+	writeSnapshotTestFile(t, filepath.Join(root, ".env"), []byte("drop"), 0o600)
+	writeSnapshotTestFile(t, filepath.Join(root, ".env.local"), []byte("drop"), 0o600)
+	writeSnapshotTestFile(t, filepath.Join(root, ".env.example"), []byte("keep"), 0o644)
+	writeSnapshotTestFile(t, filepath.Join(root, ".npmrc"), []byte("drop"), 0o600)
+	writeSnapshotTestFile(t, filepath.Join(root, ".ssh", "id_ed25519"), []byte("drop"), 0o600)
+	writeSnapshotTestFile(t, filepath.Join(root, ".cache", "tool", "state"), []byte("drop"), 0o644)
 	writeSnapshotTestFile(t, filepath.Join(root, "go.mod"), []byte("module example.test/project\n"), 0o644)
 	writeSnapshotTestFile(t, filepath.Join(root, "keep.tmp"), []byte("keep"), 0o644)
 	writeSnapshotTestFile(t, filepath.Join(root, "special.tmp"), []byte("keep"), 0o644)
 	writeSnapshotTestFile(t, filepath.Join(root, "private.txt"), []byte("drop"), 0o644)
 	writeSnapshotTestFile(t, filepath.Join(root, "drop.tmp"), []byte("drop"), 0o644)
+	writeSnapshotTestFile(t, filepath.Join(root, "deploy.pem"), []byte("drop"), 0o600)
+	writeSnapshotTestFile(t, filepath.Join(root, "node_modules", "pkg", "index.js"), []byte("drop"), 0o644)
+	writeSnapshotTestFile(t, filepath.Join(root, "target", "debug", "app"), []byte("drop"), 0o755)
+	writeSnapshotTestFile(t, filepath.Join(root, ".venv", "bin", "python"), []byte("drop"), 0o755)
 	writeSnapshotTestFile(t, filepath.Join(root, "build", "binary"), []byte("drop"), 0o755)
 	writeSnapshotTestFile(t, filepath.Join(root, "build", ".gitignore"), bytes.Repeat([]byte("x"), maximumIgnoreBytes+1), 0o644)
 	writeSnapshotTestFile(t, filepath.Join(root, ".computehop-results", "secret"), []byte("drop"), 0o644)
@@ -154,7 +164,7 @@ func TestBuildResolvesProjectAppliesNestedIgnoreRulesAndStoresChunks(t *testing.
 	if result.Root != wantRoot || result.WorkingSubdirectory != "cmd/app" {
 		t.Fatalf("result root = %q, subdirectory = %q", result.Root, result.WorkingSubdirectory)
 	}
-	want := []string{".computehopignore", ".gitignore", "cmd/.gitignore", "cmd/app/main.go", "go.mod", "keep.tmp", "special.tmp"}
+	want := []string{".computehopignore", ".env.example", ".gitignore", "cmd/.gitignore", "cmd/app/main.go", "go.mod", "keep.tmp", "special.tmp"}
 	if len(result.Manifest.Files) != len(want) {
 		t.Fatalf("files = %#v", result.Manifest.Files)
 	}
@@ -163,8 +173,8 @@ func TestBuildResolvesProjectAppliesNestedIgnoreRulesAndStoresChunks(t *testing.
 			t.Fatalf("file %d = %q, want %q", index, result.Manifest.Files[index].Path, name)
 		}
 	}
-	if runtime.GOOS != "windows" && result.Manifest.Files[3].Mode != 0o755 {
-		t.Fatalf("executable mode = %#o", result.Manifest.Files[3].Mode)
+	if runtime.GOOS != "windows" && result.Manifest.Files[4].Mode != 0o755 {
+		t.Fatalf("executable mode = %#o", result.Manifest.Files[4].Mode)
 	}
 	for _, digest := range result.Manifest.Digests() {
 		if _, ok := store.contents[digest]; !ok {

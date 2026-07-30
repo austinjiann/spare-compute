@@ -42,6 +42,9 @@ go run ./cmd/computehop run --on auto --no-project --follow hostname
 Project work is also supported. ComputeHop snapshots the selected folder,
 uploads missing chunks to the worker, runs from an isolated worker workspace,
 and can restore declared outputs.
+Snapshots respect `.gitignore`/`.computehopignore` and skip common local
+secrets, dependency folders, and caches by default; use `.computehopignore`
+negations only for deliberate exceptions such as `.env.example`.
 
 ```bash
 go run ./cmd/computehop run --on auto -C . --follow go test ./...
