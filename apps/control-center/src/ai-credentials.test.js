@@ -139,6 +139,35 @@ test("credentialsStatus prefers app credentials and falls back to environment", 
   });
 });
 
+test("credentialsStatus reports the same model precedence used by planner config", () => {
+  assert.deepEqual(credentialsStatus({
+    configured: false,
+    model: "gpt-app"
+  }, {
+    OPENAI_API_KEY: "sk-env",
+    OPENAI_MODEL: "gpt-env"
+  }), {
+    configured: true,
+    source: "environment",
+    encrypted: false,
+    model: "gpt-app"
+  });
+
+  assert.deepEqual(credentialsStatus({
+    configured: true,
+    encrypted: true,
+    model: "",
+    source: "app"
+  }, {
+    COMPUTEHOP_OPENAI_MODEL: "gpt-env"
+  }), {
+    configured: true,
+    source: "app",
+    encrypted: true,
+    model: "gpt-env"
+  });
+});
+
 test("plannerConfigFromCredentials builds the OpenAI planner config", () => {
   assert.deepEqual(plannerConfigFromCredentials({
     openAIAPIKey: "sk-app",

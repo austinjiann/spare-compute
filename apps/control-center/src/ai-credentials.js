@@ -63,12 +63,13 @@ async function clearAIPlannerCredentials(options = {}) {
 }
 
 function credentialsStatus(credentials = {}, env = process.env) {
+  const model = configuredModel(credentials, env);
   if (credentials.configured) {
     return {
       configured: true,
       source: credentials.source || "app",
       encrypted: Boolean(credentials.encrypted),
-      model: cleanString(credentials.model)
+      model
     };
   }
   if (cleanString(env.OPENAI_API_KEY)) {
@@ -76,14 +77,14 @@ function credentialsStatus(credentials = {}, env = process.env) {
       configured: true,
       source: "environment",
       encrypted: false,
-      model: cleanString(env.COMPUTEHOP_OPENAI_MODEL || env.OPENAI_MODEL)
+      model
     };
   }
   return {
     configured: false,
     source: "",
     encrypted: false,
-    model: cleanString(credentials.model || env.COMPUTEHOP_OPENAI_MODEL || env.OPENAI_MODEL)
+    model
   };
 }
 
@@ -94,8 +95,12 @@ function plannerConfigFromCredentials(credentials = {}, env = process.env) {
     configured: Boolean(appKey || envKey),
     apiKey: appKey || envKey,
     baseURL: cleanBaseURL(env.OPENAI_BASE_URL || "https://api.openai.com/v1"),
-    model: cleanString(credentials.model || env.COMPUTEHOP_OPENAI_MODEL || env.OPENAI_MODEL) || "gpt-5.6"
+    model: configuredModel(credentials, env) || "gpt-5.6"
   };
+}
+
+function configuredModel(credentials = {}, env = process.env) {
+  return cleanString(credentials.model || env.COMPUTEHOP_OPENAI_MODEL || env.OPENAI_MODEL);
 }
 
 function encryptSecret(value, safeStorage) {
