@@ -53,6 +53,8 @@ Current scope:
   "check CI" into one safe command using local project rules;
 - maps lint/style requests to conventional Go, Rust, or Python quality commands
   when no package script or Makefile target exists;
+- maps Docker/Compose build requests to `docker build .` or
+  `docker compose build` when matching project files are present;
 - previews the exact command before running when Preview before running is
   enabled;
 - runs a one-click connection test on the selected computer without requiring a

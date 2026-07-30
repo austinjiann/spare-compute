@@ -74,6 +74,47 @@ test("planTask falls back to language lint commands", async (t) => {
   assert.equal(python.plan.requiresProject, true);
 });
 
+test("planTask maps Docker build requests", async (t) => {
+  const project = await tempProject(t, {
+    Dockerfile: "FROM alpine\n"
+  });
+
+  const result = await planTask({ task: "build docker image", projectRoot: project });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.plan.command, "docker build .");
+  assert.equal(result.plan.requiresProject, true);
+  assert.deepEqual(result.plan.detected, ["Docker"]);
+});
+
+test("planTask maps Compose build requests", async (t) => {
+  const project = await tempProject(t, {
+    "compose.yaml": "services:\n  app:\n    build: .\n"
+  });
+
+  const result = await planTask({ task: "build containers", projectRoot: project });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.plan.command, "docker compose build");
+  assert.equal(result.plan.requiresProject, true);
+  assert.deepEqual(result.plan.detected, ["Compose"]);
+});
+
+test("planTask lets explicit Docker build requests override package scripts", async (t) => {
+  const project = await tempProject(t, {
+    "package.json": JSON.stringify({ scripts: { build: "vite build" } }),
+    Dockerfile: "FROM alpine\n"
+  });
+
+  const appBuild = await planTask({ task: "build the app", projectRoot: project });
+  const dockerBuild = await planTask({ task: "build docker image", projectRoot: project });
+
+  assert.equal(appBuild.ok, true);
+  assert.equal(appBuild.plan.command, "npm run build");
+  assert.equal(dockerBuild.ok, true);
+  assert.equal(dockerBuild.plan.command, "docker build .");
+});
+
 test("planTask preserves exact commands", async () => {
   const result = await planTask({ task: "go test ./...", projectRoot: "" });
 

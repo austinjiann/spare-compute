@@ -73,6 +73,12 @@ async function inspectProject(projectRoot) {
       "Cargo.toml",
       "pyproject.toml",
       "pytest.ini",
+      "Dockerfile",
+      "dockerfile",
+      "compose.yaml",
+      "compose.yml",
+      "docker-compose.yaml",
+      "docker-compose.yml",
       "Makefile",
       "makefile"
     ].map(async (name) => [name, await fileExists(path.join(root, name))])
@@ -118,7 +124,12 @@ function chooseCommand(intent, profile) {
   if (intent === "build") {
     return script(profile, "build", "Build project", "Use the package's build script.")
       || makeTarget(profile, "build", "Build project", "Use the repo's build target.")
-      || commandForBuild(profile);
+      || commandForBuild(profile)
+      || commandForDockerBuild(profile);
+  }
+
+  if (intent === "docker-build") {
+    return commandForDockerBuild(profile);
   }
 
   if (intent === "lint") {
@@ -180,6 +191,26 @@ function commandForBuild(profile) {
   return null;
 }
 
+function commandForDockerBuild(profile) {
+  if (hasComposeFile(profile)) {
+    return {
+      title: "Build containers",
+      command: "docker compose build",
+      detail: "Detected a Compose file.",
+      requiresProject: true
+    };
+  }
+  if (hasDockerfile(profile)) {
+    return {
+      title: "Build Docker image",
+      command: "docker build .",
+      detail: "Detected a Dockerfile.",
+      requiresProject: true
+    };
+  }
+  return null;
+}
+
 function commandForLint(profile) {
   if (profile.files["go.mod"]) {
     return { title: "Vet Go project", command: "go vet ./...", detail: "Detected go.mod.", requiresProject: true };
@@ -218,7 +249,7 @@ function makeTarget(profile, name, title, detail) {
 }
 
 function projectIntent(intent) {
-  return ["ci", "test", "build", "lint", "install"].includes(intent);
+  return ["ci", "test", "build", "docker-build", "lint", "install"].includes(intent);
 }
 
 function commandNeedsProject(command) {
@@ -241,6 +272,9 @@ function classifyIntent(task) {
   const value = task.toLowerCase();
   if (looksLikeCommand(task)) {
     return "exact";
+  }
+  if (/\b(docker|container|containers|compose)\b/.test(value) && /\b(build|image|images)\b/.test(value)) {
+    return "docker-build";
   }
   if (/\b(lint|format|fmt|style)\b/.test(value)) {
     return "lint";
@@ -289,6 +323,19 @@ function packageManager(files) {
     return "bun";
   }
   return "npm";
+}
+
+function hasDockerfile(profile) {
+  return Boolean(profile.files.Dockerfile || profile.files.dockerfile);
+}
+
+function hasComposeFile(profile) {
+  return Boolean(
+    profile.files["compose.yaml"] ||
+    profile.files["compose.yml"] ||
+    profile.files["docker-compose.yaml"] ||
+    profile.files["docker-compose.yml"]
+  );
 }
 
 function parseMakeTargets(contents) {
@@ -341,6 +388,12 @@ function detectedLabels(profile) {
   }
   if (profile.files["pyproject.toml"] || profile.files["pytest.ini"]) {
     labels.push("Python");
+  }
+  if (hasDockerfile(profile)) {
+    labels.push("Docker");
+  }
+  if (hasComposeFile(profile)) {
+    labels.push("Compose");
   }
   if (profile.makeTargets.length > 0) {
     labels.push("Makefile");
