@@ -459,6 +459,38 @@ func planRequestedTaskPrefersProjectCheckTargetForCI() throws {
 
 @Test
 @MainActor
+func submitPlannedProjectCheckUsesSelectedWorkerAndProject() async throws {
+    let projectURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("computehop-plan-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: projectURL, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: projectURL) }
+    try "pr-check:\n\tgo test ./...\n".write(
+        to: projectURL.appendingPathComponent("Makefile"),
+        atomically: true,
+        encoding: .utf8
+    )
+
+    let worker = runTargetDevice(id: "worker-id", name: "Gaming PC")
+    let client = RecordingDaemonClient(devices: [worker])
+    let model = AppModel(client: client)
+    model.daemon = daemonSummary()
+    model.devices = [worker]
+    model.selectDevice(worker)
+    model.workingDirectory = projectURL.path
+    model.taskRequestInput = "run project checks"
+
+    await model.submitPlannedTask()
+
+    #expect(await client.lastSubmittedSelector() == "worker-id")
+    #expect(await client.lastSubmittedWorkingDirectory() == projectURL.path)
+    #expect(await client.lastSubmittedExecutable() == "sh")
+    #expect(await client.lastSubmittedArguments() == ["-lc", "set -e\nmake pr-check"])
+    #expect(model.jobs.first?.target == "Gaming PC")
+    #expect(model.lastError == nil)
+}
+
+@Test
+@MainActor
 func planRequestedTaskUsesPackageManagerScripts() throws {
     let projectURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("computehop-plan-\(UUID().uuidString)")
