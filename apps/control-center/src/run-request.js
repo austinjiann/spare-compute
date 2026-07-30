@@ -99,8 +99,9 @@
     if (cleanString(plan.targetPreference) === "worker" && deviceID === "local") {
       return block(
         "This task was asked to run on another computer. Connect a worker or choose a worker from Devices first.",
-        "refresh",
-        "Refresh"
+        cleanString(request.workerTargetActionKind) || "refresh",
+        cleanString(request.workerTargetActionLabel) || "Refresh",
+        cleanString(request.workerTargetDeviceID)
       );
     }
     if (cleanString(plan.targetPreference) === "local" && deviceID !== "local") {
@@ -234,12 +235,17 @@
     return id && id !== "local" && id !== "auto" && cleanString(device.role) === "worker";
   }
 
-  function block(message, actionKind = "", actionLabel = "") {
-    return {
+  function block(message, actionKind = "", actionLabel = "", deviceID = "") {
+    const result = {
       message: cleanString(message),
       actionKind: cleanString(actionKind),
       actionLabel: cleanString(actionLabel)
     };
+    const targetDeviceID = cleanString(deviceID);
+    if (targetDeviceID) {
+      result.deviceID = targetDeviceID;
+    }
+    return result;
   }
 
   function normalizeOutputs(outputs) {

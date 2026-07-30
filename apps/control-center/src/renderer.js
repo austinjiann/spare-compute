@@ -1440,6 +1440,7 @@ function validateRunReadiness(selected, planned, outputs = []) {
     plan: planned,
     projectRoot: state.settings.projectRoot,
     outputs,
+    ...workerTargetActionRequest(planned),
     policyError,
     policyActionKind: policyError ? "advanced" : "",
     policyActionLabel: policyError ? "Open Advanced" : ""
@@ -1844,6 +1845,7 @@ function renderRunControls() {
   statusAction.classList.toggle("hidden", !blocker.actionLabel);
   statusAction.textContent = blocker.actionLabel || "";
   statusAction.dataset.actionKind = blocker.actionKind || "";
+  statusAction.dataset.deviceId = blocker.deviceID || "";
   statusAction.disabled = runStatusActionDisabled(blocker);
 }
 
@@ -1859,8 +1861,24 @@ function currentRunControlBlocker(selected = selectedDevice()) {
     },
     projectRoot: state.settings.projectRoot,
     outputs: planned ? currentOutputDeclarations() : [],
+    ...workerTargetActionRequest(planned),
     ...policyBlockerRequest(selected, planned)
   });
+}
+
+function workerTargetActionRequest(plan) {
+  if (String(plan?.targetPreference || "").trim() !== "worker") {
+    return {};
+  }
+  const pairable = state.devices.filter(isPairable);
+  if (pairable.length !== 1) {
+    return {};
+  }
+  return {
+    workerTargetActionKind: "connect-device",
+    workerTargetActionLabel: "Connect",
+    workerTargetDeviceID: pairable[0].id
+  };
 }
 
 function runControlBlockerDisablesRun(blocker) {
@@ -1877,9 +1895,9 @@ function runStatusActionDisabled(blocker) {
   if (blocker.actionKind === "refresh") {
     return refreshInFlight;
   }
-  const selected = selectedDevice();
-  if ((blocker.actionKind === "connect-device" || blocker.actionKind === "enable-device") && selected) {
-    return pendingActions.has(`device:${selected.id}`);
+  const target = runStatusActionDevice(blocker);
+  if ((blocker.actionKind === "connect-device" || blocker.actionKind === "enable-device") && target) {
+    return pendingActions.has(`device:${target.id}`);
   }
   if (blocker.actionKind === "advanced") {
     return false;
@@ -1887,9 +1905,17 @@ function runStatusActionDisabled(blocker) {
   return false;
 }
 
+function runStatusActionDevice(blocker) {
+  const deviceID = String(blocker?.deviceID || "").trim();
+  if (deviceID) {
+    return state.devices.find((candidate) => candidate.id === deviceID) || null;
+  }
+  return selectedDevice();
+}
+
 async function performRunStatusAction() {
   const blocker = currentRunControlBlocker();
-  const selected = selectedDevice();
+  const target = runStatusActionDevice(blocker);
   switch (blocker.actionKind) {
     case "start-daemon":
       await startDaemon();
@@ -1898,13 +1924,13 @@ async function performRunStatusAction() {
       await refreshDevices();
       return;
     case "connect-device":
-      if (selected && isPairable(selected)) {
-        await connectDevice(selected);
+      if (target && isPairable(target)) {
+        await connectDevice(target);
       }
       return;
     case "enable-device":
-      if (selected) {
-        setDeviceSync(selected, true);
+      if (target) {
+        setDeviceSync(target, true);
       }
       return;
     case "choose-project":

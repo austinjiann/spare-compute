@@ -338,6 +338,26 @@ test("runReadinessBlocker prevents worker-targeted plans from running locally", 
   );
 });
 
+test("runReadinessBlocker can point worker-targeted local runs at a nearby worker", () => {
+  assert.deepEqual(
+    runReadinessBlocker({
+      device: { id: "local", name: "This Mac" },
+      canRun: true,
+      plan: { command: "go test ./...", requiresProject: true, targetPreference: "worker" },
+      projectRoot: "/project",
+      workerTargetActionKind: "connect-device",
+      workerTargetActionLabel: "Connect",
+      workerTargetDeviceID: "worker-1"
+    }),
+    {
+      message: "This task was asked to run on another computer. Connect a worker or choose a worker from Devices first.",
+      actionKind: "connect-device",
+      actionLabel: "Connect",
+      deviceID: "worker-1"
+    }
+  );
+});
+
 test("runReadinessBlocker prevents local-targeted plans from running remotely", () => {
   assert.equal(
     runReadinessError({
