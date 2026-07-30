@@ -10,7 +10,7 @@ struct PairingSection: View {
     var body: some View {
         if !activePairings.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Pair")
+                Text("Connect")
                     .font(.headline)
                 ForEach(activePairings) { pairing in
                     HStack(spacing: 8) {
@@ -20,6 +20,10 @@ struct PairingSection: View {
                             Text(pairing.verificationCode)
                                 .font(.system(.caption, design: .monospaced, weight: .semibold))
                                 .textSelection(.enabled)
+                            Text(pairing.instructionText)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
                         }
                         Spacer(minLength: 6)
                         HStack(spacing: 6) {
@@ -27,7 +31,7 @@ struct PairingSection: View {
                                 Task { await model.reject(pairing) }
                             }
                             if pairing.needsLocalConfirmation {
-                                Button("Match") {
+                                Button(pairing.confirmActionTitle) {
                                     Task { await model.confirm(pairing) }
                                 }
                                 .buttonStyle(.borderedProminent)

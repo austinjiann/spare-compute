@@ -446,6 +446,8 @@ struct PairingSummary: Identifiable, Sendable {
         "This device: \(confirmationLabel(localConfirmed)) · Other device: \(confirmationLabel(remoteConfirmed))"
     }
 
+    var confirmActionTitle: String { "Codes Match" }
+
     var instructionText: String {
         if needsLocalConfirmation && remoteConfirmed {
             return "The other device already confirmed. Click Codes Match here only if this exact code matches."

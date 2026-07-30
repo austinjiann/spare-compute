@@ -15,12 +15,14 @@ next-step guidance that points at `computehop setup worker --device-name
 for setup commands, a one-click Connect Nearby Worker action when exactly one
 unpaired worker is visible, nearby and connected devices, LAN-only status for
 paired workers whose remote connectivity is disabled, two-sided connect
-confirmation with explicit local/other-device status, stale restart duplicate
-suppression for trusted nearby devices,
+confirmation with visible code-comparison instructions and explicit
+local/other-device status, stale restart duplicate suppression for trusted
+nearby devices,
 native job submission to this Mac, Auto worker when exactly one
 worker is runnable, or a paired available worker, a Test button that runs
 `hostname` remotely without uploading a project, a compact active/selected task
-panel with reconnectable output, copyable equivalent `computehop run ...` commands from the run form,
+panel with reconnectable output, copyable equivalent `computehop run ...`
+commands from the run form,
 explicit command-input validation for unfinished quotes and escapes, explicit
 no-stdout/stderr placeholders for running and finished jobs, a copyable
 `computehop logs --follow <job-id>` handoff for terminal debugging,
