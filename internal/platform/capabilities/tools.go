@@ -37,6 +37,7 @@ func ToolIDs() []string {
 		"python",
 		"python3",
 		"ruff",
+		"sh",
 		"sleep",
 		"swift",
 		"xcodebuild",

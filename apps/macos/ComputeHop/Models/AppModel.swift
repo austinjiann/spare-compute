@@ -219,8 +219,7 @@ final class AppModel {
     }
 
     var canPlanTask: Bool {
-        !taskRequestInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-            !workingDirectory.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !taskRequestInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     var canSubmitPlannedTask: Bool {
@@ -556,7 +555,7 @@ final class AppModel {
         }
         commandInput = plan.commandLine
         outputsInput = plan.outputs.joined(separator: ", ")
-        remoteRunWithoutProject = false
+        remoteRunWithoutProject = !plan.requiresProject && isRemoteRunTargetSelected
         await submitCommand()
         if lastError == nil {
             taskRequestInput = ""

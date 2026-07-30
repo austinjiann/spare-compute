@@ -537,6 +537,68 @@ func submitPlannedPackageUsesSelectedWorkerProjectAndInferredOutput() async thro
 
 @Test
 @MainActor
+func submitPlannedUtilityRunsOnSelectedWorkerWithoutProject() async throws {
+    let worker = runTargetDevice(id: "worker-id", name: "Gaming PC")
+    let client = RecordingDaemonClient(devices: [worker])
+    let model = AppModel(client: client)
+    model.daemon = daemonSummary()
+    model.devices = [worker]
+    model.selectDevice(worker)
+    model.taskRequestInput = "run hostname"
+
+    #expect(model.canPlanTask)
+
+    model.planRequestedTask()
+
+    #expect(model.plannedTask?.requiresProject == false)
+    #expect(model.plannedTask?.commands == ["hostname"])
+    #expect(model.commandInput == "hostname")
+    #expect(model.planningError == nil)
+
+    await model.submitPlannedTask()
+
+    #expect(await client.lastSubmittedSelector() == "worker-id")
+    #expect(await client.lastSubmittedWorkingDirectory() == "")
+    #expect(await client.lastSubmittedExecutable() == "hostname")
+    #expect(await client.lastSubmittedArguments() == [])
+    #expect(model.jobs.first?.target == "Gaming PC")
+    #expect(model.lastError == nil)
+}
+
+@Test
+@MainActor
+func planRequestedConnectionTestMapsToWorkerHostnameWithoutProject() {
+    let worker = runTargetDevice(id: "worker-id", name: "Gaming PC")
+    let model = AppModel(client: RecordingDaemonClient(devices: [worker]))
+    model.daemon = daemonSummary()
+    model.devices = [worker]
+    model.selectDevice(worker)
+    model.taskRequestInput = "test connection"
+
+    model.planRequestedTask()
+
+    #expect(model.plannedTask?.requiresProject == false)
+    #expect(model.plannedTask?.commands == ["hostname"])
+    #expect(model.commandInput == "hostname")
+    #expect(model.planningError == nil)
+}
+
+@Test
+@MainActor
+func planRequestedProjectTaskStillRequiresProjectFolder() {
+    let model = AppModel(client: RecordingDaemonClient())
+    model.taskRequestInput = "run ci"
+
+    #expect(model.canPlanTask)
+
+    model.planRequestedTask()
+
+    #expect(model.plannedTask == nil)
+    #expect(model.planningError == "Choose a project first.")
+}
+
+@Test
+@MainActor
 func planRequestedTaskUsesPackageManagerScripts() throws {
     let projectURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("computehop-plan-\(UUID().uuidString)")

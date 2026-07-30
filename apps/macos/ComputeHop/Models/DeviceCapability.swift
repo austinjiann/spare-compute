@@ -55,5 +55,6 @@ enum DeviceCapability: String, CaseIterable, Codable, Identifiable, Sendable {
         .builds,
         .tests,
         .docker,
+        .shell,
     ]
 }

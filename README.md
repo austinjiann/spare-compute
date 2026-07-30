@@ -91,6 +91,12 @@ task submission:
 swift run ComputeHop
 ```
 
+From the menu bar you can pick a paired worker and ask for safe utility tasks
+such as `test connection`, `run hostname`, or `go version` without choosing a
+project folder. Project tasks such as CI, tests, builds, and packaging still
+require selecting the project folder so ComputeHop can snapshot and upload the
+right files.
+
 The Electron Control Center is the larger settings surface for setup, device
 sync, allowed work, project selection, AI planner configuration, job history,
 logs, cancellation, and output restore:
