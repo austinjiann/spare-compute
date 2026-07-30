@@ -48,12 +48,18 @@
     );
   }
 
-  function compatibleWorkerForPlan(devices = [], plan = {}) {
+  function compatibleWorkerForPlan(devices = [], plan = {}, options = {}) {
     const platform = normalizeTargetPlatform(plan.targetPlatform || plan.requiredPlatform);
-    if (!platform) {
+    const allowed = typeof options.isWorkerAllowed === "function" ? options.isWorkerAllowed : () => true;
+    const shouldTry = platform || options.requireAllowedMatch;
+    if (!shouldTry) {
       return null;
     }
-    const workers = devices.filter((device) => isSingleAutoCandidate(device) && workerMatchesPlatform(device, platform));
+    const workers = devices.filter((device) => (
+      isSingleAutoCandidate(device) &&
+      workerMatchesPlatform(device, platform) &&
+      allowed(device)
+    ));
     return workers.length === 1 ? workers[0] : null;
   }
 

@@ -71,7 +71,7 @@ const {
 } = window.computeHopDeviceStatus;
 const { shouldAutoStartDaemon } = window.computeHopDaemonAutostart;
 const { mergeJobRefresh } = window.computeHopJobList;
-const { disallowedWorkMessage, filterAllowedSuggestions } = window.computeHopWorkPolicy;
+const { capabilityForWork, disallowedWorkMessage, filterAllowedSuggestions } = window.computeHopWorkPolicy;
 const {
   jobOutputsForPlan,
   jobStartRequestForPlan,
@@ -1377,7 +1377,7 @@ async function startPlannedJob(planned, selected, options = {}) {
 }
 
 function validateRunReadiness(selected, planned, outputs = []) {
-  const policyError = disallowedWorkMessage(planned, capabilitiesForSelectedDevice());
+  const policyError = selected ? disallowedWorkMessage(planned, capabilitiesForDevice(selected)) : "";
   return runReadinessBlocker({
     daemonAvailable: state.daemonAvailable,
     device: selected,
@@ -1387,6 +1387,20 @@ function validateRunReadiness(selected, planned, outputs = []) {
     outputs,
     policyError
   });
+}
+
+function compatibleWorkerForCurrentPlan(plan) {
+  return compatibleWorkerForPlan(state.devices, plan, {
+    requireAllowedMatch: Boolean(capabilityForWork(plan)),
+    isWorkerAllowed: (device) => workerCanRunPlan(device, plan)
+  });
+}
+
+function workerCanRunPlan(device, plan) {
+  return (
+    workerMatchesPlatform(device, plan?.targetPlatform || plan?.requiredPlatform || "") &&
+    !disallowedWorkMessage(plan, capabilitiesForDevice(device))
+  );
 }
 
 function declaredOutputs() {
@@ -1493,8 +1507,8 @@ async function createPlan(task) {
 
 function applyPlanTargetPreference(plan) {
   const target = String(plan?.targetPreference || "").trim();
-  const targetPlatform = String(plan?.targetPlatform || plan?.requiredPlatform || "").trim();
   const selected = selectedDevice();
+  const compatible = compatibleWorkerForCurrentPlan(plan);
 
   if (target === "local") {
     if (selected?.id !== "local") {
@@ -1504,23 +1518,21 @@ function applyPlanTargetPreference(plan) {
   }
 
   if (target === "worker") {
-    if (selected && selected.id !== "local" && canRunOn(selected) && workerMatchesPlatform(selected, targetPlatform)) {
+    if (selected && selected.id !== "local" && canRunOn(selected) && workerCanRunPlan(selected, plan)) {
       return;
     }
-    const compatible = compatibleWorkerForPlan(state.devices, plan);
     if (compatible) {
       selectRunDevice(compatible);
       return;
     }
     const worker = singleConnectedWorkerTarget(state.devices);
-    if (worker && workerMatchesPlatform(worker, targetPlatform)) {
+    if (worker && workerCanRunPlan(worker, plan)) {
       selectRunDevice(worker);
     }
     return;
   }
 
-  if (targetPlatform && selected && !workerMatchesPlatform(selected, targetPlatform)) {
-    const compatible = compatibleWorkerForPlan(state.devices, plan);
+  if (selected && !workerCanRunPlan(selected, plan)) {
     if (compatible) {
       selectRunDevice(compatible);
     }
@@ -2213,6 +2225,16 @@ function selectedCapabilityDeviceID() {
 
 function capabilitiesForSelectedDevice() {
   return capabilitiesForDeviceID(selectedCapabilityDeviceID());
+}
+
+function capabilitiesForDevice(device) {
+  if (!device) {
+    return capabilitiesForDeviceID("local");
+  }
+  if (device.id === "auto") {
+    return capabilitiesForDeviceID(device.workerID || device.id);
+  }
+  return capabilitiesForDeviceID(device.id || "local");
 }
 
 function capabilitiesForDeviceID(deviceID) {

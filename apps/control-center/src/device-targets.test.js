@@ -117,6 +117,32 @@ test("compatibleWorkerForPlan selects one matching worker by platform", () => {
   assert.equal(workerMatchesPlatform({ platform: "darwin" }, "linux"), false);
 });
 
+test("compatibleWorkerForPlan can select by allowed-work policy", () => {
+  const buildWorker = { ...connectedWorker("Build Mac", "worker-1"), platform: "darwin" };
+  const dockerWorker = { ...connectedWorker("Docker PC", "worker-2"), platform: "windows" };
+
+  assert.equal(
+    compatibleWorkerForPlan([localDevice(), buildWorker, dockerWorker], { command: "docker build ." }, {
+      requireAllowedMatch: true,
+      isWorkerAllowed: (device) => device.id === "worker-2"
+    }).id,
+    "worker-2"
+  );
+  assert.equal(
+    compatibleWorkerForPlan([localDevice(), buildWorker, dockerWorker], { targetPlatform: "windows" }, {
+      isWorkerAllowed: (device) => device.id === "worker-1"
+    }),
+    null
+  );
+  assert.equal(
+    compatibleWorkerForPlan([localDevice(), buildWorker, dockerWorker], { command: "docker build ." }, {
+      requireAllowedMatch: true,
+      isWorkerAllowed: () => true
+    }),
+    null
+  );
+});
+
 test("concreteDeviceID resolves Auto worker to its backing worker", () => {
   assert.equal(concreteDeviceID({ id: automaticWorkerID, workerID: "worker-1" }), "worker-1");
   assert.equal(concreteDeviceID({ id: automaticWorkerID }), automaticWorkerID);

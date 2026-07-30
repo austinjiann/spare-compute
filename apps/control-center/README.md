@@ -87,6 +87,9 @@ Current scope:
 - preserves OS hints such as "on Windows", "on Linux", or "on macOS" in the
   plan, selects the single matching connected worker when that is unambiguous,
   and blocks submission when the selected computer advertises the wrong OS;
+- uses each device's Allow settings as an early scheduling hint, so if the
+  selected computer has a work category turned off but exactly one connected
+  worker allows it, the plan can move to that worker before submission;
 - uses deterministic local planning first, so no API key is required for normal
   Check/Test/Build/Lint/Docker planning;
 - can fall back to an optional OpenAI Responses API planner for tasks local
