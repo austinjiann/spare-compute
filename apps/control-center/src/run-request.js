@@ -90,6 +90,16 @@
       }
       return block("Choose This Mac or a connected worker first.");
     }
+    if (cleanString(plan.targetPreference) === "worker" && deviceID === "local") {
+      return block(
+        "This task was asked to run on another computer. Connect a worker or choose a worker from Devices first.",
+        "refresh",
+        "Refresh"
+      );
+    }
+    if (cleanString(plan.targetPreference) === "local" && deviceID !== "local") {
+      return block("This task was asked to run here. Switch the run target to This Mac first.");
+    }
     if (plan.requiresProject && !cleanPath(request.projectRoot)) {
       if (deviceID !== "local") {
         return block(

@@ -319,6 +319,34 @@ test("runReadinessBlocker explains selected reconnecting workers before submissi
   );
 });
 
+test("runReadinessBlocker prevents worker-targeted plans from running locally", () => {
+  assert.deepEqual(
+    runReadinessBlocker({
+      device: { id: "local", name: "This Mac" },
+      canRun: true,
+      plan: { command: "go test ./...", requiresProject: true, targetPreference: "worker" },
+      projectRoot: "/project"
+    }),
+    {
+      message: "This task was asked to run on another computer. Connect a worker or choose a worker from Devices first.",
+      actionKind: "refresh",
+      actionLabel: "Refresh"
+    }
+  );
+});
+
+test("runReadinessBlocker prevents local-targeted plans from running remotely", () => {
+  assert.equal(
+    runReadinessError({
+      device: { id: "worker-1", name: "Gaming PC", role: "worker", connection: "active", availability: "remote", trustState: "paired" },
+      canRun: true,
+      plan: { command: "go test ./...", requiresProject: true, targetPreference: "local" },
+      projectRoot: "/project"
+    }),
+    "This task was asked to run here. Switch the run target to This Mac first."
+  );
+});
+
 test("runReadinessError requires a project before project work on any device", () => {
   assert.equal(
     runReadinessError({

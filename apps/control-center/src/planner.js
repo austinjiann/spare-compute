@@ -15,10 +15,12 @@ async function planTask(request) {
   const profile = await inspectProject(projectRoot);
   const intent = classifyIntent(task);
   const exact = exactCommand(task);
+  const targetPreference = targetPreferenceForTask(task);
   if (exact && intent === "exact") {
     return plan("Exact command", exact, "This looks like a command already.", profile, {
       exact: true,
-      requiresProject: commandNeedsProject(exact)
+      requiresProject: commandNeedsProject(exact),
+      targetPreference
     });
   }
 
@@ -26,7 +28,8 @@ async function planTask(request) {
   if (planned) {
     return plan(planned.title, planned.command, planned.detail, profile, {
       requiresProject: planned.requiresProject,
-      outputs: planned.outputs
+      outputs: planned.outputs,
+      targetPreference
     });
   }
 
@@ -43,7 +46,8 @@ async function planTask(request) {
   if (exact) {
     return plan("Exact command", exact, "No project rule matched, so this will run exactly as typed.", profile, {
       exact: true,
-      requiresProject: commandNeedsProject(exact)
+      requiresProject: commandNeedsProject(exact),
+      targetPreference
     });
   }
 
@@ -371,6 +375,26 @@ function classifyIntent(task) {
   return "unknown";
 }
 
+function targetPreferenceForTask(task) {
+  const value = String(task || "").trim().toLowerCase();
+  if (!value) {
+    return "";
+  }
+  if (
+    /\b(here|locally)\b/.test(value) ||
+    /\b(on|using|with)\s+(this\s+mac|this\s+computer|my\s+mac|local(?:ly)?|here)\b/.test(value)
+  ) {
+    return "local";
+  }
+  if (
+    /\b(on|using|with|to)\s+(the\s+)?(worker|remote|other\s+computer|another\s+computer|desktop|pc|gaming\s+pc|server|home\s+server)\b/.test(value) ||
+    /\b(offload|send|delegate)\b/.test(value) && /\b(worker|remote|computer|desktop|pc|server|there)\b/.test(value)
+  ) {
+    return "worker";
+  }
+  return "";
+}
+
 function exactCommand(task) {
   return looksLikeCommand(task) ? task : "";
 }
@@ -442,10 +466,16 @@ function plan(title, command, detail, profile, options = {}) {
       exact: Boolean(options.exact),
       requiresProject: Boolean(options.requiresProject),
       outputs: normalizeOutputs(options.outputs),
+      targetPreference: cleanTargetPreference(options.targetPreference),
       projectRoot: profile.root || "",
       detected: detectedLabels(profile)
     }
   };
+}
+
+function cleanTargetPreference(value) {
+  const target = String(value || "").trim().toLowerCase();
+  return target === "worker" || target === "local" ? target : "";
 }
 
 function normalizeOutputs(outputs) {
@@ -487,5 +517,6 @@ module.exports = {
   classifyIntent,
   inspectProject,
   planTask,
-  suggestTasks
+  suggestTasks,
+  targetPreferenceForTask
 };

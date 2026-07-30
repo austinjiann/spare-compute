@@ -1474,17 +1474,37 @@ async function createPlan(task) {
       renderRunControls();
       return null;
     }
-    return {
+    const planned = {
       source: task,
       ...response.plan,
       projectRoot: state.settings.projectRoot || ""
     };
+    applyPlanTargetPreference(planned);
+    return planned;
   } catch (error) {
     showJobOutput(error.message || "Could not plan that task.", false);
     state.plannedTask = null;
     renderPlanPreview();
     renderRunControls();
     return null;
+  }
+}
+
+function applyPlanTargetPreference(plan) {
+  const target = String(plan?.targetPreference || "").trim();
+  if (target === "worker") {
+    const selected = selectedDevice();
+    if (selected && selected.id !== "local" && canRunOn(selected)) {
+      return;
+    }
+    const worker = singleConnectedWorkerTarget(state.devices);
+    if (worker) {
+      selectRunDevice(worker);
+    }
+    return;
+  }
+  if (target === "local" && selectedDevice()?.id !== "local") {
+    selectRunDevice(defaultLocalDevice());
   }
 }
 
@@ -1694,7 +1714,7 @@ function renderRunControls() {
   const statusAction = document.getElementById("run-status-action");
   const task = document.getElementById("command-input").value.trim();
   const testTarget = smokeTestDevice(selected);
-  const blocker = currentRunTargetBlocker(selected);
+  const blocker = currentRunControlBlocker(selected);
 
   target.textContent = runTargetLabel(selected);
   projectLabel.textContent = state.settings.projectRoot
@@ -1711,7 +1731,12 @@ function renderRunControls() {
   testButton.textContent = testTarget && testTarget.id !== "local" ? "Test worker" : "Test Mac";
   testButton.title = smokeTestTitle(testTarget);
   testButton.disabled = runInFlight || !state.daemonAvailable || !testTarget || !canRunOn(testTarget);
-  runButton.disabled = !runInFlight && (!state.daemonAvailable || !selected || !canRunOn(selected));
+  runButton.disabled = !runInFlight && (
+    !state.daemonAvailable ||
+    !selected ||
+    !canRunOn(selected) ||
+    runControlBlockerDisablesRun(blocker)
+  );
   status.classList.toggle("hidden", runInFlight || !blocker.message);
   statusText.textContent = blocker.message || "";
   statusAction.classList.toggle("hidden", !blocker.actionLabel);
@@ -1720,17 +1745,23 @@ function renderRunControls() {
   statusAction.disabled = runStatusActionDisabled(blocker);
 }
 
-function currentRunTargetBlocker(selected = selectedDevice()) {
+function currentRunControlBlocker(selected = selectedDevice()) {
+  const planned = state.plannedTask || null;
   return runReadinessBlocker({
     daemonAvailable: state.daemonAvailable,
     device: selected,
     canRun: Boolean(selected && canRunOn(selected)),
-    plan: {
+    plan: planned || {
       requiresProject: false,
       ignoreDeclaredOutputs: true
     },
-    outputs: []
+    projectRoot: state.settings.projectRoot,
+    outputs: planned ? currentOutputDeclarations() : []
   });
+}
+
+function runControlBlockerDisablesRun(blocker) {
+  return Boolean(blocker?.message && blocker.actionKind !== "choose-project");
 }
 
 function runStatusActionDisabled(blocker) {
@@ -1751,7 +1782,7 @@ function runStatusActionDisabled(blocker) {
 }
 
 async function performRunStatusAction() {
-  const blocker = currentRunTargetBlocker();
+  const blocker = currentRunControlBlocker();
   const selected = selectedDevice();
   switch (blocker.actionKind) {
     case "start-daemon":
@@ -1769,6 +1800,9 @@ async function performRunStatusAction() {
       if (selected) {
         setDeviceSync(selected, true);
       }
+      return;
+    case "choose-project":
+      await chooseProject();
       return;
     default:
       return;

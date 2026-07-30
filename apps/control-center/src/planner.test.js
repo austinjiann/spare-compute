@@ -3,7 +3,7 @@ const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
-const { classifyIntent, commandNeedsProject, planTask, suggestTasks } = require("./planner");
+const { classifyIntent, commandNeedsProject, planTask, suggestTasks, targetPreferenceForTask } = require("./planner");
 
 test("planTask prefers Makefile PR check for CI", async (t) => {
   const project = await tempProject(t, {
@@ -20,6 +20,23 @@ test("planTask prefers Makefile PR check for CI", async (t) => {
   assert.equal(classifyIntent("fix ci"), "ci");
   assert.equal(classifyIntent("validate project"), "ci");
   assert.equal(classifyIntent("preflight"), "ci");
+});
+
+test("planTask carries remote placement hints from natural language", async (t) => {
+  const project = await tempProject(t, {
+    "go.mod": "module example.com/app\n"
+  });
+
+  const remote = await planTask({ task: "run tests on the other computer", projectRoot: project });
+  const local = await planTask({ task: "run tests here", projectRoot: project });
+
+  assert.equal(remote.ok, true);
+  assert.equal(remote.plan.command, "go test ./...");
+  assert.equal(remote.plan.targetPreference, "worker");
+  assert.equal(local.ok, true);
+  assert.equal(local.plan.targetPreference, "local");
+  assert.equal(targetPreferenceForTask("delegate the build to the gaming pc"), "worker");
+  assert.equal(targetPreferenceForTask("run this on this Mac"), "local");
 });
 
 test("planTask uses detected package manager scripts", async (t) => {

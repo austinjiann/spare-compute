@@ -1455,7 +1455,10 @@ job, and read its output. A separate Electron Control Center now owns the
 heavier settings surface, connects to the daemon over local IPC, lists nearby
 and trusted devices with plain-language connection health, pairs,
 disables/re-enables, or forgets workers, plans plain-language tasks into
-previewed commands with package/Makefile/language/Docker fallbacks, prefers repository
+previewed commands with package/Makefile/language/Docker fallbacks, recognizes
+plain-language placement hints such as running work on another computer or here,
+auto-selects the single connected worker when safe, and blocks mismatched local
+or remote placement before submission, prefers repository
 validation targets for CI/check requests, recognizes package/release targets such
 as `make macos-archive` or `make macos-package`, includes conservative inferred
 outputs for known package targets such as the copyable macOS zip/checksum or
