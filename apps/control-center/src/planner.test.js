@@ -77,7 +77,7 @@ test("planTask keeps smoke tests projectless", async () => {
   const result = await planTask({ task: "test connection", projectRoot: "" });
 
   assert.equal(result.ok, true);
-  assert.equal(result.plan.command, "/bin/hostname");
+  assert.equal(result.plan.command, "hostname");
   assert.equal(result.plan.requiresProject, false);
 });
 
@@ -86,7 +86,7 @@ test("commandNeedsProject only flags project-style commands", () => {
   assert.equal(commandNeedsProject("npm run build"), true);
   assert.equal(commandNeedsProject("make pr-check"), true);
   assert.equal(commandNeedsProject("./scripts/check"), true);
-  assert.equal(commandNeedsProject("/bin/hostname"), false);
+  assert.equal(commandNeedsProject("hostname"), false);
   assert.equal(commandNeedsProject("echo hello"), false);
 });
 

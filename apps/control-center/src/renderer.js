@@ -708,7 +708,7 @@ async function testSelectedDevice() {
   const planned = {
     source: "test connection",
     title: "Test connection",
-    command: "/bin/hostname",
+    command: "hostname",
     detail: "Runs on the selected computer and prints its hostname.",
     requiresProject: false,
     projectRoot: ""

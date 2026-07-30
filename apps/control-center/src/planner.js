@@ -141,7 +141,7 @@ function chooseCommand(intent, profile) {
   if (intent === "smoke") {
     return {
       title: "Test connection",
-      command: "/bin/hostname",
+      command: "hostname",
       detail: "Run a tiny command that prints the selected computer's hostname.",
       requiresProject: false
     };
