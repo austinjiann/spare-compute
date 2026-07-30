@@ -48,6 +48,24 @@ test("addAutomaticWorkerTarget preserves Auto worker selection while valid", () 
   assert.equal(result.selectedDeviceID, automaticWorkerID);
 });
 
+test("addAutomaticWorkerTarget can keep a selected worker pending while unavailable", () => {
+  const result = addAutomaticWorkerTarget([
+    localDevice()
+  ], "worker-1", { preserveUnavailableSelection: true });
+
+  assert.deepEqual(result.devices.map((device) => device.id), ["local"]);
+  assert.equal(result.selectedDeviceID, "worker-1");
+});
+
+test("addAutomaticWorkerTarget can keep Auto worker pending while unavailable", () => {
+  const result = addAutomaticWorkerTarget([
+    localDevice()
+  ], automaticWorkerID, { preserveUnavailableSelection: true });
+
+  assert.deepEqual(result.devices.map((device) => device.id), ["local"]);
+  assert.equal(result.selectedDeviceID, automaticWorkerID);
+});
+
 test("addAutomaticWorkerTarget removes Auto worker when selection would be ambiguous", () => {
   const result = addAutomaticWorkerTarget([
     localDevice(),

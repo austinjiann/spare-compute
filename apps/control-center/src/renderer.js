@@ -560,11 +560,12 @@ function mergeDevices(localDevices, remoteDevices) {
     synced: isDeviceSynced(device)
   }));
   const result = addAutomaticWorkerTarget(configured, state.selectedDeviceID, {
-    preferAutomaticWorker: !state.userSelectedDevice
+    preferAutomaticWorker: !state.userSelectedDevice,
+    preserveUnavailableSelection: state.userSelectedDevice
   });
   const devices = result.devices;
   state.selectedDeviceID = result.selectedDeviceID;
-  if (!devices.some((device) => device.id === state.selectedDeviceID)) {
+  if (!state.userSelectedDevice && !devices.some((device) => device.id === state.selectedDeviceID)) {
     state.selectedDeviceID = "local";
   }
   return devices;
@@ -1551,11 +1552,18 @@ function allowedSuggestions(suggestions) {
 }
 
 function selectedDevice() {
-  return state.devices.find((device) => device.id === state.selectedDeviceID) || defaultLocalDevice();
+  const selected = state.devices.find((device) => device.id === state.selectedDeviceID);
+  if (selected) {
+    return selected;
+  }
+  return state.selectedDeviceID === "local" ? defaultLocalDevice() : null;
 }
 
 function selectedCapabilityDeviceID() {
   const device = selectedDevice();
+  if (!device) {
+    return state.selectedDeviceID || "local";
+  }
   if (device.id === "auto") {
     return device.workerID || device.id;
   }

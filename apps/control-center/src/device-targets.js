@@ -18,6 +18,14 @@
     let selected = result.some((device) => device.id === selectedDeviceID)
       ? selectedDeviceID
       : "local";
+    if (
+      selected === "local" &&
+      options.preserveUnavailableSelection &&
+      selectedDeviceID &&
+      selectedDeviceID !== "local"
+    ) {
+      selected = selectedDeviceID;
+    }
     if (workers.length === 1 && options.preferAutomaticWorker && selected === "local") {
       selected = automaticWorkerID;
     }
