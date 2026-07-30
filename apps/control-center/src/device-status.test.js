@@ -5,6 +5,7 @@ const {
   connectionPathLabel,
   deviceLabel,
   friendlyConnectionError,
+  resourceSummary,
   workerReadinessSummary
 } = require("./device-status");
 
@@ -101,6 +102,37 @@ test("deviceLabel prefers advertised platform hints when present", () => {
       platform: "darwin"
     }),
     "Mac · connected over LAN"
+  );
+});
+
+test("deviceLabel includes compact resource hints when advertised", () => {
+  assert.equal(
+    resourceSummary({
+      logicalCPUCount: 12,
+      totalMemoryBytes: 32 * 1024 ** 3
+    }),
+    "12 CPU · 32 GB"
+  );
+
+  assert.equal(
+    deviceLabel({
+      id: "worker-1",
+      name: "Build PC",
+      role: "worker",
+      trustState: "paired",
+      connection: "active",
+      availability: "remote",
+      path: "lan",
+      platform: "windows",
+      logicalCPUCount: 32,
+      totalMemoryBytes: 64 * 1024 ** 3
+    }),
+    "Windows PC · 32 CPU · 64 GB · connected over LAN"
+  );
+
+  assert.equal(
+    resourceSummary({ logicalCPUCount: 0, totalMemoryBytes: 0 }),
+    ""
   );
 });
 

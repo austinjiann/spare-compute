@@ -81,14 +81,19 @@ type ConnectivityController interface {
 
 // LocalDeviceInfo is the secret-free local daemon identity exposed to local UI.
 type LocalDeviceInfo struct {
-	DeviceID device.ID
-	Name     string
-	Role     device.Role
+	DeviceID         device.ID
+	Name             string
+	Role             device.Role
+	Platform         string
+	Architecture     string
+	LogicalCPUCount  uint32
+	TotalMemoryBytes uint64
 }
 
 func (info LocalDeviceInfo) Validate() error {
 	if !info.DeviceID.Valid() || device.ValidateName(info.Name) != nil ||
-		(info.Role != device.RoleWorker && info.Role != device.RoleOrchestrator) {
+		(info.Role != device.RoleWorker && info.Role != device.RoleOrchestrator) ||
+		info.LogicalCPUCount > 4096 {
 		return ErrInvalidLocalDevice
 	}
 	return nil
@@ -181,6 +186,10 @@ func (handler *LocalHandler) Handle(ctx context.Context, request *localv1.Reques
 			ping.DeviceId = string(handler.local.DeviceID)
 			ping.DeviceName = handler.local.Name
 			ping.Role = localDeviceRoleToProto(handler.local.Role)
+			ping.Platform = handler.local.Platform
+			ping.Arch = handler.local.Architecture
+			ping.LogicalCpuCount = handler.local.LogicalCPUCount
+			ping.TotalMemoryBytes = handler.local.TotalMemoryBytes
 		}
 		return &localv1.Response{Result: &localv1.Response_Ping{Ping: ping}}
 	case *localv1.Request_SubmitJob:

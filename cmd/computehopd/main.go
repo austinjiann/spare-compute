@@ -33,6 +33,7 @@ import (
 	"github.com/austinjiann/spare-compute/internal/platform/paths"
 	"github.com/austinjiann/spare-compute/internal/platform/permissions"
 	"github.com/austinjiann/spare-compute/internal/platform/processes"
+	"github.com/austinjiann/spare-compute/internal/platform/resources"
 	"github.com/austinjiann/spare-compute/internal/protocol/localipc"
 	"github.com/austinjiann/spare-compute/internal/session"
 	"github.com/austinjiann/spare-compute/internal/snapshot"
@@ -246,13 +247,16 @@ func runWithDependencies(
 	if pairingEndpoint.Port() == 0 {
 		return errors.New("initialize pairing endpoint: listener has no UDP port")
 	}
+	resourceSnapshot := resources.Static()
 	localAnnouncement := device.Announcement{
 		PresenceID: presenceID, Name: deviceName, Role: localRole,
-		ProtocolVersion: device.DiscoveryProtocolVersion,
-		Port:            pairingEndpoint.Port(),
-		EndpointReady:   true,
-		Platform:        runtime.GOOS,
-		Architecture:    runtime.GOARCH,
+		ProtocolVersion:  device.DiscoveryProtocolVersion,
+		Port:             pairingEndpoint.Port(),
+		EndpointReady:    true,
+		Platform:         runtime.GOOS,
+		Architecture:     runtime.GOARCH,
+		LogicalCPUCount:  resourceSnapshot.LogicalCPUCount,
+		TotalMemoryBytes: resourceSnapshot.TotalMemoryBytes,
 	}
 	if err := localAnnouncement.Validate(); err != nil {
 		return fmt.Errorf("configure local device announcement: %w", err)
@@ -339,9 +343,13 @@ func runWithDependencies(
 		return err
 	}
 	localDeviceInfo := orchestrator.LocalDeviceInfo{
-		DeviceID: localDevice.Identity.ID(),
-		Name:     localDevice.Name,
-		Role:     localDevice.Role,
+		DeviceID:         localDevice.Identity.ID(),
+		Name:             localDevice.Name,
+		Role:             localDevice.Role,
+		Platform:         runtime.GOOS,
+		Architecture:     runtime.GOARCH,
+		LogicalCPUCount:  resourceSnapshot.LogicalCPUCount,
+		TotalMemoryBytes: resourceSnapshot.TotalMemoryBytes,
 	}
 	var connectivityControllers []orchestrator.ConnectivityController
 	if remoteManager != nil {

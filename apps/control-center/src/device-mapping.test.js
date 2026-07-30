@@ -24,6 +24,8 @@ test("mapDevices merges a paired trusted worker with its nearby LAN sighting", (
         port: 47823,
         platform: "windows",
         arch: "amd64",
+        logicalCpuCount: 32,
+        totalMemoryBytes: 64 * 1024 ** 3,
         lastSeenAtUnixNano: 1_800_000_000
       })
     ]
@@ -36,6 +38,8 @@ test("mapDevices merges a paired trusted worker with its nearby LAN sighting", (
   assert.equal(result[0].path, "lan");
   assert.equal(result[0].platform, "windows");
   assert.equal(result[0].arch, "amd64");
+  assert.equal(result[0].logicalCPUCount, 32);
+  assert.equal(result[0].totalMemoryBytes, 64 * 1024 ** 3);
   assert.equal(result[0].address, "192.0.2.20:47823");
   assert.equal(result[0].updated, "1970-01-01T00:00:01.800Z");
 });
@@ -75,12 +79,28 @@ test("mapLocalDevice labels this process platform and architecture", () => {
   const local = mapLocalDevice({
     deviceName: "Austin MacBook",
     deviceId: "durable-local-id",
-    role: "DEVICE_ROLE_ORCHESTRATOR"
+    role: "DEVICE_ROLE_ORCHESTRATOR",
+    platform: "darwin",
+    arch: "arm64",
+    logicalCpuCount: 12,
+    totalMemoryBytes: 32 * 1024 ** 3
   });
 
   assert.equal(local.id, "local");
   assert.equal(local.deviceID, "durable-local-id");
   assert.equal(local.role, "orchestrator");
+  assert.equal(local.platform, "darwin");
+  assert.equal(local.arch, "arm64");
+  assert.equal(local.logicalCPUCount, 12);
+  assert.equal(local.totalMemoryBytes, 32 * 1024 ** 3);
+});
+
+test("mapLocalDevice falls back to this process platform and architecture", () => {
+  const local = mapLocalDevice({
+    deviceName: "Austin MacBook",
+    role: "DEVICE_ROLE_ORCHESTRATOR"
+  });
+
   assert.equal(local.platform, process.platform);
   assert.equal(local.arch, process.arch);
 });

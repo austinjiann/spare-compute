@@ -26,6 +26,7 @@ func TestDiscoverySnapshotToProtoMarksEveryObservationUnpaired(t *testing.T) {
 					PresenceID: presenceID, Name: "Worker", Role: device.RoleWorker,
 					ProtocolVersion: 1, Port: 47823,
 					Platform: "linux", Architecture: "amd64",
+					LogicalCPUCount: 8, TotalMemoryBytes: 16 << 30,
 				},
 				Instance: "Worker", HostName: "worker.local.",
 				Addresses: []netip.Addr{netip.MustParseAddr("192.0.2.1")},
@@ -41,7 +42,9 @@ func TestDiscoverySnapshotToProtoMarksEveryObservationUnpaired(t *testing.T) {
 		len(message.GetDevices()) != 1 ||
 		message.GetDevices()[0].GetTrustState() != localv1.DeviceTrustState_DEVICE_TRUST_STATE_UNPAIRED ||
 		message.GetDevices()[0].GetPlatform() != "linux" ||
-		message.GetDevices()[0].GetArch() != "amd64" {
+		message.GetDevices()[0].GetArch() != "amd64" ||
+		message.GetDevices()[0].GetLogicalCpuCount() != 8 ||
+		message.GetDevices()[0].GetTotalMemoryBytes() != 16<<30 {
 		t.Fatalf("message = %#v", message)
 	}
 }

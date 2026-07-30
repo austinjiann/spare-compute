@@ -898,6 +898,14 @@ public nonisolated struct Computehop_Local_V1_PingResponse: Sendable {
 
   public var role: Computehop_Local_V1_DeviceRole = .unspecified
 
+  public var platform: String = String()
+
+  public var arch: String = String()
+
+  public var logicalCpuCount: UInt32 = 0
+
+  public var totalMemoryBytes: UInt64 = 0
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
@@ -1416,44 +1424,101 @@ public nonisolated struct Computehop_Local_V1_TrustedDevice: Sendable {
   public init() {}
 }
 
-public nonisolated struct Computehop_Local_V1_NearbyDevice: Sendable {
+public nonisolated struct Computehop_Local_V1_NearbyDevice: @unchecked Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
 
-  public var presenceID: String = String()
+  public var presenceID: String {
+    get {_storage._presenceID}
+    set {_uniqueStorage()._presenceID = newValue}
+  }
 
-  public var name: String = String()
+  public var name: String {
+    get {_storage._name}
+    set {_uniqueStorage()._name = newValue}
+  }
 
-  public var role: Computehop_Local_V1_DeviceRole = .unspecified
+  public var role: Computehop_Local_V1_DeviceRole {
+    get {_storage._role}
+    set {_uniqueStorage()._role = newValue}
+  }
 
-  public var protocolVersion: UInt32 = 0
+  public var protocolVersion: UInt32 {
+    get {_storage._protocolVersion}
+    set {_uniqueStorage()._protocolVersion = newValue}
+  }
 
-  public var instance: String = String()
+  public var instance: String {
+    get {_storage._instance}
+    set {_uniqueStorage()._instance = newValue}
+  }
 
-  public var hostName: String = String()
+  public var hostName: String {
+    get {_storage._hostName}
+    set {_uniqueStorage()._hostName = newValue}
+  }
 
-  public var addresses: [String] = []
+  public var addresses: [String] {
+    get {_storage._addresses}
+    set {_uniqueStorage()._addresses = newValue}
+  }
 
-  public var port: UInt32 = 0
+  public var port: UInt32 {
+    get {_storage._port}
+    set {_uniqueStorage()._port = newValue}
+  }
 
-  public var endpointReady: Bool = false
+  public var endpointReady: Bool {
+    get {_storage._endpointReady}
+    set {_uniqueStorage()._endpointReady = newValue}
+  }
 
-  public var firstSeenAtUnixNano: Int64 = 0
+  public var firstSeenAtUnixNano: Int64 {
+    get {_storage._firstSeenAtUnixNano}
+    set {_uniqueStorage()._firstSeenAtUnixNano = newValue}
+  }
 
-  public var lastSeenAtUnixNano: Int64 = 0
+  public var lastSeenAtUnixNano: Int64 {
+    get {_storage._lastSeenAtUnixNano}
+    set {_uniqueStorage()._lastSeenAtUnixNano = newValue}
+  }
 
-  public var expiresAtUnixNano: Int64 = 0
+  public var expiresAtUnixNano: Int64 {
+    get {_storage._expiresAtUnixNano}
+    set {_uniqueStorage()._expiresAtUnixNano = newValue}
+  }
 
-  public var trustState: Computehop_Local_V1_DeviceTrustState = .unspecified
+  public var trustState: Computehop_Local_V1_DeviceTrustState {
+    get {_storage._trustState}
+    set {_uniqueStorage()._trustState = newValue}
+  }
 
-  public var platform: String = String()
+  public var platform: String {
+    get {_storage._platform}
+    set {_uniqueStorage()._platform = newValue}
+  }
 
-  public var arch: String = String()
+  public var arch: String {
+    get {_storage._arch}
+    set {_uniqueStorage()._arch = newValue}
+  }
+
+  public var logicalCpuCount: UInt32 {
+    get {_storage._logicalCpuCount}
+    set {_uniqueStorage()._logicalCpuCount = newValue}
+  }
+
+  public var totalMemoryBytes: UInt64 {
+    get {_storage._totalMemoryBytes}
+    set {_uniqueStorage()._totalMemoryBytes = newValue}
+  }
 
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
+
+  fileprivate var _storage = _StorageClass.defaultInstance
 }
 
 public nonisolated struct Computehop_Local_V1_JobSpec: Sendable {
@@ -2270,7 +2335,7 @@ nonisolated extension Computehop_Local_V1_PingRequest: SwiftProtobuf.Message, Sw
 
 nonisolated extension Computehop_Local_V1_PingResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".PingResponse"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}daemon_version\0\u{3}device_id\0\u{3}device_name\0\u{1}role\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}daemon_version\0\u{3}device_id\0\u{3}device_name\0\u{1}role\0\u{1}platform\0\u{1}arch\0\u{3}logical_cpu_count\0\u{3}total_memory_bytes\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -2282,6 +2347,10 @@ nonisolated extension Computehop_Local_V1_PingResponse: SwiftProtobuf.Message, S
       case 2: try { try decoder.decodeSingularStringField(value: &self.deviceID) }()
       case 3: try { try decoder.decodeSingularStringField(value: &self.deviceName) }()
       case 4: try { try decoder.decodeSingularEnumField(value: &self.role) }()
+      case 5: try { try decoder.decodeSingularStringField(value: &self.platform) }()
+      case 6: try { try decoder.decodeSingularStringField(value: &self.arch) }()
+      case 7: try { try decoder.decodeSingularUInt32Field(value: &self.logicalCpuCount) }()
+      case 8: try { try decoder.decodeSingularUInt64Field(value: &self.totalMemoryBytes) }()
       default: break
       }
     }
@@ -2300,6 +2369,18 @@ nonisolated extension Computehop_Local_V1_PingResponse: SwiftProtobuf.Message, S
     if self.role != .unspecified {
       try visitor.visitSingularEnumField(value: self.role, fieldNumber: 4)
     }
+    if !self.platform.isEmpty {
+      try visitor.visitSingularStringField(value: self.platform, fieldNumber: 5)
+    }
+    if !self.arch.isEmpty {
+      try visitor.visitSingularStringField(value: self.arch, fieldNumber: 6)
+    }
+    if self.logicalCpuCount != 0 {
+      try visitor.visitSingularUInt32Field(value: self.logicalCpuCount, fieldNumber: 7)
+    }
+    if self.totalMemoryBytes != 0 {
+      try visitor.visitSingularUInt64Field(value: self.totalMemoryBytes, fieldNumber: 8)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -2308,6 +2389,10 @@ nonisolated extension Computehop_Local_V1_PingResponse: SwiftProtobuf.Message, S
     if lhs.deviceID != rhs.deviceID {return false}
     if lhs.deviceName != rhs.deviceName {return false}
     if lhs.role != rhs.role {return false}
+    if lhs.platform != rhs.platform {return false}
+    if lhs.arch != rhs.arch {return false}
+    if lhs.logicalCpuCount != rhs.logicalCpuCount {return false}
+    if lhs.totalMemoryBytes != rhs.totalMemoryBytes {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -3413,99 +3498,177 @@ nonisolated extension Computehop_Local_V1_TrustedDevice: SwiftProtobuf.Message, 
 
 nonisolated extension Computehop_Local_V1_NearbyDevice: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".NearbyDevice"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}presence_id\0\u{1}name\0\u{1}role\0\u{3}protocol_version\0\u{1}instance\0\u{3}host_name\0\u{1}addresses\0\u{1}port\0\u{3}endpoint_ready\0\u{3}first_seen_at_unix_nano\0\u{3}last_seen_at_unix_nano\0\u{3}expires_at_unix_nano\0\u{3}trust_state\0\u{1}platform\0\u{1}arch\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}presence_id\0\u{1}name\0\u{1}role\0\u{3}protocol_version\0\u{1}instance\0\u{3}host_name\0\u{1}addresses\0\u{1}port\0\u{3}endpoint_ready\0\u{3}first_seen_at_unix_nano\0\u{3}last_seen_at_unix_nano\0\u{3}expires_at_unix_nano\0\u{3}trust_state\0\u{1}platform\0\u{1}arch\0\u{3}logical_cpu_count\0\u{3}total_memory_bytes\0")
+
+  fileprivate class _StorageClass {
+    var _presenceID: String = String()
+    var _name: String = String()
+    var _role: Computehop_Local_V1_DeviceRole = .unspecified
+    var _protocolVersion: UInt32 = 0
+    var _instance: String = String()
+    var _hostName: String = String()
+    var _addresses: [String] = []
+    var _port: UInt32 = 0
+    var _endpointReady: Bool = false
+    var _firstSeenAtUnixNano: Int64 = 0
+    var _lastSeenAtUnixNano: Int64 = 0
+    var _expiresAtUnixNano: Int64 = 0
+    var _trustState: Computehop_Local_V1_DeviceTrustState = .unspecified
+    var _platform: String = String()
+    var _arch: String = String()
+    var _logicalCpuCount: UInt32 = 0
+    var _totalMemoryBytes: UInt64 = 0
+
+      // This property is used as the initial default value for new instances of the type.
+      // The type itself is protecting the reference to its storage via CoW semantics.
+      // This will force a copy to be made of this reference when the first mutation occurs;
+      // hence, it is safe to mark this as `nonisolated(unsafe)`.
+      static nonisolated(unsafe) let defaultInstance = _StorageClass()
+
+    private init() {}
+
+    init(copying source: _StorageClass) {
+      _presenceID = source._presenceID
+      _name = source._name
+      _role = source._role
+      _protocolVersion = source._protocolVersion
+      _instance = source._instance
+      _hostName = source._hostName
+      _addresses = source._addresses
+      _port = source._port
+      _endpointReady = source._endpointReady
+      _firstSeenAtUnixNano = source._firstSeenAtUnixNano
+      _lastSeenAtUnixNano = source._lastSeenAtUnixNano
+      _expiresAtUnixNano = source._expiresAtUnixNano
+      _trustState = source._trustState
+      _platform = source._platform
+      _arch = source._arch
+      _logicalCpuCount = source._logicalCpuCount
+      _totalMemoryBytes = source._totalMemoryBytes
+    }
+  }
+
+  fileprivate mutating func _uniqueStorage() -> _StorageClass {
+    if !isKnownUniquelyReferenced(&_storage) {
+      _storage = _StorageClass(copying: _storage)
+    }
+    return _storage
+  }
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
-    while let fieldNumber = try decoder.nextFieldNumber() {
-      // The use of inline closures is to circumvent an issue where the compiler
-      // allocates stack space for every case branch when no optimizations are
-      // enabled. https://github.com/apple/swift-protobuf/issues/1034
-      switch fieldNumber {
-      case 1: try { try decoder.decodeSingularStringField(value: &self.presenceID) }()
-      case 2: try { try decoder.decodeSingularStringField(value: &self.name) }()
-      case 3: try { try decoder.decodeSingularEnumField(value: &self.role) }()
-      case 4: try { try decoder.decodeSingularUInt32Field(value: &self.protocolVersion) }()
-      case 5: try { try decoder.decodeSingularStringField(value: &self.instance) }()
-      case 6: try { try decoder.decodeSingularStringField(value: &self.hostName) }()
-      case 7: try { try decoder.decodeRepeatedStringField(value: &self.addresses) }()
-      case 8: try { try decoder.decodeSingularUInt32Field(value: &self.port) }()
-      case 9: try { try decoder.decodeSingularBoolField(value: &self.endpointReady) }()
-      case 10: try { try decoder.decodeSingularInt64Field(value: &self.firstSeenAtUnixNano) }()
-      case 11: try { try decoder.decodeSingularInt64Field(value: &self.lastSeenAtUnixNano) }()
-      case 12: try { try decoder.decodeSingularInt64Field(value: &self.expiresAtUnixNano) }()
-      case 13: try { try decoder.decodeSingularEnumField(value: &self.trustState) }()
-      case 14: try { try decoder.decodeSingularStringField(value: &self.platform) }()
-      case 15: try { try decoder.decodeSingularStringField(value: &self.arch) }()
-      default: break
+    _ = _uniqueStorage()
+    try withExtendedLifetime(_storage) { (_storage: _StorageClass) in
+      while let fieldNumber = try decoder.nextFieldNumber() {
+        // The use of inline closures is to circumvent an issue where the compiler
+        // allocates stack space for every case branch when no optimizations are
+        // enabled. https://github.com/apple/swift-protobuf/issues/1034
+        switch fieldNumber {
+        case 1: try { try decoder.decodeSingularStringField(value: &_storage._presenceID) }()
+        case 2: try { try decoder.decodeSingularStringField(value: &_storage._name) }()
+        case 3: try { try decoder.decodeSingularEnumField(value: &_storage._role) }()
+        case 4: try { try decoder.decodeSingularUInt32Field(value: &_storage._protocolVersion) }()
+        case 5: try { try decoder.decodeSingularStringField(value: &_storage._instance) }()
+        case 6: try { try decoder.decodeSingularStringField(value: &_storage._hostName) }()
+        case 7: try { try decoder.decodeRepeatedStringField(value: &_storage._addresses) }()
+        case 8: try { try decoder.decodeSingularUInt32Field(value: &_storage._port) }()
+        case 9: try { try decoder.decodeSingularBoolField(value: &_storage._endpointReady) }()
+        case 10: try { try decoder.decodeSingularInt64Field(value: &_storage._firstSeenAtUnixNano) }()
+        case 11: try { try decoder.decodeSingularInt64Field(value: &_storage._lastSeenAtUnixNano) }()
+        case 12: try { try decoder.decodeSingularInt64Field(value: &_storage._expiresAtUnixNano) }()
+        case 13: try { try decoder.decodeSingularEnumField(value: &_storage._trustState) }()
+        case 14: try { try decoder.decodeSingularStringField(value: &_storage._platform) }()
+        case 15: try { try decoder.decodeSingularStringField(value: &_storage._arch) }()
+        case 16: try { try decoder.decodeSingularUInt32Field(value: &_storage._logicalCpuCount) }()
+        case 17: try { try decoder.decodeSingularUInt64Field(value: &_storage._totalMemoryBytes) }()
+        default: break
+        }
       }
     }
   }
 
   public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
-    if !self.presenceID.isEmpty {
-      try visitor.visitSingularStringField(value: self.presenceID, fieldNumber: 1)
-    }
-    if !self.name.isEmpty {
-      try visitor.visitSingularStringField(value: self.name, fieldNumber: 2)
-    }
-    if self.role != .unspecified {
-      try visitor.visitSingularEnumField(value: self.role, fieldNumber: 3)
-    }
-    if self.protocolVersion != 0 {
-      try visitor.visitSingularUInt32Field(value: self.protocolVersion, fieldNumber: 4)
-    }
-    if !self.instance.isEmpty {
-      try visitor.visitSingularStringField(value: self.instance, fieldNumber: 5)
-    }
-    if !self.hostName.isEmpty {
-      try visitor.visitSingularStringField(value: self.hostName, fieldNumber: 6)
-    }
-    if !self.addresses.isEmpty {
-      try visitor.visitRepeatedStringField(value: self.addresses, fieldNumber: 7)
-    }
-    if self.port != 0 {
-      try visitor.visitSingularUInt32Field(value: self.port, fieldNumber: 8)
-    }
-    if self.endpointReady != false {
-      try visitor.visitSingularBoolField(value: self.endpointReady, fieldNumber: 9)
-    }
-    if self.firstSeenAtUnixNano != 0 {
-      try visitor.visitSingularInt64Field(value: self.firstSeenAtUnixNano, fieldNumber: 10)
-    }
-    if self.lastSeenAtUnixNano != 0 {
-      try visitor.visitSingularInt64Field(value: self.lastSeenAtUnixNano, fieldNumber: 11)
-    }
-    if self.expiresAtUnixNano != 0 {
-      try visitor.visitSingularInt64Field(value: self.expiresAtUnixNano, fieldNumber: 12)
-    }
-    if self.trustState != .unspecified {
-      try visitor.visitSingularEnumField(value: self.trustState, fieldNumber: 13)
-    }
-    if !self.platform.isEmpty {
-      try visitor.visitSingularStringField(value: self.platform, fieldNumber: 14)
-    }
-    if !self.arch.isEmpty {
-      try visitor.visitSingularStringField(value: self.arch, fieldNumber: 15)
+    try withExtendedLifetime(_storage) { (_storage: _StorageClass) in
+      if !_storage._presenceID.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._presenceID, fieldNumber: 1)
+      }
+      if !_storage._name.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._name, fieldNumber: 2)
+      }
+      if _storage._role != .unspecified {
+        try visitor.visitSingularEnumField(value: _storage._role, fieldNumber: 3)
+      }
+      if _storage._protocolVersion != 0 {
+        try visitor.visitSingularUInt32Field(value: _storage._protocolVersion, fieldNumber: 4)
+      }
+      if !_storage._instance.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._instance, fieldNumber: 5)
+      }
+      if !_storage._hostName.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._hostName, fieldNumber: 6)
+      }
+      if !_storage._addresses.isEmpty {
+        try visitor.visitRepeatedStringField(value: _storage._addresses, fieldNumber: 7)
+      }
+      if _storage._port != 0 {
+        try visitor.visitSingularUInt32Field(value: _storage._port, fieldNumber: 8)
+      }
+      if _storage._endpointReady != false {
+        try visitor.visitSingularBoolField(value: _storage._endpointReady, fieldNumber: 9)
+      }
+      if _storage._firstSeenAtUnixNano != 0 {
+        try visitor.visitSingularInt64Field(value: _storage._firstSeenAtUnixNano, fieldNumber: 10)
+      }
+      if _storage._lastSeenAtUnixNano != 0 {
+        try visitor.visitSingularInt64Field(value: _storage._lastSeenAtUnixNano, fieldNumber: 11)
+      }
+      if _storage._expiresAtUnixNano != 0 {
+        try visitor.visitSingularInt64Field(value: _storage._expiresAtUnixNano, fieldNumber: 12)
+      }
+      if _storage._trustState != .unspecified {
+        try visitor.visitSingularEnumField(value: _storage._trustState, fieldNumber: 13)
+      }
+      if !_storage._platform.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._platform, fieldNumber: 14)
+      }
+      if !_storage._arch.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._arch, fieldNumber: 15)
+      }
+      if _storage._logicalCpuCount != 0 {
+        try visitor.visitSingularUInt32Field(value: _storage._logicalCpuCount, fieldNumber: 16)
+      }
+      if _storage._totalMemoryBytes != 0 {
+        try visitor.visitSingularUInt64Field(value: _storage._totalMemoryBytes, fieldNumber: 17)
+      }
     }
     try unknownFields.traverse(visitor: &visitor)
   }
 
   public static func ==(lhs: Computehop_Local_V1_NearbyDevice, rhs: Computehop_Local_V1_NearbyDevice) -> Bool {
-    if lhs.presenceID != rhs.presenceID {return false}
-    if lhs.name != rhs.name {return false}
-    if lhs.role != rhs.role {return false}
-    if lhs.protocolVersion != rhs.protocolVersion {return false}
-    if lhs.instance != rhs.instance {return false}
-    if lhs.hostName != rhs.hostName {return false}
-    if lhs.addresses != rhs.addresses {return false}
-    if lhs.port != rhs.port {return false}
-    if lhs.endpointReady != rhs.endpointReady {return false}
-    if lhs.firstSeenAtUnixNano != rhs.firstSeenAtUnixNano {return false}
-    if lhs.lastSeenAtUnixNano != rhs.lastSeenAtUnixNano {return false}
-    if lhs.expiresAtUnixNano != rhs.expiresAtUnixNano {return false}
-    if lhs.trustState != rhs.trustState {return false}
-    if lhs.platform != rhs.platform {return false}
-    if lhs.arch != rhs.arch {return false}
+    if lhs._storage !== rhs._storage {
+      let storagesAreEqual: Bool = withExtendedLifetime((lhs._storage, rhs._storage)) { (_args: (_StorageClass, _StorageClass)) in
+        let _storage = _args.0
+        let rhs_storage = _args.1
+        if _storage._presenceID != rhs_storage._presenceID {return false}
+        if _storage._name != rhs_storage._name {return false}
+        if _storage._role != rhs_storage._role {return false}
+        if _storage._protocolVersion != rhs_storage._protocolVersion {return false}
+        if _storage._instance != rhs_storage._instance {return false}
+        if _storage._hostName != rhs_storage._hostName {return false}
+        if _storage._addresses != rhs_storage._addresses {return false}
+        if _storage._port != rhs_storage._port {return false}
+        if _storage._endpointReady != rhs_storage._endpointReady {return false}
+        if _storage._firstSeenAtUnixNano != rhs_storage._firstSeenAtUnixNano {return false}
+        if _storage._lastSeenAtUnixNano != rhs_storage._lastSeenAtUnixNano {return false}
+        if _storage._expiresAtUnixNano != rhs_storage._expiresAtUnixNano {return false}
+        if _storage._trustState != rhs_storage._trustState {return false}
+        if _storage._platform != rhs_storage._platform {return false}
+        if _storage._arch != rhs_storage._arch {return false}
+        if _storage._logicalCpuCount != rhs_storage._logicalCpuCount {return false}
+        if _storage._totalMemoryBytes != rhs_storage._totalMemoryBytes {return false}
+        return true
+      }
+      if !storagesAreEqual {return false}
+    }
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

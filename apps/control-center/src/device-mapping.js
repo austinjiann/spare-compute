@@ -52,8 +52,10 @@ function mapLocalDevice(ping) {
     availability: "local",
     trustState: "paired",
     path: "local",
-    platform: processPlatformHint(),
-    arch: processArchHint(),
+    platform: ping.platform || processPlatformHint(),
+    arch: ping.arch || processArchHint(),
+    logicalCPUCount: numericHint(ping.logicalCpuCount),
+    totalMemoryBytes: numericHint(ping.totalMemoryBytes),
     address: "",
     updated: ""
   };
@@ -114,6 +116,8 @@ function mergeNearbyTrustedDevice(trusted, nearbyMatches) {
     address: nearbyAddressList(nearbyMatches),
     platform: nearby.platform || trusted.platform || "",
     arch: nearby.arch || trusted.arch || "",
+    logicalCPUCount: numericHint(nearby.logicalCpuCount || trusted.logicalCPUCount),
+    totalMemoryBytes: numericHint(nearby.totalMemoryBytes || trusted.totalMemoryBytes),
     updated: timestampLabel(nearby.lastSeenAtUnixNano) || trusted.updated
   };
 }
@@ -129,6 +133,8 @@ function mapNearbyDevice(nearby, id) {
     path: "lan",
     platform: nearby.platform || "",
     arch: nearby.arch || "",
+    logicalCPUCount: numericHint(nearby.logicalCpuCount),
+    totalMemoryBytes: numericHint(nearby.totalMemoryBytes),
     address: nearbyAddress(nearby),
     updated: timestampLabel(nearby.lastSeenAtUnixNano)
   };
@@ -275,6 +281,14 @@ function processArchHint() {
     return "";
   }
   return process.arch || "";
+}
+
+function numericHint(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric < 0) {
+    return 0;
+  }
+  return Math.floor(numeric);
 }
 
 module.exports = {

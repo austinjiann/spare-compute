@@ -59,6 +59,10 @@ message PingResponse {
   string device_id = 2;
   string device_name = 3;
   DeviceRole role = 4;
+  string platform = 5;
+  string arch = 6;
+  uint32 logical_cpu_count = 7;
+  uint64 total_memory_bytes = 8;
 }
 
 message SubmitJobRequest {
@@ -232,6 +236,8 @@ message NearbyDevice {
   DeviceTrustState trust_state = 13;
   string platform = 14;
   string arch = 15;
+  uint32 logical_cpu_count = 16;
+  uint64 total_memory_bytes = 17;
 }
 
 message JobSpec {

@@ -140,6 +140,12 @@ func announcementText(local device.Announcement) []string {
 	if local.Architecture != "" {
 		records = append(records, "arch="+local.Architecture)
 	}
+	if local.LogicalCPUCount > 0 {
+		records = append(records, "cpu="+strconv.FormatUint(uint64(local.LogicalCPUCount), 10))
+	}
+	if local.TotalMemoryBytes > 0 {
+		records = append(records, "mem="+strconv.FormatUint(local.TotalMemoryBytes, 10))
+	}
 	return records
 }
 
@@ -221,10 +227,19 @@ func parseEntry(entry rawEntry, now time.Time) (device.Observation, error) {
 	if entry.Port <= 0 || entry.Port > 65535 || entry.TTL == 0 {
 		return device.Observation{}, device.ErrInvalidObservation
 	}
+	logicalCPUCount, err := parseOptionalUint32(fields["cpu"])
+	if err != nil || logicalCPUCount > 4096 {
+		return device.Observation{}, device.ErrInvalidObservation
+	}
+	totalMemoryBytes, err := parseOptionalUint64(fields["mem"])
+	if err != nil {
+		return device.Observation{}, device.ErrInvalidObservation
+	}
 	announcement := device.Announcement{
 		PresenceID: presenceID, Name: fields["name"], Role: device.Role(fields["role"]),
 		ProtocolVersion: uint32(protocolVersion), Port: uint16(entry.Port), EndpointReady: ready,
 		Platform: fields["platform"], Architecture: fields["arch"],
+		LogicalCPUCount: logicalCPUCount, TotalMemoryBytes: totalMemoryBytes,
 	}
 	addresses := normalizedAddresses(append(cloneIPs(entry.IPv4), entry.IPv6...))
 	ttl := min(max(entry.TTL, minimumTTLSeconds), maximumTTLSeconds)
@@ -267,6 +282,24 @@ func parseText(records []string) (map[string]string, error) {
 		}
 	}
 	return fields, nil
+}
+
+func parseOptionalUint32(value string) (uint32, error) {
+	if value == "" {
+		return 0, nil
+	}
+	parsed, err := strconv.ParseUint(value, 10, 32)
+	if err != nil {
+		return 0, err
+	}
+	return uint32(parsed), nil
+}
+
+func parseOptionalUint64(value string) (uint64, error) {
+	if value == "" {
+		return 0, nil
+	}
+	return strconv.ParseUint(value, 10, 64)
 }
 
 func normalizedAddresses(values []net.IP) []netip.Addr {

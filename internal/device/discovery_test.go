@@ -54,10 +54,16 @@ func TestAnnouncementRejectsMalformedPlatformHints(t *testing.T) {
 		PresenceID: presenceID, Name: "Gaming PC", Role: RoleWorker,
 		ProtocolVersion: DiscoveryProtocolVersion, Port: 47823,
 		Platform: "windows", Architecture: "amd64",
+		LogicalCPUCount: 32, TotalMemoryBytes: 64 << 30,
 	}
 	if err := announcement.Validate(); err != nil {
 		t.Fatal(err)
 	}
+	announcement.LogicalCPUCount = 4097
+	if err := announcement.Validate(); !errors.Is(err, ErrInvalidAnnouncement) {
+		t.Fatalf("Validate(cpu) error = %v", err)
+	}
+	announcement.LogicalCPUCount = 32
 	for _, value := range []string{"bad value", "bad=value", strings.Repeat("a", 33)} {
 		announcement.Platform = value
 		if err := announcement.Validate(); !errors.Is(err, ErrInvalidAnnouncement) {

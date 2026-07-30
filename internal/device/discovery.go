@@ -72,21 +72,24 @@ func (id PresenceID) Short() string {
 
 // Announcement contains only untrusted LAN presentation and routing hints.
 type Announcement struct {
-	PresenceID      PresenceID
-	Name            string
-	Role            Role
-	ProtocolVersion uint32
-	Port            uint16
-	EndpointReady   bool
-	Platform        string
-	Architecture    string
+	PresenceID       PresenceID
+	Name             string
+	Role             Role
+	ProtocolVersion  uint32
+	Port             uint16
+	EndpointReady    bool
+	Platform         string
+	Architecture     string
+	LogicalCPUCount  uint32
+	TotalMemoryBytes uint64
 }
 
 func (announcement Announcement) Validate() error {
 	if !announcement.PresenceID.Valid() || validateName(announcement.Name) != nil ||
 		(announcement.Role != RoleWorker && announcement.Role != RoleOrchestrator) ||
 		announcement.ProtocolVersion == 0 || announcement.Port == 0 ||
-		validateHint(announcement.Platform) != nil || validateHint(announcement.Architecture) != nil {
+		validateHint(announcement.Platform) != nil || validateHint(announcement.Architecture) != nil ||
+		announcement.LogicalCPUCount > 4096 {
 		return ErrInvalidAnnouncement
 	}
 	return nil

@@ -85,7 +85,11 @@ func TestLocalHandlerPingIncludesLocalDevice(t *testing.T) {
 	handler, err := NewLocalHandlerWithLocalDevice(
 		stubJobController{}, stubPairedJobController{}, stubDeviceController{},
 		stubPairingController{},
-		LocalDeviceInfo{DeviceID: identity.ID(), Name: "Austin MacBook 1", Role: device.RoleOrchestrator},
+		LocalDeviceInfo{
+			DeviceID: identity.ID(), Name: "Austin MacBook 1", Role: device.RoleOrchestrator,
+			Platform: "darwin", Architecture: "arm64",
+			LogicalCPUCount: 12, TotalMemoryBytes: 32 << 30,
+		},
 		"test-version",
 	)
 	if err != nil {
@@ -97,7 +101,11 @@ func TestLocalHandlerPingIncludesLocalDevice(t *testing.T) {
 	ping := response.GetPing()
 	if ping.GetDeviceId() != string(identity.ID()) ||
 		ping.GetDeviceName() != "Austin MacBook 1" ||
-		ping.GetRole() != localv1.DeviceRole_DEVICE_ROLE_ORCHESTRATOR {
+		ping.GetRole() != localv1.DeviceRole_DEVICE_ROLE_ORCHESTRATOR ||
+		ping.GetPlatform() != "darwin" ||
+		ping.GetArch() != "arm64" ||
+		ping.GetLogicalCpuCount() != 12 ||
+		ping.GetTotalMemoryBytes() != 32<<30 {
 		t.Fatalf("ping = %#v", ping)
 	}
 }

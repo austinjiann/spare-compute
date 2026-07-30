@@ -11,7 +11,11 @@
       return device.detail || "Waiting for this worker";
     }
     if (device.id === "local") {
-      return device.role === "worker" ? "This computer · worker" : "This computer";
+      return compactLabel([
+        "This computer",
+        resourceSummary(device),
+        device.role === "worker" ? "worker" : ""
+      ]);
     }
     if (device.id === "auto") {
       return device.detail || "Uses the single connected worker";
@@ -22,8 +26,11 @@
       return `${type} · disabled`;
     }
 
-    const connection = connectionDetail(device);
-    return connection ? `${type} · ${connection}` : type;
+    return compactLabel([
+      type,
+      resourceSummary(device),
+      connectionDetail(device)
+    ]);
   }
 
   function availabilityLabel(device = {}) {
@@ -90,6 +97,43 @@
       return "this Mac";
     }
     return "";
+  }
+
+  function resourceSummary(device = {}) {
+    const parts = [];
+    const cpuCount = Number(device.logicalCPUCount || device.logicalCpuCount || device.cpuCount || 0);
+    if (Number.isFinite(cpuCount) && cpuCount > 0) {
+      parts.push(`${Math.floor(cpuCount)} CPU`);
+    }
+    const memory = memorySummary(device.totalMemoryBytes || device.memoryBytes);
+    if (memory) {
+      parts.push(memory);
+    }
+    return parts.join(" · ");
+  }
+
+  function memorySummary(value) {
+    const bytes = Number(value || 0);
+    if (!Number.isFinite(bytes) || bytes <= 0) {
+      return "";
+    }
+    const gib = bytes / 1024 ** 3;
+    if (gib >= 1) {
+      return `${trimDecimal(gib)} GB`;
+    }
+    const mib = bytes / 1024 ** 2;
+    if (mib >= 1) {
+      return `${trimDecimal(mib)} MB`;
+    }
+    return "";
+  }
+
+  function trimDecimal(value) {
+    return (Math.round(value * 10) / 10).toFixed(1).replace(/\.0$/, "");
+  }
+
+  function compactLabel(parts) {
+    return parts.map((part) => String(part || "").trim()).filter(Boolean).join(" · ");
   }
 
   function friendlyConnectionError(value) {
@@ -401,6 +445,7 @@
     deviceType,
     friendlyConnectionError,
     isSyncManagedDevice,
+    resourceSummary,
     workerReadinessSummary
   };
 }));

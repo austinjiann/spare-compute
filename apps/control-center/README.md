@@ -78,6 +78,8 @@ Current scope:
 - uses advertised platform/architecture hints for friendlier device labels such
   as Windows PC, Linux server, Mac, or MacBook while keeping those hints
   informational only;
+- shows advertised CPU and memory hints in compact device labels, so workers
+  begin to look like real compute targets instead of identical rows;
 - stores allowed work categories per selected device, so This Mac and each
   worker can have different Builds/Tests/Docker/AI/Video/Exact-command policy;
 - plans plain-language tasks such as "run tests", "build the app", "package
