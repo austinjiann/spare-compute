@@ -499,6 +499,7 @@ select {
 #command-input,
 #outputs-input,
 #ai-api-key,
+#ai-base-url,
 #ai-model {
   width: 100%;
   min-height: 42px;

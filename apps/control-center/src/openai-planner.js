@@ -36,11 +36,12 @@ const planSchema = {
 };
 
 function openAIPlannerConfig(env = process.env) {
-  const apiKey = cleanString(env.OPENAI_API_KEY);
-  const model = cleanString(env.COMPUTEHOP_OPENAI_MODEL || env.OPENAI_MODEL) || defaultOpenAIModel;
-  const baseURL = cleanBaseURL(env.OPENAI_BASE_URL || defaultOpenAIBaseURL);
+  const apiKey = cleanString(env.COMPUTEHOP_AI_API_KEY || env.OPENAI_API_KEY);
+  const model = cleanString(env.COMPUTEHOP_AI_MODEL || env.COMPUTEHOP_OPENAI_MODEL || env.OPENAI_MODEL) || defaultOpenAIModel;
+  const baseURL = cleanBaseURL(env.COMPUTEHOP_AI_BASE_URL || env.OPENAI_BASE_URL || defaultOpenAIBaseURL);
   return {
     configured: Boolean(apiKey),
+    provider: "openai",
     apiKey,
     baseURL,
     model

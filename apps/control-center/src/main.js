@@ -171,7 +171,10 @@ ipcMain.handle("aiPlanner:status", async () => {
 
 ipcMain.handle("aiPlanner:save", async (_event, request) => {
   const credentials = await saveAIPlannerCredentials({
+    provider: request?.provider,
+    apiKey: request?.apiKey,
     openAIAPIKey: request?.openAIAPIKey,
+    baseURL: request?.baseURL,
     model: request?.model
   }, {
     userDataPath: app.getPath("userData"),

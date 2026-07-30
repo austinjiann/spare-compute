@@ -38,6 +38,8 @@ const state = {
     configured: false,
     source: "",
     encrypted: false,
+    provider: "openai",
+    baseURL: "",
     model: ""
   },
   launchAgentStatus: {
@@ -2170,11 +2172,17 @@ async function refreshAIPlannerStatus() {
     if (!model.value && state.aiPlannerStatus.model) {
       model.value = state.aiPlannerStatus.model;
     }
+    const baseURL = document.getElementById("ai-base-url");
+    if (!baseURL.value && state.aiPlannerStatus.baseURL) {
+      baseURL.value = state.aiPlannerStatus.baseURL;
+    }
   } catch {
     state.aiPlannerStatus = {
       configured: false,
       source: "",
       encrypted: false,
+      provider: "openai",
+      baseURL: "",
       model: ""
     };
   }
@@ -2192,6 +2200,7 @@ async function saveAIPlannerConfig() {
   try {
     const response = await window.computeHop.saveAIPlanner({
       openAIAPIKey: document.getElementById("ai-api-key").value,
+      baseURL: document.getElementById("ai-base-url").value,
       model: document.getElementById("ai-model").value
     });
     state.aiPlannerStatus = normalizeAIPlannerStatus(response?.status);
@@ -2216,6 +2225,7 @@ async function clearAIPlannerConfig() {
     const response = await window.computeHop.clearAIPlanner();
     state.aiPlannerStatus = normalizeAIPlannerStatus(response?.status);
     document.getElementById("ai-api-key").value = "";
+    document.getElementById("ai-base-url").value = state.aiPlannerStatus.baseURL || "";
     document.getElementById("ai-model").value = state.aiPlannerStatus.model || "";
     renderAIPlannerStatus();
   } catch (error) {
@@ -2232,12 +2242,13 @@ function renderAIPlannerStatus() {
   const current = normalizeAIPlannerStatus(state.aiPlannerStatus);
   if (current.configured) {
     status.textContent = current.source === "environment" ? "On from env" : "On";
+    const provider = current.provider === "openai" ? "OpenAI-compatible planner." : `${current.provider} planner.`;
     const storage = current.source === "environment"
-      ? "Using OPENAI_API_KEY from the environment."
+      ? "Using API key from the environment."
       : current.encrypted
         ? "API key saved with OS-backed encryption."
         : "API key saved without OS-backed encryption on this system.";
-    detail.textContent = `${storage} Local planning still runs first.${current.model ? ` Model: ${current.model}.` : ""}`;
+    detail.textContent = `${provider} ${storage} Local planning still runs first.${current.model ? ` Model: ${current.model}.` : ""}`;
     return;
   }
   status.textContent = "Off";
@@ -2249,6 +2260,8 @@ function normalizeAIPlannerStatus(status = {}) {
     configured: Boolean(status?.configured),
     source: String(status?.source || ""),
     encrypted: Boolean(status?.encrypted),
+    provider: String(status?.provider || "openai").trim() || "openai",
+    baseURL: String(status?.baseURL || "").trim(),
     model: String(status?.model || "").trim()
   };
 }

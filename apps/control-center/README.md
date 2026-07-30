@@ -126,15 +126,17 @@ Current scope:
   pairing completes;
 - uses deterministic local planning first, so no API key is required for normal
   Check/Test/Build/Lint/Docker planning;
-- can fall back to an optional OpenAI Responses API planner for tasks local
-  rules cannot map when an OpenAI API key is saved in the app or
-  `OPENAI_API_KEY` is present; set a model in the app or use
-  `COMPUTEHOP_OPENAI_MODEL` to override the default model;
+- can fall back to an optional OpenAI-compatible Responses API planner for tasks
+  local rules cannot map when an API key is saved in the app or
+  `COMPUTEHOP_AI_API_KEY` / `OPENAI_API_KEY` is present; set a base URL in the
+  app or with `COMPUTEHOP_AI_BASE_URL`, and set a model in the app or with
+  `COMPUTEHOP_AI_MODEL` / `COMPUTEHOP_OPENAI_MODEL` to override the default
+  model;
 - lets the optional AI planner declare files or folders to bring back, using
   the same portable relative output-path validation as manual output entries;
-- stores the optional OpenAI API key in the app user-data directory with
-  Electron `safeStorage` encryption when the OS exposes it, while keeping
-  environment variables as a fallback;
+- stores the optional planner API key in a provider-aware app credential file
+  with Electron `safeStorage` encryption when the OS exposes it, while keeping
+  environment variables as a fallback and reading legacy saved OpenAI keys;
 - keeps AI-planned unknown commands behind the same disabled-by-default
   **Exact commands** allowance and rejects shell operators, multiline commands,
   shell-wrapper commands, obvious interactive commands, privilege escalation,
@@ -257,5 +259,5 @@ npm --prefix apps/control-center test
 npm --prefix apps/control-center run package:dir
 ```
 
-Next step: add a provider-neutral credential abstraction if non-OpenAI planners
-become part of the product.
+Next step: add another planner provider only after there is a non-OpenAI
+planner implementation to route to.

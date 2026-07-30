@@ -12,11 +12,13 @@ const {
 test("openAIPlannerConfig is opt-in through environment", () => {
   assert.equal(openAIPlannerConfig({}).configured, false);
   assert.deepEqual(openAIPlannerConfig({
-    OPENAI_API_KEY: " key ",
-    COMPUTEHOP_OPENAI_MODEL: " custom-model ",
-    OPENAI_BASE_URL: " https://example.com/v1/ "
+    OPENAI_API_KEY: " openai-key ",
+    COMPUTEHOP_AI_API_KEY: " key ",
+    COMPUTEHOP_AI_MODEL: " custom-model ",
+    COMPUTEHOP_AI_BASE_URL: " https://example.com/v1/ "
   }), {
     configured: true,
+    provider: "openai",
     apiKey: "key",
     baseURL: "https://example.com/v1",
     model: "custom-model"

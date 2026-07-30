@@ -139,8 +139,11 @@ make macos-archive
   billing or Actions spending limit blocks runners. That is external to the
   code path; use local validation until billing is fixed.
 - The optional AI planner can translate plain-language requests only when an
-  OpenAI API key is configured. Deterministic local planning works without a
-  key for common checks, tests, builds, lint, Docker, and package tasks.
+  OpenAI-compatible API key is configured. The app can save the key/base URL, or
+  you can use `COMPUTEHOP_AI_API_KEY` / `COMPUTEHOP_AI_BASE_URL`
+  (`OPENAI_API_KEY` / `OPENAI_BASE_URL` still work). Deterministic local
+  planning works without a key for common checks, tests, builds, lint, Docker,
+  and package tasks.
 
 ## Validation
 
