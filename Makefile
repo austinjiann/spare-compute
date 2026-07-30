@@ -1,4 +1,4 @@
-.PHONY: check deploy-check fmt install-macos macos-package macos-package-check pr-check proto proto-check proto-lint race test uninstall-macos vet
+.PHONY: check deploy-check fmt install-macos install-macos-check macos-package macos-package-check pr-check proto proto-check proto-lint race test uninstall-macos vet
 
 BUF_VERSION := v1.72.0
 
@@ -78,6 +78,9 @@ macos-package-check:
 
 install-macos:
 	packaging/macos/install.sh
+
+install-macos-check:
+	packaging/macos/install.sh --check
 
 uninstall-macos:
 	packaging/macos/uninstall.sh

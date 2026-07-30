@@ -19,6 +19,19 @@ Control Center's background-service resolver. That resolver must prefer the
 parent `ComputeHop.app` daemon over the nested Control Center daemon before the
 package is accepted.
 
+Check the installer path without changing the current user account:
+
+```bash
+make install-macos-check
+```
+
+`install.sh --check` builds and verifies the app in a temporary directory,
+validates the selected role/connectivity flags, rejects unrelated existing app,
+CLI, or LaunchAgent targets, renders and validates the rewritten LaunchAgent in
+the temporary directory, and prints what would be installed. It does not copy
+into `~/Applications`, touch `~/.local/bin`, write `~/Library/LaunchAgents`,
+restart launchd, or open the app.
+
 Install it for the current user:
 
 ```bash

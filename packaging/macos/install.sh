@@ -11,8 +11,9 @@ turn_username=""
 turn_password=""
 cache_size=""
 lan_only=false
+check_only=false
 usage() {
-    echo "Usage: packaging/macos/install.sh [--no-open] [--role orchestrator|worker] [--lan-only]" >&2
+    echo "Usage: packaging/macos/install.sh [--check] [--no-open] [--role orchestrator|worker] [--lan-only]" >&2
     echo "       [--device-name NAME] [--cache-size SIZE]" >&2
     echo "       [--connectivity-url HTTPS_URL --stun-server STUN_URI]" >&2
     echo "       [--turn-server TURN_URI --turn-username USER --turn-password PASSWORD]" >&2
@@ -20,6 +21,11 @@ usage() {
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --no-open)
+            open_app=false
+            shift
+            ;;
+        --check)
+            check_only=true
             open_app=false
             shift
             ;;
@@ -121,12 +127,12 @@ fi
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 temporary_dir=$(mktemp -d "${TMPDIR:-/tmp}/computehop-install.XXXXXX")
-service_was_loaded=false
+service_booted_out=false
 install_complete=false
 launch_domain=""
 launch_agent_target=""
 cleanup() {
-    if [ "$service_was_loaded" = true ] && [ "$install_complete" = false ] && \
+    if [ "$service_booted_out" = true ] && [ "$install_complete" = false ] && \
         [ -n "$launch_domain" ] && [ -f "$launch_agent_target" ]; then
         launchctl bootstrap "$launch_domain" "$launch_agent_target" >/dev/null 2>&1 || true
     fi
@@ -148,6 +154,8 @@ cli_target="$cli_dir/computehop"
 launch_agents_dir="$HOME/Library/LaunchAgents"
 launch_agent_target="$launch_agents_dir/$service_label.plist"
 log_dir="$HOME/Library/Logs/ComputeHop"
+service_is_loaded=false
+manual_daemon_blocker=""
 
 check_plist_value() {
     plist_path=$1
@@ -178,20 +186,31 @@ if [ -f "$launch_agent_target" ]; then
 fi
 
 if launchctl print "$launch_domain/$service_label" >/dev/null 2>&1; then
-    service_was_loaded=true
-    launchctl bootout "$launch_domain/$service_label"
+    service_is_loaded=true
+    if [ "$check_only" = false ]; then
+        launchctl bootout "$launch_domain/$service_label"
+        service_booted_out=true
+    fi
 else
     status_output=$("$built_cli" status 2>&1) && {
-        echo "A manually started computehopd is already running." >&2
-        echo "Stop it with Ctrl-C, then run this installer again." >&2
-        exit 1
+        if [ "$check_only" = true ]; then
+            manual_daemon_blocker="A manually started computehopd is already running. Stop it with Ctrl-C before installing."
+        else
+            echo "A manually started computehopd is already running." >&2
+            echo "Stop it with Ctrl-C, then run this installer again." >&2
+            exit 1
+        fi
     }
     case "$status_output" in
         *"ComputeHop daemon does not match this CLI"*)
-            echo "A manually started computehopd from another build is already running." >&2
-            echo "Stop its terminal with Ctrl-C, or run make uninstall-macos if it came from the development app." >&2
-            echo "Then run this installer again." >&2
-            exit 1
+            if [ "$check_only" = true ]; then
+                manual_daemon_blocker="A manually started computehopd from another build is already running. Stop its terminal, or run make uninstall-macos if it came from the development app."
+            else
+                echo "A manually started computehopd from another build is already running." >&2
+                echo "Stop its terminal with Ctrl-C, or run make uninstall-macos if it came from the development app." >&2
+                echo "Then run this installer again." >&2
+                exit 1
+            fi
             ;;
     esac
 fi
@@ -206,13 +225,17 @@ if [ -e "$cli_target" ] || [ -L "$cli_target" ]; then
     fi
 fi
 
-mkdir -p "$applications_dir" "$cli_dir" "$launch_agents_dir" "$log_dir"
-chmod 0700 "$log_dir"
-if [ -e "$app_target" ] || [ -L "$app_target" ]; then
-    rm -rf -- "$app_target"
+if [ "$check_only" = false ]; then
+    mkdir -p "$applications_dir" "$cli_dir" "$launch_agents_dir" "$log_dir"
+    chmod 0700 "$log_dir"
+    if [ -e "$app_target" ] || [ -L "$app_target" ]; then
+        rm -rf -- "$app_target"
+    fi
+    cp -R "$built_app" "$app_target"
+    ln -sfn "$expected_cli_target" "$cli_target"
+else
+    launch_agent_target="$temporary_dir/$service_label.plist"
 fi
-cp -R "$built_app" "$app_target"
-ln -sfn "$expected_cli_target" "$cli_target"
 
 cp "$script_dir/com.computehop.daemon.plist" "$launch_agent_target"
 /usr/bin/plutil -remove ProgramArguments.0 "$launch_agent_target"
@@ -259,6 +282,31 @@ check_plist_value "$launch_agent_target" ProgramArguments:2 "$device_role"
 check_plist_value "$launch_agent_target" StandardErrorPath "$log_dir/daemon.log"
 check_plist_value "$launch_agent_target" StandardOutPath "$log_dir/daemon.log"
 check_plist_value "$launch_agent_target" WorkingDirectory "$HOME"
+
+if [ "$check_only" = true ]; then
+    if [ -n "$manual_daemon_blocker" ]; then
+        echo "Install check completed with a blocker."
+    else
+        echo "Install check passed."
+    fi
+    echo "Would install app: $app_target"
+    echo "Would install CLI link: $cli_target -> $expected_cli_target"
+    echo "Would install launch agent: $HOME/Library/LaunchAgents/$service_label.plist"
+    echo "Would run daemon as: $device_role"
+    if [ "$service_is_loaded" = true ]; then
+        echo "Existing ComputeHop launch agent is loaded; installer would restart it."
+    fi
+    if [ -n "$connectivity_url" ]; then
+        echo "Would enable direct remote connectivity through $connectivity_url"
+    elif [ "$lan_only" = true ]; then
+        echo "Would install in LAN-only mode."
+    fi
+    if [ -n "$manual_daemon_blocker" ]; then
+        echo "Install check found blocker: $manual_daemon_blocker" >&2
+        exit 1
+    fi
+    exit 0
+fi
 
 launchctl bootstrap "$launch_domain" "$launch_agent_target"
 launchctl kickstart -k "$launch_domain/$service_label"
