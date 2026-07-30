@@ -1095,13 +1095,29 @@ function applyTaskSuggestion(suggestion) {
 }
 
 async function stopCurrentJob() {
-  if (!state.currentRunID) {
+  const runID = state.currentRunID;
+  if (!runID) {
     return;
   }
   const button = document.getElementById("run-job");
   button.disabled = true;
   button.textContent = "Stopping";
-  await window.computeHop.stopJob(state.currentRunID);
+  try {
+    const result = await window.computeHop.stopJob(runID);
+    if (result?.stopped === false && state.currentRunID === runID) {
+      runInFlight = false;
+      state.currentRunID = null;
+      appendJobOutput("\nRun already finished or is no longer tracked.\n");
+      renderRunControls();
+      void refreshJobs();
+    }
+  } catch (error) {
+    if (state.currentRunID === runID) {
+      appendJobOutput(`\nStop failed: ${error.message || "Could not stop job."}\n`);
+      button.disabled = false;
+      renderRunControls();
+    }
+  }
 }
 
 function handleJobEvent(event) {

@@ -90,6 +90,8 @@ Current scope:
   terminal state, before the next history refresh;
 - restores declared outputs from succeeded jobs through daemon IPC;
 - cancels running jobs through daemon IPC;
+- recovers the Run button when a stop request races with an already-finished or
+  no-longer-tracked run;
 - targets This Mac by default, or a selected connected worker;
 - offers an **Auto worker** run target when exactly one connected worker is
   available, matching the CLI's `--on auto` behavior;
