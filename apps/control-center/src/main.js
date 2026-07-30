@@ -16,7 +16,7 @@ const {
   suggestControlCenterTasks
 } = require("./planner-service");
 const { appRuntimeInfo, normalizeDaemonRole } = require("./runtime-info");
-const { remotePreparationMessage } = require("./run-feedback");
+const { friendlyRunError, remotePreparationMessage } = require("./run-feedback");
 const { jobOutputsForPlan, outputValidationForPlan, runWorkingDirectory } = require("./run-request");
 const { jobUpdateSignature, nextJobUpdate } = require("./run-progress");
 const {
@@ -746,7 +746,7 @@ async function preferredLaunchAgentDaemonPath() {
 }
 
 function readableError(error) {
-  return error?.message || "ComputeHop request failed.";
+  return friendlyRunError(error);
 }
 
 function delay(ms, signal) {
