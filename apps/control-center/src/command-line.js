@@ -55,6 +55,28 @@ function splitCommandLine(input) {
   return tokens;
 }
 
+function formatCommandLine(parts) {
+  if (!Array.isArray(parts)) {
+    return "";
+  }
+  return parts
+    .map((part) => formatCommandPart(part))
+    .join(" ")
+    .trim();
+}
+
+function formatCommandPart(part) {
+  const value = String(part ?? "");
+  if (value === "") {
+    return '""';
+  }
+  if (/^[A-Za-z0-9_./:=@%+-]+$/.test(value)) {
+    return value;
+  }
+  return `"${value.replace(/(["\\$`])/g, "\\$1")}"`;
+}
+
 module.exports = {
+  formatCommandLine,
   splitCommandLine
 };

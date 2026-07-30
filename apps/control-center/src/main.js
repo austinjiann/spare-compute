@@ -8,7 +8,7 @@ const {
   jobTerminal
 } = require("./local-daemon");
 const { startDaemon } = require("./daemon-launcher");
-const { splitCommandLine } = require("./command-line");
+const { formatCommandLine, splitCommandLine } = require("./command-line");
 const { planTask, suggestTasks } = require("./planner");
 const { appRuntimeInfo, normalizeDaemonRole } = require("./runtime-info");
 const { remotePreparationMessage } = require("./run-feedback");
@@ -448,7 +448,7 @@ function mapJob(value, deviceID = "") {
   }
   const spec = value.spec || {};
   const args = spec.arguments || [];
-  const command = [spec.executable, ...args].filter(Boolean).join(" ") || "Task";
+  const command = formatCommandLine([spec.executable, ...args]) || "Task";
   const outputs = spec.outputs || [];
   return {
     id: value.id || "",

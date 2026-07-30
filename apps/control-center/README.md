@@ -75,6 +75,7 @@ Current scope:
   Builds/Tests/Docker/AI/Video category;
 - parses exact commands with quote/escape handling before submitting them to the
   daemon;
+- displays job-history commands with quoting for spaces and empty arguments;
 - previews the exact command before running when Preview before running is
   enabled;
 - runs a one-click connection test on the selected computer without requiring a

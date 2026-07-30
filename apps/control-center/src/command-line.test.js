@@ -1,6 +1,6 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { splitCommandLine } = require("./command-line");
+const { formatCommandLine, splitCommandLine } = require("./command-line");
 
 test("splitCommandLine splits simple commands", () => {
   assert.deepEqual(splitCommandLine("go test ./..."), ["go", "test", "./..."]);
@@ -34,4 +34,20 @@ test("splitCommandLine rejects unfinished escaping", () => {
 
 test("splitCommandLine returns no tokens for blank input", () => {
   assert.deepEqual(splitCommandLine("  \n\t  "), []);
+});
+
+test("formatCommandLine preserves simple command display", () => {
+  assert.equal(formatCommandLine(["go", "test", "./..."]), "go test ./...");
+});
+
+test("formatCommandLine quotes arguments with spaces", () => {
+  assert.equal(formatCommandLine(["printf", "hello world"]), 'printf "hello world"');
+});
+
+test("formatCommandLine preserves empty arguments", () => {
+  assert.equal(formatCommandLine(["printf", ""]), 'printf ""');
+});
+
+test("formatCommandLine escapes display-sensitive quoted characters", () => {
+  assert.equal(formatCommandLine(["sh", "-c", 'echo "$HOME"']), 'sh -c "echo \\"\\$HOME\\""');
 });
