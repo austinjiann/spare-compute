@@ -52,6 +52,47 @@ printf '%s\n' "$check_output" | grep -q "Worker install check passed."
 printf '%s\n' "$check_output" | grep -q "Would run daemon as worker: Smoke Worker"
 printf '%s\n' "$check_output" | grep -q "Would pass daemon arguments: '--lan-only'"
 
+invalid_output=$(
+    PATH="$fake_bin:$PATH" \
+    HOME="$workspace_dir/home" \
+    XDG_DATA_HOME="$data_home" \
+    XDG_CONFIG_HOME="$config_home" \
+    COMPUTEHOP_DEVICE_NAME="Smoke Worker" \
+    "$package_dir/install-systemd-user.sh" \
+        --check \
+        --lan-only \
+        --connectivity-url https://connect.example.com \
+        --stun-server stun:turn.example.com:3478 2>&1 || true
+)
+printf '%s\n' "$invalid_output" | grep -q -- "--lan-only cannot be combined"
+
+invalid_turn_output=$(
+    PATH="$fake_bin:$PATH" \
+    HOME="$workspace_dir/home" \
+    XDG_DATA_HOME="$data_home" \
+    XDG_CONFIG_HOME="$config_home" \
+    COMPUTEHOP_DEVICE_NAME="Smoke Worker" \
+    "$package_dir/install-systemd-user.sh" \
+        --check \
+        --connectivity-url https://connect.example.com \
+        --turn-server turn:turn.example.com:3478 2>&1 || true
+)
+printf '%s\n' "$invalid_turn_output" | grep -q -- "--turn-server requires --turn-username and --turn-password"
+
+invalid_repeated_stun_output=$(
+    PATH="$fake_bin:$PATH" \
+    HOME="$workspace_dir/home" \
+    XDG_DATA_HOME="$data_home" \
+    XDG_CONFIG_HOME="$config_home" \
+    COMPUTEHOP_DEVICE_NAME="Smoke Worker" \
+    "$package_dir/install-systemd-user.sh" \
+        --check \
+        --connectivity-url https://connect.example.com \
+        --stun-server http://bad.example.com:3478 \
+        --stun-server stun:turn.example.com:3478 2>&1 || true
+)
+printf '%s\n' "$invalid_repeated_stun_output" | grep -q -- "--stun-server must begin with stun: or stuns:"
+
 if [ -e "$data_home/computehop" ]; then
     echo "Linux worker --check wrote worker files." >&2
     exit 1

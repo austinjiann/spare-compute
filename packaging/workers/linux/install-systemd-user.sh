@@ -64,6 +64,121 @@ if [ "$#" -eq 0 ]; then
     set -- --lan-only
 fi
 
+require_value() {
+    flag=$1
+    if [ "$#" -lt 2 ] || [ -z "$2" ]; then
+        echo "$flag requires a value." >&2
+        exit 1
+    fi
+}
+
+validate_connectivity_url() {
+    case "$1" in
+        https://?*) ;;
+        *) echo "--connectivity-url must be an HTTPS URL." >&2; exit 1 ;;
+    esac
+}
+
+validate_stun_server() {
+    case "$1" in
+        stun:?*|stuns:?*) ;;
+        *) echo "--stun-server must begin with stun: or stuns:." >&2; exit 1 ;;
+    esac
+}
+
+validate_turn_server() {
+    case "$1" in
+        turn:?*|turns:?*) ;;
+        *) echo "--turn-server must begin with turn: or turns:." >&2; exit 1 ;;
+    esac
+}
+
+validate_daemon_arguments() {
+    lan_flag=false
+    connectivity_url=""
+    has_stun=false
+    turn_server=""
+    turn_username=""
+    turn_password=""
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            --lan-only)
+                lan_flag=true
+                ;;
+            --connectivity-url)
+                require_value "$@"
+                connectivity_url=$2
+                validate_connectivity_url "$connectivity_url"
+                shift
+                ;;
+            --connectivity-url=*)
+                connectivity_url=${1#--connectivity-url=}
+                validate_connectivity_url "$connectivity_url"
+                ;;
+            --stun-server)
+                require_value "$@"
+                has_stun=true
+                validate_stun_server "$2"
+                shift
+                ;;
+            --stun-server=*)
+                has_stun=true
+                validate_stun_server "${1#--stun-server=}"
+                ;;
+            --turn-server)
+                require_value "$@"
+                turn_server=$2
+                validate_turn_server "$turn_server"
+                shift
+                ;;
+            --turn-server=*)
+                turn_server=${1#--turn-server=}
+                validate_turn_server "$turn_server"
+                ;;
+            --turn-username)
+                require_value "$@"
+                turn_username=$2
+                shift
+                ;;
+            --turn-username=*)
+                turn_username=${1#--turn-username=}
+                ;;
+            --turn-password)
+                require_value "$@"
+                turn_password=$2
+                shift
+                ;;
+            --turn-password=*)
+                turn_password=${1#--turn-password=}
+                ;;
+            --)
+                break
+                ;;
+        esac
+        shift
+    done
+    if [ "$lan_flag" = true ] && { [ -n "$connectivity_url" ] || [ "$has_stun" = true ] || \
+        [ -n "$turn_server" ] || [ -n "$turn_username" ] || [ -n "$turn_password" ]; }; then
+        echo "--lan-only cannot be combined with remote connectivity flags." >&2
+        exit 1
+    fi
+    if { [ -n "$connectivity_url" ] && [ "$has_stun" = false ] && [ -z "$turn_server" ]; } || \
+        { [ -z "$connectivity_url" ] && { [ "$has_stun" = true ] || [ -n "$turn_server" ]; }; }; then
+        echo "--connectivity-url and at least one --stun-server or --turn-server must be supplied together." >&2
+        exit 1
+    fi
+    if [ -n "$turn_server" ] && { [ -z "$turn_username" ] || [ -z "$turn_password" ]; }; then
+        echo "--turn-server requires --turn-username and --turn-password." >&2
+        exit 1
+    fi
+    if [ -z "$turn_server" ] && { [ -n "$turn_username" ] || [ -n "$turn_password" ]; }; then
+        echo "--turn-username and --turn-password require --turn-server." >&2
+        exit 1
+    fi
+}
+
+validate_daemon_arguments "$@"
+
 for packaged_file in "$script_dir/bin/computehop" "$script_dir/bin/computehopd" "$script_dir/run-worker.sh"; do
     if [ ! -x "$packaged_file" ]; then
         echo "Packaged worker file is missing or not executable: $packaged_file" >&2
