@@ -46,6 +46,7 @@
       availability: "remote",
       trustState: "paired",
       path: "auto",
+      workerID: worker.id || "",
       address: "",
       updated: worker.updated || "",
       automatic: true

@@ -51,6 +51,8 @@ Current scope:
 - forgets paired devices through daemon IPC;
 - can disable or re-enable paired workers so disabled devices stay visible but
   cannot be selected, used by Auto worker, or used as run targets;
+- stores allowed work categories per selected device, so This Mac and each
+  worker can have different Builds/Tests/Docker/AI/Video/Exact-command policy;
 - plans plain-language tasks such as "run tests", "build the app", and
   "check CI" into one safe command using local project rules;
 - uses deterministic local planning rules for now; no API key or LLM provider is
@@ -63,8 +65,8 @@ Current scope:
   Docker after a project folder is selected;
 - lets the selected project folder be cleared so utility runs stay visibly
   projectless;
-- filters suggested work and blocks planned submissions when the matching Allow
-  checkbox is turned off;
+- filters suggested work and blocks planned submissions when the matching
+  selected-device Allow checkbox is turned off;
 - keeps arbitrary exact commands behind the disabled-by-default **Exact commands**
   allowance while still letting recognized typed commands use their specific
   Builds/Tests/Docker/AI/Video category;

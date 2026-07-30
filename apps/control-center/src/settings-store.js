@@ -11,6 +11,7 @@ function defaultSettings() {
     askBeforeRun: true,
     daemonRole: "orchestrator",
     syncedDevices: {},
+    deviceCapabilities: {},
     capabilities: {
       builds: true,
       tests: true,
@@ -56,6 +57,7 @@ function normalizeSettings(settings = {}) {
     askBeforeRun: booleanSetting(source.askBeforeRun, defaults.askBeforeRun),
     daemonRole: normalizeDaemonRole(source.daemonRole, defaults.daemonRole),
     syncedDevices: booleanMapSetting(source.syncedDevices),
+    deviceCapabilities: capabilityMapByDeviceSetting(source.deviceCapabilities),
     capabilities: {
       builds: booleanSetting(capabilities.builds, defaults.capabilities.builds),
       tests: booleanSetting(capabilities.tests, defaults.capabilities.tests),
@@ -89,6 +91,18 @@ function booleanMapSetting(value) {
   }
   return Object.fromEntries(
     Object.entries(value).filter((entry) => typeof entry[1] === "boolean")
+  );
+}
+
+function capabilityMapByDeviceSetting(value) {
+  if (!isObject(value)) {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter((entry) => isObject(entry[1]))
+      .map(([deviceID, capabilitiesForDevice]) => [deviceID, booleanMapSetting(capabilitiesForDevice)])
+      .filter((entry) => Object.keys(entry[1]).length > 0)
   );
 }
 

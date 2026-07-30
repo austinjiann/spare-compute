@@ -556,17 +556,7 @@ function renderDevices() {
       if (!canSelectDeviceForRun(device)) {
         return;
       }
-      state.selectedDeviceID = device.id;
-      state.selectedJobID = null;
-      state.selectedJobDeviceID = device.id;
-      state.selectedJobLogText = "";
-      state.selectedJobLogTruncated = false;
-      state.selectedJobLogFailed = false;
-      state.jobs = [];
-      renderDevices();
-      renderRunControls();
-      renderJobs();
-      void refreshJobs();
+      selectRunDevice(device.id);
     });
 
     const icon = document.createElement("span");
@@ -585,7 +575,22 @@ function renderDevices() {
     row.append(icon, copy, meta, action);
     list.append(row);
   });
+  renderCapabilities();
   renderRunControls();
+}
+
+function selectRunDevice(deviceID) {
+  state.selectedDeviceID = deviceID;
+  state.selectedJobID = null;
+  state.selectedJobDeviceID = deviceID;
+  state.selectedJobLogText = "";
+  state.selectedJobLogTruncated = false;
+  state.selectedJobLogFailed = false;
+  state.jobs = [];
+  renderDevices();
+  renderJobs();
+  void refreshTaskSuggestions();
+  void refreshJobs();
 }
 
 function deviceActionButton(device) {
@@ -597,17 +602,7 @@ function deviceActionButton(device) {
     action.disabled = device.id === state.selectedDeviceID;
     action.addEventListener("click", (event) => {
       event.stopPropagation();
-      state.selectedDeviceID = device.id;
-      state.selectedJobID = null;
-      state.selectedJobDeviceID = device.id;
-      state.selectedJobLogText = "";
-      state.selectedJobLogTruncated = false;
-      state.selectedJobLogFailed = false;
-      state.jobs = [];
-      renderDevices();
-      renderRunControls();
-      renderJobs();
-      void refreshJobs();
+      selectRunDevice(device.id);
     });
     return action;
   }
@@ -950,7 +945,7 @@ function validateRunReadiness(selected, planned, outputs = []) {
   if (selected.id !== "local" && outputs.length > 0 && !state.settings.projectRoot) {
     return "Choose a project before bringing files back from another computer.";
   }
-  const policyError = disallowedWorkMessage(planned, state.settings.capabilities);
+  const policyError = disallowedWorkMessage(planned, capabilitiesForSelectedDevice());
   if (policyError) {
     return policyError;
   }
@@ -1197,6 +1192,7 @@ function planMatchesInput(task) {
 function renderCapabilities() {
   const grid = document.getElementById("capability-grid");
   grid.replaceChildren();
+  const selectedCapabilities = capabilitiesForSelectedDevice();
 
   capabilities.forEach(([id, title]) => {
     const label = document.createElement("label");
@@ -1204,9 +1200,9 @@ function renderCapabilities() {
 
     const checkbox = document.createElement("input");
     checkbox.type = "checkbox";
-    checkbox.checked = state.settings.capabilities[id] !== false;
+    checkbox.checked = selectedCapabilities[id] !== false;
     checkbox.addEventListener("change", () => {
-      state.settings.capabilities[id] = checkbox.checked;
+      setSelectedDeviceCapability(id, checkbox.checked);
       saveSettings();
       void refreshTaskSuggestions();
       renderRunControls();
@@ -1289,14 +1285,19 @@ function defaultSettings() {
     askBeforeRun: true,
     daemonRole: "orchestrator",
     syncedDevices: {},
-    capabilities: {
-      builds: true,
-      tests: true,
-      docker: true,
-      ai: true,
-      video: true,
-      commands: false
-    }
+    capabilities: defaultCapabilities(),
+    deviceCapabilities: {}
+  };
+}
+
+function defaultCapabilities() {
+  return {
+    builds: true,
+    tests: true,
+    docker: true,
+    ai: true,
+    video: true,
+    commands: false
   };
 }
 
@@ -1316,6 +1317,10 @@ function mergeSettings(base, incoming) {
     ...booleanMap(base?.syncedDevices),
     ...booleanMap(incoming?.syncedDevices)
   };
+  next.deviceCapabilities = {
+    ...capabilityMapByDevice(base?.deviceCapabilities),
+    ...capabilityMapByDevice(incoming?.deviceCapabilities)
+  };
   return next;
 }
 
@@ -1325,6 +1330,17 @@ function booleanMap(value) {
   }
   return Object.fromEntries(
     Object.entries(value).filter((entry) => typeof entry[1] === "boolean")
+  );
+}
+
+function capabilityMapByDevice(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(value)
+      .map(([deviceID, capabilitiesForDevice]) => [deviceID, booleanMap(capabilitiesForDevice)])
+      .filter((entry) => Object.keys(entry[1]).length > 0)
   );
 }
 
@@ -1345,11 +1361,44 @@ function saveSettings() {
 }
 
 function allowedSuggestions(suggestions) {
-  return filterAllowedSuggestions(suggestions, state.settings.capabilities);
+  return filterAllowedSuggestions(suggestions, capabilitiesForSelectedDevice());
 }
 
 function selectedDevice() {
   return state.devices.find((device) => device.id === state.selectedDeviceID) || defaultLocalDevice();
+}
+
+function selectedCapabilityDeviceID() {
+  const device = selectedDevice();
+  if (device.id === "auto") {
+    return device.workerID || device.id;
+  }
+  return device.id || "local";
+}
+
+function capabilitiesForSelectedDevice() {
+  return capabilitiesForDeviceID(selectedCapabilityDeviceID());
+}
+
+function capabilitiesForDeviceID(deviceID) {
+  const fallback = state.settings.capabilities || {};
+  const deviceCapabilities = state.settings.deviceCapabilities || {};
+  return {
+    ...defaultCapabilities(),
+    ...booleanMap(fallback),
+    ...booleanMap(deviceCapabilities[deviceID])
+  };
+}
+
+function setSelectedDeviceCapability(capability, enabled) {
+  const deviceID = selectedCapabilityDeviceID();
+  state.settings.deviceCapabilities = {
+    ...(state.settings.deviceCapabilities || {}),
+    [deviceID]: {
+      ...capabilitiesForDeviceID(deviceID),
+      [capability]: enabled
+    }
+  };
 }
 
 function canRunOn(device) {
