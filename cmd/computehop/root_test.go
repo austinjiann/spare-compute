@@ -1856,10 +1856,12 @@ func TestSetupHelpShowsRoleAliasesMacAndVPS(t *testing.T) {
 		"Print first-run commands without requiring the ComputeHop daemon",
 		"computehop setup worker --device-name \"Gaming PC\"",
 		"computehop setup worker --device-name \"Gaming PC\" --lan-only",
+		"computehop setup smoke",
 		"computehop setup vps --connectivity-domain connect.example.com",
 		"orchestrator",
 		"worker",
 		"mac",
+		"smoke",
 		"vps",
 	} {
 		if !strings.Contains(stdout.String(), want) {
@@ -1912,6 +1914,15 @@ func TestSetupSubcommandHelpShowsExamplesWithoutDaemon(t *testing.T) {
 				"computehop setup vps --connectivity-domain connect.example.com",
 			},
 		},
+		{
+			name: "smoke",
+			args: []string{"setup", "smoke", "--help"},
+			want: []string{
+				"two-Mac package smoke checklist",
+				"without requiring the daemon",
+				"computehop setup smoke",
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -1933,6 +1944,37 @@ func TestSetupSubcommandHelpShowsExamplesWithoutDaemon(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestSetupSmokeCommandPrintsPackageChecklistWithoutDaemon(t *testing.T) {
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			t.Fatal("setup smoke should not require a daemon client")
+			return nil, nil
+		},
+	})
+	command.SetArgs([]string{"setup", "smoke"})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	for _, want := range []string{
+		"ComputeHop two-Mac package smoke",
+		"make macos-package",
+		"make install-macos-check",
+		"./packaging/macos/install.sh --check --role worker --device-name 'Gaming PC' --lan-only",
+		"computehop connect nearby",
+		"computehop smoke",
+		"computehop run --on auto --no-project --follow hostname",
+		"computehop cancel <job-id>",
+		"computehop run --on auto -C /path/to/project -o smoke-output.txt --follow --get /bin/sh -c 'printf ok > smoke-output.txt'",
+		"tail -n 100 ~/Library/Logs/ComputeHop/daemon.log",
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
+		}
 	}
 }
 

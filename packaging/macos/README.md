@@ -38,6 +38,12 @@ Install it for the current user:
 make install-macos
 ```
 
+Print the full two-Mac LAN package smoke checklist:
+
+```bash
+computehop setup smoke
+```
+
 For a named worker Mac:
 
 ```bash

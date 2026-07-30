@@ -466,6 +466,7 @@ cover LAN-only installs and the self-hosted VPS connectivity stack.`),
 computehop setup orchestrator
 computehop setup worker --device-name "Gaming PC"
 computehop setup worker --device-name "Gaming PC" --lan-only
+computehop setup smoke
 computehop setup vps --connectivity-domain connect.example.com --turn-domain turn.example.com --email admin@example.com --public-ip 203.0.113.10`),
 		Args: cobra.NoArgs,
 		RunE: func(*cobra.Command, []string) error {
@@ -475,6 +476,7 @@ computehop setup vps --connectivity-domain connect.example.com --turn-domain tur
 	command.AddCommand(newSetupMacCommand(stdout))
 	command.AddCommand(newSetupMacRoleCommand(stdout, device.RoleOrchestrator))
 	command.AddCommand(newSetupMacRoleCommand(stdout, device.RoleWorker))
+	command.AddCommand(newSetupSmokeCommand(stdout))
 	command.AddCommand(newSetupVPSCommand(stdout))
 	return command
 }
@@ -569,6 +571,24 @@ computehop setup vps --connectivity-domain connect.example.com --turn-domain tur
 	command.Flags().StringVar(&options.turnDomain, "turn-domain", options.turnDomain, "public STUN/TURN domain")
 	command.Flags().StringVar(&options.email, "email", options.email, "operations email for HTTPS certificate registration")
 	command.Flags().StringVar(&options.publicIP, "public-ip", options.publicIP, "VPS public IPv4 address")
+	return command
+}
+
+func newSetupSmokeCommand(stdout io.Writer) *cobra.Command {
+	command := &cobra.Command{
+		Use:   "smoke",
+		Short: "Print the two-Mac package smoke checklist",
+		Long: strings.TrimSpace(`Print a two-Mac package smoke checklist without requiring the daemon.
+
+Use this after changing packaging, install, pairing, run submission, logs, or
+artifacts. The checklist starts LAN-only so the packaged path is proven before
+advanced cross-network connectivity is added.`),
+		Example: "computehop setup smoke",
+		Args:    cobra.NoArgs,
+		RunE: func(*cobra.Command, []string) error {
+			return printPackageSmokeGuide(stdout)
+		},
+	}
 	return command
 }
 
@@ -998,6 +1018,57 @@ func printMacSetupGuide(stdout io.Writer, options macSetupOptions) error {
 			"   computehop setup vps",
 			"   # Then rerun this setup command with --connectivity-domain and --turn-domain.",
 		)
+	}
+	for _, line := range lines {
+		if _, err := fmt.Fprintln(stdout, line); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func printPackageSmokeGuide(stdout io.Writer) error {
+	lines := []string{
+		"ComputeHop two-Mac package smoke",
+		"",
+		"Goal:",
+		"   prove the packaged app can install, pair, run remotely, stream logs, cancel, and return outputs.",
+		"",
+		"0. Build once from the checkout:",
+		"   make macos-package",
+		"",
+		"1. On the orchestrator Mac:",
+		"   make install-macos-check",
+		"   make install-macos",
+		"   computehop doctor",
+		"",
+		"2. On the worker Mac, from the same checkout or copied package:",
+		"   ./packaging/macos/install.sh --check --role worker --device-name 'Gaming PC' --lan-only",
+		"   ./packaging/macos/install.sh --role worker --device-name 'Gaming PC' --lan-only",
+		"",
+		"3. Pair while both Macs are on the same LAN:",
+		"   # orchestrator",
+		"   computehop connect nearby",
+		"   computehop connect confirm",
+		"   # worker",
+		"   computehop connect confirm",
+		"",
+		"4. Prove remote execution and logs:",
+		"   computehop smoke",
+		"   computehop run --on auto --no-project --follow hostname",
+		"",
+		"5. Prove cancellation:",
+		"   computehop run --on auto --no-project /bin/sleep 3600",
+		"   computehop cancel <job-id>",
+		"   computehop jobs --on auto",
+		"",
+		"6. Prove project transfer and returned outputs from a project folder:",
+		"   computehop run --on auto -C /path/to/project -o smoke-output.txt --follow --get /bin/sh -c 'printf ok > smoke-output.txt'",
+		"",
+		"7. If something fails:",
+		"   computehop doctor",
+		"   computehop devices",
+		"   tail -n 100 ~/Library/Logs/ComputeHop/daemon.log",
 	}
 	for _, line := range lines {
 		if _, err := fmt.Fprintln(stdout, line); err != nil {
