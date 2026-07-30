@@ -29,6 +29,7 @@ xcuserdata/
 node_modules/
 apps/control-center/dist/
 apps/control-center/out/
+apps/control-center/resources/bin/
 npm-debug.log*
 yarn-error.log*
 

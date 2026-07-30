@@ -5,10 +5,11 @@
   "description": "ComputeHop Control Center for device sync and configuration.",
   "main": "src/main.js",
   "scripts": {
+    "bundle-daemon": "node scripts/bundle-daemon.js",
     "dev": "electron .",
     "start": "electron .",
-    "lint": "node --check src/main.js && node --check src/preload.js && node --check src/renderer.js && node --check src/local-daemon.js && node --check src/daemon-launcher.js && node --check src/planner.js && node --check src/runtime-info.js",
-    "test": "node --test src/*.test.js"
+    "lint": "node --check src/main.js && node --check src/preload.js && node --check src/renderer.js && node --check src/local-daemon.js && node --check src/daemon-launcher.js && node --check src/planner.js && node --check src/runtime-info.js && node --check scripts/bundle-daemon.js",
+    "test": "node --test src/*.test.js scripts/*.test.js"
   },
   "devDependencies": {
     "electron": "^43.2.0"

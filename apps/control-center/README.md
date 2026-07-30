@@ -12,6 +12,16 @@ npm install
 npm run dev
 ```
 
+Stage the daemon for packaged-app smoke testing:
+
+```bash
+npm run bundle-daemon
+```
+
+This writes the current platform's `computehopd` binary to
+`apps/control-center/resources/bin`, which is the same location the packaged
+Control Center launcher expects under Electron's resources directory.
+
 Current scope:
 
 - connects directly to the local ComputeHop daemon over the owner-only local IPC
@@ -20,6 +30,7 @@ Current scope:
   daemon in packaged builds, either as the Control Mac or as a Worker;
 - defaults non-macOS computers to Worker because Control Mac is macOS-only;
 - labels the local computer from the daemon's actual identity and role;
+- can stage the bundled daemon binary used by packaged Control Center builds;
 - reads trusted and nearby devices from the daemon;
 - starts nearby-device pairing from the Devices list;
 - shows active pairing verification codes and lets the user confirm or reject
