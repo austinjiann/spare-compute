@@ -78,6 +78,7 @@ test("normalizeSettings rejects malformed values without dropping valid fields",
     deviceCapabilities: {
       "worker-1": {
         docker: false,
+        dangerous: true,
         tests: "nope",
         commands: true
       },
@@ -87,7 +88,8 @@ test("normalizeSettings rejects malformed values without dropping valid fields",
     capabilities: {
       builds: false,
       tests: "nope",
-      commands: true
+      commands: true,
+      dangerous: true
     }
   });
 
@@ -105,9 +107,11 @@ test("normalizeSettings rejects malformed values without dropping valid fields",
       commands: true
     }
   });
+  assert.equal(Object.hasOwn(normalized.deviceCapabilities["worker-1"], "dangerous"), false);
   assert.equal(normalized.capabilities.builds, false);
   assert.equal(normalized.capabilities.tests, true);
   assert.equal(normalized.capabilities.commands, true);
+  assert.equal(Object.hasOwn(normalized.capabilities, "dangerous"), false);
 });
 
 test("loadSettings recovers from a corrupt settings file", async (t) => {

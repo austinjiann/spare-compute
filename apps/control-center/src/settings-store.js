@@ -2,6 +2,7 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 
 const settingsFileName = "control-center-settings.json";
+const capabilityKeys = ["builds", "tests", "docker", "ai", "video", "commands"];
 
 function defaultSettings() {
   return {
@@ -12,14 +13,18 @@ function defaultSettings() {
     daemonRole: "orchestrator",
     syncedDevices: {},
     deviceCapabilities: {},
-    capabilities: {
-      builds: true,
-      tests: true,
-      docker: true,
-      ai: true,
-      video: true,
-      commands: false
-    }
+    capabilities: defaultCapabilities()
+  };
+}
+
+function defaultCapabilities() {
+  return {
+    builds: true,
+    tests: true,
+    docker: true,
+    ai: true,
+    video: true,
+    commands: false
   };
 }
 
@@ -101,8 +106,19 @@ function capabilityMapByDeviceSetting(value) {
   return Object.fromEntries(
     Object.entries(value)
       .filter((entry) => isObject(entry[1]))
-      .map(([deviceID, capabilitiesForDevice]) => [deviceID, booleanMapSetting(capabilitiesForDevice)])
+      .map(([deviceID, capabilitiesForDevice]) => [deviceID, capabilityMapSetting(capabilitiesForDevice)])
       .filter((entry) => Object.keys(entry[1]).length > 0)
+  );
+}
+
+function capabilityMapSetting(value) {
+  if (!isObject(value)) {
+    return {};
+  }
+  return Object.fromEntries(
+    capabilityKeys
+      .filter((key) => typeof value[key] === "boolean")
+      .map((key) => [key, value[key]])
   );
 }
 

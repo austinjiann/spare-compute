@@ -1342,8 +1342,19 @@ function capabilityMapByDevice(value) {
   }
   return Object.fromEntries(
     Object.entries(value)
-      .map(([deviceID, capabilitiesForDevice]) => [deviceID, booleanMap(capabilitiesForDevice)])
+      .map(([deviceID, capabilitiesForDevice]) => [deviceID, capabilityMap(capabilitiesForDevice)])
       .filter((entry) => Object.keys(entry[1]).length > 0)
+  );
+}
+
+function capabilityMap(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.keys(defaultCapabilities())
+      .filter((key) => typeof value[key] === "boolean")
+      .map((key) => [key, value[key]])
   );
 }
 
@@ -1388,8 +1399,8 @@ function capabilitiesForDeviceID(deviceID) {
   const deviceCapabilities = state.settings.deviceCapabilities || {};
   return {
     ...defaultCapabilities(),
-    ...booleanMap(fallback),
-    ...booleanMap(deviceCapabilities[deviceID])
+    ...capabilityMap(fallback),
+    ...capabilityMap(deviceCapabilities[deviceID])
   };
 }
 
