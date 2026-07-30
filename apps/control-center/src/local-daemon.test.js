@@ -212,22 +212,35 @@ test("LocalDaemonClient sends job listing, logs, cancellation, and output fetch 
 
   const client = new LocalDaemonClient({ stateDirectory });
 
+  const submitted = await client.submitJob({
+    executable: "make",
+    arguments: ["pr-check"],
+    workingDirectory: "/Users/austin/project",
+    outputs: ["dist"],
+    deviceSelector: "worker-1"
+  });
   const jobs = await client.listJobs({ deviceSelector: "worker-1", limit: 3 });
   const logs = await client.readJobLogs("job-1", { deviceSelector: "worker-1", afterSequence: 4, limit: 5 });
   const cancelled = await client.cancelJob("job-1", { deviceSelector: "worker-1" });
   const outputs = await client.fetchArtifacts("job-1", { deviceSelector: "worker-1", destination: "/tmp/out" });
 
+  assert.equal(submitted.id, "job-1");
   assert.equal(jobs[0].id, "job-1");
   assert.equal(Buffer.from(logs.records[0].data).toString("utf8"), "hello\n");
   assert.equal(cancelled.state, "JOB_STATE_CANCELLED");
   assert.equal(outputs.destination, "/tmp/out");
   assert.equal(outputs.restoredFileCount, 2);
-  assert.equal(received[0].listJobs.deviceSelector, "worker-1");
-  assert.equal(received[0].listJobs.limit, 3);
-  assert.equal(Number(received[1].readJobLogs.afterSequence), 4);
-  assert.equal(received[1].readJobLogs.limit, 5);
-  assert.equal(received[2].cancelJob.jobId, "job-1");
-  assert.equal(received[3].fetchArtifacts.destination, "/tmp/out");
+  assert.equal(received[0].submitJob.deviceSelector, "worker-1");
+  assert.equal(received[0].submitJob.spec.executable, "make");
+  assert.deepEqual(received[0].submitJob.spec.arguments, ["pr-check"]);
+  assert.equal(received[0].submitJob.spec.workingDirectory, "/Users/austin/project");
+  assert.deepEqual(received[0].submitJob.spec.outputs, ["dist"]);
+  assert.equal(received[1].listJobs.deviceSelector, "worker-1");
+  assert.equal(received[1].listJobs.limit, 3);
+  assert.equal(Number(received[2].readJobLogs.afterSequence), 4);
+  assert.equal(received[2].readJobLogs.limit, 5);
+  assert.equal(received[3].cancelJob.jobId, "job-1");
+  assert.equal(received[4].fetchArtifacts.destination, "/tmp/out");
 });
 
 function pairingResponse(request) {
@@ -296,6 +309,17 @@ function jobResponse(request) {
 
   if (request.listJobs) {
     return { ...envelope, listJobs: { jobs: [job] } };
+  }
+  if (request.submitJob) {
+    return {
+      ...envelope,
+      submitJob: {
+        job: {
+          ...job,
+          spec: request.submitJob.spec
+        }
+      }
+    };
   }
   if (request.readJobLogs) {
     return {
