@@ -57,6 +57,31 @@ test("saveAIPlannerCredentials falls back to plaintext only when encryption is u
   });
 });
 
+test("saveAIPlannerCredentials can preserve an existing key while updating model", async (t) => {
+  const root = await tempRoot(t);
+  const safeStorage = fakeSafeStorage();
+  await saveAIPlannerCredentials({
+    openAIAPIKey: "sk-test",
+    model: "gpt-old"
+  }, {
+    userDataPath: root,
+    safeStorage
+  });
+
+  const saved = await saveAIPlannerCredentials({
+    openAIAPIKey: "",
+    model: "gpt-new"
+  }, {
+    userDataPath: root,
+    safeStorage,
+    preserveExistingAPIKey: true
+  });
+
+  assert.equal(saved.configured, true);
+  assert.equal(saved.openAIAPIKey, "sk-test");
+  assert.equal(saved.model, "gpt-new");
+});
+
 test("loadAIPlannerCredentials fails closed when encrypted data cannot be decrypted", async (t) => {
   const root = await tempRoot(t);
   await saveAIPlannerCredentials({

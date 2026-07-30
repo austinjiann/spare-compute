@@ -130,7 +130,8 @@ ipcMain.handle("aiPlanner:save", async (_event, request) => {
     model: request?.model
   }, {
     userDataPath: app.getPath("userData"),
-    safeStorage
+    safeStorage,
+    preserveExistingAPIKey: true
   });
   return { status: credentialsStatus(credentials) };
 });

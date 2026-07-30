@@ -23,9 +23,14 @@ async function loadAIPlannerCredentials(options = {}) {
 }
 
 async function saveAIPlannerCredentials(credentials = {}, options = {}) {
-  const apiKey = cleanString(credentials.openAIAPIKey);
+  let apiKey = cleanString(credentials.openAIAPIKey);
   const model = cleanString(credentials.model);
   const filePath = credentialsPath(options);
+
+  if (!apiKey && options.preserveExistingAPIKey) {
+    const existing = await loadAIPlannerCredentials(options);
+    apiKey = existing.openAIAPIKey;
+  }
 
   if (!apiKey && !model) {
     await clearAIPlannerCredentials(options);
