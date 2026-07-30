@@ -9,11 +9,14 @@ const DEFAULT_START_TIMEOUT_MS = 10_000;
 const DEFAULT_POLL_MS = 250;
 
 let activeStart = null;
+let activeStartRole = "";
 
 async function startDaemon(options = {}) {
   const client = options.client || new LocalDaemonClient();
+  const requestedRole = normalizedDaemonRole(options.role);
   const alreadyRunning = await ping(client);
   if (alreadyRunning) {
+    assertDaemonRole(alreadyRunning, requestedRole, "already running");
     return {
       ok: true,
       started: false,
@@ -23,11 +26,18 @@ async function startDaemon(options = {}) {
   }
 
   if (activeStart) {
+    if (activeStartRole !== requestedRole) {
+      throw new Error(
+        `ComputeHop is already starting as ${daemonRoleLabel(activeStartRole)}. Wait for it to finish before starting as ${daemonRoleLabel(requestedRole)}.`
+      );
+    }
     return activeStart;
   }
 
-  activeStart = launchAndWait({ ...options, client }).finally(() => {
+  activeStartRole = requestedRole;
+  activeStart = launchAndWait({ ...options, client, role: requestedRole }).finally(() => {
     activeStart = null;
+    activeStartRole = "";
   });
   return activeStart;
 }
@@ -63,6 +73,7 @@ async function launchAndWait(options) {
     }
     const daemon = await ping(client);
     if (daemon) {
+      assertDaemonRole(daemon, options.role, "started");
       return {
         ok: true,
         started: true,
@@ -84,7 +95,7 @@ async function launchAndWait(options) {
 
 async function daemonCommand(options = {}) {
   const deviceName = normalizedDeviceName(options.deviceName || os.hostname());
-  const role = options.role || "orchestrator";
+  const role = normalizedDaemonRole(options.role);
   const root = options.repoRoot || repoRoot;
   const resourcesPath = options.resourcesPath || process.resourcesPath || "";
   const isPackaged = Boolean(options.isPackaged);
@@ -118,6 +129,38 @@ async function daemonCommand(options = {}) {
 
 function daemonArguments(role, deviceName) {
   return ["--role", role, "--device-name", deviceName];
+}
+
+function assertDaemonRole(daemon, expectedRole, state) {
+  const actualRole = daemonRoleFromPing(daemon);
+  if (!actualRole || !expectedRole || actualRole === expectedRole) {
+    return;
+  }
+  throw new Error(
+    `ComputeHop is ${state} as ${daemonRoleLabel(actualRole)}. Quit it before starting this computer as ${daemonRoleLabel(expectedRole)}.`
+  );
+}
+
+function daemonRoleFromPing(daemon) {
+  const role = String(daemon?.role || "").trim();
+  switch (role) {
+    case "DEVICE_ROLE_WORKER":
+    case "worker":
+      return "worker";
+    case "DEVICE_ROLE_ORCHESTRATOR":
+    case "orchestrator":
+      return "orchestrator";
+    default:
+      return "";
+  }
+}
+
+function daemonRoleLabel(role) {
+  return role === "worker" ? "Worker" : "Control Mac";
+}
+
+function normalizedDaemonRole(role) {
+  return String(role || "").trim().toLowerCase() === "worker" ? "worker" : "orchestrator";
 }
 
 function normalizedDeviceName(value) {
@@ -177,6 +220,8 @@ function delay(ms) {
 }
 
 module.exports = {
+  assertDaemonRole,
+  daemonRoleFromPing,
   daemonCommand,
   normalizedDeviceName,
   startDaemon
