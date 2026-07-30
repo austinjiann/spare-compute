@@ -25,6 +25,63 @@ enum AppActionError: LocalizedError {
     }
 }
 
+private enum AppErrorFormatter {
+    static func message(for error: Error) -> String {
+        if case LocalDaemonError.remote(let code, let message) = error,
+           code == .deviceUnavailable
+        {
+            return unavailableWorkerMessage(message)
+        }
+        return error.localizedDescription
+    }
+
+    private static func unavailableWorkerMessage(_ message: String) -> String {
+        if looksLikeNoActiveWorker(message) {
+            return AppActionError.noRunnableWorker.localizedDescription
+        }
+        let worker = unavailableWorkerName(from: message)
+        let subject = worker.isEmpty ? "The worker is not reachable" : "\(worker) is not reachable"
+        return "\(subject). Start ComputeHop on that computer and keep both computers on the same network, then try again. Use Control Center for VPS setup if the computers are on different networks."
+    }
+
+    private static func looksLikeNoActiveWorker(_ message: String) -> Bool {
+        let lowercased = message.lowercased()
+        return lowercased.contains("no active paired worker") ||
+            lowercased.contains("no connected worker")
+    }
+
+    private static func unavailableWorkerName(from message: String) -> String {
+        let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        let prefix = "paired worker is unavailable:"
+        let withoutPrefix: String
+        if trimmed.lowercased().hasPrefix(prefix) {
+            withoutPrefix = String(trimmed.dropFirst(prefix.count))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        } else {
+            withoutPrefix = trimmed
+        }
+        if let range = withoutPrefix.range(of: " is not reachable", options: [.caseInsensitive]) {
+            return cleanWorkerName(String(withoutPrefix[..<range.lowerBound]))
+        }
+        if let range = withoutPrefix.range(
+            of: ": remote connectivity path is unavailable",
+            options: [.caseInsensitive]
+        ) {
+            return cleanWorkerName(String(withoutPrefix[..<range.lowerBound]))
+        }
+        return ""
+    }
+
+    private static func cleanWorkerName(_ value: String) -> String {
+        let name = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: ".。"))
+        guard !name.isEmpty, !looksLikeNoActiveWorker(name) else {
+            return ""
+        }
+        return name
+    }
+}
+
 @Observable
 @MainActor
 final class AppModel {
@@ -341,7 +398,7 @@ final class AppModel {
             try controlCenterLauncher.openControlCenter()
             lastError = nil
         } catch {
-            lastError = error.localizedDescription
+            lastError = AppErrorFormatter.message(for: error)
         }
     }
 
@@ -389,7 +446,7 @@ final class AppModel {
             }
         } catch {
             daemon = nil
-            lastError = error.localizedDescription
+            lastError = AppErrorFormatter.message(for: error)
         }
     }
 
@@ -650,7 +707,7 @@ final class AppModel {
                 trimLogsIfNeeded()
             }
         } catch {
-            lastError = error.localizedDescription
+            lastError = AppErrorFormatter.message(for: error)
         }
     }
 
@@ -722,7 +779,7 @@ final class AppModel {
             try await operation()
             await refresh()
         } catch {
-            lastError = error.localizedDescription
+            lastError = AppErrorFormatter.message(for: error)
         }
     }
 }

@@ -771,6 +771,52 @@ func submitCommandExplainsWhenSelectedWorkerDisappears() async {
 
 @Test
 @MainActor
+func submitCommandExplainsDaemonOfflineWorkerError() async {
+    let worker = runTargetDevice(id: "worker-id", name: "Gaming PC")
+    let client = RecordingDaemonClient(
+        devices: [worker],
+        submitError: LocalDaemonError.remote(
+            .deviceUnavailable,
+            "paired worker is unavailable: Gaming PC: remote connectivity path is unavailable"
+        )
+    )
+    let model = AppModel(client: client)
+    model.daemon = daemonSummary()
+    model.devices = [worker]
+    model.runTargetID = AppModel.automaticWorkerTargetID
+    model.remoteRunWithoutProject = true
+    model.commandInput = "hostname"
+
+    await model.submitCommand()
+
+    #expect(await client.lastSubmittedExecutable() == "hostname")
+    #expect(model.lastError == "Gaming PC is not reachable. Start ComputeHop on that computer and keep both computers on the same network, then try again. Use Control Center for VPS setup if the computers are on different networks.")
+}
+
+@Test
+@MainActor
+func submitSmokeTestExplainsNewDaemonOfflineWorkerErrorWithoutCLICommands() async {
+    let worker = runTargetDevice(id: "worker-id", name: "Mini PC")
+    let message = "paired worker is unavailable: Mini PC is not reachable. " +
+        "Start ComputeHop on that worker, put both devices on the same LAN, then run 'computehop smoke'. " +
+        "For cross-network workers, run 'computehop setup vps'. Last error: remote connectivity path is unavailable"
+    let client = RecordingDaemonClient(
+        devices: [worker],
+        submitError: LocalDaemonError.remote(.deviceUnavailable, message)
+    )
+    let model = AppModel(client: client)
+    model.daemon = daemonSummary()
+    model.devices = [worker]
+
+    await model.submitSmokeTest()
+
+    #expect(await client.lastSubmittedExecutable() == "hostname")
+    #expect(model.lastError == "Mini PC is not reachable. Start ComputeHop on that computer and keep both computers on the same network, then try again. Use Control Center for VPS setup if the computers are on different networks.")
+    #expect(model.lastError?.contains("computehop") == false)
+}
+
+@Test
+@MainActor
 func connectUsesPresenceIDInsteadOfDisplayName() async {
     let nearby = DeviceSummary(
         id: "ephemeral-presence-id",
@@ -1053,6 +1099,7 @@ private final class RecordingSettingsStore: AppSettingsStoring {
 private actor RecordingDaemonClient: LocalDaemonClientProtocol {
     private let devices: [DeviceSummary]
     private var jobs: [JobSummary]
+    private let submitError: Error?
     private var submittedExecutable: String?
     private var submittedArguments: [String]?
     private var submittedSelector: String?
@@ -1062,9 +1109,10 @@ private actor RecordingDaemonClient: LocalDaemonClientProtocol {
     private var unpairedSelector: String?
     private let submittedID = "7a338fa3-7ba4-4c54-bf59-da1161f6b76f"
 
-    init(devices: [DeviceSummary] = [], jobs: [JobSummary] = []) {
+    init(devices: [DeviceSummary] = [], jobs: [JobSummary] = [], submitError: Error? = nil) {
         self.devices = devices
         self.jobs = jobs
+        self.submitError = submitError
     }
 
     func lastSubmittedExecutable() -> String? { submittedExecutable }
@@ -1110,6 +1158,9 @@ private actor RecordingDaemonClient: LocalDaemonClientProtocol {
         submittedSelector = deviceSelector
         submittedWorkingDirectory = workingDirectory
         submittedOutputs = outputs
+        if let submitError {
+            throw submitError
+        }
         return jobSummary(
             id: submittedID,
             executable: executable,
