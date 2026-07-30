@@ -56,7 +56,8 @@ const pendingActions = new Set();
 const {
   addAutomaticWorkerTarget,
   concreteDeviceID,
-  singleConnectedWorkerTarget
+  singleConnectedWorkerTarget,
+  workerRunTargetForAction
 } = window.computeHopDeviceTargets;
 const {
   availabilityLabel,
@@ -279,6 +280,7 @@ async function performWorkerReadinessAction() {
       await startDaemon();
       return;
     case "test-worker":
+      selectReadinessWorker(summary);
       await testSelectedDevice();
       return;
     case "connect-device": {
@@ -304,6 +306,14 @@ async function performWorkerReadinessAction() {
     default:
       return;
   }
+}
+
+function selectReadinessWorker(summary) {
+  const target = workerRunTargetForAction(state.devices, summary?.deviceID);
+  if (!target || target.id === state.selectedDeviceID) {
+    return;
+  }
+  selectRunDevice(target);
 }
 
 function readinessActionKey(summary) {

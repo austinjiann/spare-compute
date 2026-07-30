@@ -83,6 +83,22 @@
     return automaticWorkerTarget(workers[0]);
   }
 
+  function workerRunTargetForAction(devices = [], workerID = "") {
+    const id = String(workerID || "").trim();
+    if (!id) {
+      return null;
+    }
+    const worker = devices.find((device) => device?.id === id && isSingleAutoCandidate(device));
+    if (!worker) {
+      return null;
+    }
+    const automatic = devices.find((device) => (
+      device?.id === automaticWorkerID &&
+      device.workerID === id
+    ));
+    return automatic || worker;
+  }
+
   function insertAfterLocal(devices, target) {
     const localIndex = devices.findIndex((device) => device.id === "local");
     if (localIndex < 0) {
@@ -100,6 +116,7 @@
     automaticWorkerID,
     concreteDeviceID,
     isSingleAutoCandidate,
-    singleConnectedWorkerTarget
+    singleConnectedWorkerTarget,
+    workerRunTargetForAction
   };
 }));

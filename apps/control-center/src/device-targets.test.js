@@ -5,7 +5,8 @@ const {
   automaticWorkerID,
   concreteDeviceID,
   isSingleAutoCandidate,
-  singleConnectedWorkerTarget
+  singleConnectedWorkerTarget,
+  workerRunTargetForAction
 } = require("./device-targets");
 
 test("addAutomaticWorkerTarget inserts Auto worker for exactly one connected worker", () => {
@@ -124,6 +125,27 @@ test("singleConnectedWorkerTarget returns an automatic target only when unambigu
     localDevice(),
     { ...connectedWorker("Offline worker", "worker-1"), availability: "offline" }
   ]), null);
+});
+
+test("workerRunTargetForAction prefers the Auto worker target for readiness actions", () => {
+  const worker = connectedWorker("Austin MacBook 2", "worker-1");
+  const withAuto = addAutomaticWorkerTarget([
+    localDevice(),
+    worker
+  ], "local");
+
+  const target = workerRunTargetForAction(withAuto.devices, "worker-1");
+
+  assert.equal(target.id, automaticWorkerID);
+  assert.equal(target.workerID, "worker-1");
+  assert.equal(workerRunTargetForAction([localDevice(), worker], "worker-1").id, "worker-1");
+  assert.equal(
+    workerRunTargetForAction([
+      localDevice(),
+      { ...worker, synced: false }
+    ], "worker-1"),
+    null
+  );
 });
 
 function localDevice() {

@@ -115,7 +115,8 @@ Current scope:
   project-style task such as CI, tests, builds, or declared outputs needs files
   but no project is selected yet;
 - runs a one-click connection test on the selected computer without requiring a
-  project folder;
+  project folder, and the readiness-card worker test selects the ready worker
+  for subsequent runs;
 - requires a project folder before sending project-style commands such as tests,
   builds, package scripts, and Makefile targets to another computer;
 - covers remote run request construction so project commands upload a selected
