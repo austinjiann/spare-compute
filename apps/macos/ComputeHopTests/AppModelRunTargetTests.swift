@@ -307,6 +307,43 @@ func refreshDoesNotNotifyWhenJobNotificationsAreDisabled() async {
 
 @Test
 @MainActor
+func refreshPreservesExplicitSelectedWorkerWhenUnavailable() async {
+    let worker = runTargetDevice(id: "worker-id", name: "Gaming PC")
+    let client = RecordingDaemonClient(devices: [])
+    let model = AppModel(client: client)
+    model.daemon = daemonSummary()
+    model.devices = [worker]
+    model.selectDevice(worker)
+    model.commandInput = "hostname"
+
+    await model.refresh()
+
+    #expect(model.selectedDeviceID == "worker-id")
+    #expect(model.runTargetID == "worker-id")
+    #expect(model.selectedTargetName == "Gaming PC")
+    #expect(!model.selectedDeviceCanRun)
+    #expect(model.runDisabledReason == "The selected worker is no longer reachable. Refresh and choose another run target.")
+}
+
+@Test
+@MainActor
+func refreshUpdatesRememberedSelectedWorkerNameWhenAvailable() async {
+    let worker = runTargetDevice(id: "worker-id", name: "Studio Mini")
+    let client = RecordingDaemonClient(devices: [worker])
+    let model = AppModel(client: client)
+    model.selectedDeviceID = "worker-id"
+    model.selectedDeviceName = "Old Name"
+    model.runTargetID = "worker-id"
+
+    await model.refresh()
+
+    #expect(model.selectedTargetName == "Studio Mini")
+    #expect(model.selectedDeviceName == "Studio Mini")
+    #expect(model.selectedDeviceCanRun)
+}
+
+@Test
+@MainActor
 func notificationSettingLoadsAndPersistsThroughStore() {
     let store = RecordingSettingsStore(jobCompletionNotificationsEnabled: false)
     let model = AppModel(

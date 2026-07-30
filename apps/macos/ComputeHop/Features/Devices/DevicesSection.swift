@@ -69,6 +69,19 @@ struct DevicesSection: View {
                     }
                 }
                 .padding(.vertical, 4)
+            } else if model.selectedDeviceID != AppModel.localDeviceID {
+                HStack(spacing: 10) {
+                    statusDot(.offline)
+                    Text("Waiting for \(model.selectedTargetName)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Use Mac") {
+                        model.selectLocalDevice()
+                    }
+                    .disabled(model.actionInProgress != nil)
+                }
+                .padding(.vertical, 4)
             }
         }
     }

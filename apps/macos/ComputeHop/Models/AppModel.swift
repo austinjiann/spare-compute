@@ -61,6 +61,7 @@ final class AppModel {
     var outputsInput = ""
     var runTargetID = ""
     var selectedDeviceID = AppModel.localDeviceID
+    var selectedDeviceName = "Here"
     var remoteRunWithoutProject = false
     var plannedTask: TaskPlan?
     var planningError: String?
@@ -142,7 +143,11 @@ final class AppModel {
         if selectedDeviceID == Self.localDeviceID {
             return "Here"
         }
-        return selectedDevice?.name ?? "No device selected"
+        if let selectedDevice {
+            return selectedDevice.name
+        }
+        let trimmedName = selectedDeviceName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmedName.isEmpty || trimmedName == "Here" ? "Selected worker" : trimmedName
     }
 
     var selectedDeviceCanRun: Bool {
@@ -370,16 +375,12 @@ final class AppModel {
             jobs = refreshedJobs.sorted { $0.updatedAt > $1.updatedAt }
             await recordJobStateTransitions(jobs)
             pairings = snapshot.3
-            if selectedDeviceID != Self.localDeviceID &&
-                !devices.contains(where: { $0.id == selectedDeviceID })
+            if selectedDeviceID != Self.localDeviceID,
+               let selectedDevice = devices.first(where: { $0.id == selectedDeviceID })
             {
-                selectedDeviceID = Self.localDeviceID
+                selectedDeviceName = selectedDevice.name
             }
             if isAutomaticRunTargetSelected && !canRunAutomatically {
-                runTargetID = ""
-                remoteRunWithoutProject = false
-            } else if !isAutomaticRunTargetSelected && !runTargetID.isEmpty && !runnableDevices.contains(where: { $0.id == runTargetID }) {
-                runTargetID = ""
                 remoteRunWithoutProject = false
             }
             lastError = nil
@@ -434,6 +435,7 @@ final class AppModel {
 
     func selectLocalDevice() {
         selectedDeviceID = Self.localDeviceID
+        selectedDeviceName = "Here"
         runTargetID = ""
         remoteRunWithoutProject = false
         plannedTask = nil
@@ -442,6 +444,7 @@ final class AppModel {
 
     func selectDevice(_ device: DeviceSummary) {
         selectedDeviceID = device.id
+        selectedDeviceName = device.name
         runTargetID = device.id
         remoteRunWithoutProject = false
         plannedTask = nil
