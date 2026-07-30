@@ -1,11 +1,13 @@
 const state = {
   devices: [],
+  pairings: [],
   selectedDeviceID: "local",
   currentRunID: null,
   settings: loadSettings()
 };
 let refreshInFlight = false;
 let runInFlight = false;
+const pendingActions = new Set();
 
 const defaultDevices = [
   {
@@ -59,9 +61,11 @@ async function refreshDevices() {
 
   if (!state.settings.lanDiscovery) {
     state.devices = defaultDevices;
+    state.pairings = [];
     error.classList.add("hidden");
     status.textContent = "Nearby discovery off";
     renderDevices();
+    renderPairings();
     renderRunControls();
     return;
   }
@@ -74,16 +78,19 @@ async function refreshDevices() {
   try {
     const response = await window.computeHop.listDevices();
     state.devices = mergeDevices(defaultDevices, response.devices || []);
+    state.pairings = response.pairings || [];
     error.classList.toggle("hidden", response.ok);
     error.textContent = response.ok ? "" : "Start ComputeHop to discover nearby devices.";
     status.textContent = response.ok ? scanSummary(state.devices) : "Discovery unavailable";
   } catch (err) {
     state.devices = defaultDevices;
+    state.pairings = [];
     error.classList.remove("hidden");
     error.textContent = "Start ComputeHop to discover nearby devices.";
     status.textContent = "Discovery unavailable";
   } finally {
     renderDevices();
+    renderPairings();
     button.disabled = false;
     button.textContent = "Refresh";
     refreshInFlight = false;
@@ -131,19 +138,152 @@ function renderDevices() {
     meta.className = "device-meta";
     meta.textContent = device.id === "local" ? "Here" : availabilityLabel(device);
 
-    const toggle = document.createElement("input");
-    toggle.type = "checkbox";
-    toggle.checked = state.settings.syncedDevices[device.id] !== false;
-    toggle.addEventListener("click", (event) => event.stopPropagation());
-    toggle.addEventListener("change", () => {
-      state.settings.syncedDevices[device.id] = toggle.checked;
-      saveSettings();
-    });
+    const action = deviceActionButton(device);
 
-    row.append(icon, copy, meta, toggle);
+    row.append(icon, copy, meta, action);
     list.append(row);
   });
   renderRunControls();
+}
+
+function deviceActionButton(device) {
+  const action = document.createElement("button");
+  action.className = "row-button";
+
+  if (device.id === "local") {
+    action.textContent = device.id === state.selectedDeviceID ? "Selected" : "Use";
+    action.disabled = device.id === state.selectedDeviceID;
+    action.addEventListener("click", (event) => {
+      event.stopPropagation();
+      state.selectedDeviceID = device.id;
+      renderDevices();
+      renderRunControls();
+    });
+    return action;
+  }
+
+  const key = `device:${device.id}`;
+  action.disabled = pendingActions.has(key);
+  if (isPairable(device)) {
+    action.textContent = pendingActions.has(key) ? "Connecting" : "Connect";
+    action.addEventListener("click", (event) => {
+      event.stopPropagation();
+      void connectDevice(device);
+    });
+    return action;
+  }
+
+  if (isUnpaired(device)) {
+    action.textContent = availabilityLabel(device) === "Nearby" ? "Connect" : "Unavailable";
+    action.disabled = true;
+    return action;
+  }
+
+  action.textContent = pendingActions.has(key) ? "Forgetting" : "Forget";
+  action.classList.add("muted");
+  action.addEventListener("click", (event) => {
+    event.stopPropagation();
+    void forgetDevice(device);
+  });
+  return action;
+}
+
+function renderPairings() {
+  const list = document.getElementById("pairing-list");
+  const activePairings = state.pairings.filter((pairing) => pairing.state === "waiting" || pairing.state === "failed");
+  list.replaceChildren();
+  list.classList.toggle("hidden", activePairings.length === 0);
+
+  activePairings.forEach((pairing) => {
+    const card = document.createElement("div");
+    card.className = "pairing-card";
+
+    const copy = document.createElement("div");
+    copy.className = "pairing-copy";
+    const status = pairing.localConfirmed
+      ? "Waiting for the other computer"
+      : "Compare this code on both computers";
+    copy.innerHTML = `
+      <strong>${escapeHTML(pairing.peerName)}</strong>
+      <code>${escapeHTML(pairing.verificationCode)}</code>
+      <small>${escapeHTML(status)}</small>
+    `;
+
+    const actions = document.createElement("div");
+    actions.className = "pairing-actions";
+
+    const reject = document.createElement("button");
+    reject.className = "row-button muted";
+    reject.textContent = "Reject";
+    reject.disabled = pendingActions.has(`pairing:${pairing.id}`);
+    reject.addEventListener("click", () => {
+      void rejectPairing(pairing);
+    });
+
+    actions.append(reject);
+    if (!pairing.localConfirmed) {
+      const confirm = document.createElement("button");
+      confirm.className = "row-button primary";
+      confirm.textContent = "Confirm";
+      confirm.disabled = pendingActions.has(`pairing:${pairing.id}`);
+      confirm.addEventListener("click", () => {
+        void confirmPairing(pairing);
+      });
+      actions.append(confirm);
+    }
+
+    card.append(copy, actions);
+    list.append(card);
+  });
+}
+
+async function connectDevice(device) {
+  await performDeviceAction(`device:${device.id}`, async () => {
+    await window.computeHop.connectDevice(device.id);
+    await refreshDevices();
+  });
+}
+
+async function forgetDevice(device) {
+  await performDeviceAction(`device:${device.id}`, async () => {
+    await window.computeHop.forgetDevice(device.id);
+    if (state.selectedDeviceID === device.id) {
+      state.selectedDeviceID = "local";
+    }
+    await refreshDevices();
+  });
+}
+
+async function confirmPairing(pairing) {
+  await performDeviceAction(`pairing:${pairing.id}`, async () => {
+    await window.computeHop.confirmPairing(pairing.id);
+    await refreshDevices();
+  });
+}
+
+async function rejectPairing(pairing) {
+  await performDeviceAction(`pairing:${pairing.id}`, async () => {
+    await window.computeHop.rejectPairing(pairing.id);
+    await refreshDevices();
+  });
+}
+
+async function performDeviceAction(key, action) {
+  const error = document.getElementById("device-error");
+  pendingActions.add(key);
+  renderDevices();
+  renderPairings();
+  try {
+    await action();
+    error.classList.add("hidden");
+  } catch (err) {
+    error.classList.remove("hidden");
+    error.textContent = err.message || "Device action failed.";
+  } finally {
+    pendingActions.delete(key);
+    renderDevices();
+    renderPairings();
+  }
 }
 
 async function chooseProject() {
@@ -361,6 +501,14 @@ function canRunOn(device) {
   return device.role === "worker" && availabilityLabel(device) === "Connected";
 }
 
+function isPairable(device) {
+  return device.id !== "local" && device.connection === "not connected" && device.availability === "nearby";
+}
+
+function isUnpaired(device) {
+  return device.id !== "local" && (device.trustState === "unpaired" || device.connection === "not connected");
+}
+
 function deviceLabel(device) {
   if (device.id === "local") {
     return "This computer";
@@ -373,10 +521,13 @@ function deviceLabel(device) {
 }
 
 function availabilityLabel(device) {
-  if (device.connection === "active" || device.availability === "nearby" || device.availability === "remote") {
+  if (device.connection === "not connected") {
+    return "Nearby";
+  }
+  if (device.connection === "active" || device.availability === "remote") {
     return "Connected";
   }
-  if (device.connection === "not connected") {
+  if (device.availability === "nearby") {
     return "Nearby";
   }
   if (device.availability === "connecting") {
