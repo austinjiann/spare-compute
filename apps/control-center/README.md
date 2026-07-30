@@ -80,6 +80,9 @@ Current scope:
   informational only;
 - shows advertised CPU and memory hints in compact device labels, so workers
   begin to look like real compute targets instead of identical rows;
+- preserves the last unambiguous trusted-worker platform/architecture/CPU/RAM
+  hints in the daemon database, so paired workers can still show useful
+  compatibility information after their current LAN row disappears;
 - stores allowed work categories per selected device, so This Mac and each
   worker can have different Builds/Tests/Docker/AI/Video/Exact-command policy;
 - plans plain-language tasks such as "run tests", "build the app", "package

@@ -218,6 +218,11 @@ message TrustedDevice {
   string connectivity_path = 11;
   string connectivity_error = 12;
   int64 connectivity_updated_at_unix_nano = 13;
+  string platform = 14;
+  string arch = 15;
+  uint32 logical_cpu_count = 16;
+  uint64 total_memory_bytes = 17;
+  int64 hints_observed_at_unix_nano = 18;
 }
 
 message NearbyDevice {

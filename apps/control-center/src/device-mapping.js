@@ -75,8 +75,12 @@ function mapTrustedDevice(trusted) {
     trustState: trustLabel(trusted.trustState),
     path: trusted.connectivityPath || "",
     connectionError: trusted.connectivityError || "",
+    platform: trusted.platform || "",
+    arch: trusted.arch || "",
+    logicalCPUCount: numericHint(trusted.logicalCpuCount),
+    totalMemoryBytes: numericHint(trusted.totalMemoryBytes),
     address: "",
-    updated: timestampLabel(trusted.connectivityUpdatedAtUnixNano || trusted.updatedAtUnixNano)
+    updated: timestampLabel(trusted.connectivityUpdatedAtUnixNano || trusted.hintsObservedAtUnixNano || trusted.updatedAtUnixNano)
   };
 }
 

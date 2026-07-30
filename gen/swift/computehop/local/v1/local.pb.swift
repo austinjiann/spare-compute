@@ -1388,40 +1388,106 @@ public nonisolated struct Computehop_Local_V1_Pairing: Sendable {
   public init() {}
 }
 
-public nonisolated struct Computehop_Local_V1_TrustedDevice: Sendable {
+public nonisolated struct Computehop_Local_V1_TrustedDevice: @unchecked Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
 
-  public var pairID: String = String()
+  public var pairID: String {
+    get {_storage._pairID}
+    set {_uniqueStorage()._pairID = newValue}
+  }
 
-  public var deviceID: String = String()
+  public var deviceID: String {
+    get {_storage._deviceID}
+    set {_uniqueStorage()._deviceID = newValue}
+  }
 
-  public var publicKey: Data = Data()
+  public var publicKey: Data {
+    get {_storage._publicKey}
+    set {_uniqueStorage()._publicKey = newValue}
+  }
 
-  public var name: String = String()
+  public var name: String {
+    get {_storage._name}
+    set {_uniqueStorage()._name = newValue}
+  }
 
-  public var role: Computehop_Local_V1_DeviceRole = .unspecified
+  public var role: Computehop_Local_V1_DeviceRole {
+    get {_storage._role}
+    set {_uniqueStorage()._role = newValue}
+  }
 
-  public var trustState: Computehop_Local_V1_DeviceTrustState = .unspecified
+  public var trustState: Computehop_Local_V1_DeviceTrustState {
+    get {_storage._trustState}
+    set {_uniqueStorage()._trustState = newValue}
+  }
 
-  public var pairedAtUnixNano: Int64 = 0
+  public var pairedAtUnixNano: Int64 {
+    get {_storage._pairedAtUnixNano}
+    set {_uniqueStorage()._pairedAtUnixNano = newValue}
+  }
 
-  public var updatedAtUnixNano: Int64 = 0
+  public var updatedAtUnixNano: Int64 {
+    get {_storage._updatedAtUnixNano}
+    set {_uniqueStorage()._updatedAtUnixNano = newValue}
+  }
 
-  public var revokedAtUnixNano: Int64 = 0
+  public var revokedAtUnixNano: Int64 {
+    get {_storage._revokedAtUnixNano}
+    set {_uniqueStorage()._revokedAtUnixNano = newValue}
+  }
 
-  public var connectivityState: Computehop_Local_V1_ConnectivityState = .unspecified
+  public var connectivityState: Computehop_Local_V1_ConnectivityState {
+    get {_storage._connectivityState}
+    set {_uniqueStorage()._connectivityState = newValue}
+  }
 
-  public var connectivityPath: String = String()
+  public var connectivityPath: String {
+    get {_storage._connectivityPath}
+    set {_uniqueStorage()._connectivityPath = newValue}
+  }
 
-  public var connectivityError: String = String()
+  public var connectivityError: String {
+    get {_storage._connectivityError}
+    set {_uniqueStorage()._connectivityError = newValue}
+  }
 
-  public var connectivityUpdatedAtUnixNano: Int64 = 0
+  public var connectivityUpdatedAtUnixNano: Int64 {
+    get {_storage._connectivityUpdatedAtUnixNano}
+    set {_uniqueStorage()._connectivityUpdatedAtUnixNano = newValue}
+  }
+
+  public var platform: String {
+    get {_storage._platform}
+    set {_uniqueStorage()._platform = newValue}
+  }
+
+  public var arch: String {
+    get {_storage._arch}
+    set {_uniqueStorage()._arch = newValue}
+  }
+
+  public var logicalCpuCount: UInt32 {
+    get {_storage._logicalCpuCount}
+    set {_uniqueStorage()._logicalCpuCount = newValue}
+  }
+
+  public var totalMemoryBytes: UInt64 {
+    get {_storage._totalMemoryBytes}
+    set {_uniqueStorage()._totalMemoryBytes = newValue}
+  }
+
+  public var hintsObservedAtUnixNano: Int64 {
+    get {_storage._hintsObservedAtUnixNano}
+    set {_uniqueStorage()._hintsObservedAtUnixNano = newValue}
+  }
 
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
+
+  fileprivate var _storage = _StorageClass.defaultInstance
 }
 
 public nonisolated struct Computehop_Local_V1_NearbyDevice: @unchecked Sendable {
@@ -3408,89 +3474,184 @@ nonisolated extension Computehop_Local_V1_Pairing: SwiftProtobuf.Message, SwiftP
 
 nonisolated extension Computehop_Local_V1_TrustedDevice: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".TrustedDevice"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}pair_id\0\u{3}device_id\0\u{3}public_key\0\u{1}name\0\u{1}role\0\u{3}trust_state\0\u{3}paired_at_unix_nano\0\u{3}updated_at_unix_nano\0\u{3}revoked_at_unix_nano\0\u{3}connectivity_state\0\u{3}connectivity_path\0\u{3}connectivity_error\0\u{3}connectivity_updated_at_unix_nano\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}pair_id\0\u{3}device_id\0\u{3}public_key\0\u{1}name\0\u{1}role\0\u{3}trust_state\0\u{3}paired_at_unix_nano\0\u{3}updated_at_unix_nano\0\u{3}revoked_at_unix_nano\0\u{3}connectivity_state\0\u{3}connectivity_path\0\u{3}connectivity_error\0\u{3}connectivity_updated_at_unix_nano\0\u{1}platform\0\u{1}arch\0\u{3}logical_cpu_count\0\u{3}total_memory_bytes\0\u{3}hints_observed_at_unix_nano\0")
+
+  fileprivate class _StorageClass {
+    var _pairID: String = String()
+    var _deviceID: String = String()
+    var _publicKey: Data = Data()
+    var _name: String = String()
+    var _role: Computehop_Local_V1_DeviceRole = .unspecified
+    var _trustState: Computehop_Local_V1_DeviceTrustState = .unspecified
+    var _pairedAtUnixNano: Int64 = 0
+    var _updatedAtUnixNano: Int64 = 0
+    var _revokedAtUnixNano: Int64 = 0
+    var _connectivityState: Computehop_Local_V1_ConnectivityState = .unspecified
+    var _connectivityPath: String = String()
+    var _connectivityError: String = String()
+    var _connectivityUpdatedAtUnixNano: Int64 = 0
+    var _platform: String = String()
+    var _arch: String = String()
+    var _logicalCpuCount: UInt32 = 0
+    var _totalMemoryBytes: UInt64 = 0
+    var _hintsObservedAtUnixNano: Int64 = 0
+
+      // This property is used as the initial default value for new instances of the type.
+      // The type itself is protecting the reference to its storage via CoW semantics.
+      // This will force a copy to be made of this reference when the first mutation occurs;
+      // hence, it is safe to mark this as `nonisolated(unsafe)`.
+      static nonisolated(unsafe) let defaultInstance = _StorageClass()
+
+    private init() {}
+
+    init(copying source: _StorageClass) {
+      _pairID = source._pairID
+      _deviceID = source._deviceID
+      _publicKey = source._publicKey
+      _name = source._name
+      _role = source._role
+      _trustState = source._trustState
+      _pairedAtUnixNano = source._pairedAtUnixNano
+      _updatedAtUnixNano = source._updatedAtUnixNano
+      _revokedAtUnixNano = source._revokedAtUnixNano
+      _connectivityState = source._connectivityState
+      _connectivityPath = source._connectivityPath
+      _connectivityError = source._connectivityError
+      _connectivityUpdatedAtUnixNano = source._connectivityUpdatedAtUnixNano
+      _platform = source._platform
+      _arch = source._arch
+      _logicalCpuCount = source._logicalCpuCount
+      _totalMemoryBytes = source._totalMemoryBytes
+      _hintsObservedAtUnixNano = source._hintsObservedAtUnixNano
+    }
+  }
+
+  fileprivate mutating func _uniqueStorage() -> _StorageClass {
+    if !isKnownUniquelyReferenced(&_storage) {
+      _storage = _StorageClass(copying: _storage)
+    }
+    return _storage
+  }
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
-    while let fieldNumber = try decoder.nextFieldNumber() {
-      // The use of inline closures is to circumvent an issue where the compiler
-      // allocates stack space for every case branch when no optimizations are
-      // enabled. https://github.com/apple/swift-protobuf/issues/1034
-      switch fieldNumber {
-      case 1: try { try decoder.decodeSingularStringField(value: &self.pairID) }()
-      case 2: try { try decoder.decodeSingularStringField(value: &self.deviceID) }()
-      case 3: try { try decoder.decodeSingularBytesField(value: &self.publicKey) }()
-      case 4: try { try decoder.decodeSingularStringField(value: &self.name) }()
-      case 5: try { try decoder.decodeSingularEnumField(value: &self.role) }()
-      case 6: try { try decoder.decodeSingularEnumField(value: &self.trustState) }()
-      case 7: try { try decoder.decodeSingularInt64Field(value: &self.pairedAtUnixNano) }()
-      case 8: try { try decoder.decodeSingularInt64Field(value: &self.updatedAtUnixNano) }()
-      case 9: try { try decoder.decodeSingularInt64Field(value: &self.revokedAtUnixNano) }()
-      case 10: try { try decoder.decodeSingularEnumField(value: &self.connectivityState) }()
-      case 11: try { try decoder.decodeSingularStringField(value: &self.connectivityPath) }()
-      case 12: try { try decoder.decodeSingularStringField(value: &self.connectivityError) }()
-      case 13: try { try decoder.decodeSingularInt64Field(value: &self.connectivityUpdatedAtUnixNano) }()
-      default: break
+    _ = _uniqueStorage()
+    try withExtendedLifetime(_storage) { (_storage: _StorageClass) in
+      while let fieldNumber = try decoder.nextFieldNumber() {
+        // The use of inline closures is to circumvent an issue where the compiler
+        // allocates stack space for every case branch when no optimizations are
+        // enabled. https://github.com/apple/swift-protobuf/issues/1034
+        switch fieldNumber {
+        case 1: try { try decoder.decodeSingularStringField(value: &_storage._pairID) }()
+        case 2: try { try decoder.decodeSingularStringField(value: &_storage._deviceID) }()
+        case 3: try { try decoder.decodeSingularBytesField(value: &_storage._publicKey) }()
+        case 4: try { try decoder.decodeSingularStringField(value: &_storage._name) }()
+        case 5: try { try decoder.decodeSingularEnumField(value: &_storage._role) }()
+        case 6: try { try decoder.decodeSingularEnumField(value: &_storage._trustState) }()
+        case 7: try { try decoder.decodeSingularInt64Field(value: &_storage._pairedAtUnixNano) }()
+        case 8: try { try decoder.decodeSingularInt64Field(value: &_storage._updatedAtUnixNano) }()
+        case 9: try { try decoder.decodeSingularInt64Field(value: &_storage._revokedAtUnixNano) }()
+        case 10: try { try decoder.decodeSingularEnumField(value: &_storage._connectivityState) }()
+        case 11: try { try decoder.decodeSingularStringField(value: &_storage._connectivityPath) }()
+        case 12: try { try decoder.decodeSingularStringField(value: &_storage._connectivityError) }()
+        case 13: try { try decoder.decodeSingularInt64Field(value: &_storage._connectivityUpdatedAtUnixNano) }()
+        case 14: try { try decoder.decodeSingularStringField(value: &_storage._platform) }()
+        case 15: try { try decoder.decodeSingularStringField(value: &_storage._arch) }()
+        case 16: try { try decoder.decodeSingularUInt32Field(value: &_storage._logicalCpuCount) }()
+        case 17: try { try decoder.decodeSingularUInt64Field(value: &_storage._totalMemoryBytes) }()
+        case 18: try { try decoder.decodeSingularInt64Field(value: &_storage._hintsObservedAtUnixNano) }()
+        default: break
+        }
       }
     }
   }
 
   public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
-    if !self.pairID.isEmpty {
-      try visitor.visitSingularStringField(value: self.pairID, fieldNumber: 1)
-    }
-    if !self.deviceID.isEmpty {
-      try visitor.visitSingularStringField(value: self.deviceID, fieldNumber: 2)
-    }
-    if !self.publicKey.isEmpty {
-      try visitor.visitSingularBytesField(value: self.publicKey, fieldNumber: 3)
-    }
-    if !self.name.isEmpty {
-      try visitor.visitSingularStringField(value: self.name, fieldNumber: 4)
-    }
-    if self.role != .unspecified {
-      try visitor.visitSingularEnumField(value: self.role, fieldNumber: 5)
-    }
-    if self.trustState != .unspecified {
-      try visitor.visitSingularEnumField(value: self.trustState, fieldNumber: 6)
-    }
-    if self.pairedAtUnixNano != 0 {
-      try visitor.visitSingularInt64Field(value: self.pairedAtUnixNano, fieldNumber: 7)
-    }
-    if self.updatedAtUnixNano != 0 {
-      try visitor.visitSingularInt64Field(value: self.updatedAtUnixNano, fieldNumber: 8)
-    }
-    if self.revokedAtUnixNano != 0 {
-      try visitor.visitSingularInt64Field(value: self.revokedAtUnixNano, fieldNumber: 9)
-    }
-    if self.connectivityState != .unspecified {
-      try visitor.visitSingularEnumField(value: self.connectivityState, fieldNumber: 10)
-    }
-    if !self.connectivityPath.isEmpty {
-      try visitor.visitSingularStringField(value: self.connectivityPath, fieldNumber: 11)
-    }
-    if !self.connectivityError.isEmpty {
-      try visitor.visitSingularStringField(value: self.connectivityError, fieldNumber: 12)
-    }
-    if self.connectivityUpdatedAtUnixNano != 0 {
-      try visitor.visitSingularInt64Field(value: self.connectivityUpdatedAtUnixNano, fieldNumber: 13)
+    try withExtendedLifetime(_storage) { (_storage: _StorageClass) in
+      if !_storage._pairID.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._pairID, fieldNumber: 1)
+      }
+      if !_storage._deviceID.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._deviceID, fieldNumber: 2)
+      }
+      if !_storage._publicKey.isEmpty {
+        try visitor.visitSingularBytesField(value: _storage._publicKey, fieldNumber: 3)
+      }
+      if !_storage._name.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._name, fieldNumber: 4)
+      }
+      if _storage._role != .unspecified {
+        try visitor.visitSingularEnumField(value: _storage._role, fieldNumber: 5)
+      }
+      if _storage._trustState != .unspecified {
+        try visitor.visitSingularEnumField(value: _storage._trustState, fieldNumber: 6)
+      }
+      if _storage._pairedAtUnixNano != 0 {
+        try visitor.visitSingularInt64Field(value: _storage._pairedAtUnixNano, fieldNumber: 7)
+      }
+      if _storage._updatedAtUnixNano != 0 {
+        try visitor.visitSingularInt64Field(value: _storage._updatedAtUnixNano, fieldNumber: 8)
+      }
+      if _storage._revokedAtUnixNano != 0 {
+        try visitor.visitSingularInt64Field(value: _storage._revokedAtUnixNano, fieldNumber: 9)
+      }
+      if _storage._connectivityState != .unspecified {
+        try visitor.visitSingularEnumField(value: _storage._connectivityState, fieldNumber: 10)
+      }
+      if !_storage._connectivityPath.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._connectivityPath, fieldNumber: 11)
+      }
+      if !_storage._connectivityError.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._connectivityError, fieldNumber: 12)
+      }
+      if _storage._connectivityUpdatedAtUnixNano != 0 {
+        try visitor.visitSingularInt64Field(value: _storage._connectivityUpdatedAtUnixNano, fieldNumber: 13)
+      }
+      if !_storage._platform.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._platform, fieldNumber: 14)
+      }
+      if !_storage._arch.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._arch, fieldNumber: 15)
+      }
+      if _storage._logicalCpuCount != 0 {
+        try visitor.visitSingularUInt32Field(value: _storage._logicalCpuCount, fieldNumber: 16)
+      }
+      if _storage._totalMemoryBytes != 0 {
+        try visitor.visitSingularUInt64Field(value: _storage._totalMemoryBytes, fieldNumber: 17)
+      }
+      if _storage._hintsObservedAtUnixNano != 0 {
+        try visitor.visitSingularInt64Field(value: _storage._hintsObservedAtUnixNano, fieldNumber: 18)
+      }
     }
     try unknownFields.traverse(visitor: &visitor)
   }
 
   public static func ==(lhs: Computehop_Local_V1_TrustedDevice, rhs: Computehop_Local_V1_TrustedDevice) -> Bool {
-    if lhs.pairID != rhs.pairID {return false}
-    if lhs.deviceID != rhs.deviceID {return false}
-    if lhs.publicKey != rhs.publicKey {return false}
-    if lhs.name != rhs.name {return false}
-    if lhs.role != rhs.role {return false}
-    if lhs.trustState != rhs.trustState {return false}
-    if lhs.pairedAtUnixNano != rhs.pairedAtUnixNano {return false}
-    if lhs.updatedAtUnixNano != rhs.updatedAtUnixNano {return false}
-    if lhs.revokedAtUnixNano != rhs.revokedAtUnixNano {return false}
-    if lhs.connectivityState != rhs.connectivityState {return false}
-    if lhs.connectivityPath != rhs.connectivityPath {return false}
-    if lhs.connectivityError != rhs.connectivityError {return false}
-    if lhs.connectivityUpdatedAtUnixNano != rhs.connectivityUpdatedAtUnixNano {return false}
+    if lhs._storage !== rhs._storage {
+      let storagesAreEqual: Bool = withExtendedLifetime((lhs._storage, rhs._storage)) { (_args: (_StorageClass, _StorageClass)) in
+        let _storage = _args.0
+        let rhs_storage = _args.1
+        if _storage._pairID != rhs_storage._pairID {return false}
+        if _storage._deviceID != rhs_storage._deviceID {return false}
+        if _storage._publicKey != rhs_storage._publicKey {return false}
+        if _storage._name != rhs_storage._name {return false}
+        if _storage._role != rhs_storage._role {return false}
+        if _storage._trustState != rhs_storage._trustState {return false}
+        if _storage._pairedAtUnixNano != rhs_storage._pairedAtUnixNano {return false}
+        if _storage._updatedAtUnixNano != rhs_storage._updatedAtUnixNano {return false}
+        if _storage._revokedAtUnixNano != rhs_storage._revokedAtUnixNano {return false}
+        if _storage._connectivityState != rhs_storage._connectivityState {return false}
+        if _storage._connectivityPath != rhs_storage._connectivityPath {return false}
+        if _storage._connectivityError != rhs_storage._connectivityError {return false}
+        if _storage._connectivityUpdatedAtUnixNano != rhs_storage._connectivityUpdatedAtUnixNano {return false}
+        if _storage._platform != rhs_storage._platform {return false}
+        if _storage._arch != rhs_storage._arch {return false}
+        if _storage._logicalCpuCount != rhs_storage._logicalCpuCount {return false}
+        if _storage._totalMemoryBytes != rhs_storage._totalMemoryBytes {return false}
+        if _storage._hintsObservedAtUnixNano != rhs_storage._hintsObservedAtUnixNano {return false}
+        return true
+      }
+      if !storagesAreEqual {return false}
+    }
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

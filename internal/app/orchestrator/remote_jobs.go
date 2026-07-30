@@ -786,12 +786,12 @@ func isAutomaticWorkerSelector(selector string) bool {
 
 func (service *RemoteJobService) resolveAutomaticWorker(ctx context.Context, peers []trust.Peer) (trust.Peer, error) {
 	candidates := make([]rankedAutomaticWorker, 0, 1)
-	scores := service.nearbyResourceScores(ctx)
+	scores := service.workerResourceScores(ctx, peers)
 	for _, peer := range peers {
 		if peer.State == trust.StateActive && peer.Role == device.RoleWorker {
 			candidates = append(candidates, rankedAutomaticWorker{
 				peer:  peer,
-				score: scores[peer.Name],
+				score: scores[peer.DeviceID],
 			})
 		}
 	}
@@ -815,27 +815,31 @@ type rankedAutomaticWorker struct {
 	score uint64
 }
 
-func (service *RemoteJobService) nearbyResourceScores(ctx context.Context) map[string]uint64 {
-	scores := make(map[string]uint64)
+func (service *RemoteJobService) workerResourceScores(ctx context.Context, peers []trust.Peer) map[device.ID]uint64 {
+	scores := make(map[device.ID]uint64)
+	for _, peer := range peers {
+		if peer.State == trust.StateActive && peer.Role == device.RoleWorker {
+			scores[peer.DeviceID] = resourceScore(peer.LogicalCPUCount, peer.TotalMemoryBytes)
+		}
+	}
 	snapshot, err := service.nearby.ListNearby(ctx)
 	if err != nil {
 		return scores
 	}
-	for _, nearby := range snapshot.Devices {
-		announcement := nearby.Announcement
-		if announcement.Role != device.RoleWorker || !announcement.EndpointReady {
-			continue
+	for id, hints := range trust.MatchNearbyHints(peers, snapshot.Devices) {
+		score := resourceScore(hints.LogicalCPUCount, hints.TotalMemoryBytes)
+		if score > scores[id] {
+			scores[id] = score
 		}
-		score := automaticWorkerResourceScore(announcement)
-		if score > scores[announcement.Name] {
-			scores[announcement.Name] = score
+		if _, err := service.trust.UpdateHints(ctx, id, hints); err != nil {
+			continue
 		}
 	}
 	return scores
 }
 
-func automaticWorkerResourceScore(announcement device.Announcement) uint64 {
-	return uint64(announcement.LogicalCPUCount)*1_000 + announcement.TotalMemoryBytes/(1<<30)
+func resourceScore(logicalCPUCount uint32, totalMemoryBytes uint64) uint64 {
+	return uint64(logicalCPUCount)*1_000 + totalMemoryBytes/(1<<30)
 }
 
 func (service *RemoteJobService) nearbyCandidates(ctx context.Context, peer trust.Peer) ([]device.NearbyDevice, error) {

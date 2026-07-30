@@ -60,6 +60,31 @@ test("mapDevices does not merge nearby rows when trusted names are ambiguous", (
   assert.equal(result[2].trustState, "unpaired");
 });
 
+test("mapDevices preserves cached trusted-device hints without a nearby LAN row", () => {
+  const result = mapDevices({
+    trustedDevices: [
+      trustedWorker({
+        deviceId: "cached-worker-id",
+        name: "Render PC",
+        platform: "windows",
+        arch: "amd64",
+        logicalCpuCount: 32,
+        totalMemoryBytes: 64 * 1024 ** 3,
+        hintsObservedAtUnixNano: 2_500_000_000
+      })
+    ]
+  });
+
+  assert.equal(result.length, 1);
+  assert.equal(result[0].id, "cached-worker-id");
+  assert.equal(result[0].availability, "offline");
+  assert.equal(result[0].platform, "windows");
+  assert.equal(result[0].arch, "amd64");
+  assert.equal(result[0].logicalCPUCount, 32);
+  assert.equal(result[0].totalMemoryBytes, 64 * 1024 ** 3);
+  assert.equal(result[0].updated, "1970-01-01T00:00:02.500Z");
+});
+
 test("mapDevices formats nearby addresses without corrupting IPv6", () => {
   const result = mapDevices({
     devices: [

@@ -10,6 +10,8 @@ import (
 	"io"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/austinjiann/spare-compute/internal/device"
 )
@@ -23,6 +25,7 @@ const ConnectivitySecretBytes = 32
 var (
 	ErrInvalidPairID = errors.New("invalid pair ID")
 	ErrInvalidPeer   = errors.New("invalid trusted peer")
+	ErrInvalidHints  = errors.New("invalid trusted peer hints")
 	ErrNotFound      = errors.New("trusted peer not found")
 	ErrConflict      = errors.New("trusted peer conflicts with existing trust")
 )
@@ -92,9 +95,35 @@ type Peer struct {
 	Name               string
 	Role               device.Role
 	State              State
+	Platform           string
+	Architecture       string
+	LogicalCPUCount    uint32
+	TotalMemoryBytes   uint64
+	HintsObservedAt    *time.Time
 	PairedAt           time.Time
 	UpdatedAt          time.Time
 	RevokedAt          *time.Time
+}
+
+// PeerHints are non-authoritative compatibility and resource hints last
+// observed for an already trusted peer. They may influence scheduling and UI,
+// but trust still comes only from the pinned peer public key.
+type PeerHints struct {
+	Platform         string
+	Architecture     string
+	LogicalCPUCount  uint32
+	TotalMemoryBytes uint64
+	ObservedAt       time.Time
+}
+
+func (hints PeerHints) Validate() error {
+	if hints.ObservedAt.IsZero() ||
+		validateHint(hints.Platform) != nil ||
+		validateHint(hints.Architecture) != nil ||
+		hints.LogicalCPUCount > 4096 {
+		return ErrInvalidHints
+	}
+	return nil
 }
 
 // Validate checks identity binding, lifecycle timestamps, and state invariants.
@@ -104,7 +133,17 @@ func (peer Peer) Validate() error {
 		device.ValidateName(peer.Name) != nil ||
 		(len(peer.ConnectivitySecret) != 0 && !peer.ConnectivitySecret.Valid()) ||
 		(peer.Role != device.RoleWorker && peer.Role != device.RoleOrchestrator) ||
+		validateHint(peer.Platform) != nil || validateHint(peer.Architecture) != nil ||
+		peer.LogicalCPUCount > 4096 ||
 		peer.PairedAt.IsZero() || peer.UpdatedAt.Before(peer.PairedAt) {
+		return ErrInvalidPeer
+	}
+	if peer.HintsObservedAt == nil {
+		if peer.Platform != "" || peer.Architecture != "" ||
+			peer.LogicalCPUCount != 0 || peer.TotalMemoryBytes != 0 {
+			return ErrInvalidPeer
+		}
+	} else if peer.HintsObservedAt.IsZero() {
 		return ErrInvalidPeer
 	}
 	switch peer.State {
@@ -127,6 +166,10 @@ func (peer Peer) Validate() error {
 func (peer Peer) Clone() Peer {
 	peer.PublicKey = append(ed25519.PublicKey(nil), peer.PublicKey...)
 	peer.ConnectivitySecret = append(ConnectivitySecret(nil), peer.ConnectivitySecret...)
+	if peer.HintsObservedAt != nil {
+		observedAt := *peer.HintsObservedAt
+		peer.HintsObservedAt = &observedAt
+	}
 	if peer.RevokedAt != nil {
 		revokedAt := *peer.RevokedAt
 		peer.RevokedAt = &revokedAt
@@ -140,4 +183,54 @@ type Repository interface {
 	Get(context.Context, device.ID) (Peer, error)
 	List(context.Context) ([]Peer, error)
 	Revoke(context.Context, device.ID, time.Time) (Peer, error)
+	UpdateHints(context.Context, device.ID, PeerHints) (Peer, error)
+}
+
+// MatchNearbyHints conservatively associates untrusted nearby LAN sightings
+// with already trusted peers. A hint is returned only when exactly one active
+// trusted worker and exactly one endpoint-ready nearby worker share the same
+// presentation name. The returned hints are not identity proof.
+func MatchNearbyHints(peers []Peer, nearby []device.NearbyDevice) map[device.ID]PeerHints {
+	peerByName := make(map[string][]Peer)
+	for _, peer := range peers {
+		if peer.State == StateActive && peer.Role == device.RoleWorker {
+			peerByName[peer.Name] = append(peerByName[peer.Name], peer)
+		}
+	}
+	nearbyByName := make(map[string][]device.NearbyDevice)
+	for _, value := range nearby {
+		announcement := value.Announcement
+		if announcement.Role == device.RoleWorker && announcement.EndpointReady {
+			nearbyByName[announcement.Name] = append(nearbyByName[announcement.Name], value)
+		}
+	}
+	result := make(map[device.ID]PeerHints)
+	for name, matchingPeers := range peerByName {
+		matchingNearby := nearbyByName[name]
+		if len(matchingPeers) != 1 || len(matchingNearby) != 1 {
+			continue
+		}
+		announcement := matchingNearby[0].Announcement
+		result[matchingPeers[0].DeviceID] = PeerHints{
+			Platform: announcement.Platform, Architecture: announcement.Architecture,
+			LogicalCPUCount: announcement.LogicalCPUCount, TotalMemoryBytes: announcement.TotalMemoryBytes,
+			ObservedAt: matchingNearby[0].SeenAt.UTC(),
+		}
+	}
+	return result
+}
+
+func validateHint(value string) error {
+	if value == "" {
+		return nil
+	}
+	if strings.TrimSpace(value) != value || len(value) > 32 || !utf8.ValidString(value) {
+		return ErrInvalidHints
+	}
+	for _, character := range value {
+		if unicode.IsControl(character) || unicode.IsSpace(character) || character == '=' {
+			return ErrInvalidHints
+		}
+	}
+	return nil
 }

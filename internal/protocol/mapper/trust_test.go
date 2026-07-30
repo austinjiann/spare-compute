@@ -41,7 +41,10 @@ func TestTrustProtocolRoundTripsValidatedValues(t *testing.T) {
 		PairID: pairID, DeviceID: identity.ID(), PublicKey: identity.PublicKey(),
 		ConnectivitySecret: bytes.Repeat([]byte{9}, trust.ConnectivitySecretBytes),
 		Name:               "Worker", Role: device.RoleWorker, State: trust.StateActive,
-		PairedAt: now, UpdatedAt: now,
+		Platform: "linux", Architecture: "amd64",
+		LogicalCPUCount: 32, TotalMemoryBytes: 64 << 30,
+		HintsObservedAt: ptrTime(now.Add(30 * time.Second)),
+		PairedAt:        now, UpdatedAt: now,
 	}
 	peerMessage, err := TrustedPeerToProto(peer)
 	if err != nil {
@@ -54,9 +57,18 @@ func TestTrustProtocolRoundTripsValidatedValues(t *testing.T) {
 	if bytes.Contains(wire, peer.ConnectivitySecret) {
 		t.Fatal("trusted-device UI message exposed the connectivity secret")
 	}
+	if peerMessage.GetPlatform() != "linux" || peerMessage.GetArch() != "amd64" ||
+		peerMessage.GetLogicalCpuCount() != 32 || peerMessage.GetTotalMemoryBytes() != 64<<30 ||
+		peerMessage.GetHintsObservedAtUnixNano() != now.Add(30*time.Second).UnixNano() {
+		t.Fatalf("trusted-device hints = %#v", peerMessage)
+	}
 	decodedPeer, err := TrustedPeerFromProto(peerMessage)
 	peer.ConnectivitySecret = nil
 	if err != nil || !reflect.DeepEqual(decodedPeer, peer) {
 		t.Fatalf("TrustedPeerFromProto() = %#v, %v", decodedPeer, err)
 	}
+}
+
+func ptrTime(value time.Time) *time.Time {
+	return &value
 }

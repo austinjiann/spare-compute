@@ -130,6 +130,44 @@ func TestLocalHandlerListsDiscoveryHealth(t *testing.T) {
 	}
 }
 
+func TestLocalHandlerRefreshesTrustedDeviceHints(t *testing.T) {
+	peer := activeWorkerPeer(t, 43, "Build PC")
+	observedAt := time.Unix(1_800_000_000, 0).UTC()
+	refreshed := peer.Clone()
+	refreshed.Platform = "linux"
+	refreshed.Architecture = "amd64"
+	refreshed.LogicalCPUCount = 32
+	refreshed.TotalMemoryBytes = 64 << 30
+	refreshed.HintsObservedAt = &observedAt
+	handler, err := NewLocalHandler(stubJobController{}, stubPairedJobController{}, stubDeviceController{
+		list: func(context.Context) (device.DiscoverySnapshot, error) {
+			return device.DiscoverySnapshot{
+				Available: true,
+				Devices:   []device.NearbyDevice{nearbyWorkerWithResources(t, "Build PC", 47823, 32, 64<<30)},
+			}, nil
+		},
+	}, stubPairingController{
+		refresh: func(_ context.Context, snapshot device.DiscoverySnapshot) ([]trust.Peer, error) {
+			if len(snapshot.Devices) != 1 {
+				t.Fatalf("snapshot = %#v", snapshot)
+			}
+			return []trust.Peer{refreshed}, nil
+		},
+	}, "test-version")
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := handler.Handle(context.Background(), &localv1.Request{
+		Operation: &localv1.Request_ListDevices{ListDevices: &localv1.ListDevicesRequest{}},
+	})
+	message := response.GetListDevices().GetTrustedDevices()[0]
+	if message.GetPlatform() != "linux" || message.GetArch() != "amd64" ||
+		message.GetLogicalCpuCount() != 32 || message.GetTotalMemoryBytes() != 64<<30 ||
+		message.GetHintsObservedAtUnixNano() != observedAt.UnixNano() {
+		t.Fatalf("trusted device = %#v", message)
+	}
+}
+
 func TestLocalHandlerAddsSecretFreeRemoteConnectivityState(t *testing.T) {
 	peer := activeWorkerPeer(t, 42, "Remote Worker")
 	peer.ConnectivitySecret = bytes.Repeat([]byte{5}, trust.ConnectivitySecretBytes)
@@ -513,6 +551,7 @@ func (stub stubPairedJobController) ReadLogs(
 type stubPairingController struct {
 	begin   func(context.Context, string) (trust.Pairing, error)
 	trusted func(context.Context) ([]trust.Peer, error)
+	refresh func(context.Context, device.DiscoverySnapshot) ([]trust.Peer, error)
 }
 
 type stubConnectivityController struct {
@@ -544,6 +583,16 @@ func (stub stubPairingController) ListTrusted(ctx context.Context) ([]trust.Peer
 		return stub.trusted(ctx)
 	}
 	return nil, nil
+}
+
+func (stub stubPairingController) RefreshTrustedHints(
+	ctx context.Context,
+	snapshot device.DiscoverySnapshot,
+) ([]trust.Peer, error) {
+	if stub.refresh != nil {
+		return stub.refresh(ctx, snapshot)
+	}
+	return stub.ListTrusted(ctx)
 }
 
 func pairingForHandlerTest(t *testing.T) trust.Pairing {

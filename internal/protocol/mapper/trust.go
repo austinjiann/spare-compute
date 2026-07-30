@@ -129,9 +129,14 @@ func TrustedPeerToProto(peer trust.Peer) (*localv1.TrustedDevice, error) {
 		PublicKey: append([]byte(nil), peer.PublicKey...), Name: peer.Name,
 		Role: role, TrustState: state,
 		PairedAtUnixNano: peer.PairedAt.UnixNano(), UpdatedAtUnixNano: peer.UpdatedAt.UnixNano(),
+		Platform: peer.Platform, Arch: peer.Architecture,
+		LogicalCpuCount: peer.LogicalCPUCount, TotalMemoryBytes: peer.TotalMemoryBytes,
 	}
 	if peer.RevokedAt != nil {
 		message.RevokedAtUnixNano = peer.RevokedAt.UnixNano()
+	}
+	if peer.HintsObservedAt != nil {
+		message.HintsObservedAtUnixNano = peer.HintsObservedAt.UnixNano()
 	}
 	return message, nil
 }
@@ -164,12 +169,18 @@ func TrustedPeerFromProto(message *localv1.TrustedDevice) (trust.Peer, error) {
 		PairID: pairID, DeviceID: deviceID,
 		PublicKey: ed25519.PublicKey(append([]byte(nil), message.GetPublicKey()...)),
 		Name:      message.GetName(), Role: role, State: state,
+		Platform: message.GetPlatform(), Architecture: message.GetArch(),
+		LogicalCPUCount: message.GetLogicalCpuCount(), TotalMemoryBytes: message.GetTotalMemoryBytes(),
 		PairedAt:  time.Unix(0, message.GetPairedAtUnixNano()).UTC(),
 		UpdatedAt: time.Unix(0, message.GetUpdatedAtUnixNano()).UTC(),
 	}
 	if message.GetRevokedAtUnixNano() != 0 {
 		revokedAt := time.Unix(0, message.GetRevokedAtUnixNano()).UTC()
 		peer.RevokedAt = &revokedAt
+	}
+	if message.GetHintsObservedAtUnixNano() != 0 {
+		observedAt := time.Unix(0, message.GetHintsObservedAtUnixNano()).UTC()
+		peer.HintsObservedAt = &observedAt
 	}
 	if err := peer.Validate(); err != nil {
 		return trust.Peer{}, err

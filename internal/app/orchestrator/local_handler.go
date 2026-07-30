@@ -74,6 +74,10 @@ type PairingController interface {
 	Unpair(context.Context, string) (trust.Peer, error)
 }
 
+type TrustedHintRefresher interface {
+	RefreshTrustedHints(context.Context, device.DiscoverySnapshot) ([]trust.Peer, error)
+}
+
 // ConnectivityController exposes secret-free reachability state for local UI.
 type ConnectivityController interface {
 	States() []remoteconn.State
@@ -296,7 +300,7 @@ func (handler *LocalHandler) listDevices(
 	if err != nil {
 		return errorResponse(err)
 	}
-	trusted, err := handler.pairings.ListTrusted(ctx)
+	trusted, err := handler.listTrustedWithHints(ctx, snapshot)
 	if err != nil {
 		return errorResponse(err)
 	}
@@ -305,6 +309,16 @@ func (handler *LocalHandler) listDevices(
 		return errorResponse(err)
 	}
 	return &localv1.Response{Result: &localv1.Response_ListDevices{ListDevices: message}}
+}
+
+func (handler *LocalHandler) listTrustedWithHints(
+	ctx context.Context,
+	snapshot device.DiscoverySnapshot,
+) ([]trust.Peer, error) {
+	if refresher, ok := handler.pairings.(TrustedHintRefresher); ok {
+		return refresher.RefreshTrustedHints(ctx, snapshot)
+	}
+	return handler.pairings.ListTrusted(ctx)
 }
 
 func (handler *LocalHandler) beginPairing(ctx context.Context, request *localv1.BeginPairingRequest) *localv1.Response {

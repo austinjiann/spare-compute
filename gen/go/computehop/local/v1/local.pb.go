@@ -2868,6 +2868,11 @@ type TrustedDevice struct {
 	ConnectivityPath              string                 `protobuf:"bytes,11,opt,name=connectivity_path,json=connectivityPath,proto3" json:"connectivity_path,omitempty"`
 	ConnectivityError             string                 `protobuf:"bytes,12,opt,name=connectivity_error,json=connectivityError,proto3" json:"connectivity_error,omitempty"`
 	ConnectivityUpdatedAtUnixNano int64                  `protobuf:"varint,13,opt,name=connectivity_updated_at_unix_nano,json=connectivityUpdatedAtUnixNano,proto3" json:"connectivity_updated_at_unix_nano,omitempty"`
+	Platform                      string                 `protobuf:"bytes,14,opt,name=platform,proto3" json:"platform,omitempty"`
+	Arch                          string                 `protobuf:"bytes,15,opt,name=arch,proto3" json:"arch,omitempty"`
+	LogicalCpuCount               uint32                 `protobuf:"varint,16,opt,name=logical_cpu_count,json=logicalCpuCount,proto3" json:"logical_cpu_count,omitempty"`
+	TotalMemoryBytes              uint64                 `protobuf:"varint,17,opt,name=total_memory_bytes,json=totalMemoryBytes,proto3" json:"total_memory_bytes,omitempty"`
+	HintsObservedAtUnixNano       int64                  `protobuf:"varint,18,opt,name=hints_observed_at_unix_nano,json=hintsObservedAtUnixNano,proto3" json:"hints_observed_at_unix_nano,omitempty"`
 	unknownFields                 protoimpl.UnknownFields
 	sizeCache                     protoimpl.SizeCache
 }
@@ -2989,6 +2994,41 @@ func (x *TrustedDevice) GetConnectivityError() string {
 func (x *TrustedDevice) GetConnectivityUpdatedAtUnixNano() int64 {
 	if x != nil {
 		return x.ConnectivityUpdatedAtUnixNano
+	}
+	return 0
+}
+
+func (x *TrustedDevice) GetPlatform() string {
+	if x != nil {
+		return x.Platform
+	}
+	return ""
+}
+
+func (x *TrustedDevice) GetArch() string {
+	if x != nil {
+		return x.Arch
+	}
+	return ""
+}
+
+func (x *TrustedDevice) GetLogicalCpuCount() uint32 {
+	if x != nil {
+		return x.LogicalCpuCount
+	}
+	return 0
+}
+
+func (x *TrustedDevice) GetTotalMemoryBytes() uint64 {
+	if x != nil {
+		return x.TotalMemoryBytes
+	}
+	return 0
+}
+
+func (x *TrustedDevice) GetHintsObservedAtUnixNano() int64 {
+	if x != nil {
+		return x.HintsObservedAtUnixNano
 	}
 	return 0
 }
@@ -3678,7 +3718,7 @@ const file_computehop_local_v1_local_proto_rawDesc = "" +
 	" \x01(\bR\x0fremoteConfirmed\x12/\n" +
 	"\x14started_at_unix_nano\x18\v \x01(\x03R\x11startedAtUnixNano\x12/\n" +
 	"\x14expires_at_unix_nano\x18\f \x01(\x03R\x11expiresAtUnixNano\x12\x18\n" +
-	"\afailure\x18\r \x01(\tR\afailure\"\x83\x05\n" +
+	"\afailure\x18\r \x01(\tR\afailure\"\xcb\x06\n" +
 	"\rTrustedDevice\x12\x17\n" +
 	"\apair_id\x18\x01 \x01(\tR\x06pairId\x12\x1b\n" +
 	"\tdevice_id\x18\x02 \x01(\tR\bdeviceId\x12\x1d\n" +
@@ -3695,7 +3735,12 @@ const file_computehop_local_v1_local_proto_rawDesc = "" +
 	" \x01(\x0e2&.computehop.local.v1.ConnectivityStateR\x11connectivityState\x12+\n" +
 	"\x11connectivity_path\x18\v \x01(\tR\x10connectivityPath\x12-\n" +
 	"\x12connectivity_error\x18\f \x01(\tR\x11connectivityError\x12H\n" +
-	"!connectivity_updated_at_unix_nano\x18\r \x01(\x03R\x1dconnectivityUpdatedAtUnixNano\"\xa2\x05\n" +
+	"!connectivity_updated_at_unix_nano\x18\r \x01(\x03R\x1dconnectivityUpdatedAtUnixNano\x12\x1a\n" +
+	"\bplatform\x18\x0e \x01(\tR\bplatform\x12\x12\n" +
+	"\x04arch\x18\x0f \x01(\tR\x04arch\x12*\n" +
+	"\x11logical_cpu_count\x18\x10 \x01(\rR\x0flogicalCpuCount\x12,\n" +
+	"\x12total_memory_bytes\x18\x11 \x01(\x04R\x10totalMemoryBytes\x12<\n" +
+	"\x1bhints_observed_at_unix_nano\x18\x12 \x01(\x03R\x17hintsObservedAtUnixNano\"\xa2\x05\n" +
 	"\fNearbyDevice\x12\x1f\n" +
 	"\vpresence_id\x18\x01 \x01(\tR\n" +
 	"presenceId\x12\x12\n" +

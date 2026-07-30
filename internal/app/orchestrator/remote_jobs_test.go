@@ -204,6 +204,36 @@ func TestRemoteJobServiceAutoSelectorChoosesHighestResourceWorker(t *testing.T) 
 	}
 }
 
+func TestRemoteJobServiceAutoSelectorUsesCachedResourceHints(t *testing.T) {
+	buildPeer := activeWorkerPeer(t, 12, "Build PC")
+	renderPeer := activeWorkerPeer(t, 13, "Render PC")
+	buildPeer = peerWithResourceHints(buildPeer, 8, 16<<30)
+	renderPeer = peerWithResourceHints(renderPeer, 32, 64<<30)
+	service, err := NewRemoteJobService(RemoteDependencies{
+		Nearby:     stubDeviceController{},
+		Trust:      remoteTrustStub{peers: []trust.Peer{buildPeer, renderPeer}},
+		Placements: newRemotePlacementStub(),
+		Dialer: remoteDialerFunc(func(
+			context.Context,
+			device.NearbyDevice,
+			trust.Peer,
+		) (remoteprotocol.Caller, error) {
+			t.Fatal("cached selector resolution should not open a remote connection")
+			return nil, nil
+		}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := service.resolveTrustedWorker(context.Background(), "auto")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.DeviceID != renderPeer.DeviceID {
+		t.Fatalf("worker = %s, want %s", got.DeviceID.Short(), renderPeer.DeviceID.Short())
+	}
+}
+
 func TestRemoteJobServiceAutoSelectorBreaksTiesByStableDeviceID(t *testing.T) {
 	left := activeWorkerPeer(t, 12, "Build PC")
 	right := activeWorkerPeer(t, 13, "Render PC")
@@ -883,6 +913,25 @@ func (stub remoteTrustStub) List(context.Context) ([]trust.Peer, error) {
 func (stub remoteTrustStub) Revoke(context.Context, device.ID, time.Time) (trust.Peer, error) {
 	return trust.Peer{}, errors.New("not implemented")
 }
+func (stub remoteTrustStub) UpdateHints(_ context.Context, id device.ID, hints trust.PeerHints) (trust.Peer, error) {
+	if err := hints.Validate(); err != nil {
+		return trust.Peer{}, err
+	}
+	for _, peer := range stub.peers {
+		if peer.DeviceID != id {
+			continue
+		}
+		peer = peer.Clone()
+		peer.Platform = hints.Platform
+		peer.Architecture = hints.Architecture
+		peer.LogicalCPUCount = hints.LogicalCPUCount
+		peer.TotalMemoryBytes = hints.TotalMemoryBytes
+		observedAt := hints.ObservedAt.UTC()
+		peer.HintsObservedAt = &observedAt
+		return peer, nil
+	}
+	return trust.Peer{}, trust.ErrNotFound
+}
 
 type remotePlacementStub struct {
 	values map[job.ID]placement.Placement
@@ -972,6 +1021,14 @@ func activeWorkerPeer(t *testing.T, seed byte, name string) trust.Peer {
 		Name: name, Role: device.RoleWorker, State: trust.StateActive,
 		PairedAt: now, UpdatedAt: now,
 	}
+}
+
+func peerWithResourceHints(peer trust.Peer, logicalCPUCount uint32, totalMemoryBytes uint64) trust.Peer {
+	peer.LogicalCPUCount = logicalCPUCount
+	peer.TotalMemoryBytes = totalMemoryBytes
+	observedAt := peer.UpdatedAt.Add(time.Minute)
+	peer.HintsObservedAt = &observedAt
+	return peer
 }
 
 func nearbyWorker(t *testing.T, name string, port uint16) device.NearbyDevice {

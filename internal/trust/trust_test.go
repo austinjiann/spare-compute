@@ -2,6 +2,7 @@ package trust
 
 import (
 	"bytes"
+	"net/netip"
 	"testing"
 	"time"
 
@@ -29,6 +30,79 @@ func TestPeerValidatesPinnedPublicKey(t *testing.T) {
 	peer.PublicKey[0] ^= 0xff
 	if err := peer.Validate(); err == nil {
 		t.Fatal("Validate() accepted a public key that did not match the device ID")
+	}
+}
+
+func TestMatchNearbyHintsOnlyUsesUnambiguousTrustedWorkerNames(t *testing.T) {
+	now := time.Unix(1_800_000_000, 0).UTC()
+	build := peerForTest(t, 10, device.RoleWorker, "Build PC")
+	render := peerForTest(t, 11, device.RoleWorker, "Render PC")
+	otherRender := peerForTest(t, 12, device.RoleWorker, "Render PC")
+	orchestrator := peerForTest(t, 13, device.RoleOrchestrator, "Control Mac")
+
+	got := MatchNearbyHints([]Peer{build, render, otherRender, orchestrator}, []device.NearbyDevice{
+		nearbyHintForTest(t, "Build PC", now, "linux", "amd64", 32, 64<<30),
+		nearbyHintForTest(t, "Render PC", now, "windows", "amd64", 24, 32<<30),
+		nearbyHintForTest(t, "Control Mac", now, "darwin", "arm64", 12, 32<<30),
+	})
+
+	if len(got) != 1 {
+		t.Fatalf("hint matches = %#v", got)
+	}
+	hints := got[build.DeviceID]
+	if hints.Platform != "linux" || hints.Architecture != "amd64" ||
+		hints.LogicalCPUCount != 32 || hints.TotalMemoryBytes != 64<<30 ||
+		!hints.ObservedAt.Equal(now) {
+		t.Fatalf("hints = %#v", hints)
+	}
+}
+
+func peerForTest(t *testing.T, seed byte, role device.Role, name string) Peer {
+	t.Helper()
+	identity, err := device.GenerateIdentity(bytes.NewReader(bytes.Repeat([]byte{seed}, 64)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pairID, err := NewPairID(bytes.NewReader(bytes.Repeat([]byte{seed}, 16)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	at := time.Unix(1_700_000_000+int64(seed), 0).UTC()
+	return Peer{
+		PairID: pairID, DeviceID: identity.ID(), PublicKey: identity.PublicKey(),
+		Name: name, Role: role, State: StateActive,
+		PairedAt: at, UpdatedAt: at,
+	}
+}
+
+func nearbyHintForTest(
+	t *testing.T,
+	name string,
+	seenAt time.Time,
+	platform string,
+	architecture string,
+	logicalCPUCount uint32,
+	totalMemoryBytes uint64,
+) device.NearbyDevice {
+	t.Helper()
+	presence, err := device.NewPresenceID(bytes.NewReader(bytes.Repeat([]byte{name[0]}, 16)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return device.NearbyDevice{
+		Observation: device.Observation{
+			Key: device.ObservationKey(name + "|worker.local.|47823"),
+			Announcement: device.Announcement{
+				PresenceID: presence, Name: name, Role: device.RoleWorker,
+				ProtocolVersion: device.DiscoveryProtocolVersion, Port: 47823,
+				EndpointReady: true, Platform: platform, Architecture: architecture,
+				LogicalCPUCount: logicalCPUCount, TotalMemoryBytes: totalMemoryBytes,
+			},
+			Instance: name, HostName: "worker.local.",
+			Addresses: []netip.Addr{netip.MustParseAddr("192.0.2.20")},
+			SeenAt:    seenAt, ExpiresAt: seenAt.Add(time.Minute),
+		},
+		FirstSeenAt: seenAt,
 	}
 }
 
