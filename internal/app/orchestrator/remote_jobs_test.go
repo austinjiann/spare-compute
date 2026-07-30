@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"net/netip"
 	"path/filepath"
 	"strings"
@@ -219,6 +220,58 @@ func TestRemoteJobServiceRequiresAnActiveNearbyPin(t *testing.T) {
 	_, err = service.List(context.Background(), "Offline PC", job.ListOptions{Limit: 10})
 	if !errors.Is(err, ErrRemoteWorkerUnavailable) {
 		t.Fatalf("error = %v", err)
+	}
+	for _, want := range []string{
+		"Offline PC is not reachable",
+		"Start ComputeHop on that worker",
+		"same LAN",
+		"computehop smoke",
+		"computehop setup vps",
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("error = %q; missing %q", err, want)
+		}
+	}
+	if strings.Contains(err.Error(), "%!") || strings.Contains(err.Error(), "Last error") {
+		t.Fatalf("error leaked formatting details: %q", err)
+	}
+}
+
+func TestRemoteJobServiceUnavailableWorkerPreservesDialCause(t *testing.T) {
+	peer := activeWorkerPeer(t, 10, "Travel PC")
+	cause := errors.New("remote connectivity path is unavailable")
+	service, err := NewRemoteJobService(RemoteDependencies{
+		Nearby:     stubDeviceController{},
+		Trust:      remoteTrustStub{peers: []trust.Peer{peer}},
+		Placements: newRemotePlacementStub(),
+		Dialer: remoteDialerFunc(func(
+			context.Context,
+			device.NearbyDevice,
+			trust.Peer,
+		) (remoteprotocol.Caller, error) {
+			t.Fatal("offline worker was dialed over LAN")
+			return nil, nil
+		}),
+		Remote: pairedRemoteDialerFunc(func(context.Context, trust.Peer) (remoteprotocol.Caller, error) {
+			return nil, cause
+		}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = service.Submit(context.Background(), "Travel PC", queuedJobForTest().Spec)
+	if !errors.Is(err, ErrRemoteWorkerUnavailable) || !errors.Is(err, cause) {
+		t.Fatalf("error = %v", err)
+	}
+	for _, want := range []string{
+		"Travel PC is not reachable",
+		"computehop smoke",
+		"computehop setup vps",
+		fmt.Sprintf("Last error: %v", cause),
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("error = %q; missing %q", err, want)
+		}
 	}
 }
 

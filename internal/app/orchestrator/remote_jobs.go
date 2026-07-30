@@ -691,7 +691,24 @@ func (service *RemoteJobService) open(
 			return caller, nil
 		}
 	}
-	return nil, fmt.Errorf("%w: %s: %v", ErrRemoteWorkerUnavailable, peer.Name, errors.Join(failures...))
+	return nil, workerUnreachableError(peer, failures)
+}
+
+func workerUnreachableError(peer trust.Peer, failures []error) error {
+	cause := errors.Join(failures...)
+	if cause == nil {
+		return fmt.Errorf(
+			"%w: %s is not reachable. Start ComputeHop on that worker, put both devices on the same LAN, then run 'computehop smoke'. For cross-network workers, run 'computehop setup vps'",
+			ErrRemoteWorkerUnavailable,
+			peer.Name,
+		)
+	}
+	return fmt.Errorf(
+		"%w: %s is not reachable. Start ComputeHop on that worker, put both devices on the same LAN, then run 'computehop smoke'. For cross-network workers, run 'computehop setup vps'. Last error: %w",
+		ErrRemoteWorkerUnavailable,
+		peer.Name,
+		cause,
+	)
 }
 
 func (service *RemoteJobService) resolveJobWorker(
