@@ -1734,10 +1734,12 @@ function smokeTestTitle(device) {
 }
 
 function jobsUnavailableMessage(device) {
-  if (device?.unavailableSelection) {
-    return `${device.name} is not available yet. Keep the worker app open, or switch to This Mac.`;
-  }
-  return "Choose This Mac or a connected worker.";
+  const blocker = runReadinessBlocker({
+    daemonAvailable: state.daemonAvailable,
+    device,
+    canRun: Boolean(device && canRunOn(device))
+  });
+  return blocker.message || "Choose This Mac or a connected worker.";
 }
 
 function planMatchesInput(task) {

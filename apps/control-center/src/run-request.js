@@ -81,9 +81,13 @@
       return block("Start ComputeHop before running jobs.");
     }
     if (device?.unavailableSelection) {
-      return block(`${deviceName} is not available yet. Keep the worker app open, or switch to This Mac.`);
+      return offlineWorkerBlock(deviceName);
     }
     if (!device || !request.canRun) {
+      const deviceBlocker = selectedDeviceBlocker(device);
+      if (deviceBlocker.message) {
+        return deviceBlocker;
+      }
       return block("Choose This Mac or a connected worker first.");
     }
     if (plan.requiresProject && !cleanPath(request.projectRoot)) {
@@ -119,6 +123,48 @@
       );
     }
     return block(cleanString(request.policyError));
+  }
+
+  function selectedDeviceBlocker(device = {}) {
+    const selected = device || {};
+    const deviceName = cleanString(selected.name) || "that computer";
+    if (!isRemoteWorker(selected)) {
+      return block("");
+    }
+    if (selected.synced === false) {
+      return block(`${deviceName} is paused for tasks. Enable it in Devices, or switch to This Mac.`, "enable-device", "Enable");
+    }
+    const availability = cleanString(selected.availability).toLowerCase();
+    const connection = cleanString(selected.connection).toLowerCase();
+    const trustState = cleanString(selected.trustState).toLowerCase();
+    if (availability === "connecting") {
+      return block(`${deviceName} is still connecting. Wait a moment, then try again.`, "refresh", "Refresh");
+    }
+    if ((trustState === "unpaired" || connection === "not connected") && availability === "nearby") {
+      return block(`${deviceName} is nearby but not connected. Connect it from Devices first, or switch to This Mac.`, "connect-device", "Connect");
+    }
+    if (
+      availability === "offline" ||
+      connection === "offline" ||
+      connection === "not connected" ||
+      connection === "remote access off"
+    ) {
+      return offlineWorkerBlock(deviceName);
+    }
+    return block(`${deviceName} cannot run tasks yet. Choose a connected worker or switch to This Mac.`);
+  }
+
+  function offlineWorkerBlock(deviceName) {
+    return block(
+      `${deviceName} is not reachable. Open ComputeHop on that computer and keep both computers on the same network, then try again. For different networks, set up VPS connectivity.`,
+      "refresh",
+      "Refresh"
+    );
+  }
+
+  function isRemoteWorker(device = {}) {
+    const id = cleanString(device.id);
+    return id && id !== "local" && id !== "auto" && cleanString(device.role) === "worker";
   }
 
   function block(message, actionKind = "", actionLabel = "") {

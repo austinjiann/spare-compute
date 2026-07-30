@@ -219,7 +219,88 @@ test("runReadinessError explains pending selected workers", () => {
       },
       canRun: false
     }),
-    "Gaming PC is not available yet. Keep the worker app open, or switch to This Mac."
+    "Gaming PC is not reachable. Open ComputeHop on that computer and keep both computers on the same network, then try again. For different networks, set up VPS connectivity."
+  );
+});
+
+test("runReadinessError explains selected offline workers before submission", () => {
+  assert.equal(
+    runReadinessError({
+      device: {
+        id: "worker-1",
+        name: "Gaming PC",
+        role: "worker",
+        trustState: "paired",
+        connection: "not connected",
+        availability: "offline"
+      },
+      canRun: false
+    }),
+    "Gaming PC is not reachable. Open ComputeHop on that computer and keep both computers on the same network, then try again. For different networks, set up VPS connectivity."
+  );
+});
+
+test("runReadinessBlocker explains selected paused workers before submission", () => {
+  assert.deepEqual(
+    runReadinessBlocker({
+      device: {
+        id: "worker-1",
+        name: "Gaming PC",
+        role: "worker",
+        trustState: "paired",
+        connection: "active",
+        availability: "remote",
+        synced: false
+      },
+      canRun: false
+    }),
+    {
+      message: "Gaming PC is paused for tasks. Enable it in Devices, or switch to This Mac.",
+      actionKind: "enable-device",
+      actionLabel: "Enable"
+    }
+  );
+});
+
+test("runReadinessBlocker explains selected nearby workers before submission", () => {
+  assert.deepEqual(
+    runReadinessBlocker({
+      device: {
+        id: "presence-1",
+        name: "Home Server",
+        role: "worker",
+        trustState: "unpaired",
+        connection: "not connected",
+        availability: "nearby"
+      },
+      canRun: false
+    }),
+    {
+      message: "Home Server is nearby but not connected. Connect it from Devices first, or switch to This Mac.",
+      actionKind: "connect-device",
+      actionLabel: "Connect"
+    }
+  );
+});
+
+test("runReadinessBlocker explains selected reconnecting workers before submission", () => {
+  assert.deepEqual(
+    runReadinessBlocker({
+      device: {
+        id: "worker-1",
+        name: "Mini PC",
+        role: "worker",
+        trustState: "paired",
+        connection: "active",
+        availability: "connecting"
+      },
+      canRun: false
+    }),
+    {
+      message: "Mini PC is still connecting. Wait a moment, then try again.",
+      actionKind: "refresh",
+      actionLabel: "Refresh"
+    }
   );
 });
 
