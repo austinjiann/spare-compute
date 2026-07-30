@@ -102,6 +102,24 @@
           <input id="ask-before-run" type="checkbox" checked />
         </label>
 
+        <div class="divider"></div>
+
+        <section class="section">
+          <div class="section-title">
+            <h2>AI planner</h2>
+            <span id="ai-planner-status" class="section-meta">Off</span>
+          </div>
+          <div class="settings-box">
+            <input id="ai-api-key" type="password" placeholder="OpenAI API key, optional" autocomplete="off" />
+            <input id="ai-model" placeholder="Model, default: gpt-5.6" />
+            <div class="settings-actions">
+              <button id="save-ai-planner" class="pill-button">Save</button>
+              <button id="clear-ai-planner" class="text-button">Clear</button>
+            </div>
+            <small id="ai-planner-detail">Local planning works without an API key.</small>
+          </div>
+        </section>
+
       </section>
     </main>
 

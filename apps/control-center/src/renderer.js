@@ -26,6 +26,12 @@ const state = {
   startingDaemon: false,
   loadingJobs: false,
   loadingLogs: false,
+  aiPlannerStatus: {
+    configured: false,
+    source: "",
+    encrypted: false,
+    model: ""
+  },
   settings: loadSettings()
 };
 let refreshInFlight = false;
@@ -79,6 +85,8 @@ document.getElementById("command-input").addEventListener("input", () => {
 });
 document.getElementById("choose-project").addEventListener("click", chooseProject);
 document.getElementById("clear-project").addEventListener("click", clearProject);
+document.getElementById("save-ai-planner").addEventListener("click", saveAIPlannerConfig);
+document.getElementById("clear-ai-planner").addEventListener("click", clearAIPlannerConfig);
 
 bindCheckbox("lanDiscovery", document.getElementById("lan-discovery"));
 bindCheckbox("askBeforeRun", document.getElementById("ask-before-run"));
@@ -91,8 +99,10 @@ renderPlanPreview();
 renderRunControls();
 renderDaemonCard();
 renderJobs();
+renderAIPlannerStatus();
 void hydrateSettings();
 void loadAppInfo();
+void refreshAIPlannerStatus();
 void refreshTaskSuggestions();
 refreshDevices();
 setInterval(refreshDevices, 5000);
@@ -1263,6 +1273,7 @@ async function hydrateSettings() {
     renderPlanPreview();
     renderRunControls();
     applyDaemonRoleOptions();
+    await refreshAIPlannerStatus();
     await refreshDevices();
   } catch {
     // Keep the localStorage/default bootstrap settings if app-side settings
@@ -1275,6 +1286,101 @@ function renderSettingsControls() {
   document.getElementById("ask-before-run").checked = state.settings.askBeforeRun !== false;
   document.getElementById("daemon-role").value = state.settings.daemonRole || "orchestrator";
   document.getElementById("outputs-input").value = state.settings.artifacts || "";
+}
+
+async function refreshAIPlannerStatus() {
+  if (!window.computeHop.aiPlannerStatus) {
+    renderAIPlannerStatus();
+    return;
+  }
+  try {
+    const response = await window.computeHop.aiPlannerStatus();
+    state.aiPlannerStatus = normalizeAIPlannerStatus(response?.status);
+    const model = document.getElementById("ai-model");
+    if (!model.value && state.aiPlannerStatus.model) {
+      model.value = state.aiPlannerStatus.model;
+    }
+  } catch {
+    state.aiPlannerStatus = {
+      configured: false,
+      source: "",
+      encrypted: false,
+      model: ""
+    };
+  }
+  renderAIPlannerStatus();
+}
+
+async function saveAIPlannerConfig() {
+  if (!window.computeHop.saveAIPlanner) {
+    showJobOutput("This build cannot save AI planner settings.", false);
+    return;
+  }
+  const save = document.getElementById("save-ai-planner");
+  save.disabled = true;
+  save.textContent = "Saving";
+  try {
+    const response = await window.computeHop.saveAIPlanner({
+      openAIAPIKey: document.getElementById("ai-api-key").value,
+      model: document.getElementById("ai-model").value
+    });
+    state.aiPlannerStatus = normalizeAIPlannerStatus(response?.status);
+    document.getElementById("ai-api-key").value = "";
+    renderAIPlannerStatus();
+  } catch (error) {
+    showJobOutput(error.message || "Could not save AI planner settings.", false);
+  } finally {
+    save.disabled = false;
+    save.textContent = "Save";
+  }
+}
+
+async function clearAIPlannerConfig() {
+  if (!window.computeHop.clearAIPlanner) {
+    return;
+  }
+  const clear = document.getElementById("clear-ai-planner");
+  clear.disabled = true;
+  clear.textContent = "Clearing";
+  try {
+    const response = await window.computeHop.clearAIPlanner();
+    state.aiPlannerStatus = normalizeAIPlannerStatus(response?.status);
+    document.getElementById("ai-api-key").value = "";
+    document.getElementById("ai-model").value = state.aiPlannerStatus.model || "";
+    renderAIPlannerStatus();
+  } catch (error) {
+    showJobOutput(error.message || "Could not clear AI planner settings.", false);
+  } finally {
+    clear.disabled = false;
+    clear.textContent = "Clear";
+  }
+}
+
+function renderAIPlannerStatus() {
+  const status = document.getElementById("ai-planner-status");
+  const detail = document.getElementById("ai-planner-detail");
+  const current = normalizeAIPlannerStatus(state.aiPlannerStatus);
+  if (current.configured) {
+    status.textContent = current.source === "environment" ? "On from env" : "On";
+    const storage = current.source === "environment"
+      ? "Using OPENAI_API_KEY from the environment."
+      : current.encrypted
+        ? "API key saved with OS-backed encryption."
+        : "API key saved without OS-backed encryption on this system.";
+    detail.textContent = `${storage} Local planning still runs first.${current.model ? ` Model: ${current.model}.` : ""}`;
+    return;
+  }
+  status.textContent = "Off";
+  detail.textContent = `Local planning works without an API key.${current.model ? ` Model saved for future use: ${current.model}.` : ""}`;
+}
+
+function normalizeAIPlannerStatus(status = {}) {
+  return {
+    configured: Boolean(status?.configured),
+    source: String(status?.source || ""),
+    encrypted: Boolean(status?.encrypted),
+    model: String(status?.model || "").trim()
+  };
 }
 
 function bindCheckbox(key, input) {

@@ -3,8 +3,7 @@
 This is the larger settings surface for ComputeHop. The macOS menu bar should
 stay small: status, device picker, and quick task entry. Device sync, allowed
 work, project sync, relay settings, and optional AI planner configuration belong
-here. The current AI planner path is environment-configured until OS credential
-storage exists.
+here.
 
 Run it in development:
 
@@ -62,8 +61,12 @@ Current scope:
 - uses deterministic local planning first, so no API key is required for normal
   Check/Test/Build/Lint/Docker planning;
 - can fall back to an optional OpenAI Responses API planner for tasks local
-  rules cannot map when `OPENAI_API_KEY` is present; set
+  rules cannot map when an OpenAI API key is saved in the app or
+  `OPENAI_API_KEY` is present; set a model in the app or use
   `COMPUTEHOP_OPENAI_MODEL` to override the default model;
+- stores the optional OpenAI API key in the app user-data directory with
+  Electron `safeStorage` encryption when the OS exposes it, while keeping
+  environment variables as a fallback;
 - keeps AI-planned unknown commands behind the same disabled-by-default
   **Exact commands** allowance and rejects shell operators, multiline commands,
   privilege escalation, and destructive removal before preview;
@@ -148,5 +151,5 @@ npm --prefix apps/control-center test
 npm --prefix apps/control-center run package:dir
 ```
 
-Next step: store optional AI planner credentials in the OS credential store
-instead of relying on process environment variables.
+Next step: add a provider-neutral credential abstraction if non-OpenAI planners
+become part of the product.

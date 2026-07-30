@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, safeStorage, shell } = require("electron");
 const { randomUUID } = require("node:crypto");
 const path = require("node:path");
 const {
@@ -25,6 +25,13 @@ const {
   loadSettings: loadControlCenterSettings,
   saveSettings: saveControlCenterSettings
 } = require("./settings-store");
+const {
+  clearAIPlannerCredentials,
+  credentialsStatus,
+  loadAIPlannerCredentials,
+  plannerConfigFromCredentials,
+  saveAIPlannerCredentials
+} = require("./ai-credentials");
 
 const activeRuns = new Map();
 const logPollMs = 900;
@@ -109,6 +116,32 @@ ipcMain.handle("settings:save", async (_event, settings) => {
   };
 });
 
+ipcMain.handle("aiPlanner:status", async () => {
+  const credentials = await loadAIPlannerCredentials({
+    userDataPath: app.getPath("userData"),
+    safeStorage
+  });
+  return { status: credentialsStatus(credentials) };
+});
+
+ipcMain.handle("aiPlanner:save", async (_event, request) => {
+  const credentials = await saveAIPlannerCredentials({
+    openAIAPIKey: request?.openAIAPIKey,
+    model: request?.model
+  }, {
+    userDataPath: app.getPath("userData"),
+    safeStorage
+  });
+  return { status: credentialsStatus(credentials) };
+});
+
+ipcMain.handle("aiPlanner:clear", async () => {
+  await clearAIPlannerCredentials({
+    userDataPath: app.getPath("userData")
+  });
+  return { status: credentialsStatus({}) };
+});
+
 ipcMain.handle("daemon:start", async (_event, request) => {
   try {
     return await startDaemon({
@@ -164,9 +197,15 @@ ipcMain.handle("project:choose", async () => {
 });
 
 ipcMain.handle("planner:plan", async (_event, request) => {
+  const credentials = await loadAIPlannerCredentials({
+    userDataPath: app.getPath("userData"),
+    safeStorage
+  });
   return planControlCenterTask({
     task: request?.task,
     projectRoot: request?.projectRoot || ""
+  }, {
+    config: plannerConfigFromCredentials(credentials)
   });
 });
 

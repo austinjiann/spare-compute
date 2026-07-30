@@ -357,6 +357,11 @@ select {
   gap: 10px;
 }
 
+.settings-box {
+  display: grid;
+  gap: 10px;
+}
+
 .task-suggestions {
   display: flex;
   flex-wrap: wrap;
@@ -389,7 +394,9 @@ select {
 }
 
 #command-input,
-#outputs-input {
+#outputs-input,
+#ai-api-key,
+#ai-model {
   width: 100%;
   min-height: 42px;
   padding: 9px 12px;
@@ -403,6 +410,12 @@ select {
 }
 
 .run-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.settings-actions {
   display: flex;
   align-items: center;
   gap: 10px;
