@@ -740,6 +740,18 @@ func (options macSetupOptions) installCommand() string {
 	return strings.Join(escaped, " ")
 }
 
+func (options macSetupOptions) installCheckCommand() string {
+	command := options.installCommand()
+	if command == "make install-macos" {
+		return "make install-macos-check"
+	}
+	const installer = "./packaging/macos/install.sh"
+	if strings.HasPrefix(command, installer+" ") {
+		return installer + " --check" + strings.TrimPrefix(command, installer)
+	}
+	return command
+}
+
 func (options macSetupOptions) customizeCommand() string {
 	role := strings.TrimSpace(options.role)
 	if role == "" {
@@ -929,6 +941,9 @@ func printMacSetupGuide(stdout io.Writer, options macSetupOptions) error {
 		"",
 		"Customize:",
 		"   " + options.customizeCommand(),
+		"",
+		"Check without changing this Mac:",
+		"   " + options.installCheckCommand(),
 		"",
 		"Install on this Mac:",
 		"   " + options.installCommand(),

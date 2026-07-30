@@ -1952,6 +1952,7 @@ func TestSetupMacCommandPrintsDefaultOrchestratorInstallWithoutDaemon(t *testing
 	for _, want := range []string{
 		"ComputeHop macOS setup",
 		"computehop setup mac --role orchestrator",
+		"make install-macos-check",
 		"make install-macos",
 		"computehop doctor",
 		"computehop connect nearby",
@@ -1980,6 +1981,7 @@ func TestSetupMacCommandPrintsWorkerInstallWithoutDaemon(t *testing.T) {
 	}
 	for _, want := range []string{
 		"computehop setup mac --role worker --device-name 'Austin Gaming PC' --cache-size 40GiB",
+		"./packaging/macos/install.sh --check --role worker --device-name 'Austin Gaming PC' --cache-size 40GiB",
 		"./packaging/macos/install.sh --role worker --device-name 'Austin Gaming PC' --cache-size 40GiB",
 		"Connect from your orchestrator Mac",
 		"Confirm on this worker",
@@ -2005,6 +2007,7 @@ func TestSetupRoleAliasesPrintInstallWithoutDaemon(t *testing.T) {
 			},
 			want: []string{
 				"computehop setup orchestrator --connectivity-domain connect.computehop.dev --turn-domain turn.computehop.dev",
+				"./packaging/macos/install.sh --check --role orchestrator --connectivity-url https://connect.computehop.dev --stun-server stun:turn.computehop.dev:3478",
 				"./packaging/macos/install.sh --role orchestrator --connectivity-url https://connect.computehop.dev --stun-server stun:turn.computehop.dev:3478",
 				"computehop smoke",
 			},
@@ -2014,6 +2017,7 @@ func TestSetupRoleAliasesPrintInstallWithoutDaemon(t *testing.T) {
 			args: []string{"setup", "worker", "--device-name", "Austin Gaming PC", "--cache-size", "40GiB"},
 			want: []string{
 				"computehop setup worker --device-name 'Austin Gaming PC' --cache-size 40GiB",
+				"./packaging/macos/install.sh --check --role worker --device-name 'Austin Gaming PC' --cache-size 40GiB",
 				"./packaging/macos/install.sh --role worker --device-name 'Austin Gaming PC' --cache-size 40GiB",
 				"Confirm on this worker",
 				"Same-LAN first",
@@ -2025,6 +2029,7 @@ func TestSetupRoleAliasesPrintInstallWithoutDaemon(t *testing.T) {
 			args: []string{"setup", "orchestrator", "--lan-only"},
 			want: []string{
 				"computehop setup orchestrator --lan-only",
+				"./packaging/macos/install.sh --check --role orchestrator --lan-only",
 				"./packaging/macos/install.sh --role orchestrator --lan-only",
 				"LAN-only",
 				"computehop setup vps",
@@ -2073,6 +2078,7 @@ func TestSetupMacCommandInterpolatesVPSConnectivityWithoutDaemon(t *testing.T) {
 		t.Fatalf("Execute() error = %v", err)
 	}
 	for _, want := range []string{
+		"./packaging/macos/install.sh --check --role orchestrator --connectivity-url https://connect.computehop.dev --stun-server stun:turn.computehop.dev:3478",
 		"./packaging/macos/install.sh --role orchestrator --connectivity-url https://connect.computehop.dev --stun-server stun:turn.computehop.dev:3478",
 		"computehop setup mac --role orchestrator --connectivity-domain connect.computehop.dev --turn-domain turn.computehop.dev",
 	} {
@@ -2109,6 +2115,7 @@ func TestSetupMacCommandInterpolatesTURNRelayWithoutDaemon(t *testing.T) {
 	}
 	for _, want := range []string{
 		"computehop setup mac --role worker --device-name 'Gaming PC' --connectivity-domain connect.computehop.dev --turn-domain turn.computehop.dev --turn-server 'turn:turn.computehop.dev:3478?transport=udp' --turn-username 1800000000:computehop --turn-password 'relay secret'",
+		"./packaging/macos/install.sh --check --role worker --device-name 'Gaming PC' --connectivity-url https://connect.computehop.dev --stun-server stun:turn.computehop.dev:3478 --turn-server 'turn:turn.computehop.dev:3478?transport=udp' --turn-username 1800000000:computehop --turn-password 'relay secret'",
 		"./packaging/macos/install.sh --role worker --device-name 'Gaming PC' --connectivity-url https://connect.computehop.dev --stun-server stun:turn.computehop.dev:3478 --turn-server 'turn:turn.computehop.dev:3478?transport=udp' --turn-username 1800000000:computehop --turn-password 'relay secret'",
 	} {
 		if !strings.Contains(stdout.String(), want) {
@@ -2169,6 +2176,7 @@ func TestSetupMacCommandInterpolatesLANOnlyWithoutDaemon(t *testing.T) {
 	}
 	for _, want := range []string{
 		"computehop setup mac --role worker --device-name 'Gaming PC' --lan-only",
+		"./packaging/macos/install.sh --check --role worker --device-name 'Gaming PC' --lan-only",
 		"./packaging/macos/install.sh --role worker --device-name 'Gaming PC' --lan-only",
 		"LAN-only",
 		"computehop setup vps",
