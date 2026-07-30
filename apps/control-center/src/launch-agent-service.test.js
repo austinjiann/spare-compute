@@ -7,6 +7,7 @@ const {
   installLaunchAgent,
   labelFromPlist,
   launchAgentPlist,
+  parentAppDaemonPath,
   resolveDaemonExecutable
 } = require("./launch-agent-service");
 
@@ -158,6 +159,39 @@ test("resolveDaemonExecutable prefers explicit and resource daemon paths", async
     await resolveDaemonExecutable({ resourcesPath: resources }, fs, "darwin"),
     resourceDaemon
   );
+});
+
+test("resolveDaemonExecutable prefers parent app daemon for embedded Control Center", async (t) => {
+  const root = await tempDirectory(t);
+  const parentResources = path.join(root, "ComputeHop.app", "Contents", "Resources");
+  const controlCenterResources = path.join(
+    parentResources,
+    "ComputeHop Control Center.app",
+    "Contents",
+    "Resources"
+  );
+  const parentDaemon = path.join(parentResources, "bin", "computehopd");
+  const nestedDaemon = path.join(controlCenterResources, "bin", "computehopd");
+  await fs.mkdir(path.dirname(parentDaemon), { recursive: true });
+  await fs.mkdir(path.dirname(nestedDaemon), { recursive: true });
+  await fs.writeFile(parentDaemon, "");
+  await fs.writeFile(nestedDaemon, "");
+  await fs.chmod(parentDaemon, 0o755);
+  await fs.chmod(nestedDaemon, 0o755);
+
+  assert.equal(parentAppDaemonPath(controlCenterResources, "darwin"), parentDaemon);
+  assert.equal(
+    await resolveDaemonExecutable({ resourcesPath: controlCenterResources }, fs, "darwin"),
+    parentDaemon
+  );
+});
+
+test("parentAppDaemonPath ignores ordinary app resource paths", () => {
+  assert.equal(
+    parentAppDaemonPath("/Applications/ComputeHop Control Center.app/Contents/Resources", "darwin"),
+    ""
+  );
+  assert.equal(parentAppDaemonPath("", "darwin"), "");
 });
 
 async function tempDirectory(t) {

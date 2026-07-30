@@ -100,6 +100,7 @@ async function resolveDaemonExecutable(options, fsModule, platform) {
   const candidates = options.daemonPath
     ? [options.daemonPath]
     : [
+        parentAppDaemonPath(options.resourcesPath, platform),
         options.resourcesPath ? path.join(options.resourcesPath, "bin", executableName("computehopd", platform)) : "",
         options.controlCenterRoot ? path.join(options.controlCenterRoot, "resources", "bin", executableName("computehopd", platform)) : "",
         path.resolve(__dirname, "..", "resources", "bin", executableName("computehopd", platform))
@@ -111,6 +112,28 @@ async function resolveDaemonExecutable(options, fsModule, platform) {
     }
   }
   throw new Error("No bundled ComputeHop daemon was found. Package Control Center first, or use the macOS installer.");
+}
+
+function parentAppDaemonPath(resourcesPath, platform) {
+  if (!resourcesPath) {
+    return "";
+  }
+
+  const currentResources = path.resolve(resourcesPath);
+  const currentContents = path.dirname(currentResources);
+  const currentApp = path.dirname(currentContents);
+  if (path.basename(currentResources) !== "Resources" || path.basename(currentContents) !== "Contents" || !currentApp.endsWith(".app")) {
+    return "";
+  }
+
+  const parentResources = path.dirname(currentApp);
+  const parentContents = path.dirname(parentResources);
+  const parentApp = path.dirname(parentContents);
+  if (path.basename(parentResources) !== "Resources" || path.basename(parentContents) !== "Contents" || !parentApp.endsWith(".app")) {
+    return "";
+  }
+
+  return path.join(parentResources, "bin", executableName("computehopd", platform));
 }
 
 async function executableExists(filePath, fsModule, platform) {
@@ -206,5 +229,6 @@ module.exports = {
   installLaunchAgent,
   labelFromPlist,
   launchAgentPlist,
+  parentAppDaemonPath,
   resolveDaemonExecutable
 };
