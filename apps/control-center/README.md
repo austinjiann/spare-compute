@@ -57,6 +57,9 @@ Current scope:
   forgotten;
 - can disable or re-enable paired workers so disabled devices stay visible but
   cannot be selected, used by Auto worker, or used as run targets;
+- shows plain-language device connection health such as connected over LAN,
+  connected over relay, reconnecting, offline, or remote access off, without
+  exposing route internals in the primary device row;
 - stores allowed work categories per selected device, so This Mac and each
   worker can have different Builds/Tests/Docker/AI/Video/Exact-command policy;
 - plans plain-language tasks such as "run tests", "build the app", "package

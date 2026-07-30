@@ -1453,7 +1453,8 @@ configurable setup/VPS defaults, and safe command parsing; a real
 Swift client has successfully pinged the Go daemon, submitted a durable native
 job, and read its output. A separate Electron Control Center now owns the
 heavier settings surface, connects to the daemon over local IPC, lists nearby
-and trusted devices, pairs, disables/re-enables, or forgets workers, plans plain-language tasks into
+and trusted devices with plain-language connection health, pairs,
+disables/re-enables, or forgets workers, plans plain-language tasks into
 previewed commands with package/Makefile/language/Docker fallbacks, prefers repository
 validation targets for CI/check requests, recognizes package/release targets such
 as `make macos-package`, includes conservative inferred outputs for known package

@@ -44,6 +44,13 @@ let jobsRefreshInFlight = false;
 let runInFlight = false;
 const pendingActions = new Set();
 const { addAutomaticWorkerTarget, concreteDeviceID } = window.computeHopDeviceTargets;
+const {
+  availabilityLabel,
+  deviceKind,
+  deviceLabel,
+  deviceType,
+  isSyncManagedDevice
+} = window.computeHopDeviceStatus;
 const { shouldAutoStartDaemon } = window.computeHopDaemonAutostart;
 const { disallowedWorkMessage, filterAllowedSuggestions } = window.computeHopWorkPolicy;
 const {
@@ -1772,71 +1779,12 @@ function isUnpaired(device) {
   return device.id !== "local" && device.id !== "auto" && (device.trustState === "unpaired" || device.connection === "not connected");
 }
 
-function deviceLabel(device) {
-  if (device.unavailableSelection) {
-    return device.detail || "Waiting for this worker";
-  }
-  if (device.id === "local") {
-    return device.role === "worker" ? "This computer · worker" : "This computer";
-  }
-  if (device.id === "auto") {
-    return device.detail || "Uses the single connected worker";
-  }
-  const type = deviceType(device);
-  if (isSyncManagedDevice(device) && device.synced === false) {
-    return `${type} · disabled`;
-  }
-  if (device.role) {
-    return `${type} · ${device.role.toLowerCase()}`;
-  }
-  return type;
-}
-
-function availabilityLabel(device) {
-  if (device.unavailableSelection) {
-    return "Waiting";
-  }
-  if (isSyncManagedDevice(device) && device.synced === false) {
-    return "Off";
-  }
-  if (device.connection === "not connected") {
-    return "Nearby";
-  }
-  if (device.connection === "active" || device.availability === "remote") {
-    return "Connected";
-  }
-  if (device.availability === "nearby") {
-    return "Nearby";
-  }
-  if (device.availability === "connecting") {
-    return "Connecting";
-  }
-  return "Offline";
-}
-
 function scanSummary(devices) {
   const nearby = devices.filter((device) => device.id !== "local" && device.id !== "auto" && availabilityLabel(device) !== "Offline").length;
   if (nearby === 0) {
     return "No nearby workers yet";
   }
   return `${nearby} nearby device${nearby === 1 ? "" : "s"}`;
-}
-
-function deviceKind(device) {
-  const name = `${device.name} ${device.role} ${device.address}`.toLowerCase();
-  if (device.id === "local" || name.includes("macbook") || name.includes("laptop")) {
-    return "laptop";
-  }
-  if (name.includes("server") || name.includes("nas") || name.includes("home")) {
-    return "server";
-  }
-  if (name.includes("pc") || name.includes("desktop") || name.includes("gaming") || name.includes("windows")) {
-    return "desktop";
-  }
-  if (name.includes("mac mini") || name.includes("mini")) {
-    return "desktop";
-  }
-  return device.role === "worker" ? "desktop" : "laptop";
 }
 
 function isDeviceSynced(device) {
@@ -1846,35 +1794,12 @@ function isDeviceSynced(device) {
   return state.settings.syncedDevices[device.id] !== false;
 }
 
-function isSyncManagedDevice(device) {
-  return (
-    device &&
-    device.id !== "local" &&
-    device.id !== "auto" &&
-    device.role === "worker" &&
-    device.trustState === "paired"
-  );
-}
-
 function shortPath(value) {
   const parts = value.split("/").filter(Boolean);
   if (parts.length === 0) {
     return value;
   }
   return parts[parts.length - 1];
-}
-
-function deviceType(device) {
-  switch (deviceKind(device)) {
-    case "laptop":
-      return "MacBook";
-    case "server":
-      return "Server";
-    case "desktop":
-      return "Computer";
-    default:
-      return "Device";
-  }
 }
 
 function runTargetLabel(device) {

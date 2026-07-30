@@ -573,6 +573,7 @@ function mapTrustedDevice(trusted) {
     availability: availabilityFromConnectivity(trusted.connectivityState),
     trustState: trustLabel(trusted.trustState),
     path: trusted.connectivityPath || "",
+    connectionError: trusted.connectivityError || "",
     address: "",
     updated: timestampLabel(trusted.connectivityUpdatedAtUnixNano || trusted.updatedAtUnixNano)
   };
