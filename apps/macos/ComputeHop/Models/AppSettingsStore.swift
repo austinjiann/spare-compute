@@ -13,11 +13,13 @@ protocol AppSettingsStoring {
     var workerSetupCacheSize: String { get }
     var vpsConnectivityDomain: String { get }
     var vpsTurnDomain: String { get }
+    var deviceCapabilities: [String: Set<DeviceCapability>] { get }
     func setJobCompletionNotificationsEnabled(_ enabled: Bool)
     func setWorkerSetupDeviceName(_ value: String)
     func setWorkerSetupCacheSize(_ value: String)
     func setVPSConnectivityDomain(_ value: String)
     func setVPSTurnDomain(_ value: String)
+    func setDeviceCapabilities(_ capabilities: Set<DeviceCapability>, forDeviceID id: String)
 }
 
 final class UserDefaultsAppSettingsStore: AppSettingsStoring {
@@ -27,6 +29,7 @@ final class UserDefaultsAppSettingsStore: AppSettingsStoring {
     private let workerSetupCacheSizeKey = "workerSetupCacheSize"
     private let vpsConnectivityDomainKey = "vpsConnectivityDomain"
     private let vpsTurnDomainKey = "vpsTurnDomain"
+    private let deviceCapabilitiesKey = "deviceCapabilities"
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -64,6 +67,15 @@ final class UserDefaultsAppSettingsStore: AppSettingsStoring {
             : value
     }
 
+    var deviceCapabilities: [String: Set<DeviceCapability>] {
+        guard let data = defaults.data(forKey: deviceCapabilitiesKey),
+              let decoded = try? JSONDecoder().decode([String: [DeviceCapability]].self, from: data)
+        else {
+            return [:]
+        }
+        return decoded.mapValues(Set.init)
+    }
+
     func setJobCompletionNotificationsEnabled(_ enabled: Bool) {
         defaults.set(enabled, forKey: notificationsKey)
     }
@@ -82,5 +94,16 @@ final class UserDefaultsAppSettingsStore: AppSettingsStoring {
 
     func setVPSTurnDomain(_ value: String) {
         defaults.set(value, forKey: vpsTurnDomainKey)
+    }
+
+    func setDeviceCapabilities(_ capabilities: Set<DeviceCapability>, forDeviceID id: String) {
+        var current = deviceCapabilities
+        current[id] = capabilities
+        let encoded = current.mapValues { capabilities in
+            capabilities.sorted { $0.rawValue < $1.rawValue }
+        }
+        if let data = try? JSONEncoder().encode(encoded) {
+            defaults.set(data, forKey: deviceCapabilitiesKey)
+        }
     }
 }

@@ -354,6 +354,54 @@ func setupDefaultsLoadPersistAndUpdateSetupGuide() {
 
 @Test
 @MainActor
+func planRequestedTaskInfersProjectTestCommands() throws {
+    let projectURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("computehop-plan-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: projectURL, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: projectURL) }
+    try "module example.test\n".write(
+        to: projectURL.appendingPathComponent("go.mod"),
+        atomically: true,
+        encoding: .utf8
+    )
+    try "// swift-tools-version: 6.2\n".write(
+        to: projectURL.appendingPathComponent("Package.swift"),
+        atomically: true,
+        encoding: .utf8
+    )
+
+    let model = AppModel(client: RecordingDaemonClient())
+    model.workingDirectory = projectURL.path
+    model.taskRequestInput = "run tests"
+
+    model.planRequestedTask()
+
+    #expect(model.plannedTask?.title == "Run tests")
+    #expect(model.plannedTask?.commands == ["go test ./...", "swift test"])
+    #expect(model.commandInput.contains("sh -lc"))
+    #expect(model.commandInput.contains("go test ./..."))
+    #expect(model.commandInput.contains("swift test"))
+    #expect(model.planningError == nil)
+}
+
+@Test
+@MainActor
+func deviceCapabilitiesPersistThroughSettingsStore() {
+    let store = RecordingSettingsStore()
+    let model = AppModel(
+        client: RecordingDaemonClient(),
+        notifier: RecordingJobCompletionNotifier(),
+        settingsStore: store
+    )
+
+    model.setCapability(.ai, enabled: true, forDeviceID: "worker-id")
+
+    #expect(store.deviceCapabilities["worker-id"]?.contains(.ai) == true)
+    #expect(store.savedDeviceCapabilities["worker-id"]?.contains(.ai) == true)
+}
+
+@Test
+@MainActor
 func submitLocalCommandIgnoresStaleNoProjectToggle() async {
     let client = RecordingDaemonClient(devices: [])
     let model = AppModel(client: client)
@@ -701,24 +749,28 @@ private final class RecordingSettingsStore: AppSettingsStoring {
     var workerSetupCacheSize: String
     var vpsConnectivityDomain: String
     var vpsTurnDomain: String
+    var deviceCapabilities: [String: Set<DeviceCapability>]
     var savedNotificationValues: [Bool] = []
     var savedWorkerNames: [String] = []
     var savedCacheSizes: [String] = []
     var savedConnectivityDomains: [String] = []
     var savedTurnDomains: [String] = []
+    var savedDeviceCapabilities: [String: Set<DeviceCapability>] = [:]
 
     init(
         jobCompletionNotificationsEnabled: Bool = true,
         workerSetupDeviceName: String = "Gaming PC",
         workerSetupCacheSize: String = "",
         vpsConnectivityDomain: String = "connect.example.com",
-        vpsTurnDomain: String = "turn.example.com"
+        vpsTurnDomain: String = "turn.example.com",
+        deviceCapabilities: [String: Set<DeviceCapability>] = [:]
     ) {
         self.jobCompletionNotificationsEnabled = jobCompletionNotificationsEnabled
         self.workerSetupDeviceName = workerSetupDeviceName
         self.workerSetupCacheSize = workerSetupCacheSize
         self.vpsConnectivityDomain = vpsConnectivityDomain
         self.vpsTurnDomain = vpsTurnDomain
+        self.deviceCapabilities = deviceCapabilities
     }
 
     func setJobCompletionNotificationsEnabled(_ enabled: Bool) {
@@ -744,6 +796,11 @@ private final class RecordingSettingsStore: AppSettingsStoring {
     func setVPSTurnDomain(_ value: String) {
         vpsTurnDomain = value
         savedTurnDomains.append(value)
+    }
+
+    func setDeviceCapabilities(_ capabilities: Set<DeviceCapability>, forDeviceID id: String) {
+        deviceCapabilities[id] = capabilities
+        savedDeviceCapabilities[id] = capabilities
     }
 }
 

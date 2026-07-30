@@ -29,6 +29,7 @@ enum AppActionError: LocalizedError {
 @MainActor
 final class AppModel {
     static let automaticWorkerTargetID = "auto"
+    static let localDeviceID = "local"
     private static let terminalJobStates: Set<String> = [
         "Succeeded",
         "Failed",
@@ -40,9 +41,11 @@ final class AppModel {
     private let client: LocalDaemonClientProtocol
     private let notifier: JobCompletionNotifying
     private let settingsStore: AppSettingsStoring
+    private let planner: TaskPlanning
     private var trackedRemoteJobs: [String: String] = [:]
     private var observedJobStates: [String: String] = [:]
     private var nextLogSequence: UInt64 = 0
+    private var deviceCapabilities: [String: Set<DeviceCapability>] = [:]
 
     var daemon: LocalDaemonSummary?
     var devices: [DeviceSummary] = []
@@ -52,10 +55,14 @@ final class AppModel {
     var isRefreshing = false
     var actionInProgress: String?
     var commandInput = ""
+    var taskRequestInput = ""
     var workingDirectory = ""
     var outputsInput = ""
     var runTargetID = ""
+    var selectedDeviceID = AppModel.localDeviceID
     var remoteRunWithoutProject = false
+    var plannedTask: TaskPlan?
+    var planningError: String?
     var selectedJobID: String?
     var selectedJobLogs = ""
     var selectedJobLogsTruncated = false
@@ -90,16 +97,19 @@ final class AppModel {
     init(
         client: LocalDaemonClientProtocol = LocalDaemonClient(),
         notifier: JobCompletionNotifying = SystemJobCompletionNotifier(),
-        settingsStore: AppSettingsStoring = UserDefaultsAppSettingsStore()
+        settingsStore: AppSettingsStoring = UserDefaultsAppSettingsStore(),
+        planner: TaskPlanning = LocalTaskPlanner()
     ) {
         self.client = client
         self.notifier = notifier
         self.settingsStore = settingsStore
+        self.planner = planner
         jobCompletionNotificationsEnabled = settingsStore.jobCompletionNotificationsEnabled
         workerSetupDeviceName = settingsStore.workerSetupDeviceName
         workerSetupCacheSize = settingsStore.workerSetupCacheSize
         vpsConnectivityDomain = settingsStore.vpsConnectivityDomain
         vpsTurnDomain = settingsStore.vpsTurnDomain
+        deviceCapabilities = settingsStore.deviceCapabilities
     }
 
     var daemonVersion: String? { daemon?.version }
@@ -120,6 +130,37 @@ final class AppModel {
     var canRunAutomatically: Bool { runnableDevices.count == 1 }
 
     var canConnectNearbyWorker: Bool { pairableWorkers.count == 1 }
+
+    var selectedDevice: DeviceSummary? {
+        devices.first { $0.id == selectedDeviceID }
+    }
+
+    var selectedTargetName: String {
+        if selectedDeviceID == Self.localDeviceID {
+            return "Here"
+        }
+        return selectedDevice?.name ?? "No device selected"
+    }
+
+    var selectedDeviceCanRun: Bool {
+        selectedDeviceID == Self.localDeviceID ||
+            runnableDevices.contains(where: { $0.id == selectedDeviceID })
+    }
+
+    var selectedCapabilityID: String { selectedDeviceID }
+
+    var selectedCapabilities: Set<DeviceCapability> {
+        capabilities(forDeviceID: selectedCapabilityID)
+    }
+
+    var canPlanTask: Bool {
+        !taskRequestInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+            !workingDirectory.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var canSubmitPlannedTask: Bool {
+        plannedTask != nil && selectedDeviceCanRun && isConnected && actionInProgress == nil
+    }
 
     var canSubmitSmokeTest: Bool { (try? smokeTestTarget()) != nil }
 
@@ -317,6 +358,11 @@ final class AppModel {
             jobs = refreshedJobs.sorted { $0.updatedAt > $1.updatedAt }
             await recordJobStateTransitions(jobs)
             pairings = snapshot.3
+            if selectedDeviceID != Self.localDeviceID &&
+                !devices.contains(where: { $0.id == selectedDeviceID })
+            {
+                selectedDeviceID = Self.localDeviceID
+            }
             if isAutomaticRunTargetSelected && !canRunAutomatically {
                 runTargetID = ""
                 remoteRunWithoutProject = false
@@ -368,6 +414,82 @@ final class AppModel {
                 runTargetID = ""
                 remoteRunWithoutProject = false
             }
+            if selectedDeviceID == device.id {
+                selectedDeviceID = Self.localDeviceID
+            }
+        }
+    }
+
+    func selectLocalDevice() {
+        selectedDeviceID = Self.localDeviceID
+        runTargetID = ""
+        remoteRunWithoutProject = false
+        plannedTask = nil
+        planningError = nil
+    }
+
+    func selectDevice(_ device: DeviceSummary) {
+        selectedDeviceID = device.id
+        runTargetID = device.id
+        remoteRunWithoutProject = false
+        plannedTask = nil
+        planningError = nil
+    }
+
+    func capabilities(forDeviceID id: String) -> Set<DeviceCapability> {
+        if let configured = deviceCapabilities[id] {
+            return configured
+        }
+        return id == Self.localDeviceID ? DeviceCapability.defaultLocal : DeviceCapability.defaultWorker
+    }
+
+    func setCapability(_ capability: DeviceCapability, enabled: Bool, forDeviceID id: String) {
+        var capabilities = capabilities(forDeviceID: id)
+        if enabled {
+            capabilities.insert(capability)
+        } else {
+            capabilities.remove(capability)
+        }
+        deviceCapabilities[id] = capabilities
+        settingsStore.setDeviceCapabilities(capabilities, forDeviceID: id)
+        plannedTask = nil
+        planningError = nil
+    }
+
+    func planRequestedTask() {
+        do {
+            let plan = try planner.plan(
+                request: taskRequestInput,
+                projectPath: workingDirectory,
+                capabilities: selectedCapabilities
+            )
+            plannedTask = plan
+            planningError = nil
+            commandInput = plan.commandLine
+            outputsInput = plan.outputs.joined(separator: ", ")
+        } catch {
+            plannedTask = nil
+            planningError = error.localizedDescription
+        }
+    }
+
+    func submitPlannedTask() async {
+        if plannedTask == nil {
+            planRequestedTask()
+        }
+        guard let plan = plannedTask else { return }
+        if !selectedDeviceCanRun {
+            lastError = "\(selectedTargetName) is not available."
+            return
+        }
+        commandInput = plan.commandLine
+        outputsInput = plan.outputs.joined(separator: ", ")
+        remoteRunWithoutProject = false
+        await submitCommand()
+        if lastError == nil {
+            taskRequestInput = ""
+            plannedTask = nil
+            planningError = nil
         }
     }
 

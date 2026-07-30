@@ -1,8 +1,13 @@
 # ComputeHop for macOS
 
 The macOS application is a presentation-only SwiftUI menu-bar client. Durable
-jobs, discovery, trust, and remote sessions stay in the Go daemon, so closing
-the menu does not stop work.
+jobs, discovery, trust, settings, and remote sessions stay in the Go daemon, so
+closing the menu does not stop work.
+
+The menu bar should stay compact: status, quick device choice, quick task entry,
+and the smallest amount of setup guidance needed to get unstuck. Heavier device
+sync, allowed work, relay, cache, and planner settings belong in the Electron
+Control Center under [`../control-center`](../control-center).
 
 The current menu supports daemon health with local Mac identity, first-run
 next-step guidance that points at `computehop setup worker --device-name

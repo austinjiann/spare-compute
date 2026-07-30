@@ -1,54 +1,55 @@
 import AppKit
 import SwiftUI
 
-private struct JobClipboardWriter: ClipboardWriting {
-    func write(_ value: String) {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(value, forType: .string)
-    }
-}
-
 struct JobsSection: View {
     let model: AppModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Recent Jobs")
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Jobs")
                 .font(.headline)
             if model.jobs.isEmpty {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("No jobs yet")
-                        .font(.caption)
-                    Text(model.emptyJobsHelpText)
-                        .font(.caption2)
-                }
-                .foregroundStyle(.secondary)
+                Text("No jobs yet")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             } else {
-                ForEach(Array(model.jobs.prefix(5))) { job in
-                    HStack(spacing: 8) {
+                ForEach(Array(model.jobs.prefix(3))) { job in
+                    HStack(spacing: 7) {
                         VStack(alignment: .leading, spacing: 1) {
-                            Text(job.command)
+                            Text(jobTitle(job))
                                 .lineLimit(1)
                             Text(jobDetailLine(job))
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
-                        Spacer()
-                        Button("Logs") {
+                        Spacer(minLength: 6)
+                        Button {
                             Task { await model.showLogs(for: job) }
+                        } label: {
+                            Image(systemName: "doc.text")
                         }
+                        .buttonStyle(.borderless)
                         .disabled(model.isLoadingLogs)
+                        .help("Logs")
                         if job.canFetchOutputs {
-                            Button("Outputs…") {
+                            Button {
                                 chooseArtifactDestination(for: job)
+                            } label: {
+                                Image(systemName: "square.and.arrow.down")
                             }
+                            .buttonStyle(.borderless)
                             .disabled(model.actionInProgress != nil)
+                            .help("Restore outputs")
                         }
                         if !job.terminal {
-                            Button("Cancel") {
+                            Button(role: .destructive) {
                                 Task { await model.cancel(job) }
+                            } label: {
+                                Image(systemName: "stop.fill")
                             }
+                            .buttonStyle(.borderless)
                             .disabled(model.actionInProgress != nil)
+                            .help("Cancel")
                         }
                     }
                 }
@@ -64,19 +65,12 @@ struct JobsSection: View {
             if let selectedJobID = model.selectedJobID {
                 VStack(alignment: .leading, spacing: 5) {
                     HStack {
-                        Text("Output · \(String(selectedJobID.prefix(8)))")
+                        Text(String(selectedJobID.prefix(8)))
                             .font(.caption.weight(.semibold))
                         Spacer()
                         if model.isLoadingLogs {
                             ProgressView()
                                 .controlSize(.small)
-                        }
-                        if model.selectedJobLogsCommand != nil {
-                            Button("Copy CLI") {
-                                model.copySelectedJobLogsCommand(to: JobClipboardWriter())
-                            }
-                            .buttonStyle(.borderless)
-                            .help("Copy the Terminal command for following this job's logs.")
                         }
                         Button {
                             model.closeLogs()
@@ -88,15 +82,15 @@ struct JobsSection: View {
                     ScrollView {
                         Text(model.selectedJobLogs.isEmpty ? model.selectedJobLogsPlaceholder : model.selectedJobLogs)
                             .font(.system(.caption, design: .monospaced))
-                            .foregroundStyle(model.selectedJobLogs.isEmpty ? .secondary : .primary)
+                            .foregroundStyle(model.selectedJobLogs.isEmpty ? Color.secondary : Color.primary)
                             .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .frame(height: 120)
+                    .frame(height: 90)
                     .padding(6)
                     .background(.black.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
                     if model.selectedJobLogsTruncated {
-                        Text("Showing the newest 128,000 characters loaded in this session.")
+                        Text("Truncated")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
@@ -118,8 +112,20 @@ struct JobsSection: View {
 
     private func jobDetailLine(_ job: JobSummary) -> String {
         if let progress = job.progressText {
-            return "\(job.state) · \(progress) · \(job.target) · \(job.shortID)"
+            return "\(job.state) · \(progress) · \(friendlyTarget(job.target))"
         }
-        return "\(job.state) · \(job.target) · \(job.shortID)"
+        return "\(job.state) · \(friendlyTarget(job.target))"
+    }
+
+    private func jobTitle(_ job: JobSummary) -> String {
+        let parts = job.command.split(separator: " ", maxSplits: 1, omittingEmptySubsequences: true)
+        guard let executable = parts.first else { return "Task" }
+        let name = URL(fileURLWithPath: String(executable)).lastPathComponent
+        guard let rest = parts.dropFirst().first else { return name }
+        return "\(name) \(rest)"
+    }
+
+    private func friendlyTarget(_ target: String) -> String {
+        target == "This Mac" ? "Here" : target
     }
 }

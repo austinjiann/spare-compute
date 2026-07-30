@@ -1,0 +1,15 @@
+{
+  "name": "@computehop/control-center",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ComputeHop Control Center for device sync and configuration.",
+  "main": "src/main.js",
+  "scripts": {
+    "dev": "electron .",
+    "start": "electron .",
+    "lint": "node --check src/main.js && node --check src/preload.js && node --check src/renderer.js"
+  },
+  "devDependencies": {
+    "electron": "^43.2.0"
+  }
+}
