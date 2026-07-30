@@ -221,6 +221,8 @@ test("planTask asks for a project before planning project work", async () => {
 
   assert.equal(result.ok, false);
   assert.match(result.error, /Choose a project first/);
+  assert.equal(result.actionKind, "choose-project");
+  assert.equal(result.actionLabel, "Choose project");
 });
 
 test("planTask keeps smoke tests projectless", async () => {

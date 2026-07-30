@@ -64,6 +64,10 @@
   }
 
   function runReadinessError(request = {}) {
+    return runReadinessBlocker(request).message;
+  }
+
+  function runReadinessBlocker(request = {}) {
     const device = request.device || null;
     const plan = request.plan || {};
     const deviceName = cleanString(device?.name) || "that computer";
@@ -74,31 +78,55 @@
     });
 
     if (request.daemonAvailable === false) {
-      return "Start ComputeHop before running jobs.";
+      return block("Start ComputeHop before running jobs.");
     }
     if (device?.unavailableSelection) {
-      return `${deviceName} is not available yet. Keep the worker app open, or switch to This Mac.`;
+      return block(`${deviceName} is not available yet. Keep the worker app open, or switch to This Mac.`);
     }
     if (!device || !request.canRun) {
-      return "Choose This Mac or a connected worker first.";
+      return block("Choose This Mac or a connected worker first.");
     }
     if (plan.requiresProject && !cleanPath(request.projectRoot)) {
       if (deviceID !== "local") {
-        return `Choose a project before running this on ${deviceName}. ComputeHop needs the folder so it can copy the files to that computer.`;
+        return block(
+          `Choose a project before running this on ${deviceName}. ComputeHop needs the folder so it can copy the files to that computer.`,
+          "choose-project",
+          "Choose project"
+        );
       }
-      return "Choose a project before running this. ComputeHop needs the folder so it can run from the right place.";
+      return block(
+        "Choose a project before running this. ComputeHop needs the folder so it can run from the right place.",
+        "choose-project",
+        "Choose project"
+      );
     }
     const outputValidation = outputValidationForPlan(request);
     if (!outputValidation.ok) {
-      return outputValidation.error;
+      return block(outputValidation.error);
     }
     if (outputs.length > 0 && !cleanPath(request.projectRoot)) {
       if (deviceID !== "local") {
-        return "Choose a project before bringing files back from another computer.";
+        return block(
+          "Choose a project before bringing files back from another computer.",
+          "choose-project",
+          "Choose project"
+        );
       }
-      return "Choose a project before bringing files back. ComputeHop needs the folder those outputs belong to.";
+      return block(
+        "Choose a project before bringing files back. ComputeHop needs the folder those outputs belong to.",
+        "choose-project",
+        "Choose project"
+      );
     }
-    return cleanString(request.policyError);
+    return block(cleanString(request.policyError));
+  }
+
+  function block(message, actionKind = "", actionLabel = "") {
+    return {
+      message: cleanString(message),
+      actionKind: cleanString(actionKind),
+      actionLabel: cleanString(actionLabel)
+    };
   }
 
   function normalizeOutputs(outputs) {
@@ -159,6 +187,7 @@
     jobOutputsForPlan,
     jobWorkingDirectoryForPlan,
     outputValidationForPlan,
+    runReadinessBlocker,
     runReadinessError,
     runWorkingDirectory
   };

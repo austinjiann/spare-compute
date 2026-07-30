@@ -174,7 +174,9 @@ function normalizeOpenAIPlan(response, context = {}) {
   if (requiresProject && !cleanString(context.projectRoot)) {
     return {
       ok: false,
-      error: "Choose a project first so ComputeHop can send those files to the worker."
+      error: "Choose a project first so ComputeHop can send those files to the worker.",
+      actionKind: "choose-project",
+      actionLabel: "Choose project"
     };
   }
   const outputValidation = validatePortableOutputs(Array.isArray(parsed.outputs) ? parsed.outputs : []);

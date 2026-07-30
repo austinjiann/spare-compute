@@ -6,6 +6,7 @@ const {
   jobStartRequestForPlan,
   jobWorkingDirectoryForPlan,
   outputValidationForPlan,
+  runReadinessBlocker,
   runReadinessError,
   runWorkingDirectory
 } = require("./run-request");
@@ -240,6 +241,36 @@ test("runReadinessError requires a project before project work on any device", (
       projectRoot: ""
     }),
     /Choose a project before running this on Gaming PC/
+  );
+});
+
+test("runReadinessBlocker suggests choosing a project when project input is required", () => {
+  assert.deepEqual(
+    runReadinessBlocker({
+      device: { id: "worker-1", name: "Gaming PC" },
+      canRun: true,
+      plan: { command: "go test ./...", requiresProject: true },
+      projectRoot: ""
+    }),
+    {
+      message: "Choose a project before running this on Gaming PC. ComputeHop needs the folder so it can copy the files to that computer.",
+      actionKind: "choose-project",
+      actionLabel: "Choose project"
+    }
+  );
+  assert.deepEqual(
+    runReadinessBlocker({
+      device: { id: "worker-1", name: "Gaming PC" },
+      canRun: true,
+      plan: { command: "hostname", requiresProject: false },
+      outputs: ["dist"],
+      projectRoot: ""
+    }),
+    {
+      message: "Choose a project before bringing files back from another computer.",
+      actionKind: "choose-project",
+      actionLabel: "Choose project"
+    }
   );
 });
 

@@ -151,8 +151,7 @@ test("normalizeOpenAIPlan rejects unsafe or unusable plans", () => {
     }).error,
     /unsafe command/
   );
-  assert.match(
-    normalizeOpenAIPlan({
+  const missingProject = normalizeOpenAIPlan({
       output_text: JSON.stringify({
         ok: true,
         title: "Test",
@@ -162,9 +161,10 @@ test("normalizeOpenAIPlan rejects unsafe or unusable plans", () => {
         outputs: [],
         capability: "tests"
       })
-    }).error,
-    /Choose a project first/
-  );
+    });
+  assert.match(missingProject.error, /Choose a project first/);
+  assert.equal(missingProject.actionKind, "choose-project");
+  assert.equal(missingProject.actionLabel, "Choose project");
   assert.match(
     normalizeOpenAIPlan({
       output_text: JSON.stringify({

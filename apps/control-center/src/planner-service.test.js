@@ -134,6 +134,8 @@ test("planControlCenterTask does not let AI bypass missing-project guidance", as
 
   assert.equal(result.ok, false);
   assert.match(result.error, /Choose a project first/);
+  assert.equal(result.actionKind, "choose-project");
+  assert.equal(result.actionLabel, "Choose project");
   assert.equal(calls, 0);
 });
 

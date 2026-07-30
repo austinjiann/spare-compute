@@ -111,6 +111,9 @@ Current scope:
 - displays job-history commands with quoting for spaces and empty arguments;
 - previews the exact command before running when Preview before running is
   enabled;
+- opens the project picker and retries planning/running once when a
+  project-style task such as CI, tests, builds, or declared outputs needs files
+  but no project is selected yet;
 - runs a one-click connection test on the selected computer without requiring a
   project folder;
 - requires a project folder before sending project-style commands such as tests,

@@ -34,6 +34,8 @@ async function planTask(request) {
     return {
       ok: false,
       error: "Choose a project first so ComputeHop can pick the right command and send those files to the worker.",
+      actionKind: "choose-project",
+      actionLabel: "Choose project",
       profile
     };
   }

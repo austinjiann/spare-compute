@@ -71,7 +71,7 @@ const { disallowedWorkMessage, filterAllowedSuggestions } = window.computeHopWor
 const {
   jobOutputsForPlan,
   jobStartRequestForPlan,
-  runReadinessError
+  runReadinessBlocker
 } = window.computeHopRunRequest;
 const {
   outputRestoreDefaultPath,
@@ -1195,7 +1195,7 @@ async function performDeviceAction(key, action) {
 async function chooseProject() {
   const selected = await window.computeHop.chooseProject();
   if (!selected) {
-    return;
+    return "";
   }
   state.settings.projectRoot = selected;
   state.plannedTask = null;
@@ -1203,6 +1203,7 @@ async function chooseProject() {
   await refreshTaskSuggestions();
   renderPlanPreview();
   renderRunControls();
+  return selected;
 }
 
 function clearProject() {
@@ -1297,13 +1298,20 @@ async function testSelectedDevice() {
   await startPlannedJob(planned, selected);
 }
 
-async function startPlannedJob(planned, selected) {
+async function startPlannedJob(planned, selected, options = {}) {
   const output = document.getElementById("job-output");
   const button = document.getElementById("run-job");
   const outputs = jobOutputsForPlan({ plan: planned, outputs: declaredOutputs() });
-  const readinessError = validateRunReadiness(selected, planned, outputs);
-  if (readinessError) {
-    showJobOutput(readinessError, false);
+  const blocker = validateRunReadiness(selected, planned, outputs);
+  if (blocker.message) {
+    if (blocker.actionKind === "choose-project" && !options.promptedForProject) {
+      const project = await chooseProject();
+      if (project) {
+        await startPlannedJob(planned, selectedDevice(), { promptedForProject: true });
+        return;
+      }
+    }
+    showJobOutput(blocker.message, false);
     return;
   }
 
@@ -1338,7 +1346,7 @@ async function startPlannedJob(planned, selected) {
 
 function validateRunReadiness(selected, planned, outputs = []) {
   const policyError = disallowedWorkMessage(planned, capabilitiesForSelectedDevice());
-  return runReadinessError({
+  return runReadinessBlocker({
     daemonAvailable: state.daemonAvailable,
     device: selected,
     canRun: Boolean(selected && canRunOn(selected)),
@@ -1404,6 +1412,12 @@ async function createPlan(task) {
       projectRoot: state.settings.projectRoot || ""
     });
     if (!response.ok) {
+      if (response.actionKind === "choose-project") {
+        const project = await chooseProject();
+        if (project) {
+          return createPlan(task);
+        }
+      }
       showJobOutput(plannerErrorMessage(response), false);
       state.plannedTask = null;
       renderPlanPreview();
