@@ -1444,7 +1444,8 @@ Auto worker target submission, no-project Smoke Test submission, pairing
 confirmation guidance, revocation actions, setup guidance, invalid
 command-input guidance, empty-log placeholders, copyable CLI run/log handoffs,
 job-completion notifications and their persisted setting, diagnostic command
-copying, configurable setup/VPS defaults, and safe command parsing; a real
+copying, a menu-bar handoff button that opens the Electron Control Center when
+installed or packaged in the development checkout, configurable setup/VPS defaults, and safe command parsing; a real
 Swift client has successfully pinged the Go daemon, submitted a durable native
 job, and read its output. A separate Electron Control Center now owns the
 heavier settings surface, connects to the daemon over local IPC, lists nearby

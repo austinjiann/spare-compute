@@ -4,6 +4,12 @@ import Testing
 
 @testable import ComputeHopApp
 
+private enum TestLauncherError: LocalizedError {
+    case failed
+
+    var errorDescription: String? { "Launcher failed." }
+}
+
 @Test
 @MainActor
 func runDisabledReasonExplainsDaemonOfflineState() {
@@ -641,6 +647,31 @@ func connectNearbyWorkerRefusesAmbiguousNearbyWorkers() async {
 
 @Test
 @MainActor
+func openControlCenterUsesConfiguredLauncher() {
+    let launcher = RecordingControlCenterLauncher()
+    let model = AppModel(client: RecordingDaemonClient(), controlCenterLauncher: launcher)
+    model.lastError = "previous"
+
+    model.openControlCenter()
+
+    #expect(launcher.openCount == 1)
+    #expect(model.lastError == nil)
+}
+
+@Test
+@MainActor
+func openControlCenterReportsLauncherFailures() {
+    let launcher = RecordingControlCenterLauncher(error: TestLauncherError.failed)
+    let model = AppModel(client: RecordingDaemonClient(), controlCenterLauncher: launcher)
+
+    model.openControlCenter()
+
+    #expect(launcher.openCount == 1)
+    #expect(model.lastError == "Launcher failed.")
+}
+
+@Test
+@MainActor
 func disconnectUsesDurableDeviceIDAndClearsSelectedRunTarget() async {
     let worker = runTargetDevice(id: "durable-worker-id", name: "Gaming PC")
     let client = RecordingDaemonClient(devices: [])
@@ -731,6 +762,23 @@ private final class RecordingClipboard: ClipboardWriting {
 private struct NotificationRecord: Equatable {
     let title: String
     let body: String
+}
+
+@MainActor
+private final class RecordingControlCenterLauncher: ControlCenterLaunching {
+    var openCount = 0
+    private let error: Error?
+
+    init(error: Error? = nil) {
+        self.error = error
+    }
+
+    func openControlCenter() throws {
+        openCount += 1
+        if let error {
+            throw error
+        }
+    }
 }
 
 @MainActor

@@ -42,6 +42,7 @@ final class AppModel {
     private let notifier: JobCompletionNotifying
     private let settingsStore: AppSettingsStoring
     private let planner: TaskPlanning
+    private let controlCenterLauncher: ControlCenterLaunching
     private var trackedRemoteJobs: [String: String] = [:]
     private var observedJobStates: [String: String] = [:]
     private var nextLogSequence: UInt64 = 0
@@ -98,12 +99,14 @@ final class AppModel {
         client: LocalDaemonClientProtocol = LocalDaemonClient(),
         notifier: JobCompletionNotifying = SystemJobCompletionNotifier(),
         settingsStore: AppSettingsStoring = UserDefaultsAppSettingsStore(),
-        planner: TaskPlanning = LocalTaskPlanner()
+        planner: TaskPlanning = LocalTaskPlanner(),
+        controlCenterLauncher: ControlCenterLaunching = SystemControlCenterLauncher()
     ) {
         self.client = client
         self.notifier = notifier
         self.settingsStore = settingsStore
         self.planner = planner
+        self.controlCenterLauncher = controlCenterLauncher
         jobCompletionNotificationsEnabled = settingsStore.jobCompletionNotificationsEnabled
         workerSetupDeviceName = settingsStore.workerSetupDeviceName
         workerSetupCacheSize = settingsStore.workerSetupCacheSize
@@ -326,6 +329,15 @@ final class AppModel {
 
     func copyDiagnosticsCommandBundle(to clipboard: ClipboardWriting) {
         clipboard.write(diagnosticsCommandBundle)
+    }
+
+    func openControlCenter() {
+        do {
+            try controlCenterLauncher.openControlCenter()
+            lastError = nil
+        } catch {
+            lastError = error.localizedDescription
+        }
     }
 
     func refreshLoop() async {

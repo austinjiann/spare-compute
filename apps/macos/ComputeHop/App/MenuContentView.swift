@@ -70,6 +70,13 @@ struct MenuContentView: View {
         HStack {
             Spacer()
             Button {
+                model.openControlCenter()
+            } label: {
+                Image(systemName: "slider.horizontal.3")
+            }
+            .buttonStyle(.plain)
+            .help("Open Control Center")
+            Button {
                 Task { await model.refresh() }
             } label: {
                 Image(systemName: "arrow.clockwise")
