@@ -209,6 +209,21 @@ test("runReadinessError blocks missing or unusable run targets", () => {
   );
 });
 
+test("runReadinessBlocker suggests starting ComputeHop when the daemon is unavailable", () => {
+  assert.deepEqual(
+    runReadinessBlocker({
+      daemonAvailable: false,
+      device: { id: "local", name: "This Mac" },
+      canRun: true
+    }),
+    {
+      message: "Start ComputeHop before running jobs.",
+      actionKind: "start-daemon",
+      actionLabel: "Start"
+    }
+  );
+});
+
 test("runReadinessError explains pending selected workers", () => {
   assert.equal(
     runReadinessError({

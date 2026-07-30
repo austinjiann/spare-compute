@@ -78,7 +78,7 @@
     });
 
     if (request.daemonAvailable === false) {
-      return block("Start ComputeHop before running jobs.");
+      return block("Start ComputeHop before running jobs.", "start-daemon", "Start");
     }
     if (device?.unavailableSelection) {
       return offlineWorkerBlock(deviceName);

@@ -114,6 +114,7 @@ document.getElementById("background-action").addEventListener("click", installBa
 document.getElementById("worker-readiness-action").addEventListener("click", performWorkerReadinessAction);
 document.getElementById("run-job").addEventListener("click", runSelectedJob);
 document.getElementById("test-device").addEventListener("click", testSelectedDevice);
+document.getElementById("run-status-action").addEventListener("click", performRunStatusAction);
 document.getElementById("command-input").addEventListener("keydown", (event) => {
   if (event.key === "Enter") {
     runSelectedJob();
@@ -1688,8 +1689,12 @@ function renderRunControls() {
   const clearProjectButton = document.getElementById("clear-project");
   const runButton = document.getElementById("run-job");
   const testButton = document.getElementById("test-device");
+  const status = document.getElementById("run-status");
+  const statusText = document.getElementById("run-status-text");
+  const statusAction = document.getElementById("run-status-action");
   const task = document.getElementById("command-input").value.trim();
   const testTarget = smokeTestDevice(selected);
+  const blocker = currentRunTargetBlocker(selected);
 
   target.textContent = runTargetLabel(selected);
   projectLabel.textContent = state.settings.projectRoot
@@ -1707,6 +1712,67 @@ function renderRunControls() {
   testButton.title = smokeTestTitle(testTarget);
   testButton.disabled = runInFlight || !state.daemonAvailable || !testTarget || !canRunOn(testTarget);
   runButton.disabled = !runInFlight && (!state.daemonAvailable || !selected || !canRunOn(selected));
+  status.classList.toggle("hidden", runInFlight || !blocker.message);
+  statusText.textContent = blocker.message || "";
+  statusAction.classList.toggle("hidden", !blocker.actionLabel);
+  statusAction.textContent = blocker.actionLabel || "";
+  statusAction.dataset.actionKind = blocker.actionKind || "";
+  statusAction.disabled = runStatusActionDisabled(blocker);
+}
+
+function currentRunTargetBlocker(selected = selectedDevice()) {
+  return runReadinessBlocker({
+    daemonAvailable: state.daemonAvailable,
+    device: selected,
+    canRun: Boolean(selected && canRunOn(selected)),
+    plan: {
+      requiresProject: false,
+      ignoreDeclaredOutputs: true
+    },
+    outputs: []
+  });
+}
+
+function runStatusActionDisabled(blocker) {
+  if (!blocker?.actionKind) {
+    return true;
+  }
+  if (blocker.actionKind === "start-daemon") {
+    return state.startingDaemon;
+  }
+  if (blocker.actionKind === "refresh") {
+    return refreshInFlight;
+  }
+  const selected = selectedDevice();
+  if ((blocker.actionKind === "connect-device" || blocker.actionKind === "enable-device") && selected) {
+    return pendingActions.has(`device:${selected.id}`);
+  }
+  return false;
+}
+
+async function performRunStatusAction() {
+  const blocker = currentRunTargetBlocker();
+  const selected = selectedDevice();
+  switch (blocker.actionKind) {
+    case "start-daemon":
+      await startDaemon();
+      return;
+    case "refresh":
+      await refreshDevices();
+      return;
+    case "connect-device":
+      if (selected && isPairable(selected)) {
+        await connectDevice(selected);
+      }
+      return;
+    case "enable-device":
+      if (selected) {
+        setDeviceSync(selected, true);
+      }
+      return;
+    default:
+      return;
+  }
 }
 
 function smokeTestDevice(selected = selectedDevice()) {

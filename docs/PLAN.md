@@ -1496,7 +1496,8 @@ remote target is temporarily unavailable, show a named waiting state for the
 selected worker while it reconnects, keep run and job-history actions disabled
 with a worker-specific explanation until that worker is available, explain
 offline, paused, nearby-but-unconnected, and reconnecting selected workers before
-submission and in the empty job-history state without exposing CLI commands, display the
+submission, in the run card with minimal safe Start/Refresh/Connect/Enable
+actions, and in the empty job-history state without exposing CLI commands, display the
 resolved backing worker name for Auto-worker submissions, route Auto-worker job follow-ups through remembered
 job placement, list recent jobs for the
 selected computer, open persisted job logs, declare files/folders to bring back,
