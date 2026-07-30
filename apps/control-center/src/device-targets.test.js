@@ -115,7 +115,7 @@ test("compatibleWorkerForPlan selects one matching worker by platform", () => {
   assert.equal(compatibleWorkerForPlan([localDevice(), mac, windows, linux], { targetPlatform: "windows" }).id, "worker-2");
   assert.equal(compatibleWorkerForPlan([localDevice(), mac, windows, linux], { targetPlatform: "macos" }).id, "worker-1");
   assert.equal(compatibleWorkerForPlan([localDevice(), mac, windows, linux], { requiredPlatform: "linux" }).id, "worker-3");
-  assert.equal(compatibleWorkerForPlan([localDevice(), mac, windows, { ...windows, id: "worker-4" }], { targetPlatform: "windows" }), null);
+  assert.equal(compatibleWorkerForPlan([localDevice(), mac, windows, { ...windows, id: "worker-4" }], { targetPlatform: "windows" }).id, "worker-2");
   assert.equal(compatibleWorkerForPlan([localDevice(), mac, windows, strongerWindows], { targetPlatform: "windows" }).id, "worker-4");
   assert.equal(compatibleWorkerForPlan([localDevice(), mac, windows], { targetPlatform: "" }), null);
   assert.equal(workerMatchesPlatform({ platform: "win32" }, "windows"), true);
@@ -143,8 +143,8 @@ test("compatibleWorkerForPlan can select by allowed-work policy", () => {
     compatibleWorkerForPlan([localDevice(), buildWorker, dockerWorker], { command: "docker build ." }, {
       requireAllowedMatch: true,
       isWorkerAllowed: () => true
-    }),
-    null
+    }).id,
+    "worker-1"
   );
   assert.equal(
     compatibleWorkerForPlan([
@@ -169,12 +169,12 @@ test("compatibleWorkerForPlan picks the strongest worker for worker-targeted tas
   );
 });
 
-test("bestWorkerFromCandidates remains conservative when workers tie", () => {
+test("bestWorkerFromCandidates uses resources then stable IDs", () => {
   const left = { ...connectedWorker("Left", "worker-1"), logicalCPUCount: 8, totalMemoryBytes: 16 * 1024 ** 3 };
   const right = { ...connectedWorker("Right", "worker-2"), logicalCPUCount: 8, totalMemoryBytes: 16 * 1024 ** 3 };
   const stronger = { ...connectedWorker("Strong", "worker-3"), logicalCPUCount: 8, totalMemoryBytes: 32 * 1024 ** 3 };
 
-  assert.equal(bestWorkerFromCandidates([left, right]), null);
+  assert.equal(bestWorkerFromCandidates([right, left]).id, "worker-1");
   assert.equal(bestWorkerFromCandidates([left, stronger]).id, "worker-3");
   assert.equal(workerResourceScore(stronger) > workerResourceScore(left), true);
 });
@@ -186,7 +186,7 @@ test("compatibleWorkerForPlan selects one matching worker by architecture", () =
 
   assert.equal(compatibleWorkerForPlan([localDevice(), appleSilicon, intel, windows], { targetArchitecture: "arm64" }).id, "worker-1");
   assert.equal(compatibleWorkerForPlan([localDevice(), appleSilicon, intel, windows], { targetPlatform: "darwin", targetArchitecture: "x64" }).id, "worker-2");
-  assert.equal(compatibleWorkerForPlan([localDevice(), appleSilicon, intel, windows], { requiredArchitecture: "amd64" }), null);
+  assert.equal(compatibleWorkerForPlan([localDevice(), appleSilicon, intel, windows], { requiredArchitecture: "amd64" }).id, "worker-2");
   assert.equal(workerMatchesArchitecture({ arch: "aarch64" }, "arm64"), true);
   assert.equal(workerMatchesArchitecture({ arch: "x64" }, "amd64"), true);
   assert.equal(workerMatchesArchitecture({ arch: "arm64" }, "amd64"), false);

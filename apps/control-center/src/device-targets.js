@@ -85,9 +85,6 @@
         }
         return stableWorkerKey(left.worker).localeCompare(stableWorkerKey(right.worker));
       });
-    if (ranked[0].score === ranked[1].score) {
-      return null;
-    }
     return ranked[0].worker;
   }
 

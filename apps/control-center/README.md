@@ -97,8 +97,8 @@ Current scope:
   allows it, the plan can move to the best compatible worker before submission;
 - scores compatible connected workers by advertised CPU count and total memory
   when OS, architecture, worker-target, or Allow hints leave more than one
-  possible target; equal-score ties stay conservative instead of picking a
-  random worker;
+  possible target, with a stable device-ID tie-break when capacity appears
+  equal;
 - uses deterministic local planning first, so no API key is required for normal
   Check/Test/Build/Lint/Docker planning;
 - can fall back to an optional OpenAI Responses API planner for tasks local
