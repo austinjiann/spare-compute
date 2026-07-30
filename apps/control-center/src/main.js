@@ -59,11 +59,25 @@ app.on("window-all-closed", () => {
 ipcMain.handle("devices:list", async () => {
   try {
     const client = new LocalDaemonClient();
+    const local = await client.ping();
     const result = await client.listDevices();
     const pairings = await client.listPairings();
-    return { ok: true, error: "", devices: mapDevices(result), pairings: mapPairings(pairings) };
+    return {
+      ok: true,
+      error: "",
+      localDevice: mapLocalDevice(local),
+      devices: mapDevices(result),
+      pairings: mapPairings(pairings)
+    };
   } catch (error) {
-    return { ok: false, error: readableError(error), errorCode: error?.code || "", devices: [], pairings: [] };
+    return {
+      ok: false,
+      error: readableError(error),
+      errorCode: error?.code || "",
+      localDevice: null,
+      devices: [],
+      pairings: []
+    };
   }
 });
 
@@ -451,6 +465,24 @@ function mapDevices(result) {
   }
 
   return devices;
+}
+
+function mapLocalDevice(ping) {
+  if (!ping) {
+    return null;
+  }
+  return {
+    name: ping.deviceName || "This Mac",
+    id: "local",
+    deviceID: ping.deviceId || "",
+    connection: "active",
+    role: roleLabel(ping.role),
+    availability: "local",
+    trustState: "paired",
+    path: "local",
+    address: "",
+    updated: ""
+  };
 }
 
 function mapTrustedDevice(trusted) {

@@ -1,5 +1,6 @@
 const state = {
   devices: [],
+  localDevice: null,
   pairings: [],
   jobs: [],
   selectedDeviceID: "local",
@@ -30,18 +31,18 @@ let jobsRefreshInFlight = false;
 let runInFlight = false;
 const pendingActions = new Set();
 
-const defaultDevices = [
-  {
+function defaultLocalDevice() {
+  return state.localDevice || {
     name: "This Mac",
     id: "local",
     connection: "active",
-    role: "orchestrator",
-    availability: "nearby",
+    role: "device",
+    availability: "local",
     path: "local",
-    address: "local",
+    address: "",
     updated: ""
-  }
-];
+  };
+}
 
 const capabilities = [
   ["builds", "Builds"],
@@ -94,7 +95,7 @@ async function refreshDevices() {
   const status = document.getElementById("scan-status");
 
   if (!state.settings.lanDiscovery) {
-    state.devices = defaultDevices;
+    state.devices = [defaultLocalDevice()];
     state.pairings = [];
     error.classList.add("hidden");
     status.textContent = "Nearby discovery off";
@@ -116,7 +117,8 @@ async function refreshDevices() {
 
   try {
     const response = await window.computeHop.listDevices();
-    state.devices = mergeDevices(defaultDevices, response.devices || []);
+    state.localDevice = response.localDevice || null;
+    state.devices = mergeDevices([defaultLocalDevice()], response.devices || []);
     state.pairings = response.pairings || [];
     state.daemonAvailable = response.ok;
     state.daemonError = response.ok ? "" : response.error || "Start ComputeHop to discover nearby devices.";
@@ -124,7 +126,8 @@ async function refreshDevices() {
     error.textContent = "";
     status.textContent = response.ok ? scanSummary(state.devices) : "Discovery unavailable";
   } catch (err) {
-    state.devices = defaultDevices;
+    state.localDevice = null;
+    state.devices = [defaultLocalDevice()];
     state.pairings = [];
     state.daemonAvailable = false;
     state.daemonError = err.message || "Start ComputeHop to discover nearby devices.";
@@ -1085,7 +1088,7 @@ function saveSettings() {
 }
 
 function selectedDevice() {
-  return state.devices.find((device) => device.id === state.selectedDeviceID) || defaultDevices[0];
+  return state.devices.find((device) => device.id === state.selectedDeviceID) || defaultLocalDevice();
 }
 
 function canRunOn(device) {
@@ -1105,7 +1108,7 @@ function isUnpaired(device) {
 
 function deviceLabel(device) {
   if (device.id === "local") {
-    return "This computer";
+    return device.role === "worker" ? "This computer · worker" : "This computer";
   }
   const type = deviceType(device);
   if (device.role) {
