@@ -35,6 +35,34 @@ test("mergeJobRefresh preserves missing non-terminal jobs but drops stale termin
   );
 });
 
+test("mergeJobRefresh preserves UI-only metadata when daemon rows replace active jobs", () => {
+  const merged = mergeJobRefresh(
+    [
+      job("job-1", {
+        state: "running",
+        progress: "upload 75%",
+        deviceID: "",
+        deviceName: "",
+        workingDirectory: ""
+      })
+    ],
+    [
+      job("job-1", {
+        state: "running",
+        progress: "upload 50%",
+        deviceID: "worker-1",
+        deviceName: "Gaming PC",
+        workingDirectory: "/Users/austin/project"
+      })
+    ]
+  );
+
+  assert.equal(merged[0].progress, "upload 75%");
+  assert.equal(merged[0].deviceID, "worker-1");
+  assert.equal(merged[0].deviceName, "Gaming PC");
+  assert.equal(merged[0].workingDirectory, "/Users/austin/project");
+});
+
 test("mergeJobRefresh ignores duplicate and malformed rows", () => {
   assert.deepEqual(
     mergeJobRefresh(
