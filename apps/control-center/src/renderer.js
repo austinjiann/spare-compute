@@ -1153,7 +1153,12 @@ function renderPlanPreview() {
     return;
   }
   title.textContent = plan.title || "Planned command";
-  detail.textContent = plan.detail || "";
+  detail.textContent = [
+    plan.detail || "",
+    Array.isArray(plan.outputs) && plan.outputs.length > 0
+      ? `Returns ${plan.outputs.join(", ")}`
+      : ""
+  ].filter(Boolean).join(" · ");
   command.textContent = plan.command || "";
 }
 
@@ -1194,6 +1199,7 @@ function applyTaskSuggestion(suggestion) {
     command: suggestion.command || "",
     detail: suggestion.detail || "",
     requiresProject: Boolean(suggestion.requiresProject),
+    outputs: Array.isArray(suggestion.outputs) ? suggestion.outputs : [],
     projectRoot: state.settings.projectRoot || "",
     detected: suggestion.detected || []
   };

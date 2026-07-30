@@ -105,6 +105,9 @@ Current scope:
 - updates the recent-job row immediately when a UI-submitted job reaches a
   terminal state, before the next history refresh;
 - restores declared outputs from succeeded jobs through daemon IPC;
+- adds conservative planner-inferred outputs for known package targets, so
+  `make macos-package` brings back `dist/macos/ComputeHop.app` by default while
+  manual **Bring back** paths remain additive;
 - cancels running jobs through daemon IPC;
 - recovers the Run button when a stop request races with an already-finished or
   no-longer-tracked run;

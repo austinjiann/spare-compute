@@ -52,7 +52,10 @@
     if (plan.ignoreDeclaredOutputs) {
       return [];
     }
-    return normalizeOutputs(request.outputs);
+    return normalizeOutputs([
+      ...arrayValues(plan.outputs),
+      ...arrayValues(request.outputs)
+    ]);
   }
 
   function runReadinessError(request = {}) {
@@ -101,6 +104,10 @@
       normalized.push(output);
     });
     return normalized;
+  }
+
+  function arrayValues(value) {
+    return Array.isArray(value) ? value : [];
   }
 
   function cleanPath(value) {

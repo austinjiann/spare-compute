@@ -24,7 +24,8 @@ async function planTask(request) {
   const planned = chooseCommand(intent, profile);
   if (planned) {
     return plan(planned.title, planned.command, planned.detail, profile, {
-      requiresProject: planned.requiresProject
+      requiresProject: planned.requiresProject,
+      outputs: planned.outputs
     });
   }
 
@@ -64,6 +65,7 @@ async function suggestTasks(request) {
     { id: "ci", label: "Check", task: "check CI", intent: "ci" },
     { id: "test", label: "Test", task: "run tests", intent: "test" },
     { id: "build", label: "Build", task: "build the app", intent: "build" },
+    { id: "package", label: "Package", task: "package the app", intent: "package" },
     { id: "lint", label: "Lint", task: "lint project", intent: "lint" },
     { id: "docker-build", label: "Docker", task: "build docker image", intent: "docker-build" }
   ];
@@ -84,6 +86,7 @@ async function suggestTasks(request) {
       command: planned.command,
       detail: planned.detail,
       requiresProject: Boolean(planned.requiresProject),
+      outputs: normalizeOutputs(planned.outputs),
       projectRoot,
       detected: detectedLabels(profile)
     });
@@ -176,7 +179,9 @@ function chooseCommand(intent, profile) {
   }
 
   if (intent === "package") {
-    return makeTarget(profile, "macos-package", "Package macOS app", "Use the repo's macOS app packaging target.")
+    return makeTarget(profile, "macos-package", "Package macOS app", "Use the repo's macOS app packaging target.", {
+      outputs: ["dist/macos/ComputeHop.app"]
+    })
       || makeTarget(profile, "package", "Package project", "Use the repo's package target.")
       || makeTarget(profile, "release", "Package project", "Use the repo's release target.")
       || script(profile, "package", "Package project", "Use the package's package script.")
@@ -282,7 +287,7 @@ function commandForLint(profile) {
   return null;
 }
 
-function script(profile, name, title, detail) {
+function script(profile, name, title, detail, options = {}) {
   if (!profile.packageScripts[name]) {
     return null;
   }
@@ -290,11 +295,12 @@ function script(profile, name, title, detail) {
     title,
     command: `${profile.packageManager} run ${name}`,
     detail,
-    requiresProject: true
+    requiresProject: true,
+    outputs: normalizeOutputs(options.outputs)
   };
 }
 
-function makeTarget(profile, name, title, detail) {
+function makeTarget(profile, name, title, detail, options = {}) {
   if (!profile.makeTargets.includes(name)) {
     return null;
   }
@@ -302,7 +308,8 @@ function makeTarget(profile, name, title, detail) {
     title,
     command: `make ${name}`,
     detail,
-    requiresProject: true
+    requiresProject: true,
+    outputs: normalizeOutputs(options.outputs)
   };
 }
 
@@ -428,10 +435,28 @@ function plan(title, command, detail, profile, options = {}) {
       detail,
       exact: Boolean(options.exact),
       requiresProject: Boolean(options.requiresProject),
+      outputs: normalizeOutputs(options.outputs),
       projectRoot: profile.root || "",
       detected: detectedLabels(profile)
     }
   };
+}
+
+function normalizeOutputs(outputs) {
+  if (!Array.isArray(outputs)) {
+    return [];
+  }
+  const seen = new Set();
+  const normalized = [];
+  outputs.forEach((value) => {
+    const output = String(value || "").trim();
+    if (!output || seen.has(output)) {
+      return;
+    }
+    seen.add(output);
+    normalized.push(output);
+  });
+  return normalized;
 }
 
 function detectedLabels(profile) {

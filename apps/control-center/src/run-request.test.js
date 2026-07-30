@@ -78,6 +78,16 @@ test("jobOutputsForPlan normalizes declared outputs", () => {
   ]);
 });
 
+test("jobOutputsForPlan combines planned and declared outputs", () => {
+  assert.deepEqual(
+    jobOutputsForPlan({
+      plan: { outputs: [" dist/macos/ComputeHop.app ", "dist"] },
+      outputs: ["dist", "report.pdf"]
+    }),
+    ["dist/macos/ComputeHop.app", "dist", "report.pdf"]
+  );
+});
+
 test("jobOutputsForPlan drops outputs when the plan opts out", () => {
   assert.deepEqual(
     jobOutputsForPlan({
@@ -93,7 +103,8 @@ test("jobStartRequestForPlan builds the daemon request for a remote project run"
     jobStartRequestForPlan({
       plan: {
         command: "go test ./...",
-        requiresProject: true
+        requiresProject: true,
+        outputs: ["coverage.out"]
       },
       device: {
         id: "auto",
@@ -101,14 +112,14 @@ test("jobStartRequestForPlan builds the daemon request for a remote project run"
         workerName: "Austin MacBook 2"
       },
       projectRoot: "/Users/austin/project",
-      outputs: [" coverage.out ", "coverage.out", ""]
+      outputs: [" report.xml ", "coverage.out", ""]
     }),
     {
       command: "go test ./...",
       deviceID: "auto",
       deviceName: "Austin MacBook 2",
       workingDirectory: "/Users/austin/project",
-      outputs: ["coverage.out"]
+      outputs: ["coverage.out", "report.xml"]
     }
   );
 });

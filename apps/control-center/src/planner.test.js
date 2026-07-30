@@ -51,7 +51,22 @@ test("planTask prefers app packaging targets for package requests", async (t) =>
   assert.equal(result.plan.title, "Package macOS app");
   assert.equal(result.plan.command, "make macos-package");
   assert.equal(result.plan.requiresProject, true);
+  assert.deepEqual(result.plan.outputs, ["dist/macos/ComputeHop.app"]);
   assert.equal(classifyIntent("package the app"), "package");
+});
+
+test("suggestTasks includes package targets with inferred outputs", async (t) => {
+  const project = await tempProject(t, {
+    Makefile: "macos-package:\n\tpackaging/macos/build.sh\n"
+  });
+
+  const result = await suggestTasks({ projectRoot: project });
+  const suggestion = result.suggestions.find((value) => value.id === "package");
+
+  assert.equal(result.ok, true);
+  assert.equal(suggestion.label, "Package");
+  assert.equal(suggestion.command, "make macos-package");
+  assert.deepEqual(suggestion.outputs, ["dist/macos/ComputeHop.app"]);
 });
 
 test("planTask maps Swift package tests", async (t) => {

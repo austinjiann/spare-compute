@@ -1456,7 +1456,8 @@ heavier settings surface, connects to the daemon over local IPC, lists nearby
 and trusted devices, pairs, disables/re-enables, or forgets workers, plans plain-language tasks into
 previewed commands with package/Makefile/language/Docker fallbacks, prefers repository
 validation targets for CI/check requests, recognizes package/release targets such
-as `make macos-package`, can use an
+as `make macos-package`, includes conservative inferred outputs for known package
+targets such as `dist/macos/ComputeHop.app`, can use an
 optional OpenAI planner fallback for tasks local rules cannot map, runs a projectless
 smoke test on the selected computer, suggests project-aware Check/Test/Build/Lint/Docker
 task chips after project selection, applies allowed-work checkboxes to suggested and
