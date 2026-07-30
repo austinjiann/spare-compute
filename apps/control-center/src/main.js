@@ -1,8 +1,10 @@
 const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
-const { execFile } = require("node:child_process");
+const { execFile, spawn } = require("node:child_process");
+const { randomUUID } = require("node:crypto");
 const path = require("node:path");
 
 const repoRoot = path.resolve(__dirname, "..", "..", "..");
+const activeRuns = new Map();
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -72,7 +74,7 @@ ipcMain.handle("project:choose", async () => {
   return result.filePaths[0];
 });
 
-ipcMain.handle("jobs:run", async (_event, request) => {
+ipcMain.handle("jobs:start", async (event, request) => {
   const jobRequest = normalizeJobRequest(request);
   const argv = splitCommandLine(jobRequest.command);
   if (argv.length === 0) {
@@ -93,12 +95,18 @@ ipcMain.handle("jobs:run", async (_event, request) => {
   args.push("--follow", ...argv);
 
   const cwd = jobRequest.workingDirectory || repoRoot;
-  const result = await runComputeHop(args, { cwd, timeout: 30 * 60 * 1000 });
-  return {
-    ok: result.ok,
-    output: [result.stdout, result.stderr].filter(Boolean).join("\n").trim(),
-    error: result.error
-  };
+  const runID = randomUUID();
+  setImmediate(() => startComputeHopStream(event.sender, runID, args, { cwd }));
+  return { runID };
+});
+
+ipcMain.handle("jobs:stop", async (_event, runID) => {
+  const child = activeRuns.get(String(runID));
+  if (!child) {
+    return { stopped: false };
+  }
+  child.kill("SIGINT");
+  return { stopped: true };
 });
 
 async function runComputeHop(args, options) {
@@ -138,6 +146,97 @@ function execCommand(command, args, cwd, timeout = 7000) {
       }
     );
   });
+}
+
+function startComputeHopStream(webContents, runID, args, options) {
+  startProcessStream(webContents, runID, {
+    command: "computehop",
+    args,
+    cwd: options.cwd,
+    fallback: {
+      command: "go",
+      args: ["run", "./cmd/computehop", ...args],
+      cwd: repoRoot
+    }
+  });
+}
+
+function startProcessStream(webContents, runID, spec) {
+  let child;
+  let spawnFailed = false;
+
+  try {
+    child = spawn(spec.command, spec.args, {
+      cwd: spec.cwd,
+      windowsHide: true
+    });
+  } catch (error) {
+    sendRunEvent(webContents, runID, {
+      type: "finished",
+      ok: false,
+      text: error.message || "Run failed."
+    });
+    return;
+  }
+
+  activeRuns.set(runID, child);
+  sendRunEvent(webContents, runID, { type: "started" });
+
+  child.stdout.on("data", (chunk) => {
+    sendRunEvent(webContents, runID, {
+      type: "output",
+      stream: "stdout",
+      text: chunk.toString()
+    });
+  });
+
+  child.stderr.on("data", (chunk) => {
+    sendRunEvent(webContents, runID, {
+      type: "output",
+      stream: "stderr",
+      text: chunk.toString()
+    });
+  });
+
+  child.once("error", (error) => {
+    spawnFailed = true;
+    activeRuns.delete(runID);
+    if (error.code === "ENOENT" && spec.fallback) {
+      startProcessStream(webContents, runID, spec.fallback);
+      return;
+    }
+    sendRunEvent(webContents, runID, {
+      type: "finished",
+      ok: false,
+      text: error.message || "Run failed."
+    });
+  });
+
+  child.once("close", (code, signal) => {
+    if (spawnFailed) {
+      return;
+    }
+    activeRuns.delete(runID);
+    const stopped = signal === "SIGINT" || signal === "SIGTERM";
+    sendRunEvent(webContents, runID, {
+      type: "finished",
+      ok: code === 0,
+      stopped,
+      text: stopped
+        ? "Stopped."
+        : code === 0
+          ? "Done."
+          : `Exited with code ${code}.`
+    });
+  });
+}
+
+function sendRunEvent(webContents, runID, payload) {
+  if (webContents.isDestroyed()) {
+    activeRuns.delete(runID);
+    return;
+  }
+  webContents.send("jobs:event", { runID, ...payload });
 }
 
 function normalizeJobRequest(request) {

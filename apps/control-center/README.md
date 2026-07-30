@@ -17,6 +17,8 @@ Current scope:
 - reads devices from `computehop devices` when the CLI is installed;
 - falls back to `go run ./cmd/computehop devices` from the repo during local dev;
 - runs selected commands through `computehop run --follow`;
+- streams stdout/stderr into the window while the command is running;
+- lets the user stop the local running/follow process from the window;
 - targets This Mac by default, or a selected connected worker;
 - uses `--no-project` for remote utility commands until a project folder is
   selected;
