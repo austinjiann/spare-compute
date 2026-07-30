@@ -136,6 +136,9 @@ Current scope:
 - keeps arbitrary exact commands behind the disabled-by-default **Exact commands**
   allowance while still letting recognized typed commands use their specific
   Builds/Tests/Docker/AI/Video category;
+- allows a tiny safe exact-utility set such as `hostname`, `whoami`, `date`,
+  `pwd`, and limited `uname` forms without enabling arbitrary exact commands,
+  so users can verify which computer ran a task;
 - parses exact commands with quote/escape handling before submitting them to the
   daemon;
 - displays job-history commands with quoting for spaces and empty arguments;

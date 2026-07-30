@@ -36,6 +36,9 @@
     if (explicit) {
       return explicit;
     }
+    if (work?.exact === true && isSafeUtilityCommand(work?.command || "")) {
+      return "";
+    }
     const inferred = capabilityForCommand(work?.command || work?.task || work?.title || "");
     if (inferred) {
       return inferred;
@@ -80,6 +83,14 @@
     return "";
   }
 
+  function isSafeUtilityCommand(command) {
+    const value = String(command || "").trim().toLowerCase();
+    return (
+      /^(?:\/usr\/bin\/|\/bin\/)?(hostname|whoami|date|pwd)$/.test(value) ||
+      /^(?:\/usr\/bin\/|\/bin\/)?uname(?:\s+-(a|m|n|r|s))?$/.test(value)
+    );
+  }
+
   function normalizeCapability(value) {
     const text = String(value || "").trim();
     return Object.prototype.hasOwnProperty.call(capabilityLabels, text) ? text : "";
@@ -90,6 +101,7 @@
     capabilityForWork,
     disallowedWorkMessage,
     filterAllowedSuggestions,
+    isSafeUtilityCommand,
     isWorkAllowed
   };
 }));

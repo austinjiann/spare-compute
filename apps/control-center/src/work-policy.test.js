@@ -4,6 +4,7 @@ const {
   capabilityForCommand,
   disallowedWorkMessage,
   filterAllowedSuggestions,
+  isSafeUtilityCommand,
   isWorkAllowed
 } = require("./work-policy");
 
@@ -51,6 +52,22 @@ test("exact unknown commands require the exact command allowance", () => {
   assert.equal(isWorkAllowed(exactCommand, { commands: true }), true);
   assert.equal(isWorkAllowed(exactCommand, { commands: false }), false);
   assert.match(disallowedWorkMessage(exactCommand, { commands: false }), /Exact commands is turned off/);
+});
+
+test("safe utility commands do not require the exact command allowance", () => {
+  const hostname = { command: "hostname", exact: true };
+  const uname = { command: "uname -a", exact: true };
+  const absoluteWhoami = { command: "/usr/bin/whoami", exact: true };
+
+  assert.equal(isSafeUtilityCommand("hostname"), true);
+  assert.equal(isSafeUtilityCommand("/bin/hostname"), true);
+  assert.equal(isSafeUtilityCommand("uname -a"), true);
+  assert.equal(isSafeUtilityCommand("uname --all"), false);
+  assert.equal(isSafeUtilityCommand("hostname && whoami"), false);
+  assert.equal(isWorkAllowed(hostname, { commands: false }), true);
+  assert.equal(isWorkAllowed(uname, { commands: false }), true);
+  assert.equal(isWorkAllowed(absoluteWhoami, { commands: false }), true);
+  assert.equal(disallowedWorkMessage(hostname, { commands: false }), "");
 });
 
 test("recognized exact commands still use their specific category", () => {
