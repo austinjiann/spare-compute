@@ -417,7 +417,7 @@ async function runDaemonJobStream(runID, jobRequest, argv) {
       throw new Error("ComputeHop daemon returned an empty job.");
     }
 
-    const submittedJob = mapJob(submitted, submitDeviceSelector);
+    const submittedJob = mapRunJob(submitted, submitDeviceSelector, jobRequest);
     let lastJobUpdateSignature = jobUpdateSignature(submittedJob);
     record.jobID = submitted.id;
     record.deviceSelector = followupDeviceSelector(submitDeviceSelector);
@@ -454,13 +454,13 @@ async function runDaemonJobStream(runID, jobRequest, argv) {
         sendRunEvent(record.webContents, runID, {
           type: "finished",
           ok: jobSucceeded(page.job),
-          job: mapJob(page.job, submitDeviceSelector),
+          job: mapRunJob(page.job, submitDeviceSelector, jobRequest),
           text: `Job ${jobStateLabel(page.job)}.`
         });
         return;
       }
       if (page.job) {
-        const currentJob = mapJob(page.job, submitDeviceSelector);
+        const currentJob = mapRunJob(page.job, submitDeviceSelector, jobRequest);
         const update = nextJobUpdate(lastJobUpdateSignature, currentJob);
         lastJobUpdateSignature = update.signature || lastJobUpdateSignature;
         if (update.changed) {
@@ -499,6 +499,10 @@ function sendRunEvent(webContents, runID, payload) {
     return;
   }
   webContents.send("jobs:event", { runID, ...payload });
+}
+
+function mapRunJob(value, deviceSelector, jobRequest) {
+  return mapJob(value, deviceSelector, { deviceName: jobRequest?.deviceName || "" });
 }
 
 async function readAllJobLogs(client, jobID, deviceSelector) {

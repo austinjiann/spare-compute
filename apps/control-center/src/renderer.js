@@ -817,6 +817,9 @@ function jobDetail(job) {
 }
 
 function jobTargetName(job = {}) {
+  if (job.deviceName) {
+    return job.deviceName;
+  }
   if (job.deviceID === "local") {
     return "this Mac";
   }

@@ -6,7 +6,7 @@ const {
 } = require("./local-daemon");
 const { jobDeviceIDForSelector } = require("./job-routing");
 
-function mapJob(value, deviceID = "") {
+function mapJob(value, deviceID = "", options = {}) {
   if (!value) {
     return null;
   }
@@ -31,7 +31,8 @@ function mapJob(value, deviceID = "") {
     failure: value.failure?.message || "",
     updated: timestampLabel(value.updatedAtUnixNano),
     created: timestampLabel(value.createdAtUnixNano),
-    deviceID: jobDeviceIDForSelector(deviceID)
+    deviceID: jobDeviceIDForSelector(deviceID),
+    deviceName: String(options.deviceName || "").trim()
   };
 }
 

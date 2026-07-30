@@ -16,7 +16,8 @@ test("mapJob preserves the submitted working directory for output restore defaul
       createdAtUnixNano: 1_700_000_000_000_000_000,
       updatedAtUnixNano: 1_700_000_001_000_000_000
     },
-    "worker-1"
+    "worker-1",
+    { deviceName: "Gaming PC" }
   );
 
   assert.equal(mapped.workingDirectory, "/Users/austin/project-a");
@@ -24,6 +25,7 @@ test("mapJob preserves the submitted working directory for output restore defaul
   assert.equal(mapped.canFetchOutputs, true);
   assert.deepEqual(mapped.outputs, ["dist/macos/ComputeHop.app"]);
   assert.equal(mapped.deviceID, "worker-1");
+  assert.equal(mapped.deviceName, "Gaming PC");
 });
 
 test("mapJob keeps projectless utility jobs projectless", () => {
@@ -41,4 +43,5 @@ test("mapJob keeps projectless utility jobs projectless", () => {
   assert.equal(mapped.workingDirectory, "");
   assert.equal(mapped.canFetchOutputs, false);
   assert.equal(mapped.deviceID, "local");
+  assert.equal(mapped.deviceName, "");
 });
