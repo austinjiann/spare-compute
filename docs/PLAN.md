@@ -1452,7 +1452,8 @@ blocks project-style remote runs until a project folder is selected for
 transfer. It can also start the local daemon from the app in development and
 from the bundled daemon in packaged builds, package an unpacked current-platform
 app directory with the daemon copied into Electron's runtime resources, persist
-Control Center preferences under the app user-data directory, list recent jobs
+Control Center preferences under the app user-data directory, offer an Auto
+worker target when exactly one connected worker is available, list recent jobs
 for the selected computer, open persisted job logs, declare files/folders to
 bring back, show remote snapshot/upload preparation feedback before long
 project submissions, restore succeeded job outputs, and cancel listed jobs.

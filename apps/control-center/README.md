@@ -64,6 +64,8 @@ Current scope:
 - restores declared outputs from succeeded jobs through daemon IPC;
 - cancels running jobs through daemon IPC;
 - targets This Mac by default, or a selected connected worker;
+- offers an **Auto worker** run target when exactly one connected worker is
+  available, matching the CLI's `--on auto` behavior;
 - skips project sync for remote utility commands until a project folder is
   selected;
 - tells the user when a remote project run is snapshotting/uploading before the

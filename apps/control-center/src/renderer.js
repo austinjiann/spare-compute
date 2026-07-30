@@ -30,6 +30,7 @@ let refreshInFlight = false;
 let jobsRefreshInFlight = false;
 let runInFlight = false;
 const pendingActions = new Set();
+const { addAutomaticWorkerTarget } = window.computeHopDeviceTargets;
 
 function defaultLocalDevice() {
   return state.localDevice || {
@@ -515,7 +516,7 @@ function friendlyOutputError(job, err) {
 
 function mergeDevices(localDevices, remoteDevices) {
   const seen = new Set();
-  const devices = [...localDevices, ...remoteDevices].filter((device) => {
+  const deduped = [...localDevices, ...remoteDevices].filter((device) => {
     const key = device.id || device.name;
     if (seen.has(key)) {
       return false;
@@ -523,6 +524,9 @@ function mergeDevices(localDevices, remoteDevices) {
     seen.add(key);
     return true;
   });
+  const result = addAutomaticWorkerTarget(deduped, state.selectedDeviceID);
+  const devices = result.devices;
+  state.selectedDeviceID = result.selectedDeviceID;
   if (!devices.some((device) => device.id === state.selectedDeviceID)) {
     state.selectedDeviceID = "local";
   }
@@ -560,7 +564,7 @@ function renderDevices() {
 
     const meta = document.createElement("span");
     meta.className = "device-meta";
-    meta.textContent = device.id === "local" ? "Here" : availabilityLabel(device);
+    meta.textContent = device.id === "local" ? "Here" : device.id === "auto" ? "Auto" : availabilityLabel(device);
 
     const action = deviceActionButton(device);
 
@@ -574,7 +578,7 @@ function deviceActionButton(device) {
   const action = document.createElement("button");
   action.className = "row-button";
 
-  if (device.id === "local") {
+  if (device.id === "local" || device.id === "auto") {
     action.textContent = device.id === state.selectedDeviceID ? "Selected" : "Use";
     action.disabled = device.id === state.selectedDeviceID;
     action.addEventListener("click", (event) => {
@@ -1158,20 +1162,26 @@ function canRunOn(device) {
   if (device.id === "local") {
     return true;
   }
+  if (device.id === "auto") {
+    return true;
+  }
   return device.role === "worker" && availabilityLabel(device) === "Connected";
 }
 
 function isPairable(device) {
-  return device.id !== "local" && device.connection === "not connected" && device.availability === "nearby";
+  return device.id !== "local" && device.id !== "auto" && device.connection === "not connected" && device.availability === "nearby";
 }
 
 function isUnpaired(device) {
-  return device.id !== "local" && (device.trustState === "unpaired" || device.connection === "not connected");
+  return device.id !== "local" && device.id !== "auto" && (device.trustState === "unpaired" || device.connection === "not connected");
 }
 
 function deviceLabel(device) {
   if (device.id === "local") {
     return device.role === "worker" ? "This computer · worker" : "This computer";
+  }
+  if (device.id === "auto") {
+    return device.detail || "Uses the single connected worker";
   }
   const type = deviceType(device);
   if (device.role) {
@@ -1197,7 +1207,7 @@ function availabilityLabel(device) {
 }
 
 function scanSummary(devices) {
-  const nearby = devices.filter((device) => device.id !== "local" && availabilityLabel(device) !== "Offline").length;
+  const nearby = devices.filter((device) => device.id !== "local" && device.id !== "auto" && availabilityLabel(device) !== "Offline").length;
   if (nearby === 0) {
     return "No nearby workers yet";
   }
