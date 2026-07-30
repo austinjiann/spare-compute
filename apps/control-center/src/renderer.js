@@ -34,6 +34,7 @@ let runInFlight = false;
 const pendingActions = new Set();
 const { addAutomaticWorkerTarget } = window.computeHopDeviceTargets;
 const { disallowedWorkMessage, filterAllowedSuggestions } = window.computeHopWorkPolicy;
+const { jobWorkingDirectoryForPlan } = window.computeHopRunRequest;
 
 function defaultLocalDevice() {
   return state.localDevice || {
@@ -901,11 +902,16 @@ async function startPlannedJob(planned, selected) {
   output.textContent = `Running ${planned.command} on ${selected.name}…`;
 
   try {
+    const workingDirectory = jobWorkingDirectoryForPlan({
+      projectRoot: state.settings.projectRoot,
+      plan: planned,
+      outputs
+    });
     const result = await window.computeHop.startJob({
       command: planned.command,
       deviceID: selected.id,
       deviceName: selected.name,
-      workingDirectory: state.settings.projectRoot || "",
+      workingDirectory,
       outputs
     });
     state.currentRunID = result.runID;

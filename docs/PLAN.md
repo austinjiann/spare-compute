@@ -1451,7 +1451,8 @@ previewed commands with package/Makefile/language/Docker fallbacks, runs a proje
 smoke test on the selected computer, suggests project-aware Check/Test/Build/Lint/Docker
 task chips after project selection, applies allowed-work checkboxes to suggested and
 planned work, keeps unknown exact commands behind an explicit allowance, avoids
-substituting the development checkout when no project is selected, and blocks project-style remote runs until
+substituting the development checkout when no project is selected, keeps projectless
+utility jobs from snapshotting selected projects, and blocks project-style remote runs until
 a project folder is selected for transfer. It can also start the local daemon
 from the app in development and
 from the bundled daemon in packaged builds, package an unpacked current-platform
