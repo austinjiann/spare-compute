@@ -49,6 +49,7 @@ shasum -a 256 -c ComputeHop-worker-linux-amd64.tar.gz.sha256
 # sha256sum -c ComputeHop-worker-linux-amd64.tar.gz.sha256
 tar -xzf ComputeHop-worker-linux-amd64.tar.gz
 cd ComputeHop-worker-linux-amd64
+./install-systemd-user.sh --check --lan-only
 ./run-worker.sh --lan-only
 ```
 
@@ -66,6 +67,7 @@ Copy the `.zip` and `.sha256` to the Windows machine, then in PowerShell:
 Get-FileHash .\ComputeHop-worker-windows-amd64.zip -Algorithm SHA256
 Expand-Archive .\ComputeHop-worker-windows-amd64.zip .
 cd .\ComputeHop-worker-windows-amd64
+.\install-scheduled-task.ps1 -Check -DeviceName "Gaming PC" -LanOnly
 .\run-worker.ps1 -DeviceName "Gaming PC" -LanOnly
 ```
 

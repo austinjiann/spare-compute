@@ -125,6 +125,16 @@ verify_readme() {
     fi
 }
 
+verify_file_mentions() {
+    path=$1
+    expected=$2
+    verify_present "$path"
+    if ! grep -q "$expected" "$path"; then
+        echo "Packaged file is missing expected text '$expected': $path" >&2
+        exit 1
+    fi
+}
+
 verify_no_macos_sidecars() {
     search_root=$1
     if find "$search_root" \( -name "__MACOSX" -o -name "._*" \) | grep -q .; then
@@ -149,6 +159,7 @@ verify_linux_archive() {
     verify_executable "$root/bin/computehopd"
     verify_executable "$root/run-worker.sh"
     verify_executable "$root/install-systemd-user.sh"
+    verify_file_mentions "$root/install-systemd-user.sh" "Worker install check passed"
     verify_go_binary "$root/bin/computehop"
     verify_go_binary "$root/bin/computehopd"
 }
@@ -175,6 +186,7 @@ verify_windows_archive() {
     verify_present "$root/bin/computehopd.exe"
     verify_present "$root/run-worker.ps1"
     verify_present "$root/install-scheduled-task.ps1"
+    verify_file_mentions "$root/install-scheduled-task.ps1" "Worker install check passed"
     verify_go_binary "$root/bin/computehop.exe"
     verify_go_binary "$root/bin/computehopd.exe"
 }

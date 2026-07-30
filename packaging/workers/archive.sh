@@ -77,11 +77,12 @@ This package is for running a worker computer controlled by a Mac orchestrator.
 It is a developer package, not a signed production installer.
 
 Same-LAN quick start:
-1. Start the worker on this computer.
-2. From the Mac orchestrator, run: computehop connect nearby
-3. Compare the pairing code on both devices.
-4. Confirm on both devices with: computehop connect confirm
-5. From the Mac orchestrator, run: computehop smoke
+1. Check the worker setup on this computer without installing a login service.
+2. Start the worker on this computer.
+3. From the Mac orchestrator, run: computehop connect nearby
+4. Compare the pairing code on both devices.
+5. Confirm on both devices with: computehop connect confirm
+6. From the Mac orchestrator, run: computehop smoke
 
 Remote access after pairing:
 Run 'computehop setup workers --connectivity-domain ... --turn-domain ...' on
