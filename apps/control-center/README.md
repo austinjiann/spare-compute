@@ -42,6 +42,30 @@ Current scope:
   selected;
 - stores UI-only settings in browser local storage for now.
 
+Manual two-computer check:
+
+1. Start the daemon or click **Start** in Control Center on the orchestrator Mac.
+2. Start `computehopd --role worker` on the second computer.
+3. Open Control Center and connect the nearby worker from **Devices**.
+4. Confirm the same pairing code on both computers.
+5. Select the worker and click **Test worker**. A successful check prints the
+   worker's hostname in the job output and adds a succeeded recent job.
+6. Choose a project, enter `run tests` or an exact command such as
+   `go test ./...`, preview the plan, then run it on the selected worker.
+7. If outputs were declared before submission, use **Outputs** on the succeeded
+   job row to restore them to a chosen local folder.
+
+Known current boundary: GitHub Actions checks may fail before runner startup if
+the GitHub account billing/spending limit blocks Actions minutes. That does not
+exercise the app code; use the local commands below for code validation.
+
+Validation:
+
+```bash
+npm --prefix apps/control-center run lint
+npm --prefix apps/control-center test
+```
+
 Next step: add an optional LLM planner that can explain and compose more complex
 multi-step work while keeping the same explicit command preview before
 submission.
