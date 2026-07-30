@@ -35,6 +35,24 @@
         <div class="divider"></div>
 
         <section class="section">
+          <div class="section-title">
+            <h2>Run</h2>
+            <span id="run-target" class="section-meta">on This Mac</span>
+          </div>
+          <div class="run-box">
+            <input id="command-input" placeholder="hostname, go test ./..., npm run build" />
+            <div class="run-actions">
+              <button id="choose-project" class="pill-button">Project</button>
+              <span id="project-label" class="project-label">No project</span>
+              <button id="run-job" class="primary-button">Run</button>
+            </div>
+          </div>
+          <pre id="job-output" class="output hidden"></pre>
+        </section>
+
+        <div class="divider"></div>
+
+        <section class="section">
           <h2>Allow</h2>
           <div id="capability-grid" class="check-grid"></div>
         </section>
