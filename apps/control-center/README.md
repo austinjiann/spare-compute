@@ -83,6 +83,8 @@ Current scope:
   daemon's remembered job placement instead of re-resolving Auto later;
 - skips project sync for remote utility commands until a project folder is
   selected;
+- does not silently substitute the development checkout as the working directory
+  when the UI says no project is selected;
 - tells the user when a remote project run is snapshotting/uploading before the
   job is submitted;
 - stores Control Center preferences in the app user-data directory, with

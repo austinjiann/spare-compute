@@ -11,6 +11,7 @@ const { startDaemon } = require("./daemon-launcher");
 const { planTask, suggestTasks } = require("./planner");
 const { appRuntimeInfo, normalizeDaemonRole } = require("./runtime-info");
 const { remotePreparationMessage } = require("./run-feedback");
+const { runWorkingDirectory } = require("./run-request");
 const {
   deviceSelectorFromDeviceID,
   followupDeviceSelector,
@@ -21,7 +22,6 @@ const {
   saveSettings: saveControlCenterSettings
 } = require("./settings-store");
 
-const repoRoot = path.resolve(__dirname, "..", "..", "..");
 const activeRuns = new Map();
 const logPollMs = 900;
 const maximumLogPages = 20;
@@ -644,13 +644,6 @@ function timestampLabel(value) {
 
 function readableError(error) {
   return error?.message || "ComputeHop request failed.";
-}
-
-function runWorkingDirectory(jobRequest, deviceSelector) {
-  if (jobRequest.workingDirectory) {
-    return jobRequest.workingDirectory;
-  }
-  return deviceSelector ? "" : repoRoot;
 }
 
 function delay(ms, signal) {
