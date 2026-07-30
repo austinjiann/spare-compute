@@ -138,6 +138,8 @@ Current scope:
   the daemon list returns the job or the job reaches a terminal state;
 - updates the recent-job row immediately when a UI-submitted job reaches a
   terminal state, before the next history refresh;
+- turns common native-runner failures into user-facing guidance, such as
+  missing tools on the selected computer or missing project folders;
 - restores declared outputs from succeeded jobs through daemon IPC;
 - adds conservative planner-inferred outputs for known package targets, so
   `make macos-archive` brings back the copyable macOS zip and checksum by

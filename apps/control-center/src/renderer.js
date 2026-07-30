@@ -83,6 +83,7 @@ const {
   initialRunMessage,
   runSummaryLines
 } = window.computeHopRunSummary;
+const { friendlyJobFailure } = window.computeHopJobFailure;
 
 function defaultLocalDevice() {
   return state.localDevice || {
@@ -810,9 +811,20 @@ function jobDetail(job) {
     bits.push(`returns ${job.outputs.join(", ")}`);
   }
   if (job.failure) {
-    bits.push(job.failure);
+    bits.push(friendlyJobFailure(job, { targetName: jobTargetName(job) }));
   }
   return bits.join(" · ");
+}
+
+function jobTargetName(job = {}) {
+  if (job.deviceID === "local") {
+    return "this Mac";
+  }
+  const selected = selectedDevice();
+  if (!selected || selected.id === "local") {
+    return "the selected computer";
+  }
+  return selected.workerName || selected.name || "the worker";
 }
 
 function noLogsMessage(job) {
@@ -1620,8 +1632,11 @@ function handleJobEvent(event) {
       upsertJob(event.job);
       renderJobs();
     }
-    if (event.text) {
-      appendJobOutput(`\n${event.text}`);
+    const failure = !event.ok && event.job
+      ? friendlyJobFailure(event.job, { targetName: jobTargetName(event.job) })
+      : "";
+    if (failure || event.text) {
+      appendJobOutput(`\n${failure || event.text}`);
     }
     const output = document.getElementById("job-output");
     output.classList.toggle("success", Boolean(event.ok));
