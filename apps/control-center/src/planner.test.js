@@ -48,6 +48,32 @@ test("planTask maps Swift package tests", async (t) => {
   assert.equal(result.plan.requiresProject, true);
 });
 
+test("planTask falls back to language lint commands", async (t) => {
+  const goProject = await tempProject(t, {
+    "go.mod": "module example.com/app\n"
+  });
+  const rustProject = await tempProject(t, {
+    "Cargo.toml": "[package]\nname = \"app\"\nversion = \"0.1.0\"\n"
+  });
+  const pythonProject = await tempProject(t, {
+    "pyproject.toml": "[project]\nname = \"app\"\n"
+  });
+
+  const go = await planTask({ task: "lint project", projectRoot: goProject });
+  const rust = await planTask({ task: "check style", projectRoot: rustProject });
+  const python = await planTask({ task: "format check", projectRoot: pythonProject });
+
+  assert.equal(go.ok, true);
+  assert.equal(go.plan.command, "go vet ./...");
+  assert.equal(go.plan.requiresProject, true);
+  assert.equal(rust.ok, true);
+  assert.equal(rust.plan.command, "cargo clippy");
+  assert.equal(rust.plan.requiresProject, true);
+  assert.equal(python.ok, true);
+  assert.equal(python.plan.command, "ruff check .");
+  assert.equal(python.plan.requiresProject, true);
+});
+
 test("planTask preserves exact commands", async () => {
   const result = await planTask({ task: "go test ./...", projectRoot: "" });
 

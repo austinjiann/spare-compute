@@ -51,6 +51,8 @@ Current scope:
 - forgets paired devices through daemon IPC;
 - plans plain-language tasks such as "run tests", "build the app", and
   "check CI" into one safe command using local project rules;
+- maps lint/style requests to conventional Go, Rust, or Python quality commands
+  when no package script or Makefile target exists;
 - previews the exact command before running when Preview before running is
   enabled;
 - runs a one-click connection test on the selected computer without requiring a

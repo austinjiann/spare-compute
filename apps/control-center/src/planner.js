@@ -124,7 +124,8 @@ function chooseCommand(intent, profile) {
   if (intent === "lint") {
     return script(profile, "lint", "Lint project", "Use the package's lint script.")
       || makeTarget(profile, "lint", "Lint project", "Use the repo's lint target.")
-      || makeTarget(profile, "fmt", "Check formatting", "Use the repo's formatting target.");
+      || makeTarget(profile, "fmt", "Check formatting", "Use the repo's formatting target.")
+      || commandForLint(profile);
   }
 
   if (intent === "install") {
@@ -179,6 +180,19 @@ function commandForBuild(profile) {
   return null;
 }
 
+function commandForLint(profile) {
+  if (profile.files["go.mod"]) {
+    return { title: "Vet Go project", command: "go vet ./...", detail: "Detected go.mod.", requiresProject: true };
+  }
+  if (profile.files["Cargo.toml"]) {
+    return { title: "Lint Rust project", command: "cargo clippy", detail: "Detected Cargo.toml.", requiresProject: true };
+  }
+  if (profile.files["pyproject.toml"]) {
+    return { title: "Lint Python project", command: "ruff check .", detail: "Detected pyproject.toml.", requiresProject: true };
+  }
+  return null;
+}
+
 function script(profile, name, title, detail) {
   if (!profile.packageScripts[name]) {
     return null;
@@ -228,6 +242,9 @@ function classifyIntent(task) {
   if (looksLikeCommand(task)) {
     return "exact";
   }
+  if (/\b(lint|format|fmt|style)\b/.test(value)) {
+    return "lint";
+  }
   if (/\b(ci|pr check|preflight|validate|checks?)\b/.test(value)) {
     return "ci";
   }
@@ -239,9 +256,6 @@ function classifyIntent(task) {
   }
   if (/\b(build|compile|bundle|package)\b/.test(value)) {
     return "build";
-  }
-  if (/\b(lint|format|fmt|style)\b/.test(value)) {
-    return "lint";
   }
   if (/\b(install|deps|dependencies)\b/.test(value)) {
     return "install";
@@ -260,7 +274,7 @@ function looksLikeCommand(task) {
     value.includes("/") ||
     value.includes("./") ||
     value.includes("--") ||
-    /^[a-z0-9_.-]+(\s|$)/i.test(value) && !/^(run|build|test|check|please|can|could|make|do)\b/i.test(value)
+    /^[a-z0-9_.-]+(\s|$)/i.test(value) && !/^(run|build|test|check|lint|format|fmt|style|install|deps|dependencies|please|can|could|make|do)\b/i.test(value)
   );
 }
 
