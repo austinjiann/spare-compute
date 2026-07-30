@@ -529,7 +529,11 @@ function mergeDevices(localDevices, remoteDevices) {
     seen.add(key);
     return true;
   });
-  const result = addAutomaticWorkerTarget(deduped, state.selectedDeviceID);
+  const configured = deduped.map((device) => ({
+    ...device,
+    synced: isDeviceSynced(device)
+  }));
+  const result = addAutomaticWorkerTarget(configured, state.selectedDeviceID);
   const devices = result.devices;
   state.selectedDeviceID = result.selectedDeviceID;
   if (!devices.some((device) => device.id === state.selectedDeviceID)) {
@@ -547,6 +551,9 @@ function renderDevices() {
     row.className = "device-row";
     row.classList.toggle("selected", device.id === state.selectedDeviceID);
     row.addEventListener("click", () => {
+      if (!canSelectDeviceForRun(device)) {
+        return;
+      }
       state.selectedDeviceID = device.id;
       state.selectedJobID = null;
       state.selectedJobDeviceID = device.id;
@@ -620,6 +627,31 @@ function deviceActionButton(device) {
     return action;
   }
 
+  if (isSyncManagedDevice(device)) {
+    const actions = document.createElement("span");
+    actions.className = "device-actions";
+
+    const sync = document.createElement("button");
+    sync.className = "row-button";
+    sync.textContent = device.synced === false ? "Enable" : "Disable";
+    sync.addEventListener("click", (event) => {
+      event.stopPropagation();
+      toggleDeviceSync(device);
+    });
+
+    const forget = document.createElement("button");
+    forget.className = "row-button muted";
+    forget.textContent = pendingActions.has(key) ? "Forgetting" : "Forget";
+    forget.disabled = pendingActions.has(key);
+    forget.addEventListener("click", (event) => {
+      event.stopPropagation();
+      void forgetDevice(device);
+    });
+
+    actions.append(sync, forget);
+    return actions;
+  }
+
   action.textContent = pendingActions.has(key) ? "Forgetting" : "Forget";
   action.classList.add("muted");
   action.addEventListener("click", (event) => {
@@ -688,11 +720,43 @@ async function connectDevice(device) {
 async function forgetDevice(device) {
   await performDeviceAction(`device:${device.id}`, async () => {
     await window.computeHop.forgetDevice(device.id);
+    delete state.settings.syncedDevices[device.id];
+    saveSettings();
     if (state.selectedDeviceID === device.id) {
       state.selectedDeviceID = "local";
     }
     await refreshDevices();
   });
+}
+
+function toggleDeviceSync(device) {
+  if (!isSyncManagedDevice(device)) {
+    return;
+  }
+  const enabled = device.synced === false;
+  state.settings.syncedDevices[device.id] = enabled;
+  if (!enabled && (state.selectedDeviceID === device.id || state.selectedDeviceID === "auto")) {
+    state.selectedDeviceID = "local";
+    state.selectedJobID = null;
+    state.selectedJobDeviceID = "local";
+    state.selectedJobLogText = "";
+    state.selectedJobLogTruncated = false;
+    state.selectedJobLogFailed = false;
+    state.jobs = [];
+  }
+  saveSettings();
+  recomputeDeviceTargets();
+  renderJobs();
+  if (state.daemonAvailable) {
+    void refreshJobs();
+  }
+}
+
+function recomputeDeviceTargets() {
+  const remoteDevices = state.devices.filter((device) => device.id !== "local" && device.id !== "auto");
+  state.devices = mergeDevices([defaultLocalDevice()], remoteDevices);
+  renderDevices();
+  renderRunControls();
 }
 
 async function confirmPairing(pairing) {
@@ -1226,10 +1290,19 @@ function mergeSettings(base, incoming) {
     ...(incoming && typeof incoming.capabilities === "object" ? incoming.capabilities : {})
   };
   next.syncedDevices = {
-    ...(base && typeof base.syncedDevices === "object" ? base.syncedDevices : {}),
-    ...(incoming && typeof incoming.syncedDevices === "object" ? incoming.syncedDevices : {})
+    ...booleanMap(base?.syncedDevices),
+    ...booleanMap(incoming?.syncedDevices)
   };
   return next;
+}
+
+function booleanMap(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(value).filter((entry) => typeof entry[1] === "boolean")
+  );
 }
 
 function persistLocalSettings() {
@@ -1257,6 +1330,9 @@ function selectedDevice() {
 }
 
 function canRunOn(device) {
+  if (isSyncManagedDevice(device) && device.synced === false) {
+    return false;
+  }
   if (device.id === "local") {
     return true;
   }
@@ -1264,6 +1340,10 @@ function canRunOn(device) {
     return true;
   }
   return device.role === "worker" && availabilityLabel(device) === "Connected";
+}
+
+function canSelectDeviceForRun(device) {
+  return device?.id === "local" || device?.id === "auto" || canRunOn(device);
 }
 
 function isPairable(device) {
@@ -1282,6 +1362,9 @@ function deviceLabel(device) {
     return device.detail || "Uses the single connected worker";
   }
   const type = deviceType(device);
+  if (isSyncManagedDevice(device) && device.synced === false) {
+    return `${type} · disabled`;
+  }
   if (device.role) {
     return `${type} · ${device.role.toLowerCase()}`;
   }
@@ -1289,6 +1372,9 @@ function deviceLabel(device) {
 }
 
 function availabilityLabel(device) {
+  if (isSyncManagedDevice(device) && device.synced === false) {
+    return "Off";
+  }
   if (device.connection === "not connected") {
     return "Nearby";
   }
@@ -1327,6 +1413,23 @@ function deviceKind(device) {
     return "desktop";
   }
   return device.role === "worker" ? "desktop" : "laptop";
+}
+
+function isDeviceSynced(device) {
+  if (!isSyncManagedDevice(device)) {
+    return true;
+  }
+  return state.settings.syncedDevices[device.id] !== false;
+}
+
+function isSyncManagedDevice(device) {
+  return (
+    device &&
+    device.id !== "local" &&
+    device.id !== "auto" &&
+    device.role === "worker" &&
+    device.trustState === "paired"
+  );
 }
 
 function shortPath(value) {

@@ -1446,7 +1446,7 @@ copying, configurable setup/VPS defaults, and safe command parsing; a real
 Swift client has successfully pinged the Go daemon, submitted a durable native
 job, and read its output. A separate Electron Control Center now owns the
 heavier settings surface, connects to the daemon over local IPC, lists nearby
-and trusted devices, pairs or forgets workers, plans plain-language tasks into
+and trusted devices, pairs, disables/re-enables, or forgets workers, plans plain-language tasks into
 previewed commands with package/Makefile/language/Docker fallbacks, runs a projectless
 smoke test on the selected computer, suggests project-aware Check/Test/Build/Lint/Docker
 task chips after project selection, applies allowed-work checkboxes to suggested and

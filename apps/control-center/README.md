@@ -49,6 +49,8 @@ Current scope:
 - shows active pairing verification codes and lets the user confirm or reject
   them in-app;
 - forgets paired devices through daemon IPC;
+- can disable or re-enable paired workers so disabled devices stay visible but
+  cannot be selected, used by Auto worker, or used as run targets;
 - plans plain-language tasks such as "run tests", "build the app", and
   "check CI" into one safe command using local project rules;
 - maps lint/style requests to conventional Go, Rust, or Python quality commands

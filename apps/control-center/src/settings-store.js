@@ -61,7 +61,7 @@ function normalizeSettings(settings = {}) {
     askBeforeRun: booleanSetting(source.askBeforeRun, defaults.askBeforeRun),
     daemonRole: normalizeDaemonRole(source.daemonRole, defaults.daemonRole),
     aiProvider: normalizeAIProvider(source.aiProvider, defaults.aiProvider),
-    syncedDevices: isObject(source.syncedDevices) ? source.syncedDevices : {},
+    syncedDevices: booleanMapSetting(source.syncedDevices),
     capabilities: {
       builds: booleanSetting(capabilities.builds, defaults.capabilities.builds),
       tests: booleanSetting(capabilities.tests, defaults.capabilities.tests),
@@ -87,6 +87,15 @@ function booleanSetting(value, fallback) {
 
 function stringSetting(value, fallback) {
   return typeof value === "string" ? value : fallback;
+}
+
+function booleanMapSetting(value) {
+  if (!isObject(value)) {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(value).filter((entry) => typeof entry[1] === "boolean")
+  );
 }
 
 function normalizeDaemonRole(value, fallback) {

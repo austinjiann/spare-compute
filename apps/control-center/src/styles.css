@@ -340,6 +340,12 @@ small {
   font-weight: 650;
 }
 
+.device-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
 input,
 select {
   border: 1px solid rgba(255, 255, 255, 0.12);

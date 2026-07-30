@@ -29,6 +29,7 @@
     return (
       device &&
       device.id !== "local" &&
+      device.synced !== false &&
       device.role === "worker" &&
       device.connection === "active" &&
       device.availability === "remote"

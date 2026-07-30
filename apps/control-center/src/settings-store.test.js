@@ -26,6 +26,9 @@ test("saveSettings writes normalized settings to app user data", async (t) => {
     lanDiscovery: false,
     daemonRole: "worker",
     aiProvider: "openai",
+    syncedDevices: {
+      "worker-1": false
+    },
     capabilities: {
       tests: false,
       commands: true
@@ -37,6 +40,7 @@ test("saveSettings writes normalized settings to app user data", async (t) => {
   assert.equal(saved.lanDiscovery, false);
   assert.equal(saved.daemonRole, "worker");
   assert.equal(saved.aiProvider, "openai");
+  assert.deepEqual(saved.syncedDevices, { "worker-1": false });
   assert.equal(saved.capabilities.builds, true);
   assert.equal(saved.capabilities.tests, false);
   assert.equal(saved.capabilities.commands, true);
@@ -57,7 +61,11 @@ test("normalizeSettings rejects malformed values without dropping valid fields",
     lanDiscovery: "false",
     daemonRole: "invalid",
     aiProvider: "invalid",
-    syncedDevices: [],
+    syncedDevices: {
+      "worker-1": false,
+      "worker-2": "nope",
+      "worker-3": true
+    },
     capabilities: {
       builds: false,
       tests: "nope",
@@ -70,7 +78,10 @@ test("normalizeSettings rejects malformed values without dropping valid fields",
   assert.equal(normalized.lanDiscovery, true);
   assert.equal(normalized.daemonRole, "orchestrator");
   assert.equal(normalized.aiProvider, "off");
-  assert.deepEqual(normalized.syncedDevices, {});
+  assert.deepEqual(normalized.syncedDevices, {
+    "worker-1": false,
+    "worker-3": true
+  });
   assert.equal(normalized.capabilities.builds, false);
   assert.equal(normalized.capabilities.tests, true);
   assert.equal(normalized.capabilities.commands, true);

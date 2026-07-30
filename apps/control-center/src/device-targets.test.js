@@ -55,6 +55,7 @@ test("isSingleAutoCandidate accepts only active connected workers", () => {
   assert.equal(isSingleAutoCandidate({ ...connectedWorker("Worker", "worker-1"), role: "orchestrator" }), false);
   assert.equal(isSingleAutoCandidate({ ...connectedWorker("Worker", "worker-1"), availability: "offline" }), false);
   assert.equal(isSingleAutoCandidate({ ...connectedWorker("Worker", "worker-1"), connection: "not connected" }), false);
+  assert.equal(isSingleAutoCandidate({ ...connectedWorker("Worker", "worker-1"), synced: false }), false);
 });
 
 function localDevice() {
