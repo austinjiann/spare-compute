@@ -66,11 +66,12 @@ ipcMain.handle("devices:list", async () => {
   }
 });
 
-ipcMain.handle("daemon:start", async () => {
+ipcMain.handle("daemon:start", async (_event, request) => {
   try {
     return await startDaemon({
       isPackaged: app.isPackaged,
-      resourcesPath: process.resourcesPath
+      resourcesPath: process.resourcesPath,
+      role: daemonRoleFromRequest(request)
     });
   } catch (error) {
     return { ok: false, error: readableError(error), errorCode: error?.code || "" };
@@ -364,6 +365,11 @@ async function readAllJobLogs(client, jobID, deviceSelector) {
 function deviceSelectorFromRequest(request) {
   const deviceID = String(request?.deviceID || "").trim();
   return deviceID === "local" ? "" : deviceID;
+}
+
+function daemonRoleFromRequest(request) {
+  const role = String(request?.role || "").trim().toLowerCase();
+  return role === "worker" ? "worker" : "orchestrator";
 }
 
 function mapJob(value, deviceSelector = "") {

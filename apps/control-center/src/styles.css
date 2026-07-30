@@ -119,6 +119,12 @@ small {
   gap: 3px;
 }
 
+.daemon-card .daemon-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .daemon-card strong {
   font-size: 16px;
   font-weight: 720;
@@ -481,6 +487,11 @@ select {
   padding: 8px 10px;
   border-radius: 12px;
   background: rgba(0, 0, 0, 0.18);
+}
+
+.daemon-actions select {
+  width: auto;
+  min-width: 130px;
 }
 
 input[type="checkbox"] {

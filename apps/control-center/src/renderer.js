@@ -63,6 +63,7 @@ document.getElementById("choose-project").addEventListener("click", chooseProjec
 bindCheckbox("lanDiscovery", document.getElementById("lan-discovery"));
 bindCheckbox("askBeforeRun", document.getElementById("ask-before-run"));
 bindSetting("aiProvider", document.getElementById("ai-provider"));
+bindSetting("daemonRole", document.getElementById("daemon-role"));
 
 renderCapabilities();
 renderPlanPreview();
@@ -145,7 +146,7 @@ async function startDaemon() {
   button.textContent = "Starting";
   renderDaemonCard();
   try {
-    const result = await window.computeHop.startDaemon();
+    const result = await window.computeHop.startDaemon({ role: state.settings.daemonRole });
     if (!result.ok) {
       throw new Error(result.error || "Could not start ComputeHop.");
     }
@@ -169,9 +170,11 @@ async function startDaemon() {
 function renderDaemonCard() {
   const card = document.getElementById("daemon-card");
   const button = document.getElementById("start-daemon");
+  const role = document.getElementById("daemon-role");
   card.classList.toggle("hidden", state.daemonAvailable || !state.settings.lanDiscovery);
   button.disabled = state.startingDaemon;
   button.textContent = state.startingDaemon ? "Starting" : "Start";
+  role.disabled = state.startingDaemon;
 }
 
 async function refreshJobs() {
@@ -1009,6 +1012,7 @@ function loadSettings() {
     lanDiscovery: true,
     remoteRelay: false,
     askBeforeRun: true,
+    daemonRole: "orchestrator",
     aiProvider: "off",
     syncedDevices: {},
     capabilities: {

@@ -24,9 +24,15 @@
         <section id="daemon-card" class="daemon-card hidden">
           <div>
             <strong>ComputeHop is off</strong>
-            <small>Start the background service to discover devices and run jobs.</small>
+            <small>Start this computer as the controller or as a worker.</small>
           </div>
-          <button id="start-daemon" class="primary-button">Start</button>
+          <div class="daemon-actions">
+            <select id="daemon-role" aria-label="ComputeHop role">
+              <option value="orchestrator">Control Mac</option>
+              <option value="worker">Worker</option>
+            </select>
+            <button id="start-daemon" class="primary-button">Start</button>
+          </div>
         </section>
 
         <div class="divider"></div>

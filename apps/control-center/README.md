@@ -17,7 +17,7 @@ Current scope:
 - connects directly to the local ComputeHop daemon over the owner-only local IPC
   socket;
 - can start the local daemon from the app in development or from the bundled
-  daemon in packaged builds;
+  daemon in packaged builds, either as the Control Mac or as a Worker;
 - reads trusted and nearby devices from the daemon;
 - starts nearby-device pairing from the Devices list;
 - shows active pairing verification codes and lets the user confirm or reject
@@ -44,8 +44,10 @@ Current scope:
 
 Manual two-computer check:
 
-1. Start the daemon or click **Start** in Control Center on the orchestrator Mac.
-2. Start `computehopd --role worker` on the second computer.
+1. Start the daemon or click **Start** with **Control Mac** selected in Control
+   Center on the orchestrator Mac.
+2. On the second computer, open Control Center, choose **Worker**, and click
+   **Start**.
 3. Open Control Center and connect the nearby worker from **Devices**.
 4. Confirm the same pairing code on both computers.
 5. Select the worker and click **Test worker**. A successful check prints the

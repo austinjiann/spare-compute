@@ -1,7 +1,7 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("computeHop", {
-  startDaemon: () => ipcRenderer.invoke("daemon:start"),
+  startDaemon: (request) => ipcRenderer.invoke("daemon:start", request),
   listDevices: () => ipcRenderer.invoke("devices:list"),
   connectDevice: (deviceID) => ipcRenderer.invoke("devices:connect", deviceID),
   forgetDevice: (deviceID) => ipcRenderer.invoke("devices:forget", deviceID),

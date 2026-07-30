@@ -76,6 +76,7 @@ test("startDaemon launches and waits for ping", async (t) => {
 
   const result = await startDaemon({
     repoRoot: root,
+    role: "worker",
     pollMs: 1,
     timeoutMs: 100,
     client: {
@@ -101,6 +102,7 @@ test("startDaemon launches and waits for ping", async (t) => {
   assert.equal(result.daemon.daemonVersion, "test");
   assert.equal(spawned.executable, "go");
   assert.deepEqual(spawned.args.slice(0, 2), ["run", "./cmd/computehopd"]);
+  assert.deepEqual(spawned.args.slice(2), ["--role", "worker", "--device-name", normalizedDeviceName(os.hostname())]);
   assert.equal(spawned.options.detached, true);
 });
 
