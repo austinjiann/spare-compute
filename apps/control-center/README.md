@@ -232,12 +232,15 @@ Manual two-computer check:
    Center on the orchestrator Mac.
 2. On the second computer, open Control Center, choose **Worker**, and click
    **Start**.
-3. Open Control Center and connect the nearby worker from **Devices**.
-4. Confirm the same pairing code on both computers.
+3. On the orchestrator, enter `run hostname on the other computer` and click
+   **Run**. If exactly one nearby worker is visible, Control Center starts the
+   Connect flow without leaving the task.
+4. Confirm the same pairing code on both computers. After the worker becomes
+   runnable, the pending task resumes and prints the worker hostname.
 5. Select the worker and click **Test worker**. A successful check prints the
    worker's hostname in the job output and adds a succeeded recent job.
 6. Choose a project, enter `run tests` or an exact command such as
-   `go test ./...`, preview the plan, then run it on the selected worker.
+   `go test ./...`, then click **Run** on the selected worker.
 7. If outputs were declared or inferred before submission, Control Center asks
    where to save them after the job succeeds. The **Outputs** button remains
    available on the succeeded job row for later retrieval.
