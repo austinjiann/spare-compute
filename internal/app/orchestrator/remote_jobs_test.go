@@ -121,6 +121,9 @@ func TestRemoteJobServiceAutoSelectsSingleActiveWorker(t *testing.T) {
 				_ context.Context,
 				request *computehopv1.RemoteRequest,
 			) (*computehopv1.RemoteResponse, error) {
+				if request.GetGetWorkerStatus() != nil {
+					return workerStatusResponse("linux", "amd64", 8, 16<<30), nil
+				}
 				if request.GetSubmitJob() == nil {
 					t.Fatalf("request = %#v", request)
 				}
@@ -172,15 +175,22 @@ func TestRemoteJobServiceAutoSelectorChoosesHighestResourceWorker(t *testing.T) 
 			target device.NearbyDevice,
 			pinned trust.Peer,
 		) (remoteprotocol.Caller, error) {
-			if target.Announcement.Name != "Render PC" || pinned.DeviceID != renderPeer.DeviceID {
-				t.Fatalf("target = %#v; peer = %#v", target, pinned)
-			}
 			return &remoteCallerStub{call: func(
 				_ context.Context,
 				request *computehopv1.RemoteRequest,
 			) (*computehopv1.RemoteResponse, error) {
-				if request.GetSubmitJob() == nil {
-					t.Fatalf("request = %#v", request)
+				if request.GetGetWorkerStatus() != nil {
+					if pinned.DeviceID == buildPeer.DeviceID {
+						return workerStatusResponse("linux", "amd64", 8, 16<<30), nil
+					}
+					if pinned.DeviceID == renderPeer.DeviceID {
+						return workerStatusResponse("linux", "amd64", 32, 64<<30), nil
+					}
+					t.Fatalf("status target = %#v; peer = %#v", target, pinned)
+				}
+				if request.GetSubmitJob() == nil || target.Announcement.Name != "Render PC" ||
+					pinned.DeviceID != renderPeer.DeviceID {
+					t.Fatalf("submit target = %#v; peer = %#v; request = %#v", target, pinned, request)
 				}
 				return &computehopv1.RemoteResponse{Result: &computehopv1.RemoteResponse_SubmitJob{
 					SubmitJob: &computehopv1.SubmitJobResponse{Job: message},
@@ -201,6 +211,53 @@ func TestRemoteJobServiceAutoSelectorChoosesHighestResourceWorker(t *testing.T) 
 	remembered, err := placements.Get(context.Background(), want.ID)
 	if err != nil || remembered.WorkerID != renderPeer.DeviceID {
 		t.Fatalf("placement = %#v, %v", remembered, err)
+	}
+}
+
+func TestRemoteJobServiceAutoSelectorUsesAuthenticatedWorkerStatus(t *testing.T) {
+	buildPeer := activeWorkerPeer(t, 12, "Build PC")
+	renderPeer := activeWorkerPeer(t, 13, "Render PC")
+	service, err := NewRemoteJobService(RemoteDependencies{
+		Nearby: stubDeviceController{list: func(context.Context) (device.DiscoverySnapshot, error) {
+			return device.DiscoverySnapshot{Available: true, Devices: []device.NearbyDevice{
+				nearbyWorkerWithResources(t, "Build PC", 47823, 4, 8<<30),
+				nearbyWorkerWithResources(t, "Render PC", 47824, 4, 8<<30),
+			}}, nil
+		}},
+		Trust:      remoteTrustStub{peers: []trust.Peer{buildPeer, renderPeer}},
+		Placements: newRemotePlacementStub(),
+		Dialer: remoteDialerFunc(func(
+			_ context.Context,
+			_ device.NearbyDevice,
+			pinned trust.Peer,
+		) (remoteprotocol.Caller, error) {
+			return &remoteCallerStub{call: func(
+				_ context.Context,
+				request *computehopv1.RemoteRequest,
+			) (*computehopv1.RemoteResponse, error) {
+				if request.GetGetWorkerStatus() == nil {
+					t.Fatalf("request = %#v", request)
+				}
+				if pinned.DeviceID == buildPeer.DeviceID {
+					return workerStatusResponse("linux", "amd64", 8, 16<<30), nil
+				}
+				if pinned.DeviceID == renderPeer.DeviceID {
+					return workerStatusResponse("linux", "amd64", 32, 64<<30), nil
+				}
+				t.Fatalf("peer = %#v", pinned)
+				return nil, nil
+			}}, nil
+		}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := service.resolveTrustedWorker(context.Background(), "auto")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.DeviceID != renderPeer.DeviceID {
+		t.Fatalf("worker = %s, want %s", got.DeviceID.Short(), renderPeer.DeviceID.Short())
 	}
 }
 
@@ -1029,6 +1086,15 @@ func peerWithResourceHints(peer trust.Peer, logicalCPUCount uint32, totalMemoryB
 	observedAt := peer.UpdatedAt.Add(time.Minute)
 	peer.HintsObservedAt = &observedAt
 	return peer
+}
+
+func workerStatusResponse(platform, architecture string, logicalCPUCount uint32, totalMemoryBytes uint64) *computehopv1.RemoteResponse {
+	return &computehopv1.RemoteResponse{Result: &computehopv1.RemoteResponse_GetWorkerStatus{
+		GetWorkerStatus: &computehopv1.GetWorkerStatusResponse{
+			Platform: platform, Arch: architecture,
+			LogicalCpuCount: logicalCPUCount, TotalMemoryBytes: totalMemoryBytes,
+		},
+	}}
 }
 
 func nearbyWorker(t *testing.T, name string, port uint16) device.NearbyDevice {

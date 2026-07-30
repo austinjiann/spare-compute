@@ -42,6 +42,42 @@ func TestRemoteHandlerSubmitsValidatedJob(t *testing.T) {
 	}
 }
 
+func TestRemoteHandlerReturnsWorkerStatus(t *testing.T) {
+	handler, err := NewRemoteHandler(remoteControllerStub{}, WithStatus(Status{
+		Platform: "linux", Architecture: "amd64",
+		LogicalCPUCount: 32, TotalMemoryBytes: 64 << 30,
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := handler.Handle(context.Background(), &computehopv1.RemoteRequest{
+		Operation: &computehopv1.RemoteRequest_GetWorkerStatus{
+			GetWorkerStatus: &computehopv1.GetWorkerStatusRequest{},
+		},
+	})
+	status := response.GetGetWorkerStatus()
+	if response.GetError() != nil || status.GetPlatform() != "linux" ||
+		status.GetArch() != "amd64" || status.GetLogicalCpuCount() != 32 ||
+		status.GetTotalMemoryBytes() != 64<<30 {
+		t.Fatalf("status response = %#v", response)
+	}
+}
+
+func TestRemoteHandlerRejectsUnavailableWorkerStatus(t *testing.T) {
+	handler, err := NewRemoteHandler(remoteControllerStub{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := handler.Handle(context.Background(), &computehopv1.RemoteRequest{
+		Operation: &computehopv1.RemoteRequest_GetWorkerStatus{
+			GetWorkerStatus: &computehopv1.GetWorkerStatusRequest{},
+		},
+	})
+	if response.GetError().GetCode() != computehopv1.RemoteErrorCode_REMOTE_ERROR_CODE_CONFLICT {
+		t.Fatalf("response = %#v", response)
+	}
+}
+
 func TestRemoteHandlerReturnsReconnectableLogs(t *testing.T) {
 	want := remoteHandlerJob(t)
 	controller := remoteControllerStub{logs: func(

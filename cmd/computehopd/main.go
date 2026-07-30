@@ -281,7 +281,10 @@ func runWithDependencies(
 	if err != nil {
 		return fmt.Errorf("initialize pairing service: %w", err)
 	}
-	remoteHandler, err := worker.NewRemoteHandler(jobService)
+	remoteHandler, err := worker.NewRemoteHandler(jobService, worker.WithStatus(worker.Status{
+		Platform: runtime.GOOS, Architecture: runtime.GOARCH,
+		LogicalCPUCount: resourceSnapshot.LogicalCPUCount, TotalMemoryBytes: resourceSnapshot.TotalMemoryBytes,
+	}))
 	if err != nil {
 		return fmt.Errorf("initialize remote worker handler: %w", err)
 	}

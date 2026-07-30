@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	computehopv1 "github.com/austinjiann/spare-compute/gen/go/computehop/v1"
 	"github.com/austinjiann/spare-compute/internal/artifact"
@@ -20,6 +23,8 @@ const (
 	maximumRemoteListLimit  = 500
 	maximumPreflightDigests = 8_192
 )
+
+var ErrInvalidStatus = errors.New("invalid worker status")
 
 // RemoteJobController is the worker application boundary exposed to a paired orchestrator.
 type RemoteJobController interface {
@@ -51,15 +56,60 @@ type RemoteArtifactController interface {
 
 // RemoteHandler maps authenticated network requests to the durable worker job service.
 type RemoteHandler struct {
-	jobs RemoteJobController
+	jobs   RemoteJobController
+	status Status
+}
+
+// Status is authenticated, secret-free worker metadata exposed to paired
+// orchestrators for scheduling and display.
+type Status struct {
+	Platform         string
+	Architecture     string
+	LogicalCPUCount  uint32
+	TotalMemoryBytes uint64
+}
+
+func (status Status) Validate() error {
+	if status.Platform == "" && status.Architecture == "" &&
+		status.LogicalCPUCount == 0 && status.TotalMemoryBytes == 0 {
+		return ErrInvalidStatus
+	}
+	if validateStatusHint(status.Platform) != nil ||
+		validateStatusHint(status.Architecture) != nil ||
+		status.LogicalCPUCount > 4096 {
+		return ErrInvalidStatus
+	}
+	return nil
+}
+
+// RemoteHandlerOption configures optional authenticated worker operations.
+type RemoteHandlerOption func(*RemoteHandler) error
+
+func WithStatus(status Status) RemoteHandlerOption {
+	return func(handler *RemoteHandler) error {
+		if err := status.Validate(); err != nil {
+			return err
+		}
+		handler.status = status
+		return nil
+	}
 }
 
 // NewRemoteHandler constructs the paired-worker protocol handler.
-func NewRemoteHandler(jobs RemoteJobController) (*RemoteHandler, error) {
+func NewRemoteHandler(jobs RemoteJobController, options ...RemoteHandlerOption) (*RemoteHandler, error) {
 	if jobs == nil {
 		return nil, ErrMissingDependency
 	}
-	return &RemoteHandler{jobs: jobs}, nil
+	handler := &RemoteHandler{jobs: jobs}
+	for _, option := range options {
+		if option == nil {
+			return nil, ErrMissingDependency
+		}
+		if err := option(handler); err != nil {
+			return nil, err
+		}
+	}
+	return handler, nil
 }
 
 // Handle executes one request after the QUIC transport has authenticated a
@@ -89,12 +139,33 @@ func (handler *RemoteHandler) Handle(
 		return handler.getArtifactChunk(ctx, operation.GetArtifactChunk)
 	case *computehopv1.RemoteRequest_AcknowledgeJobArtifacts:
 		return handler.acknowledgeJobArtifacts(ctx, operation.AcknowledgeJobArtifacts)
+	case *computehopv1.RemoteRequest_GetWorkerStatus:
+		return handler.getWorkerStatus(operation.GetWorkerStatus)
 	default:
 		return remoteFailure(
 			computehopv1.RemoteErrorCode_REMOTE_ERROR_CODE_INVALID_ARGUMENT,
 			"unsupported remote operation",
 		)
 	}
+}
+
+func (handler *RemoteHandler) getWorkerStatus(
+	request *computehopv1.GetWorkerStatusRequest,
+) *computehopv1.RemoteResponse {
+	if request == nil {
+		return remoteFailure(computehopv1.RemoteErrorCode_REMOTE_ERROR_CODE_INVALID_ARGUMENT, "worker status request is required")
+	}
+	if err := handler.status.Validate(); err != nil {
+		return remoteFailure(computehopv1.RemoteErrorCode_REMOTE_ERROR_CODE_CONFLICT, "worker status is unavailable")
+	}
+	return &computehopv1.RemoteResponse{Result: &computehopv1.RemoteResponse_GetWorkerStatus{
+		GetWorkerStatus: &computehopv1.GetWorkerStatusResponse{
+			Platform:         handler.status.Platform,
+			Arch:             handler.status.Architecture,
+			LogicalCpuCount:  handler.status.LogicalCPUCount,
+			TotalMemoryBytes: handler.status.TotalMemoryBytes,
+		},
+	}}
 }
 
 func (handler *RemoteHandler) acknowledgeJobArtifacts(
@@ -494,4 +565,19 @@ func remoteErrorResponse(err error) *computehopv1.RemoteResponse {
 
 func remoteFailure(code computehopv1.RemoteErrorCode, message string) *computehopv1.RemoteResponse {
 	return &computehopv1.RemoteResponse{Error: &computehopv1.RemoteError{Code: code, Message: message}}
+}
+
+func validateStatusHint(value string) error {
+	if value == "" {
+		return nil
+	}
+	if strings.TrimSpace(value) != value || len(value) > 32 || !utf8.ValidString(value) {
+		return ErrInvalidStatus
+	}
+	for _, character := range value {
+		if unicode.IsControl(character) || unicode.IsSpace(character) || character == '=' {
+			return ErrInvalidStatus
+		}
+	}
+	return nil
 }

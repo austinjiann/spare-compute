@@ -25,6 +25,7 @@ import (
 
 const (
 	remoteDialTimeout      = 12 * time.Second
+	remoteStatusTimeout    = 2 * time.Second
 	snapshotPreflightBatch = 4_096
 	automaticWorker        = "auto"
 	bestWorker             = "best"
@@ -650,10 +651,11 @@ func (service *RemoteJobService) call(
 		return nil, err
 	}
 	response, callErr := caller.Call(ctx, request)
-	closeErr := caller.Close()
 	if callErr != nil {
+		closeErr := caller.Close()
 		return nil, errors.Join(callErr, closeErr)
 	}
+	closeErr := caller.Close()
 	if closeErr != nil {
 		return nil, closeErr
 	}
@@ -823,16 +825,20 @@ func (service *RemoteJobService) workerResourceScores(ctx context.Context, peers
 		}
 	}
 	snapshot, err := service.nearby.ListNearby(ctx)
-	if err != nil {
-		return scores
-	}
-	for id, hints := range trust.MatchNearbyHints(peers, snapshot.Devices) {
-		score := resourceScore(hints.LogicalCPUCount, hints.TotalMemoryBytes)
-		if score > scores[id] {
-			scores[id] = score
+	if err == nil {
+		for id, hints := range trust.MatchNearbyHints(peers, snapshot.Devices) {
+			score := resourceScore(hints.LogicalCPUCount, hints.TotalMemoryBytes)
+			if score > scores[id] {
+				scores[id] = score
+			}
+			if _, err := service.trust.UpdateHints(ctx, id, hints); err != nil {
+				continue
+			}
 		}
-		if _, err := service.trust.UpdateHints(ctx, id, hints); err != nil {
-			continue
+	}
+	for _, peer := range peers {
+		if score, ok := service.authenticatedWorkerResourceScore(ctx, peer); ok && score > scores[peer.DeviceID] {
+			scores[peer.DeviceID] = score
 		}
 	}
 	return scores
@@ -840,6 +846,49 @@ func (service *RemoteJobService) workerResourceScores(ctx context.Context, peers
 
 func resourceScore(logicalCPUCount uint32, totalMemoryBytes uint64) uint64 {
 	return uint64(logicalCPUCount)*1_000 + totalMemoryBytes/(1<<30)
+}
+
+func (service *RemoteJobService) authenticatedWorkerResourceScore(ctx context.Context, peer trust.Peer) (uint64, bool) {
+	if peer.State != trust.StateActive || peer.Role != device.RoleWorker {
+		return 0, false
+	}
+	statusContext := ctx
+	var cancel context.CancelFunc
+	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
+		statusContext, cancel = context.WithTimeout(ctx, remoteStatusTimeout)
+		defer cancel()
+	}
+	response, err := service.call(statusContext, peer, &computehopv1.RemoteRequest{
+		Operation: &computehopv1.RemoteRequest_GetWorkerStatus{
+			GetWorkerStatus: &computehopv1.GetWorkerStatusRequest{},
+		},
+	})
+	if err != nil {
+		return 0, false
+	}
+	return service.updateHintsFromWorkerStatus(ctx, peer, response.GetGetWorkerStatus())
+}
+
+func (service *RemoteJobService) updateHintsFromWorkerStatus(
+	ctx context.Context,
+	peer trust.Peer,
+	status *computehopv1.GetWorkerStatusResponse,
+) (uint64, bool) {
+	if status == nil {
+		return 0, false
+	}
+	hints := trust.PeerHints{
+		Platform:         status.GetPlatform(),
+		Architecture:     status.GetArch(),
+		LogicalCPUCount:  status.GetLogicalCpuCount(),
+		TotalMemoryBytes: status.GetTotalMemoryBytes(),
+		ObservedAt:       time.Now().UTC(),
+	}
+	if hints.Validate() != nil {
+		return 0, false
+	}
+	_, _ = service.trust.UpdateHints(ctx, peer.DeviceID, hints)
+	return resourceScore(hints.LogicalCPUCount, hints.TotalMemoryBytes), true
 }
 
 func (service *RemoteJobService) nearbyCandidates(ctx context.Context, peer trust.Peer) ([]device.NearbyDevice, error) {
