@@ -1964,7 +1964,11 @@ func TestSetupSmokeCommandPrintsPackageChecklistWithoutDaemon(t *testing.T) {
 	}
 	for _, want := range []string{
 		"ComputeHop two-Mac package smoke",
-		"make macos-package",
+		"make macos-archive",
+		"dist/macos/ComputeHop-macos.zip",
+		"shasum -a 256 -c ComputeHop-macos.zip.sha256",
+		"ditto -x -k ComputeHop-macos.zip .",
+		"cd ComputeHop-macos",
 		"make install-macos-check",
 		"./packaging/macos/install.sh --check --role worker --device-name 'Gaming PC' --lan-only",
 		"./packaging/macos/install.sh --app /path/to/ComputeHop.app --check --role worker --device-name 'Gaming PC' --lan-only",

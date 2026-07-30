@@ -41,7 +41,7 @@ test("planTask uses detected package manager scripts", async (t) => {
 
 test("planTask prefers app packaging targets for package requests", async (t) => {
   const project = await tempProject(t, {
-    Makefile: "macos-package:\n\tpackaging/macos/build.sh\n",
+    Makefile: "macos-archive:\n\tpackaging/macos/archive.sh\nmacos-package:\n\tpackaging/macos/build.sh\n",
     "go.mod": "module example.com/app\n"
   });
 
@@ -49,15 +49,18 @@ test("planTask prefers app packaging targets for package requests", async (t) =>
 
   assert.equal(result.ok, true);
   assert.equal(result.plan.title, "Package macOS app");
-  assert.equal(result.plan.command, "make macos-package");
+  assert.equal(result.plan.command, "make macos-archive");
   assert.equal(result.plan.requiresProject, true);
-  assert.deepEqual(result.plan.outputs, ["dist/macos/ComputeHop.app"]);
+  assert.deepEqual(result.plan.outputs, [
+    "dist/macos/ComputeHop-macos.zip",
+    "dist/macos/ComputeHop-macos.zip.sha256"
+  ]);
   assert.equal(classifyIntent("package the app"), "package");
 });
 
 test("suggestTasks includes package targets with inferred outputs", async (t) => {
   const project = await tempProject(t, {
-    Makefile: "macos-package:\n\tpackaging/macos/build.sh\n"
+    Makefile: "macos-archive:\n\tpackaging/macos/archive.sh\nmacos-package:\n\tpackaging/macos/build.sh\n"
   });
 
   const result = await suggestTasks({ projectRoot: project });
@@ -65,8 +68,11 @@ test("suggestTasks includes package targets with inferred outputs", async (t) =>
 
   assert.equal(result.ok, true);
   assert.equal(suggestion.label, "Package");
-  assert.equal(suggestion.command, "make macos-package");
-  assert.deepEqual(suggestion.outputs, ["dist/macos/ComputeHop.app"]);
+  assert.equal(suggestion.command, "make macos-archive");
+  assert.deepEqual(suggestion.outputs, [
+    "dist/macos/ComputeHop-macos.zip",
+    "dist/macos/ComputeHop-macos.zip.sha256"
+  ]);
 });
 
 test("planTask maps Swift package tests", async (t) => {

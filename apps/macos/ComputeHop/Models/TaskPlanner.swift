@@ -188,6 +188,13 @@ struct LocalTaskPlanner: TaskPlanning {
         var outputs: [String] = []
         let wantsPackage = containsAny(request, ["package", "release", "app"])
 
+        if wantsPackage, project.makefileHasTarget("macos-archive") {
+            commands.append("make macos-archive")
+            outputs.append("dist/macos/ComputeHop-macos.zip")
+            outputs.append("dist/macos/ComputeHop-macos.zip.sha256")
+            return (commands, outputs)
+        }
+
         if wantsPackage, project.makefileHasTarget("macos-package") {
             commands.append("make macos-package")
             outputs.append("dist/macos/ComputeHop.app")

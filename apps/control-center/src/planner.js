@@ -180,7 +180,10 @@ function chooseCommand(intent, profile) {
   }
 
   if (intent === "package") {
-    return makeTarget(profile, "macos-package", "Package macOS app", "Use the repo's macOS app packaging target.", {
+    return makeTarget(profile, "macos-archive", "Package macOS app", "Create the repo's copyable macOS app archive.", {
+      outputs: ["dist/macos/ComputeHop-macos.zip", "dist/macos/ComputeHop-macos.zip.sha256"]
+    })
+      || makeTarget(profile, "macos-package", "Package macOS app", "Use the repo's macOS app packaging target.", {
       outputs: ["dist/macos/ComputeHop.app"]
     })
       || makeTarget(profile, "package", "Package project", "Use the repo's package target.")

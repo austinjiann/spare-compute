@@ -147,6 +147,10 @@ cleanup() {
 }
 trap cleanup EXIT HUP INT TERM
 
+if [ -z "$app_source" ] && [ -d "$script_dir/ComputeHop.app" ]; then
+    app_source="$script_dir/ComputeHop.app"
+fi
+
 if [ -n "$app_source" ]; then
     case "$app_source" in
         /*) ;;

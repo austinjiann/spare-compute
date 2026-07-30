@@ -72,5 +72,11 @@ codesign --verify --deep --strict "$app_bundle"
 "$cli_executable" version >/dev/null
 "$daemon_executable" --version >/dev/null
 "$control_center_daemon" --version >/dev/null
-node "$script_dir/verify-control-center-background.js" "$app_bundle" >/dev/null
+if [ -f "$script_dir/verify-control-center-background.js" ]; then
+    if command -v node >/dev/null 2>&1; then
+        node "$script_dir/verify-control-center-background.js" "$app_bundle" >/dev/null
+    else
+        echo "Skipped Control Center background resolver check because node is unavailable." >&2
+    fi
+fi
 echo "Verified $app_bundle and launch agent template"

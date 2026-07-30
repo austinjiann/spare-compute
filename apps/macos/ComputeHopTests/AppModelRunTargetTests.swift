@@ -496,7 +496,7 @@ func submitPlannedPackageUsesSelectedWorkerProjectAndInferredOutput() async thro
         .appendingPathComponent("computehop-plan-\(UUID().uuidString)")
     try FileManager.default.createDirectory(at: projectURL, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: projectURL) }
-    try "macos-package:\n\tpackaging/macos/build.sh\n".write(
+    try "macos-archive:\n\tpackaging/macos/archive.sh\nmacos-package:\n\tpackaging/macos/build.sh\n".write(
         to: projectURL.appendingPathComponent("Makefile"),
         atomically: true,
         encoding: .utf8
@@ -514,17 +514,23 @@ func submitPlannedPackageUsesSelectedWorkerProjectAndInferredOutput() async thro
     model.planRequestedTask()
 
     #expect(model.plannedTask?.title == "Package project")
-    #expect(model.plannedTask?.commands == ["make macos-package"])
-    #expect(model.plannedTask?.outputs == ["dist/macos/ComputeHop.app"])
-    #expect(model.outputsInput == "dist/macos/ComputeHop.app")
+    #expect(model.plannedTask?.commands == ["make macos-archive"])
+    #expect(model.plannedTask?.outputs == [
+        "dist/macos/ComputeHop-macos.zip",
+        "dist/macos/ComputeHop-macos.zip.sha256",
+    ])
+    #expect(model.outputsInput == "dist/macos/ComputeHop-macos.zip, dist/macos/ComputeHop-macos.zip.sha256")
 
     await model.submitPlannedTask()
 
     #expect(await client.lastSubmittedSelector() == "worker-id")
     #expect(await client.lastSubmittedWorkingDirectory() == projectURL.path)
     #expect(await client.lastSubmittedExecutable() == "sh")
-    #expect(await client.lastSubmittedArguments() == ["-lc", "set -e\nmake macos-package"])
-    #expect(await client.lastSubmittedOutputs() == ["dist/macos/ComputeHop.app"])
+    #expect(await client.lastSubmittedArguments() == ["-lc", "set -e\nmake macos-archive"])
+    #expect(await client.lastSubmittedOutputs() == [
+        "dist/macos/ComputeHop-macos.zip",
+        "dist/macos/ComputeHop-macos.zip.sha256",
+    ])
     #expect(model.jobs.first?.target == "Gaming PC")
     #expect(model.lastError == nil)
 }

@@ -77,7 +77,7 @@ Current scope:
 - plans plain-language tasks such as "run tests", "build the app", "package
   the app", and "check CI" into one safe command using local project rules,
   preferring repository validation targets such as `make pr-check` and package
-  targets such as `make macos-package` when present;
+  targets such as `make macos-archive` or `make macos-package` when present;
 - uses deterministic local planning first, so no API key is required for normal
   Check/Test/Build/Lint/Docker planning;
 - can fall back to an optional OpenAI Responses API planner for tasks local
@@ -129,8 +129,8 @@ Current scope:
   terminal state, before the next history refresh;
 - restores declared outputs from succeeded jobs through daemon IPC;
 - adds conservative planner-inferred outputs for known package targets, so
-  `make macos-package` brings back `dist/macos/ComputeHop.app` by default while
-  manual **Bring back** paths remain additive;
+  `make macos-archive` brings back the copyable macOS zip and checksum by
+  default while manual **Bring back** paths remain additive;
 - defaults output restore prompts to the job's submitted project folder, so
   switching projects after a job finishes does not redirect the restore flow;
 - prompts to restore declared or inferred outputs immediately after a

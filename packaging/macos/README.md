@@ -12,12 +12,32 @@ make macos-package
 open dist/macos/ComputeHop.app
 ```
 
+Build a copyable developer archive for another Mac:
+
+```bash
+make macos-archive
+```
+
+This writes `dist/macos/ComputeHop-macos.zip` and
+`dist/macos/ComputeHop-macos.zip.sha256`. Copy both files to the other Mac,
+then expand the archive and install from the included helper:
+
+```bash
+shasum -a 256 -c ComputeHop-macos.zip.sha256
+ditto -x -k ComputeHop-macos.zip .
+cd ComputeHop-macos
+./install.sh --check --role worker --device-name "Gaming Mac" --lan-only
+./install.sh --role worker --device-name "Gaming Mac" --lan-only
+```
+
 The bundle verifier checks the Swift app, embedded Control Center, embedded CLI
 and daemon binaries, ad-hoc signature, version commands, the launch-agent
 template that the installer rewrites for the selected role, and the embedded
 Control Center's background-service resolver. That resolver must prefer the
 parent `ComputeHop.app` daemon over the nested Control Center daemon before the
-package is accepted.
+package is accepted when Node is available. Archives are verified before they
+are written, so worker Macs can install the copied app without needing the full
+developer toolchain.
 
 Check the installer path without changing the current user account:
 
@@ -58,6 +78,9 @@ checkout:
 ./packaging/macos/install.sh --app /path/to/ComputeHop.app --check --role worker --device-name "Gaming Mac"
 ./packaging/macos/install.sh --app /path/to/ComputeHop.app --role worker --device-name "Gaming Mac"
 ```
+
+When `install.sh` sits next to a copied `ComputeHop.app`, as it does inside the
+developer archive, `--app` is optional.
 
 The daemon keeps a verified content cache for project chunks and returned
 artifacts. It defaults to 20GiB and can be tuned during install:
