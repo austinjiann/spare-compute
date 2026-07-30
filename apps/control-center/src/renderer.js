@@ -1,15 +1,24 @@
 const state = {
   devices: [],
   pairings: [],
+  jobs: [],
   selectedDeviceID: "local",
+  selectedJobID: null,
+  selectedJobDeviceID: "local",
+  selectedJobLogText: "",
+  selectedJobLogTruncated: false,
+  selectedJobLogFailed: false,
   currentRunID: null,
   plannedTask: null,
   daemonAvailable: false,
   daemonError: "",
   startingDaemon: false,
+  loadingJobs: false,
+  loadingLogs: false,
   settings: loadSettings()
 };
 let refreshInFlight = false;
+let jobsRefreshInFlight = false;
 let runInFlight = false;
 const pendingActions = new Set();
 
@@ -35,6 +44,7 @@ const capabilities = [
 ];
 
 document.getElementById("refresh-devices").addEventListener("click", refreshDevices);
+document.getElementById("refresh-jobs").addEventListener("click", refreshJobs);
 document.getElementById("start-daemon").addEventListener("click", startDaemon);
 document.getElementById("run-job").addEventListener("click", runSelectedJob);
 document.getElementById("test-device").addEventListener("click", testSelectedDevice);
@@ -58,6 +68,7 @@ renderCapabilities();
 renderPlanPreview();
 renderRunControls();
 renderDaemonCard();
+renderJobs();
 refreshDevices();
 setInterval(refreshDevices, 5000);
 
@@ -83,6 +94,8 @@ async function refreshDevices() {
     renderDevices();
     renderPairings();
     renderRunControls();
+    state.jobs = [];
+    renderJobs();
     return;
   }
 
@@ -115,6 +128,9 @@ async function refreshDevices() {
     button.disabled = false;
     button.textContent = "Refresh";
     refreshInFlight = false;
+    if (state.daemonAvailable) {
+      void refreshJobs();
+    }
   }
 }
 
@@ -158,6 +174,292 @@ function renderDaemonCard() {
   button.textContent = state.startingDaemon ? "Starting" : "Start";
 }
 
+async function refreshJobs() {
+  if (jobsRefreshInFlight || !state.daemonAvailable) {
+    return;
+  }
+
+  const selected = selectedDevice();
+  if (!selected || !canRunOn(selected)) {
+    state.jobs = [];
+    renderJobs();
+    return;
+  }
+
+  jobsRefreshInFlight = true;
+  state.loadingJobs = true;
+  renderJobs();
+  try {
+    const response = await window.computeHop.listJobs({
+      deviceID: selected.id,
+      limit: 12
+    });
+    state.jobs = (response.jobs || []).filter(Boolean);
+    const stillSelected = state.jobs.some((job) => job.id === state.selectedJobID);
+    if (!stillSelected) {
+      state.selectedJobID = null;
+      state.selectedJobLogText = "";
+      state.selectedJobLogTruncated = false;
+      state.selectedJobLogFailed = false;
+    }
+    document.getElementById("job-error").classList.add("hidden");
+  } catch (err) {
+    state.jobs = [];
+    const error = document.getElementById("job-error");
+    error.classList.remove("hidden");
+    error.textContent = err.message || "Could not load jobs.";
+  } finally {
+    state.loadingJobs = false;
+    jobsRefreshInFlight = false;
+    renderJobs();
+  }
+}
+
+function renderJobs() {
+  const list = document.getElementById("job-list");
+  const refresh = document.getElementById("refresh-jobs");
+  list.replaceChildren();
+  refresh.disabled = state.loadingJobs || !state.daemonAvailable;
+  refresh.textContent = state.loadingJobs ? "Loading" : "Refresh";
+
+  if (!state.daemonAvailable) {
+    list.append(emptyJobsRow("Start ComputeHop to see jobs."));
+    renderSelectedJobLog();
+    return;
+  }
+
+  const selected = selectedDevice();
+  if (!selected || !canRunOn(selected)) {
+    list.append(emptyJobsRow("Choose This Mac or a connected worker."));
+    renderSelectedJobLog();
+    return;
+  }
+
+  if (state.jobs.length === 0) {
+    list.append(emptyJobsRow("No jobs yet."));
+    renderSelectedJobLog();
+    return;
+  }
+
+  state.jobs.forEach((job) => {
+    const row = document.createElement("div");
+    row.className = "job-row";
+    row.classList.toggle("selected", job.id === state.selectedJobID);
+
+    const copy = document.createElement("span");
+    copy.className = "job-copy";
+    copy.innerHTML = `
+      <strong>${escapeHTML(jobTitle(job))}</strong>
+      <small>${escapeHTML(jobDetail(job))}</small>
+    `;
+
+    const actions = document.createElement("span");
+    actions.className = "job-actions";
+
+    const logs = document.createElement("button");
+    logs.className = "row-button muted";
+    logs.textContent = "Logs";
+    logs.disabled = state.loadingLogs;
+    logs.addEventListener("click", (event) => {
+      event.stopPropagation();
+      void showJobLogs(job);
+    });
+    actions.append(logs);
+
+    if (job.canFetchOutputs) {
+      const outputs = document.createElement("button");
+      outputs.className = "row-button";
+      outputs.textContent = "Outputs";
+      outputs.addEventListener("click", (event) => {
+        event.stopPropagation();
+        void fetchJobOutputs(job);
+      });
+      actions.append(outputs);
+    }
+
+    if (job.canCancel) {
+      const cancel = document.createElement("button");
+      cancel.className = "row-button muted";
+      cancel.textContent = "Stop";
+      cancel.addEventListener("click", (event) => {
+        event.stopPropagation();
+        void cancelListedJob(job);
+      });
+      actions.append(cancel);
+    }
+
+    row.addEventListener("click", () => {
+      void showJobLogs(job);
+    });
+    row.append(copy, actions);
+    list.append(row);
+  });
+
+  renderSelectedJobLog();
+}
+
+function emptyJobsRow(message) {
+  const row = document.createElement("div");
+  row.className = "empty-row";
+  row.textContent = message;
+  return row;
+}
+
+async function showJobLogs(job) {
+  state.selectedJobID = job.id;
+  state.selectedJobDeviceID = job.deviceID || selectedDevice().id;
+  state.loadingLogs = true;
+  renderJobs();
+  try {
+    const response = await window.computeHop.readJobLogs({
+      jobID: job.id,
+      deviceID: state.selectedJobDeviceID
+    });
+    if (response.job) {
+      upsertJob(response.job);
+    }
+    state.selectedJobLogText = response.text || noLogsMessage(response.job || job);
+    state.selectedJobLogTruncated = Boolean(response.truncated);
+    state.selectedJobLogFailed = false;
+    renderSelectedJobLog();
+  } catch (err) {
+    state.selectedJobLogText = err.message || "Could not load logs.";
+    state.selectedJobLogTruncated = false;
+    state.selectedJobLogFailed = true;
+    renderSelectedJobLog();
+  } finally {
+    state.loadingLogs = false;
+    renderJobs();
+  }
+}
+
+async function cancelListedJob(job) {
+  try {
+    const response = await window.computeHop.cancelJob({
+      jobID: job.id,
+      deviceID: job.deviceID || selectedDevice().id
+    });
+    if (response.job) {
+      upsertJob(response.job);
+    }
+    showJobOutput(`Stopped ${job.shortID || job.id}.`, true);
+  } catch (err) {
+    showJobOutput(err.message || "Could not stop job.", false);
+  } finally {
+    renderJobs();
+    void refreshJobs();
+  }
+}
+
+async function fetchJobOutputs(job) {
+  try {
+    const destination = await window.computeHop.chooseOutputDestination({
+      defaultPath: state.settings.projectRoot || ""
+    });
+    if (!destination) {
+      return;
+    }
+    const result = await window.computeHop.fetchOutputs({
+      jobID: job.id,
+      deviceID: job.deviceID || selectedDevice().id,
+      destination
+    });
+    const restored = Number(result.restoredFileCount || 0);
+    const conflicts = Number(result.conflictFileCount || 0);
+    const conflictText = conflicts > 0 ? ` ${conflicts} conflict${conflicts === 1 ? "" : "s"} kept aside.` : "";
+    showJobOutput(`Saved ${restored} output${restored === 1 ? "" : "s"} to ${result.destination || destination}.${conflictText}`, true);
+  } catch (err) {
+    showJobOutput(friendlyOutputError(job, err), false);
+  }
+}
+
+function renderSelectedJobLog() {
+  const output = document.getElementById("job-log");
+  if (!state.selectedJobID) {
+    output.classList.add("hidden");
+    output.textContent = "";
+    return;
+  }
+
+  output.classList.remove("hidden", "failure", "success");
+  if (state.selectedJobLogFailed) {
+    output.classList.add("failure");
+  }
+  if (state.selectedJobLogText) {
+    output.textContent = state.selectedJobLogTruncated
+      ? `${state.selectedJobLogText}\n\n…truncated`
+      : state.selectedJobLogText;
+    output.scrollTop = output.scrollHeight;
+    return;
+  }
+
+  if (state.loadingLogs) {
+    output.textContent = "Loading logs…";
+    return;
+  }
+
+  const job = state.jobs.find((value) => value.id === state.selectedJobID);
+  output.textContent = job ? noLogsMessage(job) : "";
+}
+
+function upsertJob(job) {
+  if (!job || !job.id) {
+    return;
+  }
+  const index = state.jobs.findIndex((value) => value.id === job.id);
+  if (index >= 0) {
+    state.jobs[index] = job;
+  } else {
+    state.jobs.unshift(job);
+  }
+}
+
+function jobTitle(job) {
+  const parts = String(job.command || "Task").split(/\s+/);
+  const executable = parts.shift() || "Task";
+  const name = executable.split("/").filter(Boolean).pop() || executable;
+  return [name, ...parts].join(" ");
+}
+
+function jobDetail(job) {
+  const bits = [job.state || "unknown"];
+  if (job.progress) {
+    bits.push(job.progress);
+  }
+  if (job.outputs?.length) {
+    bits.push(`returns ${job.outputs.join(", ")}`);
+  }
+  if (job.failure) {
+    bits.push(job.failure);
+  }
+  return bits.join(" · ");
+}
+
+function noLogsMessage(job) {
+  if (!job) {
+    return "No logs loaded.";
+  }
+  if (job.terminal) {
+    return `No output was captured for ${job.shortID || job.id}.`;
+  }
+  return `No output captured yet for ${job.shortID || job.id}.`;
+}
+
+function friendlyOutputError(job, err) {
+  const message = String(err?.message || "Could not fetch outputs.");
+  const lower = message.toLowerCase();
+  if (lower.includes("job artifacts are not ready") && lower.includes("succeeded")) {
+    return `No declared outputs are available for ${job.shortID || job.id}. Add files to “Bring back” before running.`;
+  }
+  if (lower.includes("job artifacts are not ready")) {
+    return `Outputs for ${job.shortID || job.id} are not ready yet. Wait for the job to succeed.`;
+  }
+  if (lower.includes("artifacts not found")) {
+    return `Outputs were not found for ${job.shortID || job.id}.`;
+  }
+  return message;
+}
+
 function mergeDevices(localDevices, remoteDevices) {
   const seen = new Set();
   const devices = [...localDevices, ...remoteDevices].filter((device) => {
@@ -184,8 +486,16 @@ function renderDevices() {
     row.classList.toggle("selected", device.id === state.selectedDeviceID);
     row.addEventListener("click", () => {
       state.selectedDeviceID = device.id;
+      state.selectedJobID = null;
+      state.selectedJobDeviceID = device.id;
+      state.selectedJobLogText = "";
+      state.selectedJobLogTruncated = false;
+      state.selectedJobLogFailed = false;
+      state.jobs = [];
       renderDevices();
       renderRunControls();
+      renderJobs();
+      void refreshJobs();
     });
 
     const icon = document.createElement("span");
@@ -217,8 +527,16 @@ function deviceActionButton(device) {
     action.addEventListener("click", (event) => {
       event.stopPropagation();
       state.selectedDeviceID = device.id;
+      state.selectedJobID = null;
+      state.selectedJobDeviceID = device.id;
+      state.selectedJobLogText = "";
+      state.selectedJobLogTruncated = false;
+      state.selectedJobLogFailed = false;
+      state.jobs = [];
       renderDevices();
       renderRunControls();
+      renderJobs();
+      void refreshJobs();
     });
     return action;
   }
@@ -403,7 +721,8 @@ async function testSelectedDevice() {
 async function startPlannedJob(planned, selected) {
   const output = document.getElementById("job-output");
   const button = document.getElementById("run-job");
-  const readinessError = validateRunReadiness(selected, planned);
+  const outputs = declaredOutputs();
+  const readinessError = validateRunReadiness(selected, planned, outputs);
   if (readinessError) {
     showJobOutput(readinessError, false);
     return;
@@ -421,7 +740,8 @@ async function startPlannedJob(planned, selected) {
     const result = await window.computeHop.startJob({
       command: planned.command,
       deviceID: selected.id,
-      workingDirectory: state.settings.projectRoot || ""
+      workingDirectory: state.settings.projectRoot || "",
+      outputs
     });
     state.currentRunID = result.runID;
     button.disabled = false;
@@ -434,14 +754,33 @@ async function startPlannedJob(planned, selected) {
   }
 }
 
-function validateRunReadiness(selected, planned) {
+function validateRunReadiness(selected, planned, outputs = []) {
   if (!selected || !canRunOn(selected)) {
     return "Choose This Mac or a connected worker first.";
   }
   if (selected.id !== "local" && planned.requiresProject && !state.settings.projectRoot) {
     return `Choose a project before running this on ${selected.name}. ComputeHop needs the folder so it can copy the files to that computer.`;
   }
+  if (selected.id !== "local" && outputs.length > 0 && !state.settings.projectRoot) {
+    return "Choose a project before bringing files back from another computer.";
+  }
   return "";
+}
+
+function declaredOutputs() {
+  const input = document.getElementById("outputs-input");
+  const seen = new Set();
+  return input.value
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .filter((value) => {
+      if (seen.has(value)) {
+        return false;
+      }
+      seen.add(value);
+      return true;
+    });
 }
 
 async function plannedCommandFor(task) {
@@ -545,6 +884,10 @@ function handleJobEvent(event) {
   }
 
   if (event.type === "job") {
+    if (event.job) {
+      upsertJob(event.job);
+      renderJobs();
+    }
     appendJobOutput(`\nJob ${event.jobID}\n`);
     return;
   }
@@ -559,6 +902,7 @@ function handleJobEvent(event) {
     runInFlight = false;
     state.currentRunID = null;
     renderRunControls();
+    void refreshJobs();
   }
 }
 

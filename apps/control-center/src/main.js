@@ -13,6 +13,7 @@ const { planTask } = require("./planner");
 const repoRoot = path.resolve(__dirname, "..", "..", "..");
 const activeRuns = new Map();
 const logPollMs = 900;
+const maximumLogPages = 20;
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -137,6 +138,70 @@ ipcMain.handle("jobs:start", async (event, request) => {
   return { runID };
 });
 
+ipcMain.handle("jobs:list", async (_event, request) => {
+  const client = new LocalDaemonClient();
+  const deviceSelector = deviceSelectorFromRequest(request);
+  const limit = Number(request?.limit || 20);
+  const jobs = await client.listJobs({
+    limit: Number.isFinite(limit) && limit > 0 ? Math.min(limit, 100) : 20,
+    deviceSelector
+  });
+  return { jobs: jobs.map((job) => mapJob(job, deviceSelector)) };
+});
+
+ipcMain.handle("jobs:logs", async (_event, request) => {
+  const client = new LocalDaemonClient();
+  const jobID = String(request?.jobID || "").trim();
+  if (!jobID) {
+    throw new Error("Choose a job first.");
+  }
+  const deviceSelector = deviceSelectorFromRequest(request);
+  const result = await readAllJobLogs(client, jobID, deviceSelector);
+  return {
+    job: mapJob(result.job, deviceSelector),
+    text: result.text,
+    truncated: result.truncated
+  };
+});
+
+ipcMain.handle("jobs:cancel", async (_event, request) => {
+  const client = new LocalDaemonClient();
+  const jobID = String(request?.jobID || "").trim();
+  if (!jobID) {
+    throw new Error("Choose a job first.");
+  }
+  const deviceSelector = deviceSelectorFromRequest(request);
+  const job = await client.cancelJob(jobID, { deviceSelector });
+  return { job: mapJob(job, deviceSelector) };
+});
+
+ipcMain.handle("jobs:fetchOutputs", async (_event, request) => {
+  const client = new LocalDaemonClient();
+  const jobID = String(request?.jobID || "").trim();
+  const destination = String(request?.destination || "").trim();
+  if (!jobID) {
+    throw new Error("Choose a job first.");
+  }
+  if (!destination) {
+    throw new Error("Choose where to save outputs.");
+  }
+  const deviceSelector = deviceSelectorFromRequest(request);
+  return client.fetchArtifacts(jobID, { deviceSelector, destination });
+});
+
+ipcMain.handle("outputs:chooseDestination", async (_event, request) => {
+  const result = await dialog.showOpenDialog({
+    title: "Choose Output Folder",
+    buttonLabel: "Save Outputs",
+    defaultPath: request?.defaultPath || app.getPath("documents"),
+    properties: ["openDirectory", "createDirectory"]
+  });
+  if (result.canceled || result.filePaths.length === 0) {
+    return null;
+  }
+  return result.filePaths[0];
+});
+
 ipcMain.handle("jobs:stop", async (_event, runID) => {
   const record = activeRuns.get(String(runID));
   if (!record) {
@@ -193,6 +258,7 @@ async function runDaemonJobStream(runID, jobRequest, argv) {
         executable: argv[0],
         arguments: argv.slice(1),
         workingDirectory: runWorkingDirectory(jobRequest, record.deviceSelector),
+        outputs: jobRequest.outputs,
         deviceSelector: record.deviceSelector
       },
       { signal: record.abortController.signal }
@@ -205,7 +271,8 @@ async function runDaemonJobStream(runID, jobRequest, argv) {
     sendRunEvent(record.webContents, runID, {
       type: "job",
       jobID: submitted.id,
-      state: jobStateLabel(submitted)
+      state: jobStateLabel(submitted),
+      job: mapJob(submitted, record.deviceSelector)
     });
 
     let afterSequence = 0;
@@ -263,6 +330,83 @@ function sendRunEvent(webContents, runID, payload) {
     return;
   }
   webContents.send("jobs:event", { runID, ...payload });
+}
+
+async function readAllJobLogs(client, jobID, deviceSelector) {
+  let afterSequence = 0;
+  let text = "";
+  let job = null;
+  let truncated = false;
+
+  for (let pageIndex = 0; pageIndex < maximumLogPages; pageIndex += 1) {
+    const page = await client.readJobLogs(jobID, {
+      afterSequence,
+      deviceSelector,
+      limit: 100
+    });
+    job = page.job || job;
+    for (const item of page.records || []) {
+      const sequence = Number(item.sequence || 0);
+      if (sequence > afterSequence) {
+        afterSequence = sequence;
+      }
+      text += Buffer.from(item.data || []).toString("utf8");
+    }
+    if (!page.hasMore) {
+      return { job, text, truncated };
+    }
+  }
+
+  truncated = true;
+  return { job, text, truncated };
+}
+
+function deviceSelectorFromRequest(request) {
+  const deviceID = String(request?.deviceID || "").trim();
+  return deviceID === "local" ? "" : deviceID;
+}
+
+function mapJob(value, deviceSelector = "") {
+  if (!value) {
+    return null;
+  }
+  const spec = value.spec || {};
+  const args = spec.arguments || [];
+  const command = [spec.executable, ...args].filter(Boolean).join(" ") || "Task";
+  const outputs = spec.outputs || [];
+  return {
+    id: value.id || "",
+    shortID: String(value.id || "").slice(0, 8),
+    command,
+    executable: spec.executable || "",
+    arguments: args,
+    outputs,
+    state: jobStateLabel(value),
+    terminal: jobTerminal(value),
+    succeeded: jobSucceeded(value),
+    canCancel: !jobTerminal(value),
+    canFetchOutputs: jobSucceeded(value) && outputs.length > 0,
+    progress: progressLabel(value.progress),
+    failure: value.failure?.message || "",
+    updated: timestampLabel(value.updatedAtUnixNano),
+    created: timestampLabel(value.createdAtUnixNano),
+    deviceID: deviceSelector || "local"
+  };
+}
+
+function progressLabel(progress) {
+  if (!progress) {
+    return "";
+  }
+  const phase = String(progress.phase || "")
+    .replace(/^JOB_PROGRESS_PHASE_/, "")
+    .toLowerCase();
+  const completed = Number(progress.completedBytes || 0);
+  const total = Number(progress.totalBytes || 0);
+  if (total > 0) {
+    return `${phase || "progress"} ${Math.round((completed / total) * 100)}%`;
+  }
+  return phase === "unspecified" ? "" : phase;
 }
 
 function mapDevices(result) {
@@ -449,7 +593,10 @@ function normalizeJobRequest(request) {
   return {
     command: String(request.command || "").trim(),
     deviceID: String(request.deviceID || "local").trim(),
-    workingDirectory: String(request.workingDirectory || "").trim()
+    workingDirectory: String(request.workingDirectory || "").trim(),
+    outputs: Array.isArray(request.outputs)
+      ? request.outputs.map((value) => String(value || "").trim()).filter(Boolean)
+      : []
   };
 }
 
@@ -501,64 +648,4 @@ function splitCommandLine(input) {
     tokens.push(current);
   }
   return tokens;
-}
-
-function parseDevices(stdout) {
-  if (!stdout) {
-    return [];
-  }
-
-  const lines = stdout
-    .split(/\r?\n/)
-    .map((line) => line.trimEnd())
-    .filter(Boolean);
-
-  if (lines.length <= 1) {
-    return [];
-  }
-
-  return lines
-    .slice(1)
-    .map((line) => parseDeviceLine(line))
-    .filter(Boolean);
-}
-
-function parseDeviceLine(line) {
-  if (
-    line === "Next:" ||
-    line.startsWith("- ") ||
-    line.startsWith("No connected or nearby devices.") ||
-    line.startsWith("LAN discovery")
-  ) {
-    return null;
-  }
-
-  const columns = line.split(/\s{2,}/).map((column) => column.trim());
-  if (columns.length >= 8) {
-    return {
-      name: columns[0],
-      id: columns[1],
-      connection: columns[2],
-      role: columns[3],
-      availability: columns[4],
-      path: columns[5],
-      address: columns[6],
-      updated: columns[7]
-    };
-  }
-
-  if (columns.length >= 6) {
-    return {
-      name: columns[0],
-      id: columns[1],
-      connection: columns[2],
-      role: columns[3],
-      availability: columns[2],
-      path: "",
-      address: columns[4],
-      updated: columns[5]
-    };
-  }
-
-  return null;
 }

@@ -10,6 +10,11 @@ contextBridge.exposeInMainWorld("computeHop", {
   planTask: (request) => ipcRenderer.invoke("planner:plan", request),
   startJob: (request) => ipcRenderer.invoke("jobs:start", request),
   stopJob: (runID) => ipcRenderer.invoke("jobs:stop", runID),
+  listJobs: (request) => ipcRenderer.invoke("jobs:list", request),
+  readJobLogs: (request) => ipcRenderer.invoke("jobs:logs", request),
+  cancelJob: (request) => ipcRenderer.invoke("jobs:cancel", request),
+  fetchOutputs: (request) => ipcRenderer.invoke("jobs:fetchOutputs", request),
+  chooseOutputDestination: (request) => ipcRenderer.invoke("outputs:chooseDestination", request),
   onJobEvent: (handler) => {
     const listener = (_event, payload) => handler(payload);
     ipcRenderer.on("jobs:event", listener);

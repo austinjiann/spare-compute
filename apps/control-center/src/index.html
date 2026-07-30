@@ -56,6 +56,7 @@
               <button id="test-device" class="pill-button">Test</button>
               <button id="run-job" class="primary-button">Run</button>
             </div>
+            <input id="outputs-input" placeholder="Bring back files or folders, optional: dist, report.pdf" />
           </div>
           <div id="plan-preview" class="plan-preview hidden">
             <div>
@@ -65,6 +66,18 @@
             <code id="plan-command"></code>
           </div>
           <pre id="job-output" class="output hidden"></pre>
+        </section>
+
+        <div class="divider"></div>
+
+        <section class="section">
+          <div class="section-title">
+            <h2>Recent jobs</h2>
+            <button id="refresh-jobs" class="text-button">Refresh</button>
+          </div>
+          <div id="job-list" class="job-list"></div>
+          <pre id="job-log" class="output hidden"></pre>
+          <p id="job-error" class="error hidden"></p>
         </section>
 
         <div class="divider"></div>

@@ -31,8 +31,11 @@ Current scope:
   project folder;
 - requires a project folder before sending project-style commands such as tests,
   builds, package scripts, and Makefile targets to another computer;
+- declares optional files/folders to bring back from completed jobs;
 - submits selected commands as durable native jobs;
 - polls daemon job logs and streams stdout/stderr into the window;
+- lists recent jobs for the selected computer and opens their persisted logs;
+- restores declared outputs from succeeded jobs through daemon IPC;
 - cancels running jobs through daemon IPC;
 - targets This Mac by default, or a selected connected worker;
 - skips project sync for remote utility commands until a project folder is

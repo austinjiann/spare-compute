@@ -108,6 +108,20 @@ class LocalDaemonClient {
     return response.unpairDevice?.device || null;
   }
 
+  async listJobs(options = {}) {
+    const response = await this.call(
+      {
+        listJobs: {
+          states: options.states || [],
+          limit: options.limit || 20,
+          deviceSelector: options.deviceSelector || ""
+        }
+      },
+      options
+    );
+    return response.listJobs?.jobs || [];
+  }
+
   async submitJob(jobRequest, options = {}) {
     const response = await this.call(
       {
@@ -154,6 +168,20 @@ class LocalDaemonClient {
       options
     );
     return response.cancelJob?.job || null;
+  }
+
+  async fetchArtifacts(jobID, options = {}) {
+    const response = await this.call(
+      {
+        fetchArtifacts: {
+          jobId: jobID,
+          deviceSelector: options.deviceSelector || "",
+          destination: options.destination || ""
+        }
+      },
+      { timeoutMs: SUBMIT_TIMEOUT_MS, ...options }
+    );
+    return response.fetchArtifacts || {};
   }
 
   async call(operation, options = {}) {

@@ -1449,8 +1449,10 @@ and trusted devices, pairs or forgets workers, plans plain-language tasks into
 previewed commands, runs a projectless smoke test on the selected computer, and
 blocks project-style remote runs until a project folder is selected for
 transfer. It can also start the local daemon from the app in development and
-from the bundled daemon in packaged builds. Durable daemon-backed settings for
-that app remain. A host-architecture
+from the bundled daemon in packaged builds, list recent jobs for the selected
+computer, open persisted job logs, declare files/folders to bring back, restore
+succeeded job outputs, and cancel listed jobs. Durable daemon-backed settings
+for that app remain. A host-architecture
 developer app bundle now includes the menu app, CLI, and daemon; a guarded
 per-user installer configures an
 unprivileged launch agent and preserves durable state on uninstall. Developer
