@@ -66,7 +66,31 @@ struct DevicesSection: View {
                             Task { await model.connect(selected) }
                         }
                         .disabled(model.actionInProgress != nil)
+                    } else if selected.availability == .nearby || selected.availability == .remote {
+                        Button("Test") {
+                            Task { await model.submitSmokeTest() }
+                        }
+                        .disabled(!model.canSubmitSmokeTest || model.actionInProgress != nil)
+                        .help(model.smokeTestHelpText)
                     }
+                }
+                .padding(.vertical, 4)
+            } else if model.selectedDeviceID == AppModel.localDeviceID,
+                      model.canRunAutomatically,
+                      let worker = model.runnableDevices.first
+            {
+                HStack(spacing: 10) {
+                    statusDot(worker.availability)
+                    Text("\(worker.name) ready")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    Spacer()
+                    Button("Test") {
+                        Task { await model.submitSmokeTest() }
+                    }
+                    .disabled(!model.canSubmitSmokeTest || model.actionInProgress != nil)
+                    .help(model.smokeTestHelpText)
                 }
                 .padding(.vertical, 4)
             } else if model.selectedDeviceID != AppModel.localDeviceID {

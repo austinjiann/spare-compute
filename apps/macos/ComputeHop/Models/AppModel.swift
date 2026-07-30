@@ -249,12 +249,12 @@ final class AppModel {
             return "Start ComputeHop to run jobs."
         }
         if runnableDevices.count == 1 {
-            return "Use Smoke Test to verify the worker, or run a command above."
+            return "Use Test to verify the worker, or run a task above."
         }
         if runnableDevices.count > 1 {
-            return "Choose a worker from Run on for Smoke Test, or run a command above."
+            return "Choose a worker from Run on, then use Test or run a task above."
         }
-        return "Run a command on This Mac, or connect a nearby worker to enable Smoke Test."
+        return "Run a task on This Mac, or connect a nearby worker to enable Test."
     }
 
     var selectedJobLogsPlaceholder: String {

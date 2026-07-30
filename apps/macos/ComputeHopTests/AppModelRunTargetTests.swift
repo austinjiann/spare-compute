@@ -701,7 +701,7 @@ func emptyJobsHelpPointsAtSmokeTestWhenOneWorkerIsRunnable() {
     model.daemon = daemonSummary()
     model.devices = [worker]
 
-    #expect(model.emptyJobsHelpText == "Use Smoke Test to verify the worker, or run a command above.")
+    #expect(model.emptyJobsHelpText == "Use Test to verify the worker, or run a task above.")
 }
 
 @Test
@@ -710,7 +710,7 @@ func emptyJobsHelpPointsAtConnectWhenNoWorkerIsRunnable() {
     let model = AppModel(client: RecordingDaemonClient(devices: []))
     model.daemon = daemonSummary()
 
-    #expect(model.emptyJobsHelpText == "Run a command on This Mac, or connect a nearby worker to enable Smoke Test.")
+    #expect(model.emptyJobsHelpText == "Run a task on This Mac, or connect a nearby worker to enable Test.")
 }
 
 @Test

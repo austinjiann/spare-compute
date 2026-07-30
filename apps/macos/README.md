@@ -18,7 +18,7 @@ paired workers whose remote connectivity is disabled, two-sided connect
 confirmation with explicit local/other-device status, stale restart duplicate
 suppression for trusted nearby devices,
 native job submission to this Mac, Auto worker when exactly one
-worker is runnable, or a paired available worker, a Smoke Test button that runs
+worker is runnable, or a paired available worker, a Test button that runs
 `hostname` remotely without uploading a project, a compact active/selected task
 panel with reconnectable output, copyable equivalent `computehop run ...` commands from the run form,
 explicit command-input validation for unfinished quotes and escapes, explicit
