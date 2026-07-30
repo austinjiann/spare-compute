@@ -491,6 +491,46 @@ func submitPlannedProjectCheckUsesSelectedWorkerAndProject() async throws {
 
 @Test
 @MainActor
+func submitPlannedPackageUsesSelectedWorkerProjectAndInferredOutput() async throws {
+    let projectURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("computehop-plan-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: projectURL, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: projectURL) }
+    try "macos-package:\n\tpackaging/macos/build.sh\n".write(
+        to: projectURL.appendingPathComponent("Makefile"),
+        atomically: true,
+        encoding: .utf8
+    )
+
+    let worker = runTargetDevice(id: "worker-id", name: "Gaming PC")
+    let client = RecordingDaemonClient(devices: [worker])
+    let model = AppModel(client: client)
+    model.daemon = daemonSummary()
+    model.devices = [worker]
+    model.selectDevice(worker)
+    model.workingDirectory = projectURL.path
+    model.taskRequestInput = "package the app"
+
+    model.planRequestedTask()
+
+    #expect(model.plannedTask?.title == "Package project")
+    #expect(model.plannedTask?.commands == ["make macos-package"])
+    #expect(model.plannedTask?.outputs == ["dist/macos/ComputeHop.app"])
+    #expect(model.outputsInput == "dist/macos/ComputeHop.app")
+
+    await model.submitPlannedTask()
+
+    #expect(await client.lastSubmittedSelector() == "worker-id")
+    #expect(await client.lastSubmittedWorkingDirectory() == projectURL.path)
+    #expect(await client.lastSubmittedExecutable() == "sh")
+    #expect(await client.lastSubmittedArguments() == ["-lc", "set -e\nmake macos-package"])
+    #expect(await client.lastSubmittedOutputs() == ["dist/macos/ComputeHop.app"])
+    #expect(model.jobs.first?.target == "Gaming PC")
+    #expect(model.lastError == nil)
+}
+
+@Test
+@MainActor
 func planRequestedTaskUsesPackageManagerScripts() throws {
     let projectURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("computehop-plan-\(UUID().uuidString)")
