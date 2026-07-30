@@ -74,6 +74,7 @@ document.getElementById("command-input").addEventListener("input", () => {
   renderRunControls();
 });
 document.getElementById("choose-project").addEventListener("click", chooseProject);
+document.getElementById("clear-project").addEventListener("click", clearProject);
 
 bindCheckbox("lanDiscovery", document.getElementById("lan-discovery"));
 bindCheckbox("askBeforeRun", document.getElementById("ask-before-run"));
@@ -806,6 +807,20 @@ async function chooseProject() {
   renderRunControls();
 }
 
+function clearProject() {
+  if (!state.settings.projectRoot) {
+    return;
+  }
+  state.settings.projectRoot = "";
+  state.plannedTask = null;
+  state.taskSuggestions = [];
+  state.loadingTaskSuggestions = false;
+  saveSettings();
+  renderTaskSuggestions();
+  renderPlanPreview();
+  renderRunControls();
+}
+
 async function refreshTaskSuggestions() {
   if (!window.computeHop.suggestTasks) {
     state.taskSuggestions = [];
@@ -1146,6 +1161,7 @@ function renderRunControls() {
   const selected = selectedDevice();
   const target = document.getElementById("run-target");
   const projectLabel = document.getElementById("project-label");
+  const clearProjectButton = document.getElementById("clear-project");
   const runButton = document.getElementById("run-job");
   const testButton = document.getElementById("test-device");
   const task = document.getElementById("command-input").value.trim();
@@ -1154,6 +1170,7 @@ function renderRunControls() {
   projectLabel.textContent = state.settings.projectRoot
     ? shortPath(state.settings.projectRoot)
     : "No project";
+  clearProjectButton.classList.toggle("hidden", !state.settings.projectRoot);
   if (runInFlight) {
     runButton.textContent = "Stop";
   } else if (state.settings.askBeforeRun && task && !planMatchesInput(task)) {
