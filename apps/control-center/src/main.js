@@ -12,6 +12,11 @@ const { planTask } = require("./planner");
 const { appRuntimeInfo, normalizeDaemonRole } = require("./runtime-info");
 const { remotePreparationMessage } = require("./run-feedback");
 const {
+  deviceSelectorFromDeviceID,
+  followupDeviceSelector,
+  jobDeviceIDForSelector
+} = require("./job-routing");
+const {
   loadSettings: loadControlCenterSettings,
   saveSettings: saveControlCenterSettings
 } = require("./settings-store");
@@ -190,10 +195,10 @@ ipcMain.handle("jobs:logs", async (_event, request) => {
   if (!jobID) {
     throw new Error("Choose a job first.");
   }
-  const deviceSelector = deviceSelectorFromRequest(request);
+  const deviceSelector = jobOperationDeviceSelectorFromRequest(request);
   const result = await readAllJobLogs(client, jobID, deviceSelector);
   return {
-    job: mapJob(result.job, deviceSelector),
+    job: mapJob(result.job, jobDeviceIDFromRequest(request)),
     text: result.text,
     truncated: result.truncated
   };
@@ -205,9 +210,9 @@ ipcMain.handle("jobs:cancel", async (_event, request) => {
   if (!jobID) {
     throw new Error("Choose a job first.");
   }
-  const deviceSelector = deviceSelectorFromRequest(request);
+  const deviceSelector = jobOperationDeviceSelectorFromRequest(request);
   const job = await client.cancelJob(jobID, { deviceSelector });
-  return { job: mapJob(job, deviceSelector) };
+  return { job: mapJob(job, jobDeviceIDFromRequest(request)) };
 });
 
 ipcMain.handle("jobs:fetchOutputs", async (_event, request) => {
@@ -220,7 +225,7 @@ ipcMain.handle("jobs:fetchOutputs", async (_event, request) => {
   if (!destination) {
     throw new Error("Choose where to save outputs.");
   }
-  const deviceSelector = deviceSelectorFromRequest(request);
+  const deviceSelector = jobOperationDeviceSelectorFromRequest(request);
   return client.fetchArtifacts(jobID, { deviceSelector, destination });
 });
 
@@ -288,10 +293,11 @@ async function runDaemonJobStream(runID, jobRequest, argv) {
     return;
   }
   try {
+    const submitDeviceSelector = record.deviceSelector;
     const workingDirectory = runWorkingDirectory(jobRequest, record.deviceSelector);
     const preparationMessage = remotePreparationMessage({
       deviceName: jobRequest.deviceName,
-      deviceSelector: record.deviceSelector,
+      deviceSelector: submitDeviceSelector,
       workingDirectory
     });
     if (preparationMessage) {
@@ -308,7 +314,7 @@ async function runDaemonJobStream(runID, jobRequest, argv) {
         arguments: argv.slice(1),
         workingDirectory,
         outputs: jobRequest.outputs,
-        deviceSelector: record.deviceSelector
+        deviceSelector: submitDeviceSelector
       },
       { signal: record.abortController.signal }
     );
@@ -317,11 +323,12 @@ async function runDaemonJobStream(runID, jobRequest, argv) {
     }
 
     record.jobID = submitted.id;
+    record.deviceSelector = followupDeviceSelector(submitDeviceSelector);
     sendRunEvent(record.webContents, runID, {
       type: "job",
       jobID: submitted.id,
       state: jobStateLabel(submitted),
-      job: mapJob(submitted, record.deviceSelector)
+      job: mapJob(submitted, submitDeviceSelector)
     });
 
     let afterSequence = 0;
@@ -412,14 +419,23 @@ async function readAllJobLogs(client, jobID, deviceSelector) {
 
 function deviceSelectorFromRequest(request) {
   const deviceID = String(request?.deviceID || "").trim();
-  return deviceID === "local" ? "" : deviceID;
+  return deviceSelectorFromDeviceID(deviceID);
+}
+
+function jobOperationDeviceSelectorFromRequest(request) {
+  return followupDeviceSelector(deviceSelectorFromRequest(request));
+}
+
+function jobDeviceIDFromRequest(request) {
+  const deviceID = String(request?.deviceID || "").trim();
+  return jobDeviceIDForSelector(deviceID || "local");
 }
 
 function daemonRoleFromRequest(request) {
   return normalizeDaemonRole(request?.role, process.platform);
 }
 
-function mapJob(value, deviceSelector = "") {
+function mapJob(value, deviceID = "") {
   if (!value) {
     return null;
   }
@@ -443,7 +459,7 @@ function mapJob(value, deviceSelector = "") {
     failure: value.failure?.message || "",
     updated: timestampLabel(value.updatedAtUnixNano),
     created: timestampLabel(value.createdAtUnixNano),
-    deviceID: deviceSelector || "local"
+    deviceID: jobDeviceIDForSelector(deviceID)
   };
 }
 
