@@ -33,6 +33,7 @@ const state = {
   settingsHydrated: false,
   autoStartAttempted: false,
   userSelectedDevice: false,
+  pendingRunAfterPairing: null,
   aiPlannerStatus: {
     configured: false,
     source: "",
@@ -127,6 +128,7 @@ document.getElementById("command-input").addEventListener("keydown", (event) => 
 });
 document.getElementById("command-input").addEventListener("input", () => {
   state.plannedTask = null;
+  state.pendingRunAfterPairing = null;
   renderPlanPreview();
   renderRunControls();
 });
@@ -211,6 +213,7 @@ async function refreshDevices() {
       void refreshJobs();
     }
     maybeAutoStartDaemon();
+    void resumePendingRunAfterPairing();
   }
 }
 
@@ -1004,6 +1007,7 @@ function selectRunDevice(deviceID) {
   const device = typeof deviceID === "object" ? deviceID : state.devices.find((candidate) => candidate.id === deviceID);
   const id = typeof deviceID === "object" ? deviceID.id : deviceID;
   state.userSelectedDevice = true;
+  state.pendingRunAfterPairing = null;
   setRunDeviceSelection(id, device);
   state.selectedJobID = null;
   state.selectedJobLogText = "";
@@ -1239,17 +1243,19 @@ function recomputeDeviceTargets() {
 function selectWorkerAfterPairingConfirmation() {
   const target = workerTargetAfterPairingConfirmation(state.devices, state.selectedDeviceID);
   if (!target) {
-    return;
+    return null;
   }
   state.userSelectedDevice = false;
   selectPlannedRunDevice(target);
+  return target;
 }
 
 async function confirmPairing(pairing) {
   await performDeviceAction(`pairing:${pairing.id}`, async () => {
     await window.computeHop.confirmPairing(pairing.id);
     await refreshDevices();
-    selectWorkerAfterPairingConfirmation();
+    const target = selectWorkerAfterPairingConfirmation();
+    await resumePendingRunAfterPairing(target);
   });
 }
 
@@ -1387,6 +1393,48 @@ async function testSelectedDevice() {
   await startPlannedJob(planned, selected);
 }
 
+function rememberPendingRunAfterPairing(plan, worker) {
+  state.pendingRunAfterPairing = {
+    plan,
+    workerID: concreteDeviceID(worker),
+    task: plan?.source || plan?.title || plan?.command || "this task"
+  };
+}
+
+function pendingPairingRunTarget(pending = state.pendingRunAfterPairing) {
+  if (!pending?.workerID) {
+    return null;
+  }
+  return (
+    workerRunTargetForAction(state.devices, pending.workerID) ||
+    state.devices.find((device) => concreteDeviceID(device) === pending.workerID && canRunOn(device)) ||
+    null
+  );
+}
+
+function pendingPairingRunMatchesTarget(pending, target) {
+  return Boolean(pending?.workerID && target && concreteDeviceID(target) === pending.workerID);
+}
+
+async function resumePendingRunAfterPairing(target = null) {
+  const pending = state.pendingRunAfterPairing;
+  if (!pending || runInFlight) {
+    return;
+  }
+  const runTarget = pendingPairingRunMatchesTarget(pending, target)
+    ? target
+    : pendingPairingRunTarget(pending);
+  if (!runTarget || !canRunOn(runTarget)) {
+    return;
+  }
+  state.pendingRunAfterPairing = null;
+  if (runTarget.id !== state.selectedDeviceID) {
+    state.userSelectedDevice = false;
+    selectPlannedRunDevice(runTarget);
+  }
+  await startPlannedJob(pending.plan, runTarget, { promptedForConnection: true });
+}
+
 async function startPlannedJob(planned, selected, options = {}) {
   const output = document.getElementById("job-output");
   const button = document.getElementById("run-job");
@@ -1399,7 +1447,8 @@ async function startPlannedJob(planned, selected, options = {}) {
         const started = await connectDevice(target);
         const name = target.name || target.workerName || "the worker";
         if (started) {
-          showJobOutput(`Started connecting to ${name}. Confirm the pairing code on both computers, then run this task again.`, true);
+          rememberPendingRunAfterPairing(planned, target);
+          showJobOutput(`Started connecting to ${name}. Confirm the pairing code on both computers; this task will start when pairing finishes.`, true);
         } else {
           showJobOutput(`Could not start connecting to ${name}.`, false);
         }

@@ -43,7 +43,8 @@ Current scope:
   per-device work permissions, preview behavior, and AI planner configuration
   stay behind disclosure controls;
 - starts the nearby-worker connect flow from the run path when a task asks for
-  another computer and exactly one unpaired worker is visible;
+  another computer and exactly one unpaired worker is visible, then resumes the
+  user-initiated task after pairing finishes;
 - checks the local daemon's real status even when nearby-device discovery is
   disabled, so local run controls do not pretend ComputeHop is running when it
   is not;
@@ -121,7 +122,8 @@ Current scope:
   possible target, with a stable device-ID tie-break when capacity appears
   equal;
 - turns unambiguous worker-target blockers into a direct Connect recovery so the
-  user does not have to leave the task flow to start pairing;
+  user does not have to leave the task flow to start pairing or re-submit after
+  pairing completes;
 - uses deterministic local planning first, so no API key is required for normal
   Check/Test/Build/Lint/Docker planning;
 - can fall back to an optional OpenAI Responses API planner for tasks local
