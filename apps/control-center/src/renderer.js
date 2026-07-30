@@ -1179,7 +1179,7 @@ function renderPairings() {
 }
 
 async function connectDevice(device) {
-  await performDeviceAction(`device:${device.id}`, async () => {
+  return performDeviceAction(`device:${device.id}`, async () => {
     await window.computeHop.connectDevice(device.id);
     await refreshDevices();
   });
@@ -1269,9 +1269,11 @@ async function performDeviceAction(key, action) {
   try {
     await action();
     error.classList.add("hidden");
+    return true;
   } catch (err) {
     error.classList.remove("hidden");
     error.textContent = err.message || "Device action failed.";
+    return false;
   } finally {
     pendingActions.delete(key);
     renderDevices();
@@ -1391,6 +1393,20 @@ async function startPlannedJob(planned, selected, options = {}) {
   const outputs = jobOutputsForPlan({ plan: planned, outputs: declaredOutputs() });
   const blocker = validateRunReadiness(selected, planned, outputs);
   if (blocker.message) {
+    if (blocker.actionKind === "connect-device" && !options.promptedForConnection) {
+      const target = runStatusActionDevice(blocker);
+      if (target && isPairable(target)) {
+        const started = await connectDevice(target);
+        const name = target.name || target.workerName || "the worker";
+        if (started) {
+          showJobOutput(`Started connecting to ${name}. Confirm the pairing code on both computers, then run this task again.`, true);
+        } else {
+          showJobOutput(`Could not start connecting to ${name}.`, false);
+        }
+        renderRunControls();
+        return;
+      }
+    }
     if (blocker.actionKind === "choose-project" && !options.promptedForProject) {
       const project = await chooseProject();
       if (project) {
@@ -1818,6 +1834,7 @@ function renderRunControls() {
   const task = document.getElementById("command-input").value.trim();
   const testTarget = smokeTestDevice(selected);
   const blocker = currentRunControlBlocker(selected);
+  const canRecoverRun = runControlCanRecover(blocker);
 
   target.textContent = runTargetLabel(selected);
   projectLabel.textContent = state.settings.projectRoot
@@ -1837,7 +1854,7 @@ function renderRunControls() {
   runButton.disabled = !runInFlight && (
     !state.daemonAvailable ||
     !selected ||
-    !canRunOn(selected) ||
+    (!canRunOn(selected) && !canRecoverRun) ||
     runControlBlockerDisablesRun(blocker)
   );
   status.classList.toggle("hidden", runInFlight || !blocker.message);
@@ -1882,7 +1899,21 @@ function workerTargetActionRequest(plan) {
 }
 
 function runControlBlockerDisablesRun(blocker) {
-  return Boolean(blocker?.message && blocker.actionKind !== "choose-project");
+  return Boolean(blocker?.message && !runControlCanRecover(blocker));
+}
+
+function runControlCanRecover(blocker) {
+  if (!blocker?.message) {
+    return false;
+  }
+  if (blocker.actionKind === "choose-project") {
+    return true;
+  }
+  if (blocker.actionKind === "connect-device") {
+    const target = runStatusActionDevice(blocker);
+    return Boolean(target && isPairable(target));
+  }
+  return false;
 }
 
 function runStatusActionDisabled(blocker) {
@@ -1896,8 +1927,11 @@ function runStatusActionDisabled(blocker) {
     return refreshInFlight;
   }
   const target = runStatusActionDevice(blocker);
-  if ((blocker.actionKind === "connect-device" || blocker.actionKind === "enable-device") && target) {
-    return pendingActions.has(`device:${target.id}`);
+  if (blocker.actionKind === "connect-device") {
+    return !target || !isPairable(target) || pendingActions.has(`device:${target.id}`);
+  }
+  if (blocker.actionKind === "enable-device") {
+    return !target || pendingActions.has(`device:${target.id}`);
   }
   if (blocker.actionKind === "advanced") {
     return false;
