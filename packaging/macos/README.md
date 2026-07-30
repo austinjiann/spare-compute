@@ -1,9 +1,9 @@
 # macOS developer package
 
 This directory builds a real `ComputeHop.app` containing the SwiftUI menu-bar
-executable plus the `computehop` and `computehopd` Go binaries. The bundle is
-ad-hoc signed for local development; it is not notarized and is not a public
-release artifact.
+executable, an embedded Electron Control Center app, and the `computehop` and
+`computehopd` Go binaries. The bundle is ad-hoc signed for local development;
+it is not notarized and is not a public release artifact.
 
 Build and verify the bundle without installing it:
 
@@ -12,9 +12,9 @@ make macos-package
 open dist/macos/ComputeHop.app
 ```
 
-The bundle verifier checks the Swift app, embedded CLI and daemon binaries,
-ad-hoc signature, version commands, and the launch-agent template that the
-installer rewrites for the selected role.
+The bundle verifier checks the Swift app, embedded Control Center, embedded CLI
+and daemon binaries, ad-hoc signature, version commands, and the launch-agent
+template that the installer rewrites for the selected role.
 
 Install it for the current user:
 

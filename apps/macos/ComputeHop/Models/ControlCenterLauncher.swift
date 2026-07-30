@@ -30,7 +30,7 @@ struct SystemControlCenterLauncher: ControlCenterLaunching {
             return
         }
 
-        for url in candidateAppURLs() where FileManager.default.fileExists(atPath: url.path) {
+        for url in Self.candidateAppURLs() where FileManager.default.fileExists(atPath: url.path) {
             try open(url)
             return
         }
@@ -44,12 +44,19 @@ struct SystemControlCenterLauncher: ControlCenterLaunching {
         }
     }
 
-    private func candidateAppURLs() -> [URL] {
-        let home = FileManager.default.homeDirectoryForCurrentUser
-        let currentDirectory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-        let appBundleFolder = Bundle.main.bundleURL.deletingLastPathComponent()
+    static func candidateAppURLs(
+        home: URL = FileManager.default.homeDirectoryForCurrentUser,
+        currentDirectory: URL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath),
+        bundleURL: URL = Bundle.main.bundleURL
+    ) -> [URL] {
+        let appBundleFolder = bundleURL.deletingLastPathComponent()
+        let embeddedApp = bundleURL
+            .appendingPathComponent("Contents")
+            .appendingPathComponent("Resources")
+            .appendingPathComponent(Self.appName)
 
         return [
+            embeddedApp,
             URL(fileURLWithPath: "/Applications").appendingPathComponent(Self.appName),
             home.appendingPathComponent("Applications").appendingPathComponent(Self.appName),
             appBundleFolder.appendingPathComponent(Self.appName),

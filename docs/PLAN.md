@@ -1500,7 +1500,8 @@ when the window closes, restore succeeded job outputs to the job's submitted
 project folder by default, prompt for output restore after successful
 UI-submitted jobs with declared or inferred outputs, and cancel listed jobs.
 Durable daemon-backed cluster settings for that app remain. A host-architecture
-developer app bundle now includes the menu app, CLI, and daemon; a guarded
+developer app bundle now includes the menu app, embedded Control Center, CLI,
+and daemon; a guarded
 per-user installer configures an
 unprivileged launch agent and preserves durable state on uninstall. Developer
 ID signing, notarization, universal release binaries, upgrade handling, and

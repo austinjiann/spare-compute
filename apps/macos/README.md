@@ -56,8 +56,9 @@ socket under `~/Library/Application Support/ComputeHop`. Protocol Buffer models
 come from `gen/swift`; regenerate them with `make proto` after schema changes.
 
 `swift run` remains the fastest source-development path. A real ad-hoc-signed
-app bundle with both Go binaries and a per-user launchd installer is available
-under [`../../packaging/macos`](../../packaging/macos). Developer ID
+app bundle with the embedded Control Center, both Go binaries, and a per-user
+launchd installer is available under
+[`../../packaging/macos`](../../packaging/macos). Developer ID
 signing, notarization, universal release binaries, and clean-machine upgrade
 testing remain release work. The optional live IPC test can validate submission
 and logs against a running daemon:

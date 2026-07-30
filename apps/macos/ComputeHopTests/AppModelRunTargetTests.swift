@@ -846,6 +846,24 @@ func openControlCenterReportsLauncherFailures() {
 
 @Test
 @MainActor
+func controlCenterLauncherChecksBundledControlCenterFirst() {
+    let bundleURL = URL(fileURLWithPath: "/Users/austin/Applications/ComputeHop.app")
+    let home = URL(fileURLWithPath: "/Users/austin")
+    let currentDirectory = URL(fileURLWithPath: "/Users/austin/spare-compute")
+
+    let candidates = SystemControlCenterLauncher.candidateAppURLs(
+        home: home,
+        currentDirectory: currentDirectory,
+        bundleURL: bundleURL
+    )
+
+    #expect(candidates.first?.path == "/Users/austin/Applications/ComputeHop.app/Contents/Resources/ComputeHop Control Center.app")
+    #expect(candidates.contains(URL(fileURLWithPath: "/Users/austin/Applications/ComputeHop Control Center.app")))
+    #expect(candidates.contains(URL(fileURLWithPath: "/Users/austin/spare-compute/apps/control-center/.out/ComputeHop Control Center-darwin-arm64/ComputeHop Control Center.app")))
+}
+
+@Test
+@MainActor
 func disconnectUsesDurableDeviceIDAndClearsSelectedRunTarget() async {
     let worker = runTargetDevice(id: "durable-worker-id", name: "Gaming PC")
     let client = RecordingDaemonClient(devices: [])
