@@ -82,10 +82,12 @@ macos-package-check:
 
 worker-archives: worker-archives-check
 	packaging/workers/archive.sh
+	packaging/workers/verify.sh
 
 worker-archives-check:
 	@for script in \
 		packaging/workers/archive.sh \
+		packaging/workers/verify.sh \
 		packaging/workers/linux/run-worker.sh \
 		packaging/workers/linux/install-systemd-user.sh; do \
 		sh -n "$$script"; \

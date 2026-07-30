@@ -10,6 +10,13 @@ Build worker archives from the repo:
 make worker-archives
 ```
 
+The build also verifies archive checksums, required files, Linux executable bits,
+Windows zip cleanliness, and Go binary metadata. To verify existing archives:
+
+```bash
+packaging/workers/verify.sh
+```
+
 Print the copy/paste setup checklist:
 
 ```bash
