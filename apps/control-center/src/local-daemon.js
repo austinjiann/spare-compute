@@ -24,6 +24,7 @@ const LOCAL_PROTO_PATH = path.resolve(
 
 const enumValues = {
   executorNative: 1,
+  executorContainer: 2,
   stdout: 1,
   stderr: 2
 };
@@ -131,7 +132,8 @@ class LocalDaemonClient {
             arguments: jobRequest.arguments || [],
             workingDirectory: jobRequest.workingDirectory || "",
             environment: {},
-            executor: enumValues.executorNative,
+            executor: executorEnum(jobRequest.executor),
+            containerImage: jobRequest.containerImage || "",
             outputs: jobRequest.outputs || [],
             requiredToolIds: jobRequest.requiredToolIDs || jobRequest.requiredToolIds || []
           },
@@ -358,6 +360,14 @@ function sendFramedRequest(socketPath, payload, options = {}) {
       }
     });
   });
+}
+
+function executorEnum(value) {
+  const executor = String(value || "").trim().toLowerCase();
+  if (executor === "container" || executor === "executor_container" || executor === "2") {
+    return enumValues.executorContainer;
+  }
+  return enumValues.executorNative;
 }
 
 function defaultStateDirectory() {

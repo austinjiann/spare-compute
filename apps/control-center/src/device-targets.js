@@ -65,6 +65,7 @@
       isSingleAutoCandidate(device) &&
       workerMatchesPlatform(device, platform) &&
       workerMatchesArchitecture(device, architecture) &&
+      deviceHasRequiredExecutor(device, plan) &&
       deviceHasRequiredTools(device, plan) &&
       allowed(device)
     ));
@@ -81,10 +82,14 @@
     const ranked = workers
       .map((worker) => ({
         worker,
+        executorRank: workerExecutorReadinessRank(worker, plan),
         toolRank: workerToolReadinessRank(worker, plan),
         score: workerResourceScore(worker)
       }))
       .sort((left, right) => {
+        if (right.executorRank !== left.executorRank) {
+          return right.executorRank - left.executorRank;
+        }
         if (right.toolRank !== left.toolRank) {
           return right.toolRank - left.toolRank;
         }
@@ -125,6 +130,7 @@
       workerID: worker.id || "",
       workerName: worker.name || "",
       toolIDs: normalizeToolIDs(worker.toolIDs || worker.toolIds),
+      supportedExecutors: normalizeExecutors(worker.supportedExecutors || worker.supportedExecutorIds),
       address: "",
       updated: worker.updated || "",
       automatic: true
@@ -181,6 +187,56 @@
 
   function deviceHasRequiredTools(device = {}, plan = {}) {
     return missingToolIDsForPlan(device, plan).length === 0;
+  }
+
+  function deviceHasRequiredExecutor(device = {}, plan = {}) {
+    return workerExecutorReadiness(device, plan).compatible;
+  }
+
+  function workerExecutorReadiness(device = {}, plan = {}) {
+    const required = requiredExecutorForPlan(plan);
+    const reported = normalizeExecutors(device.supportedExecutors || device.supportedExecutorIds || device.executors);
+    if (!required) {
+      return {
+        state: "not-required",
+        required: "",
+        reported,
+        compatible: true
+      };
+    }
+    if (reported.includes(required)) {
+      return {
+        state: "ready",
+        required,
+        reported,
+        compatible: true
+      };
+    }
+    if (required === "native" && reported.length === 0) {
+      return {
+        state: "unknown-compatible",
+        required,
+        reported,
+        compatible: true
+      };
+    }
+    return {
+      state: reported.length === 0 ? "unknown" : "missing",
+      required,
+      reported,
+      compatible: false
+    };
+  }
+
+  function workerExecutorReadinessRank(device = {}, plan = {}) {
+    switch (workerExecutorReadiness(device, plan).state) {
+      case "ready":
+        return 2;
+      case "unknown-compatible":
+        return 1;
+      default:
+        return 0;
+    }
   }
 
   function workerToolReadiness(device = {}, plan = {}) {
@@ -260,6 +316,22 @@
     return [toolID];
   }
 
+  function requiredExecutorForPlan(plan = {}) {
+    const explicit = normalizeExecutor(
+      plan.executor ||
+      plan.requiredExecutor ||
+      plan.executionMode ||
+      plan.executorMode
+    );
+    if (explicit) {
+      return explicit;
+    }
+    if (String(plan.containerImage || "").trim()) {
+      return "container";
+    }
+    return "native";
+  }
+
   function commandExecutable(command) {
     const value = String(command || "").trim();
     if (!value) {
@@ -308,9 +380,12 @@
     workerMatchesPlatform,
     workerRunTargetForAction,
     workerTargetAfterPairingConfirmation,
+    deviceHasRequiredExecutor,
     deviceHasRequiredTools,
+    requiredExecutorForPlan,
     missingToolIDsForPlan,
-    requiredToolIDsForPlan
+    requiredToolIDsForPlan,
+    workerExecutorReadiness
   };
 
   function normalizeTargetPlatform(value) {
@@ -388,5 +463,34 @@
         seen.add(value);
         return true;
       });
+  }
+
+  function normalizeExecutors(values) {
+    if (!Array.isArray(values)) {
+      return [];
+    }
+    const seen = new Set();
+    return values
+      .map((value) => normalizeExecutor(value))
+      .filter(Boolean)
+      .sort()
+      .filter((value) => {
+        if (seen.has(value)) {
+          return false;
+        }
+        seen.add(value);
+        return true;
+      });
+  }
+
+  function normalizeExecutor(value) {
+    const executor = String(value || "").trim().toLowerCase();
+    if (value === 1 || executor === "1" || executor === "native" || executor === "executor_native") {
+      return "native";
+    }
+    if (value === 2 || executor === "2" || executor === "container" || executor === "executor_container") {
+      return "container";
+    }
+    return "";
   }
 }));

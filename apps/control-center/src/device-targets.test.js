@@ -12,6 +12,9 @@ const {
   singleConnectedWorkerTarget,
   compatibleWorkerForPlan,
   workerResourceScore,
+  deviceHasRequiredExecutor,
+  requiredExecutorForPlan,
+  workerExecutorReadiness,
   workerToolReadiness,
   workerMatchesArchitecture,
   workerMatchesPlatform,
@@ -22,7 +25,7 @@ const {
 test("addAutomaticWorkerTarget inserts Auto worker for exactly one connected worker", () => {
   const result = addAutomaticWorkerTarget([
     localDevice(),
-    connectedWorker("Austin MacBook 2", "worker-1")
+    { ...connectedWorker("Austin MacBook 2", "worker-1"), supportedExecutors: ["native"] }
   ], "local");
 
   assert.deepEqual(result.devices.map((device) => device.id), ["local", automaticWorkerID, "worker-1"]);
@@ -30,6 +33,7 @@ test("addAutomaticWorkerTarget inserts Auto worker for exactly one connected wor
   assert.equal(result.devices[1].detail, "Uses Austin MacBook 2");
   assert.equal(result.devices[1].workerID, "worker-1");
   assert.equal(result.devices[1].workerName, "Austin MacBook 2");
+  assert.deepEqual(result.devices[1].supportedExecutors, ["native"]);
   assert.equal(result.selectedDeviceID, "local");
 });
 
@@ -188,6 +192,43 @@ test("compatibleWorkerForPlan prefers workers that report required tools", () =>
   );
 });
 
+test("compatibleWorkerForPlan filters and ranks by supported executor", () => {
+  const oldWorker = { ...connectedWorker("Old worker", "worker-1"), supportedExecutors: [] };
+  const nativeWorker = { ...connectedWorker("Native Mac", "worker-2"), supportedExecutors: ["native"], logicalCPUCount: 8 };
+  const containerWorker = { ...connectedWorker("Container PC", "worker-3"), supportedExecutors: ["container", "native"], logicalCPUCount: 4 };
+  const strongUnknown = { ...oldWorker, id: "worker-4", logicalCPUCount: 64, totalMemoryBytes: 128 * 1024 ** 3 };
+
+  assert.equal(
+    compatibleWorkerForPlan([localDevice(), oldWorker, nativeWorker], { command: "echo hello", targetPreference: "worker" }).id,
+    "worker-2"
+  );
+  assert.equal(
+    compatibleWorkerForPlan([localDevice(), nativeWorker, containerWorker], {
+      command: "echo hello",
+      executor: "container",
+      containerImage: "alpine:latest",
+      targetPreference: "worker"
+    }).id,
+    "worker-3"
+  );
+  assert.equal(
+    compatibleWorkerForPlan([localDevice(), nativeWorker], {
+      command: "echo hello",
+      executor: "container",
+      containerImage: "alpine:latest",
+      targetPreference: "worker"
+    }),
+    null
+  );
+  assert.equal(
+    compatibleWorkerForPlan([localDevice(), strongUnknown, nativeWorker], {
+      command: "echo hello",
+      targetPreference: "worker"
+    }).id,
+    "worker-2"
+  );
+});
+
 test("tool matching derives command executables and ignores unknown old hints", () => {
   assert.deepEqual(requiredToolIDsForPlan({ command: "go test ./..." }), ["go"]);
   assert.deepEqual(requiredToolIDsForPlan({ command: "docker compose build" }), ["docker"]);
@@ -227,6 +268,30 @@ test("tool matching derives command executables and ignores unknown old hints", 
     required: [],
     missing: [],
     reported: false
+  });
+});
+
+test("executor matching allows unknown native workers but requires reported containers", () => {
+  assert.equal(requiredExecutorForPlan({ command: "echo hello" }), "native");
+  assert.equal(requiredExecutorForPlan({ command: "echo hello", executor: "container" }), "container");
+  assert.equal(requiredExecutorForPlan({ command: "echo hello", containerImage: "alpine:latest" }), "container");
+
+  assert.equal(deviceHasRequiredExecutor({ supportedExecutors: ["native"] }, { executor: "native" }), true);
+  assert.equal(deviceHasRequiredExecutor({ supportedExecutors: [] }, { executor: "native" }), true);
+  assert.equal(deviceHasRequiredExecutor({ supportedExecutors: [] }, { executor: "container" }), false);
+  assert.equal(deviceHasRequiredExecutor({ supportedExecutors: ["native"] }, { executor: "container" }), false);
+  assert.equal(deviceHasRequiredExecutor({ supportedExecutors: ["container"] }, { executor: "container" }), true);
+  assert.deepEqual(workerExecutorReadiness({ supportedExecutors: [] }, { executor: "native" }), {
+    state: "unknown-compatible",
+    required: "native",
+    reported: [],
+    compatible: true
+  });
+  assert.deepEqual(workerExecutorReadiness({ supportedExecutors: [] }, { executor: "container" }), {
+    state: "unknown",
+    required: "container",
+    reported: [],
+    compatible: false
   });
 });
 

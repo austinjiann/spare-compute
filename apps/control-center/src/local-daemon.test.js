@@ -260,6 +260,8 @@ test("LocalDaemonClient sends job listing, logs, cancellation, and output fetch 
   assert.equal(received[0].submitJob.spec.executable, "make");
   assert.deepEqual(received[0].submitJob.spec.arguments, ["macos-package"]);
   assert.equal(received[0].submitJob.spec.workingDirectory, project);
+  assert.equal(received[0].submitJob.spec.executor, 1);
+  assert.equal(received[0].submitJob.spec.containerImage, "");
   assert.deepEqual(received[0].submitJob.spec.outputs, ["dist/macos/ComputeHop.app"]);
   assert.deepEqual(received[0].submitJob.spec.requiredToolIds, ["make", "swift"]);
   assert.equal(received[1].listJobs.deviceSelector, "worker-1");
@@ -270,6 +272,43 @@ test("LocalDaemonClient sends job listing, logs, cancellation, and output fetch 
   assert.equal(received[3].readJobLogs.limit, 5);
   assert.equal(received[4].cancelJob.jobId, "job-1");
   assert.equal(received[5].fetchArtifacts.destination, "/tmp/out");
+});
+
+test("LocalDaemonClient can submit container executor requests", async (t) => {
+  if (process.platform === "win32") {
+    t.skip("test uses Unix sockets");
+  }
+
+  const stateDirectory = await fs.mkdtemp(path.join(os.tmpdir(), "computehop-control-center-"));
+  t.after(async () => {
+    await fs.rm(stateDirectory, { recursive: true, force: true });
+  });
+  await fs.chmod(stateDirectory, 0o700);
+  const token = Buffer.alloc(32, 9);
+  await fs.writeFile(path.join(stateDirectory, "local-ipc.token"), token.toString("base64").replace(/=+$/, "") + "\n", {
+    mode: 0o600
+  });
+  const received = [];
+  const server = await startFakeDaemon(stateDirectory, (request) => {
+    received.push(request);
+    return jobResponse(request);
+  });
+  t.after(async () => {
+    server.close();
+    await new Promise((resolve) => server.once("close", resolve));
+  });
+
+  const client = new LocalDaemonClient({ stateDirectory });
+  await client.submitJob({
+    executable: "echo",
+    arguments: ["hello"],
+    executor: "container",
+    containerImage: "alpine:latest",
+    deviceSelector: "worker-1"
+  });
+
+  assert.equal(received[0].submitJob.spec.executor, 2);
+  assert.equal(received[0].submitJob.spec.containerImage, "alpine:latest");
 });
 
 function pairingResponse(request) {
@@ -386,4 +425,34 @@ function jobResponse(request) {
     };
   }
   return { ...envelope, error: { code: 1, message: "unexpected request" } };
+}
+
+async function startFakeDaemon(stateDirectory, responseFor) {
+  const root = await protobuf.load(protoPath);
+  const Request = root.lookupType("computehop.local.v1.Request");
+  const Response = root.lookupType("computehop.local.v1.Response");
+  const socketPath = path.join(stateDirectory, "computehop.sock");
+  const server = net.createServer((socket) => {
+    let buffered = Buffer.alloc(0);
+    socket.on("data", (chunk) => {
+      buffered = Buffer.concat([buffered, chunk]);
+      if (buffered.length < 4) {
+        return;
+      }
+      const length = buffered.readUInt32BE(0);
+      if (buffered.length < length + 4) {
+        return;
+      }
+      const request = Request.decode(buffered.subarray(4, length + 4));
+      const response = Response.encode(Response.create(responseFor(request))).finish();
+      const header = Buffer.alloc(4);
+      header.writeUInt32BE(response.length, 0);
+      socket.end(Buffer.concat([header, response]));
+    });
+  });
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(socketPath, resolve);
+  });
+  return server;
 }
