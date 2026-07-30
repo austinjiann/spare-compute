@@ -32,7 +32,7 @@ let refreshInFlight = false;
 let jobsRefreshInFlight = false;
 let runInFlight = false;
 const pendingActions = new Set();
-const { addAutomaticWorkerTarget } = window.computeHopDeviceTargets;
+const { addAutomaticWorkerTarget, concreteDeviceID } = window.computeHopDeviceTargets;
 const { disallowedWorkMessage, filterAllowedSuggestions } = window.computeHopWorkPolicy;
 const { jobOutputsForPlan, jobWorkingDirectoryForPlan } = window.computeHopRunRequest;
 
@@ -252,7 +252,7 @@ async function refreshJobs() {
   renderJobs();
   try {
     const response = await window.computeHop.listJobs({
-      deviceID: selected.id,
+      deviceID: concreteDeviceID(selected),
       limit: 12
     });
     state.jobs = (response.jobs || []).filter(Boolean);
@@ -368,7 +368,7 @@ function emptyJobsRow(message) {
 
 async function showJobLogs(job) {
   state.selectedJobID = job.id;
-  state.selectedJobDeviceID = job.deviceID || selectedDevice().id;
+  state.selectedJobDeviceID = job.deviceID || concreteDeviceID(selectedDevice());
   state.loadingLogs = true;
   renderJobs();
   try {
@@ -398,7 +398,7 @@ async function cancelListedJob(job) {
   try {
     const response = await window.computeHop.cancelJob({
       jobID: job.id,
-      deviceID: job.deviceID || selectedDevice().id
+      deviceID: job.deviceID || concreteDeviceID(selectedDevice())
     });
     if (response.job) {
       upsertJob(response.job);
@@ -422,7 +422,7 @@ async function fetchJobOutputs(job) {
     }
     const result = await window.computeHop.fetchOutputs({
       jobID: job.id,
-      deviceID: job.deviceID || selectedDevice().id,
+      deviceID: job.deviceID || concreteDeviceID(selectedDevice()),
       destination
     });
     const restored = Number(result.restoredFileCount || 0);

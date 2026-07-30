@@ -3,6 +3,7 @@ const test = require("node:test");
 const {
   addAutomaticWorkerTarget,
   automaticWorkerID,
+  concreteDeviceID,
   isSingleAutoCandidate
 } = require("./device-targets");
 
@@ -57,6 +58,13 @@ test("isSingleAutoCandidate accepts only active connected workers", () => {
   assert.equal(isSingleAutoCandidate({ ...connectedWorker("Worker", "worker-1"), availability: "offline" }), false);
   assert.equal(isSingleAutoCandidate({ ...connectedWorker("Worker", "worker-1"), connection: "not connected" }), false);
   assert.equal(isSingleAutoCandidate({ ...connectedWorker("Worker", "worker-1"), synced: false }), false);
+});
+
+test("concreteDeviceID resolves Auto worker to its backing worker", () => {
+  assert.equal(concreteDeviceID({ id: automaticWorkerID, workerID: "worker-1" }), "worker-1");
+  assert.equal(concreteDeviceID({ id: automaticWorkerID }), automaticWorkerID);
+  assert.equal(concreteDeviceID(connectedWorker("Worker", "worker-1")), "worker-1");
+  assert.equal(concreteDeviceID(null), "local");
 });
 
 function localDevice() {

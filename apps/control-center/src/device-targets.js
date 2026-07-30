@@ -53,6 +53,16 @@
     };
   }
 
+  function concreteDeviceID(device) {
+    if (!device) {
+      return "local";
+    }
+    if (device.id === automaticWorkerID && device.workerID) {
+      return device.workerID;
+    }
+    return device.id || "local";
+  }
+
   function insertAfterLocal(devices, target) {
     const localIndex = devices.findIndex((device) => device.id === "local");
     if (localIndex < 0) {
@@ -68,6 +78,7 @@
   return {
     addAutomaticWorkerTarget,
     automaticWorkerID,
+    concreteDeviceID,
     isSingleAutoCandidate
   };
 }));

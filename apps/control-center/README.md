@@ -91,6 +91,8 @@ Current scope:
 - targets This Mac by default, or a selected connected worker;
 - offers an **Auto worker** run target when exactly one connected worker is
   available, matching the CLI's `--on auto` behavior;
+- resolves Auto worker job history to the backing worker so browsing logs and
+  outputs does not depend on re-running automatic worker selection;
 - routes logs, cancellation, and output restore for Auto-worker jobs through the
   daemon's remembered job placement instead of re-resolving Auto later;
 - skips project sync for remote utility commands until a project folder is
