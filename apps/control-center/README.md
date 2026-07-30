@@ -16,7 +16,11 @@ Current scope:
 
 - reads devices from `computehop devices` when the CLI is installed;
 - falls back to `go run ./cmd/computehop devices` from the repo during local dev;
+- runs selected commands through `computehop run --follow`;
+- targets This Mac by default, or a selected connected worker;
+- uses `--no-project` for remote utility commands until a project folder is
+  selected;
 - stores UI-only settings in browser local storage for now.
 
-Next step: persist these settings through the Go daemon instead of keeping them
-only in the Electron renderer.
+Next step: replace CLI shell-out with daemon-native IPC for device discovery,
+job submission, log streaming, project selection, and persisted settings.

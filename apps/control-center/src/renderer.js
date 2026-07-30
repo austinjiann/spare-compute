@@ -1,8 +1,10 @@
 const state = {
   devices: [],
+  selectedDeviceID: "local",
   settings: loadSettings()
 };
 let refreshInFlight = false;
+let runInFlight = false;
 
 const defaultDevices = [
   {
@@ -26,12 +28,20 @@ const capabilities = [
 ];
 
 document.getElementById("refresh-devices").addEventListener("click", refreshDevices);
+document.getElementById("run-job").addEventListener("click", runSelectedJob);
+document.getElementById("command-input").addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    runSelectedJob();
+  }
+});
+document.getElementById("choose-project").addEventListener("click", chooseProject);
 
 bindCheckbox("lanDiscovery", document.getElementById("lan-discovery"));
 bindCheckbox("askBeforeRun", document.getElementById("ask-before-run"));
 bindSetting("aiProvider", document.getElementById("ai-provider"));
 
 renderCapabilities();
+renderRunControls();
 refreshDevices();
 setInterval(refreshDevices, 5000);
 
@@ -49,6 +59,7 @@ async function refreshDevices() {
     error.classList.add("hidden");
     status.textContent = "Nearby discovery off";
     renderDevices();
+    renderRunControls();
     return;
   }
 
@@ -78,7 +89,7 @@ async function refreshDevices() {
 
 function mergeDevices(localDevices, remoteDevices) {
   const seen = new Set();
-  return [...localDevices, ...remoteDevices].filter((device) => {
+  const devices = [...localDevices, ...remoteDevices].filter((device) => {
     const key = device.id || device.name;
     if (seen.has(key)) {
       return false;
@@ -86,6 +97,10 @@ function mergeDevices(localDevices, remoteDevices) {
     seen.add(key);
     return true;
   });
+  if (!devices.some((device) => device.id === state.selectedDeviceID)) {
+    state.selectedDeviceID = "local";
+  }
+  return devices;
 }
 
 function renderDevices() {
@@ -93,8 +108,14 @@ function renderDevices() {
   list.replaceChildren();
 
   state.devices.forEach((device) => {
-    const row = document.createElement("label");
+    const row = document.createElement("div");
     row.className = "device-row";
+    row.classList.toggle("selected", device.id === state.selectedDeviceID);
+    row.addEventListener("click", () => {
+      state.selectedDeviceID = device.id;
+      renderDevices();
+      renderRunControls();
+    });
 
     const icon = document.createElement("span");
     icon.className = `device-icon ${deviceKind(device)}`;
@@ -110,6 +131,7 @@ function renderDevices() {
     const toggle = document.createElement("input");
     toggle.type = "checkbox";
     toggle.checked = state.settings.syncedDevices[device.id] !== false;
+    toggle.addEventListener("click", (event) => event.stopPropagation());
     toggle.addEventListener("change", () => {
       state.settings.syncedDevices[device.id] = toggle.checked;
       saveSettings();
@@ -118,6 +140,78 @@ function renderDevices() {
     row.append(icon, copy, meta, toggle);
     list.append(row);
   });
+  renderRunControls();
+}
+
+async function chooseProject() {
+  const selected = await window.computeHop.chooseProject();
+  if (!selected) {
+    return;
+  }
+  state.settings.projectRoot = selected;
+  saveSettings();
+  renderRunControls();
+}
+
+async function runSelectedJob() {
+  if (runInFlight) {
+    return;
+  }
+
+  const selected = selectedDevice();
+  const command = document.getElementById("command-input").value.trim();
+  const output = document.getElementById("job-output");
+  const button = document.getElementById("run-job");
+
+  if (!command) {
+    showJobOutput("Enter something to run.", false);
+    return;
+  }
+  if (!selected || !canRunOn(selected)) {
+    showJobOutput("Choose This Mac or a connected worker first.", false);
+    return;
+  }
+
+  runInFlight = true;
+  button.disabled = true;
+  button.textContent = "Running";
+  output.classList.remove("hidden");
+  output.textContent = `Running on ${selected.name}…`;
+
+  try {
+    const result = await window.computeHop.runJob({
+      command,
+      deviceID: selected.id,
+      workingDirectory: state.settings.projectRoot || ""
+    });
+    showJobOutput(result.output || result.error || "Done.", result.ok);
+  } catch (error) {
+    showJobOutput(error.message || "Run failed.", false);
+  } finally {
+    runInFlight = false;
+    button.disabled = false;
+    button.textContent = "Run";
+  }
+}
+
+function showJobOutput(message, ok) {
+  const output = document.getElementById("job-output");
+  output.classList.remove("hidden", "success", "failure");
+  output.classList.add(ok ? "success" : "failure");
+  output.textContent = message;
+}
+
+function renderRunControls() {
+  const selected = selectedDevice();
+  const target = document.getElementById("run-target");
+  const projectLabel = document.getElementById("project-label");
+  const runButton = document.getElementById("run-job");
+
+  target.textContent = selected ? `on ${selected.name}` : "choose a device";
+  projectLabel.textContent = state.settings.projectRoot
+    ? shortPath(state.settings.projectRoot)
+    : "No project";
+  runButton.disabled = runInFlight || !selected || !canRunOn(selected);
 }
 
 function renderCapabilities() {
@@ -197,14 +291,15 @@ function saveSettings() {
   localStorage.setItem("computehop.controlCenter", JSON.stringify(state.settings));
 }
 
-function statusClass(device) {
+function selectedDevice() {
+  return state.devices.find((device) => device.id === state.selectedDeviceID) || defaultDevices[0];
+}
+
+function canRunOn(device) {
   if (device.id === "local") {
-    return "available";
+    return true;
   }
-  if (device.trust === "active" || device.address !== "—") {
-    return "available";
-  }
-  return "offline";
+  return device.role === "worker" && availabilityLabel(device) === "Connected";
 }
 
 function deviceLabel(device) {
@@ -254,6 +349,14 @@ function deviceKind(device) {
     return "desktop";
   }
   return device.role === "worker" ? "desktop" : "laptop";
+}
+
+function shortPath(value) {
+  const parts = value.split("/").filter(Boolean);
+  if (parts.length === 0) {
+    return value;
+  }
+  return parts[parts.length - 1];
 }
 
 function deviceType(device) {
