@@ -143,6 +143,19 @@ class LocalDaemonClient {
     return response.submitJob?.job || null;
   }
 
+  async getJobProgress(jobID, options = {}) {
+    const response = await this.call(
+      {
+        getJobProgress: {
+          jobId: jobID,
+          deviceSelector: options.deviceSelector || ""
+        }
+      },
+      options
+    );
+    return response.getJobProgress?.progress || null;
+  }
+
   async readJobLogs(jobID, options = {}) {
     const response = await this.call(
       {

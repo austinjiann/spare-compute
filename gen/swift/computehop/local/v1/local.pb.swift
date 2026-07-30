@@ -685,6 +685,14 @@ public nonisolated struct Computehop_Local_V1_Request: Sendable {
     set {operation = .fetchArtifacts(newValue)}
   }
 
+  public var getJobProgress: Computehop_Local_V1_GetJobProgressRequest {
+    get {
+      if case .getJobProgress(let v)? = operation {return v}
+      return Computehop_Local_V1_GetJobProgressRequest()
+    }
+    set {operation = .getJobProgress(newValue)}
+  }
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public nonisolated enum OneOf_Operation: Equatable, Sendable {
@@ -702,6 +710,7 @@ public nonisolated struct Computehop_Local_V1_Request: Sendable {
     case listTrustedDevices(Computehop_Local_V1_ListTrustedDevicesRequest)
     case unpairDevice(Computehop_Local_V1_UnpairDeviceRequest)
     case fetchArtifacts(Computehop_Local_V1_FetchArtifactsRequest)
+    case getJobProgress(Computehop_Local_V1_GetJobProgressRequest)
 
   }
 
@@ -850,6 +859,14 @@ public nonisolated struct Computehop_Local_V1_Response: @unchecked Sendable {
     set {_uniqueStorage()._result = .fetchArtifacts(newValue)}
   }
 
+  public var getJobProgress: Computehop_Local_V1_GetJobProgressResponse {
+    get {
+      if case .getJobProgress(let v)? = _storage._result {return v}
+      return Computehop_Local_V1_GetJobProgressResponse()
+    }
+    set {_uniqueStorage()._result = .getJobProgress(newValue)}
+  }
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public nonisolated enum OneOf_Result: Equatable, Sendable {
@@ -867,6 +884,7 @@ public nonisolated struct Computehop_Local_V1_Response: @unchecked Sendable {
     case listTrustedDevices(Computehop_Local_V1_ListTrustedDevicesResponse)
     case unpairDevice(Computehop_Local_V1_UnpairDeviceResponse)
     case fetchArtifacts(Computehop_Local_V1_FetchArtifactsResponse)
+    case getJobProgress(Computehop_Local_V1_GetJobProgressResponse)
 
   }
 
@@ -1358,6 +1376,41 @@ public nonisolated struct Computehop_Local_V1_FetchArtifactsResponse: Sendable {
   public init() {}
 }
 
+public nonisolated struct Computehop_Local_V1_GetJobProgressRequest: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  public var jobID: String = String()
+
+  public var deviceSelector: String = String()
+
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  public init() {}
+}
+
+public nonisolated struct Computehop_Local_V1_GetJobProgressResponse: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  public var progress: Computehop_Local_V1_JobProgress {
+    get {_progress ?? Computehop_Local_V1_JobProgress()}
+    set {_progress = newValue}
+  }
+  /// Returns true if `progress` has been explicitly set.
+  public var hasProgress: Bool {self._progress != nil}
+  /// Clears the value of `progress`. Subsequent reads from it will return its default value.
+  public mutating func clearProgress() {self._progress = nil}
+
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  public init() {}
+
+  fileprivate var _progress: Computehop_Local_V1_JobProgress? = nil
+}
+
 public nonisolated struct Computehop_Local_V1_Pairing: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
@@ -1779,7 +1832,7 @@ nonisolated extension Computehop_Local_V1_ConnectivityState: SwiftProtobuf._Prot
 
 nonisolated extension Computehop_Local_V1_Request: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".Request"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}protocol_version\0\u{3}request_id\0\u{3}capability_token\0\u{2}\u{7}ping\0\u{3}submit_job\0\u{3}get_job\0\u{3}list_jobs\0\u{3}cancel_job\0\u{3}read_job_logs\0\u{3}list_devices\0\u{3}begin_pairing\0\u{3}list_pairings\0\u{3}confirm_pairing\0\u{3}reject_pairing\0\u{3}list_trusted_devices\0\u{3}unpair_device\0\u{3}fetch_artifacts\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}protocol_version\0\u{3}request_id\0\u{3}capability_token\0\u{2}\u{7}ping\0\u{3}submit_job\0\u{3}get_job\0\u{3}list_jobs\0\u{3}cancel_job\0\u{3}read_job_logs\0\u{3}list_devices\0\u{3}begin_pairing\0\u{3}list_pairings\0\u{3}confirm_pairing\0\u{3}reject_pairing\0\u{3}list_trusted_devices\0\u{3}unpair_device\0\u{3}fetch_artifacts\0\u{3}get_job_progress\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -1972,6 +2025,19 @@ nonisolated extension Computehop_Local_V1_Request: SwiftProtobuf.Message, SwiftP
           self.operation = .fetchArtifacts(v)
         }
       }()
+      case 24: try {
+        var v: Computehop_Local_V1_GetJobProgressRequest?
+        var hadOneofValue = false
+        if let current = self.operation {
+          hadOneofValue = true
+          if case .getJobProgress(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.operation = .getJobProgress(v)
+        }
+      }()
       default: break
       }
     }
@@ -2048,6 +2114,10 @@ nonisolated extension Computehop_Local_V1_Request: SwiftProtobuf.Message, SwiftP
       guard case .fetchArtifacts(let v)? = self.operation else { preconditionFailure() }
       try visitor.visitSingularMessageField(value: v, fieldNumber: 23)
     }()
+    case .getJobProgress?: try {
+      guard case .getJobProgress(let v)? = self.operation else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 24)
+    }()
     case nil: break
     }
     try unknownFields.traverse(visitor: &visitor)
@@ -2065,7 +2135,7 @@ nonisolated extension Computehop_Local_V1_Request: SwiftProtobuf.Message, SwiftP
 
 nonisolated extension Computehop_Local_V1_Response: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".Response"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}protocol_version\0\u{3}request_id\0\u{1}error\0\u{2}\u{7}ping\0\u{3}submit_job\0\u{3}get_job\0\u{3}list_jobs\0\u{3}cancel_job\0\u{3}read_job_logs\0\u{3}list_devices\0\u{3}begin_pairing\0\u{3}list_pairings\0\u{3}confirm_pairing\0\u{3}reject_pairing\0\u{3}list_trusted_devices\0\u{3}unpair_device\0\u{3}fetch_artifacts\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}protocol_version\0\u{3}request_id\0\u{1}error\0\u{2}\u{7}ping\0\u{3}submit_job\0\u{3}get_job\0\u{3}list_jobs\0\u{3}cancel_job\0\u{3}read_job_logs\0\u{3}list_devices\0\u{3}begin_pairing\0\u{3}list_pairings\0\u{3}confirm_pairing\0\u{3}reject_pairing\0\u{3}list_trusted_devices\0\u{3}unpair_device\0\u{3}fetch_artifacts\0\u{3}get_job_progress\0")
 
   fileprivate class _StorageClass {
     var _protocolVersion: UInt32 = 0
@@ -2289,6 +2359,19 @@ nonisolated extension Computehop_Local_V1_Response: SwiftProtobuf.Message, Swift
             _storage._result = .fetchArtifacts(v)
           }
         }()
+        case 24: try {
+          var v: Computehop_Local_V1_GetJobProgressResponse?
+          var hadOneofValue = false
+          if let current = _storage._result {
+            hadOneofValue = true
+            if case .getJobProgress(let m) = current {v = m}
+          }
+          try decoder.decodeSingularMessageField(value: &v)
+          if let v = v {
+            if hadOneofValue {try decoder.handleConflictingOneOf()}
+            _storage._result = .getJobProgress(v)
+          }
+        }()
         default: break
         }
       }
@@ -2366,6 +2449,10 @@ nonisolated extension Computehop_Local_V1_Response: SwiftProtobuf.Message, Swift
       case .fetchArtifacts?: try {
         guard case .fetchArtifacts(let v)? = _storage._result else { preconditionFailure() }
         try visitor.visitSingularMessageField(value: v, fieldNumber: 23)
+      }()
+      case .getJobProgress?: try {
+        guard case .getJobProgress(let v)? = _storage._result else { preconditionFailure() }
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 24)
       }()
       case nil: break
       }
@@ -3398,6 +3485,75 @@ nonisolated extension Computehop_Local_V1_FetchArtifactsResponse: SwiftProtobuf.
     if lhs.destination != rhs.destination {return false}
     if lhs.restoredFileCount != rhs.restoredFileCount {return false}
     if lhs.conflictFileCount != rhs.conflictFileCount {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Computehop_Local_V1_GetJobProgressRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = _protobuf_package + ".GetJobProgressRequest"
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}job_id\0\u{3}device_selector\0")
+
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.jobID) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.deviceSelector) }()
+      default: break
+      }
+    }
+  }
+
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.jobID.isEmpty {
+      try visitor.visitSingularStringField(value: self.jobID, fieldNumber: 1)
+    }
+    if !self.deviceSelector.isEmpty {
+      try visitor.visitSingularStringField(value: self.deviceSelector, fieldNumber: 2)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  public static func ==(lhs: Computehop_Local_V1_GetJobProgressRequest, rhs: Computehop_Local_V1_GetJobProgressRequest) -> Bool {
+    if lhs.jobID != rhs.jobID {return false}
+    if lhs.deviceSelector != rhs.deviceSelector {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Computehop_Local_V1_GetJobProgressResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = _protobuf_package + ".GetJobProgressResponse"
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}progress\0")
+
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularMessageField(value: &self._progress) }()
+      default: break
+      }
+    }
+  }
+
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    // The use of inline closures is to circumvent an issue where the compiler
+    // allocates stack space for every if/case branch local when no optimizations
+    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+    // https://github.com/apple/swift-protobuf/issues/1182
+    try { if let v = self._progress {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 1)
+    } }()
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  public static func ==(lhs: Computehop_Local_V1_GetJobProgressResponse, rhs: Computehop_Local_V1_GetJobProgressResponse) -> Bool {
+    if lhs._progress != rhs._progress {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

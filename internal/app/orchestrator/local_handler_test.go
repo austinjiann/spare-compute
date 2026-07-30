@@ -26,6 +26,7 @@ type stubJobController struct {
 	list         func(context.Context, job.ListOptions) ([]job.Job, error)
 	cancel       func(context.Context, job.ID) (job.Job, error)
 	logs         func(context.Context, job.ID, uint64, int) (worker.JobLogs, error)
+	progress     func(context.Context, job.ID) (*job.Progress, error)
 	restore      func(context.Context, job.ID, string) (artifact.RestoreResult, error)
 }
 
@@ -46,6 +47,13 @@ func (stub stubJobController) Submit(ctx context.Context, spec job.Spec) (job.Jo
 
 func (stub stubJobController) SubmitWithID(ctx context.Context, id job.ID, spec job.Spec) (job.Job, error) {
 	return stub.submitWithID(ctx, id, spec)
+}
+
+func (stub stubJobController) GetProgress(ctx context.Context, id job.ID) (*job.Progress, error) {
+	if stub.progress == nil {
+		return nil, nil
+	}
+	return stub.progress(ctx, id)
 }
 
 func (stub stubJobController) Get(ctx context.Context, id job.ID) (job.Job, error) {
@@ -326,6 +334,61 @@ func TestLocalHandlerRoutesClientJobIDRemoteSubmission(t *testing.T) {
 	}
 }
 
+func TestLocalHandlerReturnsLocalJobProgress(t *testing.T) {
+	want := queuedJobForTest()
+	progress := job.Progress{
+		Phase: job.ProgressUpload, CompletedBytes: 512, TotalBytes: 1024,
+		UpdatedAt: want.UpdatedAt.Add(time.Second),
+	}
+	controller := stubJobController{progress: func(_ context.Context, id job.ID) (*job.Progress, error) {
+		if id != want.ID {
+			t.Fatalf("GetProgress(%s)", id)
+		}
+		return &progress, nil
+	}}
+	handler := newHandlerForTest(t, controller)
+	response := handler.Handle(context.Background(), &localv1.Request{
+		Operation: &localv1.Request_GetJobProgress{GetJobProgress: &localv1.GetJobProgressRequest{
+			JobId: string(want.ID),
+		}},
+	})
+	got := response.GetGetJobProgress().GetProgress()
+	if response.GetError() != nil || got.GetPhase() != localv1.JobProgressPhase_JOB_PROGRESS_PHASE_UPLOAD ||
+		got.GetCompletedBytes() != 512 || got.GetTotalBytes() != 1024 {
+		t.Fatalf("response = %#v", response)
+	}
+}
+
+func TestLocalHandlerReturnsRemotePreparationProgress(t *testing.T) {
+	want := queuedJobForTest()
+	progress := job.Progress{
+		Phase: job.ProgressSnapshot, CompletedBytes: 4096, TotalBytes: 8192,
+		UpdatedAt: want.UpdatedAt.Add(time.Second),
+	}
+	remote := stubPairedJobController{progress: func(_ context.Context, selector string, id job.ID) (*job.Progress, error) {
+		if selector != "Gaming PC" || id != want.ID {
+			t.Fatalf("GetProgress(%q, %s)", selector, id)
+		}
+		return &progress, nil
+	}}
+	handler, err := NewLocalHandler(
+		stubJobController{}, remote, stubDeviceController{}, stubPairingController{}, "test-version",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := handler.Handle(context.Background(), &localv1.Request{
+		Operation: &localv1.Request_GetJobProgress{GetJobProgress: &localv1.GetJobProgressRequest{
+			JobId: string(want.ID), DeviceSelector: "Gaming PC",
+		}},
+	})
+	got := response.GetGetJobProgress().GetProgress()
+	if response.GetError() != nil || got.GetPhase() != localv1.JobProgressPhase_JOB_PROGRESS_PHASE_SNAPSHOT ||
+		got.GetCompletedBytes() != 4096 || got.GetTotalBytes() != 8192 {
+		t.Fatalf("response = %#v", response)
+	}
+}
+
 func TestLocalHandlerRoutesRememberedJobOperationsRemotely(t *testing.T) {
 	want := queuedJobForTest()
 	remoteCalls := 0
@@ -562,6 +625,7 @@ type stubPairedJobController struct {
 	get          func(context.Context, string, job.ID) (job.Job, error)
 	cancel       func(context.Context, string, job.ID) (job.Job, error)
 	logs         func(context.Context, string, job.ID, uint64, int) (worker.JobLogs, error)
+	progress     func(context.Context, string, job.ID) (*job.Progress, error)
 	fetch        func(context.Context, string, job.ID, string) (artifact.RestoreResult, error)
 }
 
@@ -598,6 +662,17 @@ func (stub stubPairedJobController) SubmitWithID(
 		return stub.submitWithID(ctx, selector, id, spec)
 	}
 	return job.Job{}, errors.New("unexpected remote submit with ID")
+}
+
+func (stub stubPairedJobController) GetProgress(
+	ctx context.Context,
+	selector string,
+	id job.ID,
+) (*job.Progress, error) {
+	if stub.progress == nil {
+		return nil, nil
+	}
+	return stub.progress(ctx, selector, id)
 }
 
 func (stub stubPairedJobController) Get(

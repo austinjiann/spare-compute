@@ -206,6 +206,8 @@ Current scope:
   job is submitted;
 - pre-assigns a job ID for remote submissions so compatible workers preserve
   the same job identity through preparation, upload, and execution;
+- polls daemon-recorded preparation progress so remote project runs can show
+  snapshot/upload status before the worker starts executing the job;
 - snapshots respect `.gitignore`/`.computehopignore` and exclude common local
   secrets, dependency folders, and caches by default;
 - stores Control Center preferences in the app user-data directory, with

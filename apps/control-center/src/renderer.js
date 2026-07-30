@@ -813,6 +813,21 @@ function upsertJob(job) {
   }
 }
 
+function removeJob(jobID) {
+  const id = String(jobID || "");
+  if (!id) {
+    return;
+  }
+  state.jobs = state.jobs.filter((job) => job.id !== id);
+  if (state.selectedJobID === id) {
+    state.selectedJobID = "";
+    state.selectedJobDeviceID = "";
+    state.selectedJobLogText = "";
+    state.selectedJobLogTruncated = false;
+    state.selectedJobLogFailed = false;
+  }
+}
+
 function jobTitle(job) {
   const parts = String(job.command || "Task").split(/\s+/);
   const executable = parts.shift() || "Task";
@@ -1727,6 +1742,12 @@ function handleJobEvent(event) {
       upsertJob(event.job);
       renderJobs();
     }
+    return;
+  }
+
+  if (event.type === "job-remove") {
+    removeJob(event.jobID);
+    renderJobs();
     return;
   }
 

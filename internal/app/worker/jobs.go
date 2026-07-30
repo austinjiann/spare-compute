@@ -212,6 +212,16 @@ func (service *JobService) setProgress(
 	})
 }
 
+// GetProgress returns the latest durable byte-level progress for a local or
+// remote-only operation when the backing repository supports it.
+func (service *JobService) GetProgress(ctx context.Context, id job.ID) (*job.Progress, error) {
+	progress, ok := service.jobs.(job.ProgressRepository)
+	if !ok {
+		return nil, nil
+	}
+	return progress.GetProgress(ctx, id)
+}
+
 // Submit validates and durably accepts a job into the worker queue.
 func (service *JobService) Submit(ctx context.Context, spec job.Spec) (job.Job, error) {
 	id, err := service.generateID()

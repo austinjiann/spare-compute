@@ -37,7 +37,7 @@ const {
   mapPairings,
   mapTrustedDevice
 } = require("./device-mapping");
-const { mapJob } = require("./job-summary");
+const { mapJob, progressLabel } = require("./job-summary");
 const {
   loadSettings: loadControlCenterSettings,
   saveSettings: saveControlCenterSettings
@@ -411,18 +411,32 @@ async function runDaemonJobStream(runID, jobRequest, argv) {
         text: `${preparationMessage}\n`
       });
     }
+    const preparationProgress = startPreparationProgressPolling({
+      record,
+      runID,
+      jobRequest,
+      argv,
+      workingDirectory,
+      deviceSelector: submitDeviceSelector
+    });
 
-    const submitted = await record.client.submitJob(
-      {
-        executable: argv[0],
-        arguments: argv.slice(1),
-        workingDirectory,
-        outputs: jobRequest.outputs,
-        deviceSelector: submitDeviceSelector,
-        jobID: runID
-      },
-      { signal: record.abortController.signal }
-    );
+    let submitted;
+    try {
+      submitted = await record.client.submitJob(
+        {
+          executable: argv[0],
+          arguments: argv.slice(1),
+          workingDirectory,
+          outputs: jobRequest.outputs,
+          deviceSelector: submitDeviceSelector,
+          jobID: runID
+        },
+        { signal: record.abortController.signal }
+      );
+    } finally {
+      preparationProgress.stop();
+      await preparationProgress.done;
+    }
     if (!submitted?.id) {
       throw new Error("ComputeHop daemon returned an empty job.");
     }
@@ -431,6 +445,12 @@ async function runDaemonJobStream(runID, jobRequest, argv) {
     let lastJobUpdateSignature = jobUpdateSignature(submittedJob);
     record.jobID = submitted.id;
     record.deviceSelector = followupDeviceSelector(submitDeviceSelector);
+    if (submitted.id !== runID) {
+      sendRunEvent(record.webContents, runID, {
+        type: "job-remove",
+        jobID: runID
+      });
+    }
     sendRunEvent(record.webContents, runID, {
       type: "job",
       jobID: submitted.id,
@@ -501,6 +521,120 @@ async function runDaemonJobStream(runID, jobRequest, argv) {
   } finally {
     activeRuns.delete(runID);
   }
+}
+
+function startPreparationProgressPolling({
+  record,
+  runID,
+  jobRequest,
+  argv,
+  workingDirectory,
+  deviceSelector
+}) {
+  let stopped = false;
+  let lastProgress = "";
+  let lastState = "";
+  const pollAbortController = new AbortController();
+  const abortPoll = () => {
+    pollAbortController.abort();
+  };
+  record.abortController.signal.addEventListener("abort", abortPoll, { once: true });
+
+  const sendPreparingJob = (progress = "") => {
+    const state = "preparing";
+    if (state === lastState && progress === lastProgress) {
+      return;
+    }
+    lastState = state;
+    lastProgress = progress;
+    sendRunEvent(record.webContents, runID, {
+      type: "job-update",
+      state,
+      job: preparationJob({
+        runID,
+        jobRequest,
+        argv,
+        workingDirectory,
+        deviceSelector,
+        progress
+      })
+    });
+  };
+
+  const done = (async () => {
+    try {
+      sendPreparingJob("");
+      for (;;) {
+        if (stopped || record.stopped) {
+          return;
+        }
+        try {
+          const progress = await record.client.getJobProgress(runID, {
+            deviceSelector,
+            signal: pollAbortController.signal,
+            timeoutMs: 3_000
+          });
+          const label = progressLabel(progress);
+          if (label) {
+            sendPreparingJob(label);
+          }
+        } catch (error) {
+          if (error?.code === "ABORTED" || record.stopped || stopped) {
+            return;
+          }
+        }
+        try {
+          await delay(500, pollAbortController.signal);
+        } catch (error) {
+          if (error?.code === "ABORTED") {
+            return;
+          }
+          throw error;
+        }
+      }
+    } finally {
+      record.abortController.signal.removeEventListener("abort", abortPoll);
+    }
+  })();
+
+  return {
+    stop: () => {
+      stopped = true;
+      pollAbortController.abort();
+    },
+    done
+  };
+}
+
+function preparationJob({
+  runID,
+  jobRequest,
+  argv,
+  workingDirectory,
+  deviceSelector,
+  progress
+}) {
+  const command = String(jobRequest.command || "").trim() || argv.join(" ");
+  return {
+    id: runID,
+    shortID: runID.slice(0, 8),
+    command: command || "Task",
+    executable: argv[0] || "",
+    arguments: argv.slice(1),
+    workingDirectory,
+    outputs: jobRequest.outputs || [],
+    state: "preparing",
+    terminal: false,
+    succeeded: false,
+    canCancel: false,
+    canFetchOutputs: false,
+    progress,
+    failure: "",
+    updated: "",
+    created: "",
+    deviceID: jobDeviceIDForSelector(jobRequest.deviceID || deviceSelector || "local"),
+    deviceName: String(jobRequest.deviceName || "").trim()
+  };
 }
 
 function sendRunEvent(webContents, runID, payload) {

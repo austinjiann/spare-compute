@@ -623,6 +623,16 @@ func (service *RemoteJobService) Cancel(
 	return service.withLocalProgress(ctx, value)
 }
 
+// GetProgress returns local orchestrator-owned transfer/preparation progress
+// for a worker-owned job ID, including progress recorded before the worker
+// accepts the final remote submission.
+func (service *RemoteJobService) GetProgress(ctx context.Context, _ string, id job.ID) (*job.Progress, error) {
+	if service.progress == nil {
+		return nil, nil
+	}
+	return service.progress.GetProgress(ctx, id)
+}
+
 func (service *RemoteJobService) ReadLogs(
 	ctx context.Context,
 	selector string,

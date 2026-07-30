@@ -25,6 +25,7 @@ message Request {
     ListTrustedDevicesRequest list_trusted_devices = 21;
     UnpairDeviceRequest unpair_device = 22;
     FetchArtifactsRequest fetch_artifacts = 23;
+    GetJobProgressRequest get_job_progress = 24;
   }
 }
 
@@ -49,6 +50,7 @@ message Response {
     ListTrustedDevicesResponse list_trusted_devices = 21;
     UnpairDeviceResponse unpair_device = 22;
     FetchArtifactsResponse fetch_artifacts = 23;
+    GetJobProgressResponse get_job_progress = 24;
   }
 }
 
@@ -190,6 +192,15 @@ message FetchArtifactsResponse {
   string destination = 1;
   uint32 restored_file_count = 2;
   uint32 conflict_file_count = 3;
+}
+
+message GetJobProgressRequest {
+  string job_id = 1;
+  string device_selector = 2;
+}
+
+message GetJobProgressResponse {
+  JobProgress progress = 1;
 }
 
 message Pairing {

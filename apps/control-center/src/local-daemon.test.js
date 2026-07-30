@@ -241,12 +241,15 @@ test("LocalDaemonClient sends job listing, logs, cancellation, and output fetch 
     jobID: "019abcdf-0123-4567-89ab-000000000333"
   });
   const jobs = await client.listJobs({ deviceSelector: "worker-1", limit: 3 });
+  const progress = await client.getJobProgress("job-1", { deviceSelector: "worker-1" });
   const logs = await client.readJobLogs("job-1", { deviceSelector: "worker-1", afterSequence: 4, limit: 5 });
   const cancelled = await client.cancelJob("job-1", { deviceSelector: "worker-1" });
   const outputs = await client.fetchArtifacts("job-1", { deviceSelector: "worker-1", destination: "/tmp/out" });
 
   assert.equal(submitted.id, "job-1");
   assert.equal(jobs[0].id, "job-1");
+  assert.equal(progress.phase, "JOB_PROGRESS_PHASE_UPLOAD");
+  assert.equal(progress.completedBytes, 512);
   assert.equal(Buffer.from(logs.records[0].data).toString("utf8"), "hello\n");
   assert.equal(cancelled.state, "JOB_STATE_CANCELLED");
   assert.equal(outputs.destination, "/tmp/out");
@@ -259,10 +262,12 @@ test("LocalDaemonClient sends job listing, logs, cancellation, and output fetch 
   assert.deepEqual(received[0].submitJob.spec.outputs, ["dist/macos/ComputeHop.app"]);
   assert.equal(received[1].listJobs.deviceSelector, "worker-1");
   assert.equal(received[1].listJobs.limit, 3);
-  assert.equal(Number(received[2].readJobLogs.afterSequence), 4);
-  assert.equal(received[2].readJobLogs.limit, 5);
-  assert.equal(received[3].cancelJob.jobId, "job-1");
-  assert.equal(received[4].fetchArtifacts.destination, "/tmp/out");
+  assert.equal(received[2].getJobProgress.jobId, "job-1");
+  assert.equal(received[2].getJobProgress.deviceSelector, "worker-1");
+  assert.equal(Number(received[3].readJobLogs.afterSequence), 4);
+  assert.equal(received[3].readJobLogs.limit, 5);
+  assert.equal(received[4].cancelJob.jobId, "job-1");
+  assert.equal(received[5].fetchArtifacts.destination, "/tmp/out");
 });
 
 function pairingResponse(request) {
@@ -339,6 +344,19 @@ function jobResponse(request) {
         job: {
           ...job,
           spec: request.submitJob.spec
+        }
+      }
+    };
+  }
+  if (request.getJobProgress) {
+    return {
+      ...envelope,
+      getJobProgress: {
+        progress: {
+          phase: 2,
+          completedBytes: 512,
+          totalBytes: 1024,
+          updatedAtUnixNano: 3
         }
       }
     };

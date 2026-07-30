@@ -46,6 +46,12 @@ type JobIDController interface {
 	SubmitWithID(context.Context, job.ID, job.Spec) (job.Job, error)
 }
 
+// JobProgressController exposes progress records that may exist before or
+// independent of a durable local job row.
+type JobProgressController interface {
+	GetProgress(context.Context, job.ID) (*job.Progress, error)
+}
+
 // PairedJobController routes explicit operations to one trusted LAN worker.
 type PairedJobController interface {
 	Submit(context.Context, string, job.Spec) (job.Job, error)
@@ -59,6 +65,12 @@ type PairedJobController interface {
 // a client-provided durable job ID to compatible workers.
 type PairedJobIDController interface {
 	SubmitWithID(context.Context, string, job.ID, job.Spec) (job.Job, error)
+}
+
+// PairedJobProgressController exposes orchestrator-owned transfer/preparation
+// progress for worker-owned jobs.
+type PairedJobProgressController interface {
+	GetProgress(context.Context, string, job.ID) (*job.Progress, error)
 }
 
 // LocalArtifactController restores outputs owned by this daemon.
@@ -236,6 +248,8 @@ func (handler *LocalHandler) Handle(ctx context.Context, request *localv1.Reques
 		return handler.unpairDevice(ctx, operation.UnpairDevice)
 	case *localv1.Request_FetchArtifacts:
 		return handler.fetchArtifacts(ctx, operation.FetchArtifacts)
+	case *localv1.Request_GetJobProgress:
+		return handler.getJobProgress(ctx, operation.GetJobProgress)
 	default:
 		return failureResponse(localv1.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "unsupported local operation")
 	}
@@ -628,6 +642,43 @@ func (handler *LocalHandler) get(ctx context.Context, request *localv1.GetJobReq
 	return &localv1.Response{Result: &localv1.Response_GetJob{GetJob: &localv1.GetJobResponse{
 		Job: message,
 	}}}
+}
+
+func (handler *LocalHandler) getJobProgress(
+	ctx context.Context,
+	request *localv1.GetJobProgressRequest,
+) *localv1.Response {
+	if request == nil {
+		return failureResponse(localv1.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "progress request is required")
+	}
+	id, err := job.ParseID(request.GetJobId())
+	if err != nil {
+		return errorResponse(err)
+	}
+	var progress *job.Progress
+	if request.GetDeviceSelector() == "" {
+		controller, ok := handler.jobs.(JobProgressController)
+		if ok {
+			progress, err = controller.GetProgress(ctx, id)
+		}
+	} else {
+		controller, ok := handler.remote.(PairedJobProgressController)
+		if ok {
+			progress, err = controller.GetProgress(ctx, request.GetDeviceSelector(), id)
+		}
+	}
+	if err != nil {
+		return errorResponse(err)
+	}
+	response := &localv1.GetJobProgressResponse{}
+	if progress != nil {
+		message, err := mapper.ProgressToProto(*progress)
+		if err != nil {
+			return errorResponse(err)
+		}
+		response.Progress = message
+	}
+	return &localv1.Response{Result: &localv1.Response_GetJobProgress{GetJobProgress: response}}
 }
 
 func (handler *LocalHandler) list(ctx context.Context, request *localv1.ListJobsRequest) *localv1.Response {
