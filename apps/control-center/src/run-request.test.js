@@ -572,3 +572,21 @@ test("runReadinessError returns selected device policy failures last", () => {
     "Docker is turned off for this computer."
   );
 });
+
+test("runReadinessBlocker preserves policy recovery actions", () => {
+  assert.deepEqual(
+    runReadinessBlocker({
+      device: { id: "local", name: "This Mac" },
+      canRun: true,
+      plan: { command: "docker build .", requiresProject: false },
+      policyError: "Docker is turned off for this computer.",
+      policyActionKind: "advanced",
+      policyActionLabel: "Open Advanced"
+    }),
+    {
+      message: "Docker is turned off for this computer.",
+      actionKind: "advanced",
+      actionLabel: "Open Advanced"
+    }
+  );
+});

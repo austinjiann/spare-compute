@@ -1440,7 +1440,9 @@ function validateRunReadiness(selected, planned, outputs = []) {
     plan: planned,
     projectRoot: state.settings.projectRoot,
     outputs,
-    policyError
+    policyError,
+    policyActionKind: policyError ? "advanced" : "",
+    policyActionLabel: policyError ? "Open Advanced" : ""
   });
 }
 
@@ -1856,7 +1858,8 @@ function currentRunControlBlocker(selected = selectedDevice()) {
       ignoreDeclaredOutputs: true
     },
     projectRoot: state.settings.projectRoot,
-    outputs: planned ? currentOutputDeclarations() : []
+    outputs: planned ? currentOutputDeclarations() : [],
+    ...policyBlockerRequest(selected, planned)
   });
 }
 
@@ -1877,6 +1880,9 @@ function runStatusActionDisabled(blocker) {
   const selected = selectedDevice();
   if ((blocker.actionKind === "connect-device" || blocker.actionKind === "enable-device") && selected) {
     return pendingActions.has(`device:${selected.id}`);
+  }
+  if (blocker.actionKind === "advanced") {
+    return false;
   }
   return false;
 }
@@ -1904,9 +1910,36 @@ async function performRunStatusAction() {
     case "choose-project":
       await chooseProject();
       return;
+    case "advanced":
+      revealAdvancedSettings();
+      return;
     default:
       return;
   }
+}
+
+function policyBlockerRequest(selected, planned) {
+  if (!selected || !planned) {
+    return {};
+  }
+  const policyError = disallowedWorkMessage(planned, capabilitiesForDevice(selected));
+  if (!policyError) {
+    return {};
+  }
+  return {
+    policyError,
+    policyActionKind: "advanced",
+    policyActionLabel: "Open Advanced"
+  };
+}
+
+function revealAdvancedSettings() {
+  const advanced = document.getElementById("advanced-panel");
+  if (!advanced) {
+    return;
+  }
+  advanced.open = true;
+  advanced.scrollIntoView({ block: "nearest", behavior: "smooth" });
 }
 
 function smokeTestDevice(selected = selectedDevice()) {

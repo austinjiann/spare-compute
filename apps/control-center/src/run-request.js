@@ -150,7 +150,11 @@
         "Choose project"
       );
     }
-    return block(cleanString(request.policyError));
+    return block(
+      cleanString(request.policyError),
+      request.policyError ? cleanString(request.policyActionKind) : "",
+      request.policyError ? cleanString(request.policyActionLabel) : ""
+    );
   }
 
   function selectedDeviceBlocker(device = {}) {
