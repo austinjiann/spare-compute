@@ -51,6 +51,7 @@ test("planTask strips placement words from exact commands", async () => {
   const remoteMake = await planTask({ task: "make pr-check on the other computer", projectRoot: "" });
   const remoteUtility = await planTask({ task: "hostname on the worker", projectRoot: "" });
   const localGo = await planTask({ task: "go test ./... here", projectRoot: "" });
+  const localMake = await planTask({ task: "make pr-check locally", projectRoot: "" });
 
   assert.equal(remoteGo.ok, true);
   assert.equal(remoteGo.plan.command, "go test ./...");
@@ -62,7 +63,29 @@ test("planTask strips placement words from exact commands", async () => {
   assert.equal(remoteUtility.plan.requiresProject, false);
   assert.equal(localGo.plan.command, "go test ./...");
   assert.equal(localGo.plan.targetPreference, "local");
+  assert.equal(localMake.plan.command, "make pr-check");
+  assert.equal(localMake.plan.targetPreference, "local");
+  assert.equal(localMake.plan.requiresProject, true);
   assert.equal(stripPlacementSuffix("pnpm test on the worker"), "pnpm test");
+});
+
+test("planTask preserves literal local words in exact command arguments", async () => {
+  const echo = await planTask({ task: "echo here", projectRoot: "" });
+  const python = await planTask({ task: "python script.py --arg here", projectRoot: "" });
+  const printf = await planTask({ task: "printf locally", projectRoot: "" });
+
+  assert.equal(echo.ok, true);
+  assert.equal(echo.plan.command, "echo here");
+  assert.equal(echo.plan.targetPreference, "");
+  assert.equal(echo.plan.requiresProject, false);
+  assert.equal(python.ok, true);
+  assert.equal(python.plan.command, "python script.py --arg here");
+  assert.equal(python.plan.targetPreference, "");
+  assert.equal(printf.ok, true);
+  assert.equal(printf.plan.command, "printf locally");
+  assert.equal(printf.plan.targetPreference, "");
+  assert.equal(stripPlacementSuffix("echo here"), "echo here");
+  assert.equal(targetPreferenceForTask("echo here"), "");
 });
 
 test("planTask uses detected package manager scripts", async (t) => {

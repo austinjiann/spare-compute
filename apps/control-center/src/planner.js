@@ -380,6 +380,9 @@ function targetPreferenceForTask(task) {
   if (!value) {
     return "";
   }
+  if (looksLikeCommand(task)) {
+    return placementSuffixForCommand(task).targetPreference;
+  }
   if (
     /\b(here|locally)\b/.test(value) ||
     /\b(on|using|with)\s+(this\s+mac|this\s+computer|my\s+mac|local(?:ly)?|here)\b/.test(value)
@@ -411,16 +414,46 @@ function looksLikeCommand(task) {
 }
 
 function stripPlacementSuffix(task) {
-  let value = String(task || "").trim();
+  return placementSuffixForCommand(task).command;
+}
+
+function placementSuffixForCommand(task) {
+  const value = String(task || "").trim();
   if (!value) {
-    return "";
+    return {
+      command: "",
+      targetPreference: ""
+    };
   }
-  value = value
-    .replace(/\s+(?:here|locally)$/i, "")
-    .replace(/\s+(?:on|using|with)\s+(?:this\s+mac|this\s+computer|my\s+mac|local(?:ly)?|here)$/i, "")
-    .replace(/\s+(?:on|using|with|to)\s+(?:the\s+)?(?:worker|remote|other\s+computer|another\s+computer|desktop|pc|gaming\s+pc|server|home\s+server)$/i, "")
-    .trim();
-  return value;
+
+  const local = value.replace(/\s+(?:on|using|with)\s+(?:this\s+mac|this\s+computer|my\s+mac|local(?:ly)?|here)$/i, "").trim();
+  if (local !== value) {
+    return {
+      command: local,
+      targetPreference: "local"
+    };
+  }
+
+  const worker = value.replace(/\s+(?:on|using|with|to)\s+(?:the\s+)?(?:worker|remote|other\s+computer|another\s+computer|desktop|pc|gaming\s+pc|server|home\s+server)$/i, "").trim();
+  if (worker !== value) {
+    return {
+      command: worker,
+      targetPreference: "worker"
+    };
+  }
+
+  const bareLocal = value.replace(/\s+(?:here|locally)$/i, "").trim();
+  if (bareLocal !== value && commandNeedsProject(bareLocal)) {
+    return {
+      command: bareLocal,
+      targetPreference: "local"
+    };
+  }
+
+  return {
+    command: value,
+    targetPreference: ""
+  };
 }
 
 function packageManager(files) {
