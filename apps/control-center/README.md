@@ -84,6 +84,9 @@ Current scope:
   the app", and "check CI" into one safe command using local project rules,
   preferring repository validation targets such as `make pr-check` and package
   targets such as `make macos-archive` or `make macos-package` when present;
+- preserves OS hints such as "on Windows", "on Linux", or "on macOS" in the
+  plan, selects the single matching connected worker when that is unambiguous,
+  and blocks submission when the selected computer advertises the wrong OS;
 - uses deterministic local planning first, so no API key is required for normal
   Check/Test/Build/Lint/Docker planning;
 - can fall back to an optional OpenAI Responses API planner for tasks local

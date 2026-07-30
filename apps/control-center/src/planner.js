@@ -16,11 +16,13 @@ async function planTask(request) {
   const intent = classifyIntent(task);
   const exact = exactCommand(task);
   const targetPreference = targetPreferenceForTask(task);
+  const targetPlatform = targetPlatformForTask(task);
   if (exact && intent === "exact") {
     return plan("Exact command", exact, "This looks like a command already.", profile, {
       exact: true,
       requiresProject: commandNeedsProject(exact),
-      targetPreference
+      targetPreference,
+      targetPlatform
     });
   }
 
@@ -29,7 +31,8 @@ async function planTask(request) {
     return plan(planned.title, planned.command, planned.detail, profile, {
       requiresProject: planned.requiresProject,
       outputs: planned.outputs,
-      targetPreference
+      targetPreference,
+      targetPlatform: targetPlatform || planned.targetPlatform
     });
   }
 
@@ -47,7 +50,8 @@ async function planTask(request) {
     return plan("Exact command", exact, "No project rule matched, so this will run exactly as typed.", profile, {
       exact: true,
       requiresProject: commandNeedsProject(exact),
-      targetPreference
+      targetPreference,
+      targetPlatform
     });
   }
 
@@ -94,6 +98,7 @@ async function suggestTasks(request) {
       detail: planned.detail,
       requiresProject: Boolean(planned.requiresProject),
       outputs: normalizeOutputs(planned.outputs),
+      targetPlatform: cleanTargetPlatform(planned.targetPlatform),
       projectRoot,
       detected: detectedLabels(profile)
     });
@@ -187,11 +192,13 @@ function chooseCommand(intent, profile) {
 
   if (intent === "package") {
     return makeTarget(profile, "macos-archive", "Package macOS app", "Create the repo's copyable macOS app archive.", {
+      targetPlatform: "darwin",
       outputs: ["dist/macos/ComputeHop-macos.zip", "dist/macos/ComputeHop-macos.zip.sha256"]
     })
       || makeTarget(profile, "macos-package", "Package macOS app", "Use the repo's macOS app packaging target.", {
-      outputs: ["dist/macos/ComputeHop.app"]
-    })
+        targetPlatform: "darwin",
+        outputs: ["dist/macos/ComputeHop.app"]
+      })
       || makeTarget(profile, "package", "Package project", "Use the repo's package target.")
       || makeTarget(profile, "release", "Package project", "Use the repo's release target.")
       || script(profile, "package", "Package project", "Use the package's package script.")
@@ -306,7 +313,8 @@ function script(profile, name, title, detail, options = {}) {
     command: `${profile.packageManager} run ${name}`,
     detail,
     requiresProject: true,
-    outputs: normalizeOutputs(options.outputs)
+    outputs: normalizeOutputs(options.outputs),
+    targetPlatform: cleanTargetPlatform(options.targetPlatform)
   };
 }
 
@@ -319,7 +327,8 @@ function makeTarget(profile, name, title, detail, options = {}) {
     command: `make ${name}`,
     detail,
     requiresProject: true,
-    outputs: normalizeOutputs(options.outputs)
+    outputs: normalizeOutputs(options.outputs),
+    targetPlatform: cleanTargetPlatform(options.targetPlatform)
   };
 }
 
@@ -389,6 +398,9 @@ function targetPreferenceForTask(task) {
   ) {
     return "local";
   }
+  if (targetPlatformPreference(value)) {
+    return "worker";
+  }
   if (
     /\b(on|using|with|to)\s+(the\s+)?(worker|remote|other\s+computer|another\s+computer|desktop|pc|gaming\s+pc|server|home\s+server)\b/.test(value) ||
     /\b(offload|send|delegate)\b/.test(value) && /\b(worker|remote|computer|desktop|pc|server|there)\b/.test(value)
@@ -396,6 +408,17 @@ function targetPreferenceForTask(task) {
     return "worker";
   }
   return "";
+}
+
+function targetPlatformForTask(task) {
+  const value = String(task || "").trim();
+  if (!value) {
+    return "";
+  }
+  if (looksLikeCommand(task)) {
+    return placementSuffixForCommand(task).targetPlatform;
+  }
+  return targetPlatformMention(value.toLowerCase());
 }
 
 function exactCommand(task) {
@@ -409,7 +432,7 @@ function looksLikeCommand(task) {
     value.includes("/") ||
     value.includes("./") ||
     value.includes("--") ||
-    /^[a-z0-9_.-]+(\s|$)/i.test(value) && !/^(run|build|bundle|package|release|test|check|checks|ci|fix|verify|validate|preflight|lint|format|fmt|style|install|deps|dependencies|smoke|ping|connection|please|can|could|make|do)\b/i.test(value)
+    /^[a-z0-9_.-]+(\s|$)/i.test(value) && !/^(run|build|bundle|package|release|test|check|checks|ci|fix|verify|validate|preflight|lint|format|fmt|style|install|deps|dependencies|smoke|ping|connection|please|can|could|make|do|send|delegate|offload)\b/i.test(value)
   );
 }
 
@@ -422,7 +445,8 @@ function placementSuffixForCommand(task) {
   if (!value) {
     return {
       command: "",
-      targetPreference: ""
+      targetPreference: "",
+      targetPlatform: ""
     };
   }
 
@@ -430,15 +454,22 @@ function placementSuffixForCommand(task) {
   if (local !== value) {
     return {
       command: local,
-      targetPreference: "local"
+      targetPreference: "local",
+      targetPlatform: ""
     };
+  }
+
+  const platform = placementPlatformSuffix(value);
+  if (platform.command !== value) {
+    return platform;
   }
 
   const worker = value.replace(/\s+(?:on|using|with|to)\s+(?:the\s+)?(?:worker|remote|other\s+computer|another\s+computer|desktop|pc|gaming\s+pc|server|home\s+server)$/i, "").trim();
   if (worker !== value) {
     return {
       command: worker,
-      targetPreference: "worker"
+      targetPreference: "worker",
+      targetPlatform: ""
     };
   }
 
@@ -446,14 +477,72 @@ function placementSuffixForCommand(task) {
   if (bareLocal !== value && commandNeedsProject(bareLocal)) {
     return {
       command: bareLocal,
-      targetPreference: "local"
+      targetPreference: "local",
+      targetPlatform: ""
     };
   }
 
   return {
     command: value,
-    targetPreference: ""
+    targetPreference: "",
+    targetPlatform: ""
   };
+}
+
+function placementPlatformSuffix(value) {
+  const match = String(value || "").match(/\s+(?:on|using|with|to)\s+(?:a\s+|the\s+|my\s+)?(windows(?:\s+pc)?|linux(?:\s+server)?|macos|macbook|mac\s+mini|mac\s+studio|mac)$/i);
+  if (!match) {
+    return {
+      command: value,
+      targetPreference: "",
+      targetPlatform: ""
+    };
+  }
+  const command = value.slice(0, match.index).trim();
+  if (!canStripPlacementFromCommand(command)) {
+    return {
+      command: value,
+      targetPreference: "",
+      targetPlatform: ""
+    };
+  }
+  return {
+    command,
+    targetPreference: targetPlatformPreference(match[1]),
+    targetPlatform: targetPlatformFromPhrase(match[1])
+  };
+}
+
+function canStripPlacementFromCommand(command) {
+  return commandNeedsProject(command) || /^(hostname|uname|whoami|date|pwd)(?:\s|$)/i.test(command);
+}
+
+function targetPlatformMention(value) {
+  const text = String(value || "").trim().toLowerCase();
+  const match = text.match(/\b(?:on|using|with|to)\s+(?:a\s+|the\s+|my\s+)?(windows(?:\s+pc)?|linux(?:\s+server)?|this\s+mac|my\s+mac|macos|macbook|mac\s+mini|mac\s+studio|mac)\b/);
+  return match ? targetPlatformFromPhrase(match[1]) : "";
+}
+
+function targetPlatformPreference(value) {
+  const phrase = String(value || "").trim().toLowerCase();
+  if (/windows|linux|mac\s+mini|mac\s+studio/.test(phrase)) {
+    return "worker";
+  }
+  return "";
+}
+
+function targetPlatformFromPhrase(value) {
+  const phrase = String(value || "").trim().toLowerCase();
+  if (phrase.startsWith("windows")) {
+    return "windows";
+  }
+  if (phrase.startsWith("linux")) {
+    return "linux";
+  }
+  if (phrase.includes("mac")) {
+    return "darwin";
+  }
+  return "";
 }
 
 function packageManager(files) {
@@ -513,6 +602,7 @@ function plan(title, command, detail, profile, options = {}) {
       requiresProject: Boolean(options.requiresProject),
       outputs: normalizeOutputs(options.outputs),
       targetPreference: cleanTargetPreference(options.targetPreference),
+      targetPlatform: cleanTargetPlatform(options.targetPlatform),
       projectRoot: profile.root || "",
       detected: detectedLabels(profile)
     }
@@ -522,6 +612,20 @@ function plan(title, command, detail, profile, options = {}) {
 function cleanTargetPreference(value) {
   const target = String(value || "").trim().toLowerCase();
   return target === "worker" || target === "local" ? target : "";
+}
+
+function cleanTargetPlatform(value) {
+  const target = String(value || "").trim().toLowerCase();
+  if (["darwin", "mac", "macos", "osx"].includes(target)) {
+    return "darwin";
+  }
+  if (["windows", "win32", "win"].includes(target)) {
+    return "windows";
+  }
+  if (target === "linux") {
+    return "linux";
+  }
+  return "";
 }
 
 function normalizeOutputs(outputs) {
@@ -565,5 +669,6 @@ module.exports = {
   planTask,
   stripPlacementSuffix,
   suggestTasks,
+  targetPlatformForTask,
   targetPreferenceForTask
 };

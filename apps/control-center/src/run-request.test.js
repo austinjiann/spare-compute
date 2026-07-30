@@ -347,6 +347,51 @@ test("runReadinessBlocker prevents local-targeted plans from running remotely", 
   );
 });
 
+test("runReadinessBlocker prevents OS-targeted plans from running on the wrong platform", () => {
+  assert.equal(
+    runReadinessError({
+      device: { id: "local", name: "This Mac", platform: "darwin" },
+      canRun: true,
+      plan: { command: "hostname", requiresProject: false, targetPlatform: "windows" },
+      projectRoot: ""
+    }),
+    "This task needs Windows. Choose a Windows computer first."
+  );
+  assert.equal(
+    runReadinessError({
+      device: {
+        id: "worker-1",
+        name: "Gaming PC",
+        role: "worker",
+        platform: "win32",
+        connection: "active",
+        availability: "remote",
+        trustState: "paired"
+      },
+      canRun: true,
+      plan: { command: "hostname", requiresProject: false, targetPlatform: "windows" },
+      projectRoot: ""
+    }),
+    ""
+  );
+  assert.equal(
+    runReadinessError({
+      device: {
+        id: "worker-1",
+        name: "Unknown worker",
+        role: "worker",
+        connection: "active",
+        availability: "remote",
+        trustState: "paired"
+      },
+      canRun: true,
+      plan: { command: "hostname", requiresProject: false, targetPlatform: "linux" },
+      projectRoot: ""
+    }),
+    ""
+  );
+});
+
 test("runReadinessError requires a project before project work on any device", () => {
   assert.equal(
     runReadinessError({

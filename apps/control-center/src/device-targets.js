@@ -40,11 +40,29 @@
     return (
       device &&
       device.id !== "local" &&
+      device.id !== automaticWorkerID &&
       device.synced !== false &&
       device.role === "worker" &&
       device.connection === "active" &&
-      device.availability === "remote"
+      (device.availability === "remote" || device.availability === "nearby")
     );
+  }
+
+  function compatibleWorkerForPlan(devices = [], plan = {}) {
+    const platform = normalizeTargetPlatform(plan.targetPlatform || plan.requiredPlatform);
+    if (!platform) {
+      return null;
+    }
+    const workers = devices.filter((device) => isSingleAutoCandidate(device) && workerMatchesPlatform(device, platform));
+    return workers.length === 1 ? workers[0] : null;
+  }
+
+  function workerMatchesPlatform(device = {}, targetPlatform = "") {
+    const target = normalizeTargetPlatform(targetPlatform);
+    if (!target) {
+      return true;
+    }
+    return normalizeDevicePlatform(device.platform || device.os) === target;
   }
 
   function automaticWorkerTarget(worker) {
@@ -114,9 +132,39 @@
   return {
     addAutomaticWorkerTarget,
     automaticWorkerID,
+    compatibleWorkerForPlan,
     concreteDeviceID,
     isSingleAutoCandidate,
     singleConnectedWorkerTarget,
+    workerMatchesPlatform,
     workerRunTargetForAction
   };
+
+  function normalizeTargetPlatform(value) {
+    const platform = String(value || "").trim().toLowerCase();
+    if (["darwin", "mac", "macos", "osx"].includes(platform)) {
+      return "darwin";
+    }
+    if (["windows", "win32", "win"].includes(platform)) {
+      return "windows";
+    }
+    if (platform === "linux") {
+      return "linux";
+    }
+    return "";
+  }
+
+  function normalizeDevicePlatform(value) {
+    const platform = String(value || "").trim().toLowerCase();
+    if (platform === "darwin" || platform === "macos") {
+      return "darwin";
+    }
+    if (platform === "windows" || platform === "win32") {
+      return "windows";
+    }
+    if (platform === "linux") {
+      return "linux";
+    }
+    return "";
+  }
 }));

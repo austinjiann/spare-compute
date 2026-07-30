@@ -6,6 +6,8 @@ const {
   concreteDeviceID,
   isSingleAutoCandidate,
   singleConnectedWorkerTarget,
+  compatibleWorkerForPlan,
+  workerMatchesPlatform,
   workerRunTargetForAction
 } = require("./device-targets");
 
@@ -92,11 +94,27 @@ test("addAutomaticWorkerTarget ignores offline, unpaired, local, and non-worker 
 
 test("isSingleAutoCandidate accepts only active connected workers", () => {
   assert.equal(isSingleAutoCandidate(connectedWorker("Worker", "worker-1")), true);
+  assert.equal(isSingleAutoCandidate({ ...connectedWorker("Worker", "worker-1"), availability: "nearby" }), true);
+  assert.equal(isSingleAutoCandidate({ ...connectedWorker("Auto worker", automaticWorkerID), automatic: true }), false);
   assert.equal(isSingleAutoCandidate(localDevice()), false);
   assert.equal(isSingleAutoCandidate({ ...connectedWorker("Worker", "worker-1"), role: "orchestrator" }), false);
   assert.equal(isSingleAutoCandidate({ ...connectedWorker("Worker", "worker-1"), availability: "offline" }), false);
   assert.equal(isSingleAutoCandidate({ ...connectedWorker("Worker", "worker-1"), connection: "not connected" }), false);
   assert.equal(isSingleAutoCandidate({ ...connectedWorker("Worker", "worker-1"), synced: false }), false);
+});
+
+test("compatibleWorkerForPlan selects one matching worker by platform", () => {
+  const mac = { ...connectedWorker("Mac mini", "worker-1"), platform: "darwin" };
+  const windows = { ...connectedWorker("Gaming PC", "worker-2"), platform: "windows" };
+  const linux = { ...connectedWorker("Home Server", "worker-3"), platform: "linux" };
+
+  assert.equal(compatibleWorkerForPlan([localDevice(), mac, windows, linux], { targetPlatform: "windows" }).id, "worker-2");
+  assert.equal(compatibleWorkerForPlan([localDevice(), mac, windows, linux], { targetPlatform: "macos" }).id, "worker-1");
+  assert.equal(compatibleWorkerForPlan([localDevice(), mac, windows, linux], { requiredPlatform: "linux" }).id, "worker-3");
+  assert.equal(compatibleWorkerForPlan([localDevice(), mac, windows, { ...windows, id: "worker-4" }], { targetPlatform: "windows" }), null);
+  assert.equal(compatibleWorkerForPlan([localDevice(), mac, windows], { targetPlatform: "" }), null);
+  assert.equal(workerMatchesPlatform({ platform: "win32" }, "windows"), true);
+  assert.equal(workerMatchesPlatform({ platform: "darwin" }, "linux"), false);
 });
 
 test("concreteDeviceID resolves Auto worker to its backing worker", () => {
@@ -115,6 +133,11 @@ test("singleConnectedWorkerTarget returns an automatic target only when unambigu
   assert.equal(single.id, automaticWorkerID);
   assert.equal(single.workerID, "worker-1");
   assert.equal(single.workerName, "Austin MacBook 2");
+  assert.equal(singleConnectedWorkerTarget([
+    localDevice(),
+    single,
+    connectedWorker("Austin MacBook 2", "worker-1")
+  ]).workerID, "worker-1");
 
   assert.equal(singleConnectedWorkerTarget([
     localDevice(),

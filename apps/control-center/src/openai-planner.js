@@ -1,4 +1,9 @@
-const { commandNeedsProject, stripPlacementSuffix, targetPreferenceForTask } = require("./planner");
+const {
+  commandNeedsProject,
+  stripPlacementSuffix,
+  targetPlatformForTask,
+  targetPreferenceForTask
+} = require("./planner");
 const { splitCommandLine } = require("./command-line");
 const { validatePortableOutputs } = require("./output-path");
 const { capabilityForCommand } = require("./work-policy");
@@ -159,7 +164,8 @@ function normalizeOpenAIPlan(response, context = {}) {
   }
 
   const targetPreference = targetPreferenceForTask(context.task);
-  const command = cleanString(targetPreference ? stripPlacementSuffix(parsed.command) : parsed.command);
+  const targetPlatform = targetPlatformForTask(context.task);
+  const command = cleanString((targetPreference || targetPlatform) ? stripPlacementSuffix(parsed.command) : parsed.command);
   if (!command) {
     return { ok: false, error: "AI planner returned an empty command." };
   }
@@ -199,6 +205,7 @@ function normalizeOpenAIPlan(response, context = {}) {
       capability,
       outputs: outputValidation.outputs,
       targetPreference,
+      targetPlatform,
       projectRoot: cleanString(context.projectRoot),
       detected: detectedLabels(context.profile || []),
       planner: "openai"

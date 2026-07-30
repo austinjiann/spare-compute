@@ -55,8 +55,10 @@ let runInFlight = false;
 const pendingActions = new Set();
 const {
   addAutomaticWorkerTarget,
+  compatibleWorkerForPlan,
   concreteDeviceID,
   singleConnectedWorkerTarget,
+  workerMatchesPlatform,
   workerRunTargetForAction
 } = window.computeHopDeviceTargets;
 const {
@@ -1293,7 +1295,6 @@ async function runSelectedJob() {
     return;
   }
 
-  const selected = selectedDevice();
   const task = document.getElementById("command-input").value.trim();
 
   if (!task) {
@@ -1306,7 +1307,7 @@ async function runSelectedJob() {
     return;
   }
 
-  await startPlannedJob(planned, selected);
+  await startPlannedJob(planned, selectedDevice());
 }
 
 async function testSelectedDevice() {
@@ -1492,19 +1493,37 @@ async function createPlan(task) {
 
 function applyPlanTargetPreference(plan) {
   const target = String(plan?.targetPreference || "").trim();
+  const targetPlatform = String(plan?.targetPlatform || plan?.requiredPlatform || "").trim();
+  const selected = selectedDevice();
+
+  if (target === "local") {
+    if (selected?.id !== "local") {
+      selectRunDevice(defaultLocalDevice());
+    }
+    return;
+  }
+
   if (target === "worker") {
-    const selected = selectedDevice();
-    if (selected && selected.id !== "local" && canRunOn(selected)) {
+    if (selected && selected.id !== "local" && canRunOn(selected) && workerMatchesPlatform(selected, targetPlatform)) {
+      return;
+    }
+    const compatible = compatibleWorkerForPlan(state.devices, plan);
+    if (compatible) {
+      selectRunDevice(compatible);
       return;
     }
     const worker = singleConnectedWorkerTarget(state.devices);
-    if (worker) {
+    if (worker && workerMatchesPlatform(worker, targetPlatform)) {
       selectRunDevice(worker);
     }
     return;
   }
-  if (target === "local" && selectedDevice()?.id !== "local") {
-    selectRunDevice(defaultLocalDevice());
+
+  if (targetPlatform && selected && !workerMatchesPlatform(selected, targetPlatform)) {
+    const compatible = compatibleWorkerForPlan(state.devices, plan);
+    if (compatible) {
+      selectRunDevice(compatible);
+    }
   }
 }
 

@@ -9,6 +9,7 @@ const {
   planTask,
   stripPlacementSuffix,
   suggestTasks,
+  targetPlatformForTask,
   targetPreferenceForTask
 } = require("./planner");
 
@@ -42,14 +43,24 @@ test("planTask carries remote placement hints from natural language", async (t) 
   assert.equal(remote.plan.targetPreference, "worker");
   assert.equal(local.ok, true);
   assert.equal(local.plan.targetPreference, "local");
+  const windows = await planTask({ task: "run tests on Windows", projectRoot: project });
+  const mac = await planTask({ task: "run tests on macOS", projectRoot: project });
+  assert.equal(windows.plan.targetPreference, "worker");
+  assert.equal(windows.plan.targetPlatform, "windows");
+  assert.equal(mac.plan.targetPreference, "");
+  assert.equal(mac.plan.targetPlatform, "darwin");
   assert.equal(targetPreferenceForTask("delegate the build to the gaming pc"), "worker");
   assert.equal(targetPreferenceForTask("run this on this Mac"), "local");
+  assert.equal(targetPlatformForTask("delegate the build to Windows"), "windows");
+  assert.equal(targetPlatformForTask("build on Linux"), "linux");
+  assert.equal(targetPlatformForTask("run this on this Mac"), "darwin");
 });
 
 test("planTask strips placement words from exact commands", async () => {
   const remoteGo = await planTask({ task: "go test ./... on the worker", projectRoot: "" });
   const remoteMake = await planTask({ task: "make pr-check on the other computer", projectRoot: "" });
   const remoteUtility = await planTask({ task: "hostname on the worker", projectRoot: "" });
+  const remoteWindows = await planTask({ task: "hostname on Windows", projectRoot: "" });
   const localGo = await planTask({ task: "go test ./... here", projectRoot: "" });
   const localMake = await planTask({ task: "make pr-check locally", projectRoot: "" });
 
@@ -61,6 +72,9 @@ test("planTask strips placement words from exact commands", async () => {
   assert.equal(remoteMake.plan.targetPreference, "worker");
   assert.equal(remoteUtility.plan.command, "hostname");
   assert.equal(remoteUtility.plan.requiresProject, false);
+  assert.equal(remoteWindows.plan.command, "hostname");
+  assert.equal(remoteWindows.plan.targetPreference, "worker");
+  assert.equal(remoteWindows.plan.targetPlatform, "windows");
   assert.equal(localGo.plan.command, "go test ./...");
   assert.equal(localGo.plan.targetPreference, "local");
   assert.equal(localMake.plan.command, "make pr-check");
@@ -73,6 +87,7 @@ test("planTask preserves literal local words in exact command arguments", async 
   const echo = await planTask({ task: "echo here", projectRoot: "" });
   const python = await planTask({ task: "python script.py --arg here", projectRoot: "" });
   const printf = await planTask({ task: "printf locally", projectRoot: "" });
+  const echoWindows = await planTask({ task: "echo on Windows", projectRoot: "" });
 
   assert.equal(echo.ok, true);
   assert.equal(echo.plan.command, "echo here");
@@ -85,6 +100,8 @@ test("planTask preserves literal local words in exact command arguments", async 
   assert.equal(printf.plan.command, "printf locally");
   assert.equal(printf.plan.targetPreference, "");
   assert.equal(stripPlacementSuffix("echo here"), "echo here");
+  assert.equal(echoWindows.plan.command, "echo on Windows");
+  assert.equal(echoWindows.plan.targetPlatform, "");
   assert.equal(targetPreferenceForTask("echo here"), "");
 });
 
@@ -117,6 +134,7 @@ test("planTask prefers app packaging targets for package requests", async (t) =>
   assert.equal(result.plan.title, "Package macOS app");
   assert.equal(result.plan.command, "make macos-archive");
   assert.equal(result.plan.requiresProject, true);
+  assert.equal(result.plan.targetPlatform, "darwin");
   assert.deepEqual(result.plan.outputs, [
     "dist/macos/ComputeHop-macos.zip",
     "dist/macos/ComputeHop-macos.zip.sha256"
@@ -139,6 +157,7 @@ test("suggestTasks includes package targets with inferred outputs", async (t) =>
     "dist/macos/ComputeHop-macos.zip",
     "dist/macos/ComputeHop-macos.zip.sha256"
   ]);
+  assert.equal(suggestion.targetPlatform, "darwin");
 });
 
 test("planTask maps Swift package tests", async (t) => {

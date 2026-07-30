@@ -100,6 +100,10 @@
     if (cleanString(plan.targetPreference) === "local" && deviceID !== "local") {
       return block("This task was asked to run here. Switch the run target to This Mac first.");
     }
+    const platformBlocker = targetPlatformBlocker(device, plan);
+    if (platformBlocker.message) {
+      return platformBlocker;
+    }
     if (plan.requiresProject && !cleanPath(request.projectRoot)) {
       if (deviceID !== "local") {
         return block(
@@ -162,6 +166,19 @@
       return offlineWorkerBlock(deviceName);
     }
     return block(`${deviceName} cannot run tasks yet. Choose a connected worker or switch to This Mac.`);
+  }
+
+  function targetPlatformBlocker(device = {}, plan = {}) {
+    const target = normalizeTargetPlatform(plan.targetPlatform || plan.requiredPlatform);
+    if (!target) {
+      return block("");
+    }
+    const actual = normalizeTargetPlatform(device.platform || device.os);
+    if (!actual || actual === target) {
+      return block("");
+    }
+    const label = platformLabel(target);
+    return block(`This task needs ${label}. Choose a ${label} computer first.`);
   }
 
   function offlineWorkerBlock(deviceName) {
@@ -227,6 +244,33 @@
 
   function stripAutoDetail(value) {
     return value.replace(/^uses\s+/i, "").trim();
+  }
+
+  function normalizeTargetPlatform(value) {
+    const platform = cleanString(value).toLowerCase();
+    if (["darwin", "mac", "macos", "osx"].includes(platform)) {
+      return "darwin";
+    }
+    if (["windows", "win32", "win"].includes(platform)) {
+      return "windows";
+    }
+    if (platform === "linux") {
+      return "linux";
+    }
+    return "";
+  }
+
+  function platformLabel(platform) {
+    switch (normalizeTargetPlatform(platform)) {
+      case "darwin":
+        return "macOS";
+      case "windows":
+        return "Windows";
+      case "linux":
+        return "Linux";
+      default:
+        return "that OS";
+    }
   }
 
   function fallbackValidatePortableOutputs(outputs) {
