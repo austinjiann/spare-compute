@@ -93,7 +93,9 @@ swift run ComputeHop
 
 From the menu bar you can pick a paired worker and ask for safe utility tasks
 such as `test connection`, `run hostname`, or `go version` without choosing a
-project folder. Project tasks such as CI, tests, builds, and packaging still
+project folder. After a connect flow completes, the menu automatically targets
+the connected worker when it is the only runnable worker. Project tasks such as
+CI, tests, builds, and packaging still
 require selecting the project folder so ComputeHop can snapshot and upload the
 right files.
 

@@ -344,6 +344,38 @@ func refreshUpdatesRememberedSelectedWorkerNameWhenAvailable() async {
 
 @Test
 @MainActor
+func confirmSelectsOnlyRunnableWorkerWhenConnectionCompletes() async {
+    let worker = runTargetDevice(id: "worker-id", name: "Gaming PC")
+    let client = RecordingDaemonClient(devices: [worker])
+    let model = AppModel(client: client)
+
+    await model.confirm(pairingSummary(id: "pairing-id", peerName: "Gaming PC"))
+
+    #expect(model.selectedDeviceID == "worker-id")
+    #expect(model.selectedDeviceName == "Gaming PC")
+    #expect(model.runTargetID == "worker-id")
+    #expect(model.selectedDeviceCanRun)
+    #expect(model.lastError == nil)
+}
+
+@Test
+@MainActor
+func confirmKeepsLocalTargetWhenConnectionIsAmbiguous() async {
+    let firstWorker = runTargetDevice(id: "first-worker", name: "Gaming PC")
+    let secondWorker = runTargetDevice(id: "second-worker", name: "Studio Mini")
+    let client = RecordingDaemonClient(devices: [firstWorker, secondWorker])
+    let model = AppModel(client: client)
+
+    await model.confirm(pairingSummary(id: "pairing-id", peerName: "Gaming PC"))
+
+    #expect(model.selectedDeviceID == AppModel.localDeviceID)
+    #expect(model.selectedDeviceName == "Here")
+    #expect(model.runTargetID.isEmpty)
+    #expect(model.lastError == nil)
+}
+
+@Test
+@MainActor
 func notificationSettingLoadsAndPersistsThroughStore() {
     let store = RecordingSettingsStore(jobCompletionNotificationsEnabled: false)
     let model = AppModel(
@@ -1365,6 +1397,15 @@ private func pairableDevice(id: String, name: String) -> DeviceSummary {
         address: "192.0.2.20:47823",
         canPair: true
     )
+}
+
+private func pairingSummary(id: String, peerName: String) -> PairingSummary {
+    var value = Computehop_Local_V1_Pairing()
+    value.id = id
+    value.peerName = peerName
+    value.verificationCode = "0123-4567-89AB-CDEF"
+    value.state = .waiting
+    return PairingSummary(value)
 }
 
 private func jobSummary(

@@ -472,8 +472,11 @@ final class AppModel {
     }
 
     func confirm(_ pairing: PairingSummary) async {
-        await perform("confirm-\(pairing.id)") {
+        let succeeded = await perform("confirm-\(pairing.id)") {
             try await client.confirmPairing(id: pairing.id)
+        }
+        if succeeded {
+            selectOnlyRunnableWorkerIfStillLocal()
         }
     }
 
@@ -771,21 +774,34 @@ final class AppModel {
         return matchingNameCount == 1 ? device.name : device.id
     }
 
+    private func selectOnlyRunnableWorkerIfStillLocal() {
+        guard selectedDeviceID == Self.localDeviceID,
+              runTargetID.isEmpty,
+              runnableDevices.count == 1,
+              let device = runnableDevices.first
+        else { return }
+
+        selectDevice(device)
+    }
+
     private func declaredOutputs() -> [String] {
         outputsInput.split(separator: ",", omittingEmptySubsequences: true)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
     }
 
-    private func perform(_ action: String, operation: () async throws -> Void) async {
-        guard actionInProgress == nil else { return }
+    @discardableResult
+    private func perform(_ action: String, operation: () async throws -> Void) async -> Bool {
+        guard actionInProgress == nil else { return false }
         actionInProgress = action
         defer { actionInProgress = nil }
         do {
             try await operation()
             await refresh()
+            return true
         } catch {
             lastError = AppErrorFormatter.message(for: error)
+            return false
         }
     }
 }
