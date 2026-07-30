@@ -1468,7 +1468,8 @@ from the bundled daemon in packaged builds, package an unpacked current-platform
 app directory with the daemon copied into Electron's runtime resources, persist
 Control Center preferences under the app user-data directory, auto-start the
 daemon once after settings/runtime load when LAN discovery is enabled, offer an Auto
-worker target when exactly one connected worker is available, route Auto-worker
+worker target and default to it until the user makes an explicit device choice
+when exactly one connected worker is available, route Auto-worker
 job follow-ups through remembered job placement, list recent jobs for the
 selected computer, open persisted job logs, declare files/folders to bring back,
 show remote snapshot/upload preparation feedback before long project

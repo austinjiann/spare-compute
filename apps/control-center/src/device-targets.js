@@ -8,16 +8,19 @@
 }(typeof globalThis === "object" ? globalThis : window, function createDeviceTargets() {
   const automaticWorkerID = "auto";
 
-  function addAutomaticWorkerTarget(devices = [], selectedDeviceID = "local") {
+  function addAutomaticWorkerTarget(devices = [], selectedDeviceID = "local", options = {}) {
     const baseDevices = devices.filter((device) => device?.id !== automaticWorkerID);
     const workers = baseDevices.filter(isSingleAutoCandidate);
     const result = workers.length === 1
       ? insertAfterLocal(baseDevices, automaticWorkerTarget(workers[0]))
       : baseDevices;
 
-    const selected = result.some((device) => device.id === selectedDeviceID)
+    let selected = result.some((device) => device.id === selectedDeviceID)
       ? selectedDeviceID
       : "local";
+    if (workers.length === 1 && options.preferAutomaticWorker && selected === "local") {
+      selected = automaticWorkerID;
+    }
 
     return {
       devices: result,

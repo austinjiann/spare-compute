@@ -20,6 +20,24 @@ test("addAutomaticWorkerTarget inserts Auto worker for exactly one connected wor
   assert.equal(result.selectedDeviceID, "local");
 });
 
+test("addAutomaticWorkerTarget can default to Auto worker for first-run offload", () => {
+  const result = addAutomaticWorkerTarget([
+    localDevice(),
+    connectedWorker("Austin MacBook 2", "worker-1")
+  ], "local", { preferAutomaticWorker: true });
+
+  assert.equal(result.selectedDeviceID, automaticWorkerID);
+});
+
+test("addAutomaticWorkerTarget preserves explicit worker selection over Auto preference", () => {
+  const result = addAutomaticWorkerTarget([
+    localDevice(),
+    connectedWorker("Austin MacBook 2", "worker-1")
+  ], "worker-1", { preferAutomaticWorker: true });
+
+  assert.equal(result.selectedDeviceID, "worker-1");
+});
+
 test("addAutomaticWorkerTarget preserves Auto worker selection while valid", () => {
   const result = addAutomaticWorkerTarget([
     localDevice(),

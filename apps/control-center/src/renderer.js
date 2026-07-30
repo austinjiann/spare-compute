@@ -29,6 +29,7 @@ const state = {
   runtimeLoaded: false,
   settingsHydrated: false,
   autoStartAttempted: false,
+  userSelectedDevice: false,
   aiPlannerStatus: {
     configured: false,
     source: "",
@@ -557,7 +558,9 @@ function mergeDevices(localDevices, remoteDevices) {
     ...device,
     synced: isDeviceSynced(device)
   }));
-  const result = addAutomaticWorkerTarget(configured, state.selectedDeviceID);
+  const result = addAutomaticWorkerTarget(configured, state.selectedDeviceID, {
+    preferAutomaticWorker: !state.userSelectedDevice
+  });
   const devices = result.devices;
   state.selectedDeviceID = result.selectedDeviceID;
   if (!devices.some((device) => device.id === state.selectedDeviceID)) {
@@ -602,6 +605,7 @@ function renderDevices() {
 }
 
 function selectRunDevice(deviceID) {
+  state.userSelectedDevice = true;
   state.selectedDeviceID = deviceID;
   state.selectedJobID = null;
   state.selectedJobDeviceID = deviceID;
