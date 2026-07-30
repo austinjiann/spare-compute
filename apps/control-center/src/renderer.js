@@ -227,6 +227,11 @@ function handleJobEvent(event) {
     return;
   }
 
+  if (event.type === "job") {
+    appendJobOutput(`\nJob ${event.jobID}\n`);
+    return;
+  }
+
   if (event.type === "finished") {
     if (event.text) {
       appendJobOutput(`\n${event.text}`);

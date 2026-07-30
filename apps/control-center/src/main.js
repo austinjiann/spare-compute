@@ -96,17 +96,37 @@ ipcMain.handle("jobs:start", async (event, request) => {
 
   const cwd = jobRequest.workingDirectory || repoRoot;
   const runID = randomUUID();
-  setImmediate(() => startComputeHopStream(event.sender, runID, args, { cwd }));
+  setImmediate(() => startComputeHopStream(event.sender, runID, args, {
+    cwd,
+    deviceSelector: jobRequest.deviceID === "local" ? "" : jobRequest.deviceID
+  }));
   return { runID };
 });
 
 ipcMain.handle("jobs:stop", async (_event, runID) => {
-  const child = activeRuns.get(String(runID));
-  if (!child) {
+  const record = activeRuns.get(String(runID));
+  if (!record) {
     return { stopped: false };
   }
-  child.kill("SIGINT");
-  return { stopped: true };
+
+  if (record.jobID) {
+    const args = ["cancel"];
+    if (record.deviceSelector) {
+      args.push("--on", record.deviceSelector);
+    }
+    args.push(record.jobID);
+    const result = await runComputeHop(args, { cwd: repoRoot, timeout: 10000 });
+    if (!result.ok) {
+      sendRunEvent(record.webContents, String(runID), {
+        type: "output",
+        stream: "stderr",
+        text: `\nCancel failed: ${result.error || "unknown error"}\n`
+      });
+    }
+  }
+
+  record.child.kill("SIGINT");
+  return { stopped: true, cancelled: Boolean(record.jobID) };
 });
 
 async function runComputeHop(args, options) {
@@ -153,10 +173,12 @@ function startComputeHopStream(webContents, runID, args, options) {
     command: "computehop",
     args,
     cwd: options.cwd,
+    deviceSelector: options.deviceSelector,
     fallback: {
       command: "go",
       args: ["run", "./cmd/computehop", ...args],
-      cwd: repoRoot
+      cwd: repoRoot,
+      deviceSelector: options.deviceSelector
     }
   });
 }
@@ -179,10 +201,16 @@ function startProcessStream(webContents, runID, spec) {
     return;
   }
 
-  activeRuns.set(runID, child);
+  activeRuns.set(runID, {
+    child,
+    deviceSelector: spec.deviceSelector || "",
+    jobID: null,
+    webContents
+  });
   sendRunEvent(webContents, runID, { type: "started" });
 
   child.stdout.on("data", (chunk) => {
+    rememberSubmittedJobID(runID, chunk.toString());
     sendRunEvent(webContents, runID, {
       type: "output",
       stream: "stdout",
@@ -191,6 +219,7 @@ function startProcessStream(webContents, runID, spec) {
   });
 
   child.stderr.on("data", (chunk) => {
+    rememberSubmittedJobID(runID, chunk.toString());
     sendRunEvent(webContents, runID, {
       type: "output",
       stream: "stderr",
@@ -228,6 +257,22 @@ function startProcessStream(webContents, runID, spec) {
           ? "Done."
           : `Exited with code ${code}.`
     });
+  });
+}
+
+function rememberSubmittedJobID(runID, text) {
+  const record = activeRuns.get(runID);
+  if (!record || record.jobID) {
+    return;
+  }
+  const match = text.match(/Submitted\s+([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
+  if (!match) {
+    return;
+  }
+  record.jobID = match[1];
+  sendRunEvent(record.webContents, runID, {
+    type: "job",
+    jobID: record.jobID
   });
 }
 
