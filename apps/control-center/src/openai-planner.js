@@ -1,5 +1,6 @@
 const { commandNeedsProject } = require("./planner");
 const { splitCommandLine } = require("./command-line");
+const { validatePortableOutputs } = require("./output-path");
 const { capabilityForCommand } = require("./work-policy");
 
 const defaultOpenAIBaseURL = "https://api.openai.com/v1";
@@ -15,12 +16,17 @@ const planSchema = {
     command: { type: "string" },
     detail: { type: "string" },
     requiresProject: { type: "boolean" },
+    outputs: {
+      type: "array",
+      maxItems: 64,
+      items: { type: "string" }
+    },
     capability: {
       type: "string",
       enum: ["", "builds", "tests", "docker", "ai", "video", "commands"]
     }
   },
-  required: ["ok", "title", "command", "detail", "requiresProject", "capability"]
+  required: ["ok", "title", "command", "detail", "requiresProject", "outputs", "capability"]
 };
 
 function openAIPlannerConfig(env = process.env) {
@@ -107,6 +113,7 @@ function openAIPlanRequest(request = {}) {
           "Return JSON only through the provided schema.",
           "Use only one executable command. No shell operators, pipes, redirects, backgrounding, command substitution, sudo, destructive deletes, or interactive commands.",
           "Prefer existing package scripts and Makefile targets from the project profile.",
+          "If the command produces files the user likely wants back, set outputs to portable relative paths such as dist or report.pdf; otherwise use an empty array.",
           "If the task is unsafe, ambiguous, interactive, or cannot be expressed as one background command, set ok=false and leave command empty.",
           "Do not invent files, credentials, model names, hosts, or environment variables."
         ].join(" ")
@@ -170,6 +177,13 @@ function normalizeOpenAIPlan(response, context = {}) {
       error: "Choose a project first so ComputeHop can send those files to the worker."
     };
   }
+  const outputValidation = validatePortableOutputs(Array.isArray(parsed.outputs) ? parsed.outputs : []);
+  if (!outputValidation.ok) {
+    return {
+      ok: false,
+      error: `AI planner returned unsafe outputs: ${outputValidation.error}`
+    };
+  }
 
   return {
     ok: true,
@@ -180,6 +194,7 @@ function normalizeOpenAIPlan(response, context = {}) {
       exact: capability === "commands",
       requiresProject,
       capability,
+      outputs: outputValidation.outputs,
       projectRoot: cleanString(context.projectRoot),
       detected: detectedLabels(context.profile || []),
       planner: "openai"

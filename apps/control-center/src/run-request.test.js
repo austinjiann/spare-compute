@@ -5,6 +5,7 @@ const {
   jobOutputsForPlan,
   jobStartRequestForPlan,
   jobWorkingDirectoryForPlan,
+  outputValidationForPlan,
   runReadinessError,
   runWorkingDirectory
 } = require("./run-request");
@@ -76,6 +77,19 @@ test("jobOutputsForPlan normalizes declared outputs", () => {
     "dist",
     "report"
   ]);
+});
+
+test("outputValidationForPlan rejects unsafe output declarations", () => {
+  assert.equal(outputValidationForPlan({ outputs: ["dist", "report.pdf"] }).ok, true);
+  assert.match(outputValidationForPlan({ outputs: ["/tmp/report.pdf"] }).error, /relative/);
+  assert.match(outputValidationForPlan({ outputs: ["dist", "Dist"] }).error, /collide/);
+  assert.equal(
+    outputValidationForPlan({
+      plan: { ignoreDeclaredOutputs: true },
+      outputs: ["/tmp/report.pdf"]
+    }).ok,
+    true
+  );
 });
 
 test("jobOutputsForPlan combines planned and declared outputs", () => {
@@ -230,6 +244,16 @@ test("runReadinessError requires a project before project work on any device", (
 });
 
 test("runReadinessError requires a project before output restoration on any device", () => {
+  assert.match(
+    runReadinessError({
+      device: { id: "local", name: "This Mac" },
+      canRun: true,
+      plan: { command: "hostname", requiresProject: false },
+      projectRoot: "/Users/austin/project",
+      outputs: ["/tmp/report.pdf"]
+    }),
+    /relative/
+  );
   assert.equal(
     runReadinessError({
       device: { id: "local", name: "This Mac" },

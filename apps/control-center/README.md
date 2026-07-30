@@ -69,6 +69,8 @@ Current scope:
   rules cannot map when an OpenAI API key is saved in the app or
   `OPENAI_API_KEY` is present; set a model in the app or use
   `COMPUTEHOP_OPENAI_MODEL` to override the default model;
+- lets the optional AI planner declare files or folders to bring back, using
+  the same portable relative output-path validation as manual output entries;
 - stores the optional OpenAI API key in the app user-data directory with
   Electron `safeStorage` encryption when the OS exposes it, while keeping
   environment variables as a fallback;
@@ -102,6 +104,9 @@ Current scope:
   folder, utility commands stay projectless, and Auto/explicit worker selectors
   are preserved;
 - declares optional files/folders to bring back from completed jobs;
+- validates declared output paths before submission so unsafe paths such as
+  absolute paths, `..`, backslashes, reserved names, or `.git` are rejected in
+  the UI instead of failing later in the daemon;
 - submits selected commands as durable native jobs;
 - polls daemon job logs and streams stdout/stderr into the window;
 - lists recent jobs for the selected computer and opens their persisted logs;

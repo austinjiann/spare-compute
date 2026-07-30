@@ -1,5 +1,6 @@
 const fs = require("node:fs/promises");
 const path = require("node:path");
+const { validatePortableOutputs } = require("./output-path");
 
 async function planTask(request) {
   const task = String(request?.task || "").trim();
@@ -443,20 +444,8 @@ function plan(title, command, detail, profile, options = {}) {
 }
 
 function normalizeOutputs(outputs) {
-  if (!Array.isArray(outputs)) {
-    return [];
-  }
-  const seen = new Set();
-  const normalized = [];
-  outputs.forEach((value) => {
-    const output = String(value || "").trim();
-    if (!output || seen.has(output)) {
-      return;
-    }
-    seen.add(output);
-    normalized.push(output);
-  });
-  return normalized;
+  const validated = validatePortableOutputs(outputs);
+  return validated.ok ? validated.outputs : [];
 }
 
 function detectedLabels(profile) {

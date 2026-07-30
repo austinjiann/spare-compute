@@ -49,6 +49,7 @@ test("openAIPlanRequest asks for structured one-command JSON without file conten
     "command",
     "detail",
     "requiresProject",
+    "outputs",
     "capability"
   ]);
   const prompt = JSON.parse(request.input[1].content);
@@ -78,6 +79,7 @@ test("normalizeOpenAIPlan returns a reviewed ComputeHop plan", () => {
       command: "./scripts/check",
       detail: "Runs the project helper.",
       requiresProject: false,
+      outputs: ["dist/report.json"],
       capability: ""
     })
   }, {
@@ -94,6 +96,7 @@ test("normalizeOpenAIPlan returns a reviewed ComputeHop plan", () => {
   assert.equal(result.plan.requiresProject, true);
   assert.equal(result.plan.capability, "commands");
   assert.equal(result.plan.exact, true);
+  assert.deepEqual(result.plan.outputs, ["dist/report.json"]);
   assert.equal(result.plan.planner, "openai");
   assert.deepEqual(result.plan.detected, ["npm package"]);
 });
@@ -106,6 +109,7 @@ test("normalizeOpenAIPlan infers known work capability from the command", () => 
       command: "go test ./...",
       detail: "Detected a Go test command.",
       requiresProject: true,
+      outputs: [],
       capability: ""
     })
   }, {
@@ -127,6 +131,7 @@ test("normalizeOpenAIPlan rejects unsafe or unusable plans", () => {
         command: "",
         detail: "",
         requiresProject: false,
+        outputs: [],
         capability: "commands"
       })
     }).error,
@@ -140,6 +145,7 @@ test("normalizeOpenAIPlan rejects unsafe or unusable plans", () => {
         command: "rm -rf dist",
         detail: "delete",
         requiresProject: false,
+        outputs: [],
         capability: "commands"
       })
     }).error,
@@ -153,10 +159,27 @@ test("normalizeOpenAIPlan rejects unsafe or unusable plans", () => {
         command: "go test ./...",
         detail: "test",
         requiresProject: true,
+        outputs: [],
         capability: "tests"
       })
     }).error,
     /Choose a project first/
+  );
+  assert.match(
+    normalizeOpenAIPlan({
+      output_text: JSON.stringify({
+        ok: true,
+        title: "Package app",
+        command: "make package",
+        detail: "package",
+        requiresProject: true,
+        outputs: ["../dist"],
+        capability: "builds"
+      })
+    }, {
+      projectRoot: "/project"
+    }).error,
+    /unsafe outputs/
   );
 });
 
@@ -189,6 +212,7 @@ test("planTaskWithOpenAI posts to the Responses API and normalizes the result", 
           command: "hostname",
           detail: "Prints the selected computer hostname.",
           requiresProject: false,
+          outputs: [],
           capability: "commands"
         })
       })

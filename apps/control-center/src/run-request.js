@@ -1,11 +1,16 @@
 (function attachRunRequest(root, factory) {
-  const exports = factory();
+  const outputPath = typeof module === "object" && module.exports
+    ? require("./output-path")
+    : root.computeHopOutputPath;
+  const exports = factory(outputPath);
   if (typeof module === "object" && module.exports) {
     module.exports = exports;
   } else {
     root.computeHopRunRequest = exports;
   }
-}(typeof globalThis === "object" ? globalThis : window, function createRunRequest() {
+}(typeof globalThis === "object" ? globalThis : window, function createRunRequest(outputPath = {}) {
+  const validatePortableOutputs = outputPath?.validatePortableOutputs || fallbackValidatePortableOutputs;
+
   function runWorkingDirectory(jobRequest) {
     return cleanPath(jobRequest?.workingDirectory);
   }
@@ -83,6 +88,10 @@
       }
       return "Choose a project before running this. ComputeHop needs the folder so it can run from the right place.";
     }
+    const outputValidation = outputValidationForPlan(request);
+    if (!outputValidation.ok) {
+      return outputValidation.error;
+    }
     if (outputs.length > 0 && !cleanPath(request.projectRoot)) {
       if (deviceID !== "local") {
         return "Choose a project before bringing files back from another computer.";
@@ -109,6 +118,17 @@
     return normalized;
   }
 
+  function outputValidationForPlan(request = {}) {
+    const plan = request.plan || {};
+    if (plan.ignoreDeclaredOutputs) {
+      return { ok: true, outputs: [], error: "" };
+    }
+    return validatePortableOutputs([
+      ...arrayValues(plan.outputs),
+      ...arrayValues(request.outputs)
+    ]);
+  }
+
   function arrayValues(value) {
     return Array.isArray(value) ? value : [];
   }
@@ -125,11 +145,20 @@
     return value.replace(/^uses\s+/i, "").trim();
   }
 
+  function fallbackValidatePortableOutputs(outputs) {
+    return {
+      ok: true,
+      outputs: normalizeOutputs(outputs),
+      error: ""
+    };
+  }
+
   return {
     jobDeviceName,
     jobStartRequestForPlan,
     jobOutputsForPlan,
     jobWorkingDirectoryForPlan,
+    outputValidationForPlan,
     runReadinessError,
     runWorkingDirectory
   };

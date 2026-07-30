@@ -1464,8 +1464,10 @@ task chips after project selection, applies allowed-work checkboxes to suggested
 planned work, keeps unknown exact commands behind an explicit allowance, avoids
 substituting the development checkout when no project is selected, keeps projectless
 utility jobs from snapshotting selected projects, and blocks project-style runs until
-a project folder is selected. AI-planned commands are still
-previewed, mapped through the same per-device allowed-work policy, and rejected
+a project folder is selected. AI-planned commands may include portable relative
+outputs to bring back, use the same output-path validation as manual output
+declarations, and are still previewed, mapped through the same per-device
+allowed-work policy, and rejected
 before preview when they contain shell operators, multiline commands, shell
 wrappers, obvious interactive commands, privilege escalation, or destructive
 removal. The optional OpenAI key can be saved from

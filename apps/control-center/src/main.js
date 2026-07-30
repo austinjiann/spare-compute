@@ -15,7 +15,7 @@ const {
 } = require("./planner-service");
 const { appRuntimeInfo, normalizeDaemonRole } = require("./runtime-info");
 const { remotePreparationMessage } = require("./run-feedback");
-const { jobOutputsForPlan, runWorkingDirectory } = require("./run-request");
+const { jobOutputsForPlan, outputValidationForPlan, runWorkingDirectory } = require("./run-request");
 const {
   detachActiveRun,
   detachAllRuns,
@@ -697,6 +697,10 @@ function stoppedError() {
 function normalizeJobRequest(request) {
   if (!request || typeof request !== "object") {
     throw new Error("Job request is required.");
+  }
+  const outputValidation = outputValidationForPlan({ outputs: request.outputs });
+  if (!outputValidation.ok) {
+    throw new Error(outputValidation.error);
   }
   return {
     command: String(request.command || "").trim(),
