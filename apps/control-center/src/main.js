@@ -30,6 +30,13 @@ const {
   followupDeviceSelector,
   jobDeviceIDForSelector
 } = require("./job-routing");
+const {
+  mapDevices,
+  mapLocalDevice,
+  mapPairing,
+  mapPairings,
+  mapTrustedDevice
+} = require("./device-mapping");
 const { mapJob } = require("./job-summary");
 const {
   loadSettings: loadControlCenterSettings,
@@ -550,165 +557,6 @@ function jobDeviceIDFromRequest(request) {
 
 function daemonRoleFromRequest(request) {
   return normalizeDaemonRole(request?.role, process.platform);
-}
-
-function mapDevices(result) {
-  const devices = [];
-  const seen = new Set();
-
-  for (const trusted of result.trustedDevices || []) {
-    const device = mapTrustedDevice(trusted);
-    const id = device.id;
-    if (!id || seen.has(id)) {
-      continue;
-    }
-    seen.add(id);
-    devices.push(device);
-  }
-
-  for (const nearby of result.devices || []) {
-    const id = nearby.presenceId || nearby.instance || nearby.name;
-    if (!id || seen.has(id)) {
-      continue;
-    }
-    seen.add(id);
-    devices.push({
-      name: nearby.name || "Computer",
-      id,
-      connection: nearby.trustState === "DEVICE_TRUST_STATE_PAIRED" ? "paired" : "not connected",
-      role: roleLabel(nearby.role),
-      availability: nearby.endpointReady ? "nearby" : "offline",
-      trustState: trustLabel(nearby.trustState),
-      path: "lan",
-      address: [nearby.addresses || [], nearby.port ? [String(nearby.port)] : []].flat().filter(Boolean).join(":"),
-      updated: timestampLabel(nearby.lastSeenAtUnixNano)
-    });
-  }
-
-  return devices;
-}
-
-function mapLocalDevice(ping) {
-  if (!ping) {
-    return null;
-  }
-  return {
-    name: ping.deviceName || "This Mac",
-    id: "local",
-    deviceID: ping.deviceId || "",
-    connection: "active",
-    role: roleLabel(ping.role),
-    availability: "local",
-    trustState: "paired",
-    path: "local",
-    address: "",
-    updated: ""
-  };
-}
-
-function mapTrustedDevice(trusted) {
-  if (!trusted) {
-    return null;
-  }
-  return {
-    name: trusted.name || "Computer",
-    id: trusted.deviceId || trusted.pairId || trusted.name || "",
-    pairID: trusted.pairId || "",
-    connection: trusted.trustState === "DEVICE_TRUST_STATE_PAIRED" ? connectionLabel(trusted) : "unpaired",
-    role: roleLabel(trusted.role),
-    availability: availabilityFromConnectivity(trusted.connectivityState),
-    trustState: trustLabel(trusted.trustState),
-    path: trusted.connectivityPath || "",
-    connectionError: trusted.connectivityError || "",
-    address: "",
-    updated: timestampLabel(trusted.connectivityUpdatedAtUnixNano || trusted.updatedAtUnixNano)
-  };
-}
-
-function mapPairings(pairings) {
-  return (pairings || []).map(mapPairing).filter(Boolean);
-}
-
-function mapPairing(pairing) {
-  if (!pairing) {
-    return null;
-  }
-  return {
-    id: pairing.id || "",
-    peerDeviceID: pairing.peerDeviceId || "",
-    peerName: pairing.peerName || "Computer",
-    peerRole: roleLabel(pairing.peerRole),
-    verificationCode: pairing.verificationCode || "",
-    direction: pairing.direction === "PAIRING_DIRECTION_INBOUND" ? "inbound" : "outbound",
-    state: pairingStateLabel(pairing.state),
-    localConfirmed: Boolean(pairing.localConfirmed),
-    remoteConfirmed: Boolean(pairing.remoteConfirmed),
-    expiresAt: timestampLabel(pairing.expiresAtUnixNano),
-    failure: pairing.failure || ""
-  };
-}
-
-function roleLabel(role) {
-  if (role === "DEVICE_ROLE_WORKER") {
-    return "worker";
-  }
-  if (role === "DEVICE_ROLE_ORCHESTRATOR") {
-    return "orchestrator";
-  }
-  return "device";
-}
-
-function connectionLabel(device) {
-  return device.connectivityState === "CONNECTIVITY_STATE_CONNECTED" ? "active" : "not connected";
-}
-
-function trustLabel(state) {
-  if (state === "DEVICE_TRUST_STATE_PAIRED") {
-    return "paired";
-  }
-  if (state === "DEVICE_TRUST_STATE_REVOKED") {
-    return "revoked";
-  }
-  return "unpaired";
-}
-
-function pairingStateLabel(state) {
-  switch (state) {
-    case "PAIRING_STATE_WAITING":
-      return "waiting";
-    case "PAIRING_STATE_PAIRED":
-      return "paired";
-    case "PAIRING_STATE_REJECTED":
-      return "rejected";
-    case "PAIRING_STATE_EXPIRED":
-      return "expired";
-    case "PAIRING_STATE_FAILED":
-      return "failed";
-    default:
-      return "unknown";
-  }
-}
-
-function availabilityFromConnectivity(state) {
-  switch (state) {
-    case "CONNECTIVITY_STATE_CONNECTED":
-      return "remote";
-    case "CONNECTIVITY_STATE_CONNECTING":
-      return "connecting";
-    default:
-      return "offline";
-  }
-}
-
-function timestampLabel(value) {
-  if (!value) {
-    return "";
-  }
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric) || numeric <= 0) {
-    return "";
-  }
-  return new Date(Math.floor(numeric / 1_000_000)).toISOString();
 }
 
 async function localDaemonIsRunning() {

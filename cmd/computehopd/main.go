@@ -251,6 +251,8 @@ func runWithDependencies(
 		ProtocolVersion: device.DiscoveryProtocolVersion,
 		Port:            pairingEndpoint.Port(),
 		EndpointReady:   true,
+		Platform:        runtime.GOOS,
+		Architecture:    runtime.GOARCH,
 	}
 	if err := localAnnouncement.Validate(); err != nil {
 		return fmt.Errorf("configure local device announcement: %w", err)

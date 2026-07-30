@@ -25,6 +25,7 @@ func TestDiscoverySnapshotToProtoMarksEveryObservationUnpaired(t *testing.T) {
 				Announcement: device.Announcement{
 					PresenceID: presenceID, Name: "Worker", Role: device.RoleWorker,
 					ProtocolVersion: 1, Port: 47823,
+					Platform: "linux", Architecture: "amd64",
 				},
 				Instance: "Worker", HostName: "worker.local.",
 				Addresses: []netip.Addr{netip.MustParseAddr("192.0.2.1")},
@@ -38,7 +39,9 @@ func TestDiscoverySnapshotToProtoMarksEveryObservationUnpaired(t *testing.T) {
 	}
 	if message.GetDiscoveryState() != localv1.DiscoveryState_DISCOVERY_STATE_AVAILABLE ||
 		len(message.GetDevices()) != 1 ||
-		message.GetDevices()[0].GetTrustState() != localv1.DeviceTrustState_DEVICE_TRUST_STATE_UNPAIRED {
+		message.GetDevices()[0].GetTrustState() != localv1.DeviceTrustState_DEVICE_TRUST_STATE_UNPAIRED ||
+		message.GetDevices()[0].GetPlatform() != "linux" ||
+		message.GetDevices()[0].GetArch() != "amd64" {
 		t.Fatalf("message = %#v", message)
 	}
 }

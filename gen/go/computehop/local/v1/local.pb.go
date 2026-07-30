@@ -2976,6 +2976,8 @@ type NearbyDevice struct {
 	LastSeenAtUnixNano  int64                  `protobuf:"varint,11,opt,name=last_seen_at_unix_nano,json=lastSeenAtUnixNano,proto3" json:"last_seen_at_unix_nano,omitempty"`
 	ExpiresAtUnixNano   int64                  `protobuf:"varint,12,opt,name=expires_at_unix_nano,json=expiresAtUnixNano,proto3" json:"expires_at_unix_nano,omitempty"`
 	TrustState          DeviceTrustState       `protobuf:"varint,13,opt,name=trust_state,json=trustState,proto3,enum=computehop.local.v1.DeviceTrustState" json:"trust_state,omitempty"`
+	Platform            string                 `protobuf:"bytes,14,opt,name=platform,proto3" json:"platform,omitempty"`
+	Arch                string                 `protobuf:"bytes,15,opt,name=arch,proto3" json:"arch,omitempty"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
 }
@@ -3099,6 +3101,20 @@ func (x *NearbyDevice) GetTrustState() DeviceTrustState {
 		return x.TrustState
 	}
 	return DeviceTrustState_DEVICE_TRUST_STATE_UNSPECIFIED
+}
+
+func (x *NearbyDevice) GetPlatform() string {
+	if x != nil {
+		return x.Platform
+	}
+	return ""
+}
+
+func (x *NearbyDevice) GetArch() string {
+	if x != nil {
+		return x.Arch
+	}
+	return ""
 }
 
 type JobSpec struct {
@@ -3627,7 +3643,7 @@ const file_computehop_local_v1_local_proto_rawDesc = "" +
 	" \x01(\x0e2&.computehop.local.v1.ConnectivityStateR\x11connectivityState\x12+\n" +
 	"\x11connectivity_path\x18\v \x01(\tR\x10connectivityPath\x12-\n" +
 	"\x12connectivity_error\x18\f \x01(\tR\x11connectivityError\x12H\n" +
-	"!connectivity_updated_at_unix_nano\x18\r \x01(\x03R\x1dconnectivityUpdatedAtUnixNano\"\x98\x04\n" +
+	"!connectivity_updated_at_unix_nano\x18\r \x01(\x03R\x1dconnectivityUpdatedAtUnixNano\"\xc8\x04\n" +
 	"\fNearbyDevice\x12\x1f\n" +
 	"\vpresence_id\x18\x01 \x01(\tR\n" +
 	"presenceId\x12\x12\n" +
@@ -3644,7 +3660,9 @@ const file_computehop_local_v1_local_proto_rawDesc = "" +
 	"\x16last_seen_at_unix_nano\x18\v \x01(\x03R\x12lastSeenAtUnixNano\x12/\n" +
 	"\x14expires_at_unix_nano\x18\f \x01(\x03R\x11expiresAtUnixNano\x12F\n" +
 	"\vtrust_state\x18\r \x01(\x0e2%.computehop.local.v1.DeviceTrustStateR\n" +
-	"trustState\"\x83\x03\n" +
+	"trustState\x12\x1a\n" +
+	"\bplatform\x18\x0e \x01(\tR\bplatform\x12\x12\n" +
+	"\x04arch\x18\x0f \x01(\tR\x04arch\"\x83\x03\n" +
 	"\aJobSpec\x12\x1e\n" +
 	"\n" +
 	"executable\x18\x01 \x01(\tR\n" +

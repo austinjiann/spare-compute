@@ -60,6 +60,50 @@ test("deviceLabel describes connected paths without exposing route jargon", () =
   );
 });
 
+test("deviceLabel prefers advertised platform hints when present", () => {
+  assert.equal(
+    deviceLabel({
+      id: "worker-1",
+      name: "Gaming PC",
+      role: "worker",
+      trustState: "paired",
+      connection: "active",
+      availability: "remote",
+      path: "lan",
+      platform: "windows"
+    }),
+    "Windows PC · connected over LAN"
+  );
+
+  assert.equal(
+    deviceLabel({
+      id: "worker-2",
+      name: "Home Server",
+      role: "worker",
+      trustState: "paired",
+      connection: "active",
+      availability: "remote",
+      path: "lan",
+      platform: "linux"
+    }),
+    "Linux server · connected over LAN"
+  );
+
+  assert.equal(
+    deviceLabel({
+      id: "worker-3",
+      name: "Mac mini",
+      role: "worker",
+      trustState: "paired",
+      connection: "active",
+      availability: "remote",
+      path: "lan",
+      platform: "darwin"
+    }),
+    "Mac · connected over LAN"
+  );
+});
+
 test("friendlyConnectionError summarizes actionable offline reasons", () => {
   assert.equal(connectionPathLabel("ice-direct"), "direct link");
   assert.equal(friendlyConnectionError("re-pair this device to enable remote connectivity"), "needs reconnect setup");

@@ -230,6 +230,8 @@ message NearbyDevice {
   int64 last_seen_at_unix_nano = 11;
   int64 expires_at_unix_nano = 12;
   DeviceTrustState trust_state = 13;
+  string platform = 14;
+  string arch = 15;
 }
 
 message JobSpec {

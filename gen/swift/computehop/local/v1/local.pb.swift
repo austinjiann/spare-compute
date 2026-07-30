@@ -1447,6 +1447,10 @@ public nonisolated struct Computehop_Local_V1_NearbyDevice: Sendable {
 
   public var trustState: Computehop_Local_V1_DeviceTrustState = .unspecified
 
+  public var platform: String = String()
+
+  public var arch: String = String()
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
@@ -3409,7 +3413,7 @@ nonisolated extension Computehop_Local_V1_TrustedDevice: SwiftProtobuf.Message, 
 
 nonisolated extension Computehop_Local_V1_NearbyDevice: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".NearbyDevice"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}presence_id\0\u{1}name\0\u{1}role\0\u{3}protocol_version\0\u{1}instance\0\u{3}host_name\0\u{1}addresses\0\u{1}port\0\u{3}endpoint_ready\0\u{3}first_seen_at_unix_nano\0\u{3}last_seen_at_unix_nano\0\u{3}expires_at_unix_nano\0\u{3}trust_state\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}presence_id\0\u{1}name\0\u{1}role\0\u{3}protocol_version\0\u{1}instance\0\u{3}host_name\0\u{1}addresses\0\u{1}port\0\u{3}endpoint_ready\0\u{3}first_seen_at_unix_nano\0\u{3}last_seen_at_unix_nano\0\u{3}expires_at_unix_nano\0\u{3}trust_state\0\u{1}platform\0\u{1}arch\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -3430,6 +3434,8 @@ nonisolated extension Computehop_Local_V1_NearbyDevice: SwiftProtobuf.Message, S
       case 11: try { try decoder.decodeSingularInt64Field(value: &self.lastSeenAtUnixNano) }()
       case 12: try { try decoder.decodeSingularInt64Field(value: &self.expiresAtUnixNano) }()
       case 13: try { try decoder.decodeSingularEnumField(value: &self.trustState) }()
+      case 14: try { try decoder.decodeSingularStringField(value: &self.platform) }()
+      case 15: try { try decoder.decodeSingularStringField(value: &self.arch) }()
       default: break
       }
     }
@@ -3475,6 +3481,12 @@ nonisolated extension Computehop_Local_V1_NearbyDevice: SwiftProtobuf.Message, S
     if self.trustState != .unspecified {
       try visitor.visitSingularEnumField(value: self.trustState, fieldNumber: 13)
     }
+    if !self.platform.isEmpty {
+      try visitor.visitSingularStringField(value: self.platform, fieldNumber: 14)
+    }
+    if !self.arch.isEmpty {
+      try visitor.visitSingularStringField(value: self.arch, fieldNumber: 15)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -3492,6 +3504,8 @@ nonisolated extension Computehop_Local_V1_NearbyDevice: SwiftProtobuf.Message, S
     if lhs.lastSeenAtUnixNano != rhs.lastSeenAtUnixNano {return false}
     if lhs.expiresAtUnixNano != rhs.expiresAtUnixNano {return false}
     if lhs.trustState != rhs.trustState {return false}
+    if lhs.platform != rhs.platform {return false}
+    if lhs.arch != rhs.arch {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

@@ -17,6 +17,7 @@ func TestAnnouncementTextParsesResolvedEntry(t *testing.T) {
 	announcement := device.Announcement{
 		PresenceID: presenceID, Name: "Gaming PC", Role: device.RoleWorker,
 		ProtocolVersion: device.DiscoveryProtocolVersion, Port: DefaultPort,
+		Platform: "windows", Architecture: "amd64",
 	}
 	now := time.Date(2026, time.July, 19, 12, 0, 0, 0, time.UTC)
 	observation, err := parseEntry(rawEntry{
@@ -75,6 +76,7 @@ func TestServiceRunReportsReadyObservationAndShutdown(t *testing.T) {
 	announcement := device.Announcement{
 		PresenceID: presenceID, Name: "Worker", Role: device.RoleWorker,
 		ProtocolVersion: 1, Port: DefaultPort,
+		Platform: "linux", Architecture: "arm64",
 	}
 	registered := &fakeRegistration{}
 	ctx, cancel := context.WithCancel(context.Background())

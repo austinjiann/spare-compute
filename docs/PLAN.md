@@ -1453,7 +1453,9 @@ configurable setup/VPS defaults, and safe command parsing; a real
 Swift client has successfully pinged the Go daemon, submitted a durable native
 job, and read its output. A separate Electron Control Center now owns the
 heavier settings surface, connects to the daemon over local IPC, lists nearby
-and trusted devices with plain-language connection health, pairs,
+and trusted devices with plain-language connection health, merges unambiguous
+paired LAN sightings into one selectable worker row, uses advertised
+platform/architecture hints for friendlier Mac/Windows/Linux device labels, pairs,
 disables/re-enables, or forgets workers, plans plain-language tasks into
 previewed commands with package/Makefile/language/Docker fallbacks, recognizes
 plain-language placement hints such as running work on another computer or here,

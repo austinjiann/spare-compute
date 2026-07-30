@@ -72,6 +72,12 @@ Current scope:
 - shows plain-language device connection health such as connected over LAN,
   connected over relay, reconnecting, offline, or remote access off, without
   exposing route internals in the primary device row;
+- merges paired workers with their current LAN sightings when the match is
+  unambiguous, so a connected worker appears as one selectable row instead of a
+  trusted offline row plus a separate nearby row;
+- uses advertised platform/architecture hints for friendlier device labels such
+  as Windows PC, Linux server, Mac, or MacBook while keeping those hints
+  informational only;
 - stores allowed work categories per selected device, so This Mac and each
   worker can have different Builds/Tests/Docker/AI/Video/Exact-command policy;
 - plans plain-language tasks such as "run tests", "build the app", "package

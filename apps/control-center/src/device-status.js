@@ -111,8 +111,18 @@
   }
 
   function deviceKind(device = {}) {
+    const platform = platformHint(device);
     const name = `${device.name || ""} ${device.role || ""} ${device.address || ""}`.toLowerCase();
-    if (device.id === "local" || name.includes("macbook") || name.includes("laptop")) {
+    if (platform === "win32" || platform === "windows") {
+      return "desktop";
+    }
+    if (platform === "linux") {
+      return name.includes("server") || name.includes("nas") || name.includes("home") ? "server" : "desktop";
+    }
+    if (platform === "darwin" && (name.includes("mac mini") || name.includes("mini") || name.includes("studio"))) {
+      return "desktop";
+    }
+    if (device.id === "local" || platform === "darwin" || name.includes("macbook") || name.includes("laptop")) {
       return "laptop";
     }
     if (name.includes("server") || name.includes("nas") || name.includes("home")) {
@@ -128,7 +138,21 @@
   }
 
   function deviceType(device = {}) {
-    switch (deviceKind(device)) {
+    const kind = deviceKind(device);
+    const platform = platformHint(device);
+    if (kind === "server") {
+      return platform === "linux" ? "Linux server" : "Server";
+    }
+    if (platform === "darwin") {
+      return kind === "laptop" ? "MacBook" : "Mac";
+    }
+    if (platform === "win32" || platform === "windows") {
+      return "Windows PC";
+    }
+    if (platform === "linux") {
+      return "Linux computer";
+    }
+    switch (kind) {
       case "laptop":
         return "MacBook";
       case "server":
@@ -138,6 +162,10 @@
       default:
         return "Device";
     }
+  }
+
+  function platformHint(device = {}) {
+    return String(device.platform || device.os || "").trim().toLowerCase();
   }
 
   function isSyncManagedDevice(device = {}) {

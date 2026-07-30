@@ -126,7 +126,7 @@ func (service *Service) registerAnnouncement(local device.Announcement) (registr
 }
 
 func announcementText(local device.Announcement) []string {
-	return []string{
+	records := []string{
 		"txtvers=" + textFormatVersion,
 		"sid=" + string(local.PresenceID),
 		"name=" + local.Name,
@@ -134,6 +134,13 @@ func announcementText(local device.Announcement) []string {
 		"proto=" + strconv.FormatUint(uint64(local.ProtocolVersion), 10),
 		"ready=" + strconv.FormatBool(local.EndpointReady),
 	}
+	if local.Platform != "" {
+		records = append(records, "platform="+local.Platform)
+	}
+	if local.Architecture != "" {
+		records = append(records, "arch="+local.Architecture)
+	}
+	return records
 }
 
 func browse(ctx context.Context, output chan<- rawEntry) error {
@@ -217,6 +224,7 @@ func parseEntry(entry rawEntry, now time.Time) (device.Observation, error) {
 	announcement := device.Announcement{
 		PresenceID: presenceID, Name: fields["name"], Role: device.Role(fields["role"]),
 		ProtocolVersion: uint32(protocolVersion), Port: uint16(entry.Port), EndpointReady: ready,
+		Platform: fields["platform"], Architecture: fields["arch"],
 	}
 	addresses := normalizedAddresses(append(cloneIPs(entry.IPv4), entry.IPv6...))
 	ttl := min(max(entry.TTL, minimumTTLSeconds), maximumTTLSeconds)
