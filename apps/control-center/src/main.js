@@ -17,6 +17,11 @@ const { appRuntimeInfo, normalizeDaemonRole } = require("./runtime-info");
 const { remotePreparationMessage } = require("./run-feedback");
 const { jobOutputsForPlan, runWorkingDirectory } = require("./run-request");
 const {
+  stopActiveRun,
+  stopAllRuns,
+  stopRunsForWebContents
+} = require("./run-lifecycle");
+const {
   deviceSelectorFromDeviceID,
   followupDeviceSelector,
   jobDeviceIDForSelector
@@ -59,6 +64,10 @@ function createWindow() {
   });
 
   win.loadFile(path.join(__dirname, "index.html"));
+
+  win.on("close", () => {
+    void stopRunsForWebContents(activeRuns, win.webContents);
+  });
 }
 
 app.whenReady().then(() => {
@@ -75,6 +84,10 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     app.quit();
   }
+});
+
+app.on("before-quit", () => {
+  void stopAllRuns(activeRuns);
 });
 
 ipcMain.handle("devices:list", async () => {
@@ -293,31 +306,13 @@ ipcMain.handle("outputs:chooseDestination", async (_event, request) => {
 });
 
 ipcMain.handle("jobs:stop", async (_event, runID) => {
-  const record = activeRuns.get(String(runID));
-  if (!record) {
-    return { stopped: false };
-  }
-
-  record.stopped = true;
-  record.abortController.abort();
-
-  if (!record.jobID) {
-    return { stopped: true, cancelled: false };
-  }
-
-  try {
-    await record.client.cancelJob(record.jobID, {
-      deviceSelector: record.deviceSelector
-    });
-  } catch (error) {
-    sendRunEvent(record.webContents, String(runID), {
+  return stopActiveRun(activeRuns, String(runID), {
+    onCancelError: (record, id, error) => sendRunEvent(record.webContents, id, {
       type: "output",
       stream: "stderr",
       text: `\nCancel failed: ${readableError(error)}\n`
-    });
-  }
-
-  return { stopped: true, cancelled: true };
+    })
+  });
 });
 
 function startDaemonJobStream(webContents, runID, jobRequest, argv) {
