@@ -298,6 +298,16 @@ function renderBackgroundCard() {
   action.classList.add("hidden");
   action.disabled = state.installingBackgroundService || status.status === "checking";
 
+  if (status.needsUpdate) {
+    title.textContent = "Update background";
+    detail.textContent = state.backgroundServiceMessage || status.detail || "Background service points at an older app copy.";
+    pill.textContent = "Update";
+    pill.classList.add("warning");
+    action.classList.remove("hidden");
+    action.textContent = state.installingBackgroundService ? "Updating" : "Update";
+    return;
+  }
+
   if (status.loaded) {
     title.textContent = "Starts at login";
     detail.textContent = state.backgroundServiceMessage || status.detail || "ComputeHop keeps running in the background.";
@@ -337,7 +347,10 @@ function normalizeLaunchAgentStatus(status = {}) {
     status: String(status?.status || "checking"),
     installed: Boolean(status?.installed),
     loaded: Boolean(status?.loaded),
+    needsUpdate: Boolean(status?.needsUpdate),
     role: String(status?.role || ""),
+    daemonPath: String(status?.daemonPath || ""),
+    expectedDaemonPath: String(status?.expectedDaemonPath || ""),
     detail: String(status?.detail || "")
   };
 }

@@ -1483,7 +1483,7 @@ local daemon health accurate when nearby discovery is disabled, show whether
 the macOS per-user background service is loaded, stopped, or session-only,
 set up or start that background service from the app when a bundled daemon is
 available without replacing unrelated LaunchAgent files or killing a session
-daemon,
+daemon, and report older login-service daemon paths as needing an update,
 offer an Auto
 worker target and default to it until the user makes an explicit device choice
 when exactly one connected worker is available, persist explicit run-target

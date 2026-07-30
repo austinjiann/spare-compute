@@ -77,6 +77,64 @@ test("installLaunchAgent installs for next login when a session daemon is alread
   assert.deepEqual(calls.map((call) => call[1][0]), ["print"]);
 });
 
+test("installLaunchAgent rewrites a loaded launch agent without killing the current daemon", async (t) => {
+  const home = await tempDirectory(t);
+  const newDaemonPath = await executable(t, home);
+  const oldDaemonPath = path.join(home, "old-app", "computehopd");
+  const launchAgents = path.join(home, "Library", "LaunchAgents");
+  const plistPath = path.join(launchAgents, "com.computehop.daemon.plist");
+  const calls = [];
+
+  await fs.mkdir(launchAgents, { recursive: true });
+  await fs.writeFile(
+    plistPath,
+    launchAgentPlist({
+      daemonPath: oldDaemonPath,
+      role: "worker",
+      logPath: "/tmp/computehop-old.log",
+      workingDirectory: home
+    })
+  );
+
+  const result = await installLaunchAgent({
+    platform: "darwin",
+    homeDir: home,
+    uid: 501,
+    daemonPath: newDaemonPath,
+    role: "worker",
+    currentDaemonRunning: true,
+    status: {
+      supported: true,
+      label: "com.computehop.daemon",
+      status: "needs-update",
+      installed: true,
+      loaded: true,
+      needsUpdate: true,
+      role: "worker",
+      daemonPath: oldDaemonPath,
+      expectedDaemonPath: newDaemonPath,
+      state: "running",
+      path: plistPath,
+      detail: "Installed from an older app location."
+    },
+    runCommand: async (command, args) => {
+      calls.push([command, args]);
+      return { stdout: "state = running\n" };
+    }
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.started, false);
+  assert.equal(result.skippedStart, true);
+  assert.equal(result.status.loaded, false);
+  assert.equal(result.status.daemonPath, newDaemonPath);
+  assert.deepEqual(calls, []);
+
+  const plist = await fs.readFile(plistPath, "utf8");
+  assert.match(plist, new RegExp(escapeRegExp(newDaemonPath)));
+  assert.doesNotMatch(plist, new RegExp(escapeRegExp(oldDaemonPath)));
+});
+
 test("installLaunchAgent replaces only ComputeHop launch agents", async (t) => {
   const home = await tempDirectory(t);
   const daemonPath = await executable(t, home);
@@ -207,4 +265,8 @@ async function executable(_t, root) {
   await fs.writeFile(filePath, "");
   await fs.chmod(filePath, 0o755);
   return filePath;
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

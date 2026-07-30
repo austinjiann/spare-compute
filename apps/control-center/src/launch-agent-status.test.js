@@ -1,6 +1,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const {
+  launchAgentConfigFromPlist,
   launchAgentPlistPath,
   launchAgentStatus,
   roleFromPlist
@@ -49,6 +50,7 @@ test("launchAgentStatus reports an installed loaded worker", async () => {
   assert.equal(status.installed, true);
   assert.equal(status.loaded, true);
   assert.equal(status.role, "worker");
+  assert.equal(status.daemonPath, "/Users/austin/Applications/ComputeHop.app/Contents/Resources/bin/computehopd");
   assert.equal(status.state, "running");
   assert.match(status.detail, /Runs at login as Worker/);
 });
@@ -71,10 +73,35 @@ test("launchAgentStatus reports installed but stopped launch agents", async () =
   assert.match(status.detail, /Installed as Worker/);
 });
 
+test("launchAgentStatus reports launch agents that point at an older daemon path", async () => {
+  const status = await launchAgentStatus({
+    platform: "darwin",
+    homeDir: "/Users/austin",
+    uid: 501,
+    expectedDaemonPath: "/Users/austin/Applications/ComputeHop.app/Contents/Resources/bin/computehopd",
+    fs: memoryFS(plistWithDaemon({
+      daemonPath: "/Users/austin/Applications/ComputeHop Control Center.app/Contents/Resources/bin/computehopd",
+      role: "worker"
+    })),
+    runCommand: async () => ({ stdout: "state = running\npid = 123\n" })
+  });
+
+  assert.equal(status.status, "needs-update");
+  assert.equal(status.installed, true);
+  assert.equal(status.loaded, true);
+  assert.equal(status.needsUpdate, true);
+  assert.equal(status.role, "worker");
+  assert.match(status.detail, /older app location/);
+});
+
 test("roleFromPlist reads the configured daemon role", () => {
   assert.equal(roleFromPlist(workerPlist()), "worker");
   assert.equal(roleFromPlist(orchestratorPlist()), "orchestrator");
   assert.equal(roleFromPlist("<plist></plist>"), "");
+  assert.deepEqual(launchAgentConfigFromPlist(workerPlist()), {
+    daemonPath: "/Users/austin/Applications/ComputeHop.app/Contents/Resources/bin/computehopd",
+    role: "worker"
+  });
   assert.equal(launchAgentPlistPath("/tmp/home"), "/tmp/home/Library/LaunchAgents/com.computehop.daemon.plist");
 });
 
@@ -105,14 +132,21 @@ function orchestratorPlist() {
 }
 
 function plistWithRole(role) {
+  return plistWithDaemon({
+    daemonPath: "/Users/austin/Applications/ComputeHop.app/Contents/Resources/bin/computehopd",
+    role
+  });
+}
+
+function plistWithDaemon(config) {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <plist version="1.0">
 <dict>
   <key>ProgramArguments</key>
   <array>
-    <string>/Users/austin/Applications/ComputeHop.app/Contents/Resources/bin/computehopd</string>
+    <string>${config.daemonPath}</string>
     <string>--role</string>
-    <string>${role}</string>
+    <string>${config.role}</string>
   </array>
 </dict>
 </plist>`;

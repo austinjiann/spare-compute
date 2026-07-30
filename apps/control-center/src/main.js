@@ -8,7 +8,7 @@ const {
   jobTerminal
 } = require("./local-daemon");
 const { startDaemon } = require("./daemon-launcher");
-const { installLaunchAgent } = require("./launch-agent-service");
+const { installLaunchAgent, resolveDaemonExecutable } = require("./launch-agent-service");
 const { launchAgentStatus } = require("./launch-agent-status");
 const { splitCommandLine } = require("./command-line");
 const {
@@ -193,11 +193,11 @@ ipcMain.handle("daemon:start", async (_event, request) => {
 });
 
 ipcMain.handle("daemon:launchAgentStatus", async () => {
-  return { status: await launchAgentStatus() };
+  return { status: await launchAgentStatusForCurrentApp() };
 });
 
 ipcMain.handle("daemon:installLaunchAgent", async (_event, request) => {
-  const status = await launchAgentStatus();
+  const status = await launchAgentStatusForCurrentApp();
   const daemonRunning = await localDaemonIsRunning();
   try {
     return await installLaunchAgent({
@@ -205,7 +205,7 @@ ipcMain.handle("daemon:installLaunchAgent", async (_event, request) => {
       isPackaged: app.isPackaged,
       resourcesPath: process.resourcesPath,
       controlCenterRoot: path.resolve(__dirname, ".."),
-      currentDaemonRunning: daemonRunning && !status.loaded,
+      currentDaemonRunning: daemonRunning,
       status
     });
   } catch (error) {
@@ -704,9 +704,25 @@ async function localDaemonIsRunning() {
 
 async function safeLaunchAgentStatus(fallback) {
   try {
-    return await launchAgentStatus();
+    return await launchAgentStatusForCurrentApp();
   } catch {
     return fallback;
+  }
+}
+
+async function launchAgentStatusForCurrentApp() {
+  const expectedDaemonPath = await preferredLaunchAgentDaemonPath();
+  return launchAgentStatus(expectedDaemonPath ? { expectedDaemonPath } : {});
+}
+
+async function preferredLaunchAgentDaemonPath() {
+  try {
+    return await resolveDaemonExecutable({
+      resourcesPath: process.resourcesPath,
+      controlCenterRoot: path.resolve(__dirname, "..")
+    });
+  } catch {
+    return "";
   }
 }
 

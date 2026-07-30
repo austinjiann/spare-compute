@@ -30,7 +30,14 @@ async function installLaunchAgent(options = {}) {
   const homeDir = options.homeDir || os.homedir();
   const plistPath = launchAgentPlistPath(homeDir);
   const logsDir = path.join(homeDir, "Library", "Logs", "ComputeHop");
-  const before = options.status || await launchAgentStatus({ platform, homeDir, uid, fs: fsModule, runCommand });
+  const before = options.status || await launchAgentStatus({
+    platform,
+    homeDir,
+    uid,
+    fs: fsModule,
+    runCommand,
+    expectedDaemonPath: daemonPath
+  });
   await assertReplaceablePlist(plistPath, fsModule);
 
   await fsModule.mkdir(path.dirname(plistPath), { recursive: true });
@@ -46,7 +53,7 @@ async function installLaunchAgent(options = {}) {
     fsModule
   );
 
-  const shouldBootstrap = options.bootstrap !== false && (!options.currentDaemonRunning || before.loaded);
+  const shouldBootstrap = options.bootstrap !== false && !options.currentDaemonRunning;
   if (shouldBootstrap) {
     if (before.loaded) {
       await runCommand("launchctl", ["bootout", `gui/${uid}/${serviceLabel}`], { timeout: defaultTimeoutMs });
@@ -56,14 +63,17 @@ async function installLaunchAgent(options = {}) {
   }
 
   const status = shouldBootstrap
-    ? await launchAgentStatus({ platform, homeDir, uid, fs: fsModule, runCommand })
+    ? await launchAgentStatus({ platform, homeDir, uid, fs: fsModule, runCommand, expectedDaemonPath: daemonPath })
     : {
         supported: true,
         label: serviceLabel,
         status: "installed-stopped",
         installed: true,
         loaded: false,
+        needsUpdate: false,
         role,
+        daemonPath,
+        expectedDaemonPath: daemonPath,
         state: "",
         path: plistPath,
         detail: "Installed for login. The current session daemon will keep running until you quit or restart."
@@ -96,7 +106,7 @@ function labelFromPlist(contents) {
   return labelMatch ? decodePlistString(labelMatch[1]).trim() : "";
 }
 
-async function resolveDaemonExecutable(options, fsModule, platform) {
+async function resolveDaemonExecutable(options = {}, fsModule = fs, platform = process.platform) {
   const candidates = options.daemonPath
     ? [options.daemonPath]
     : [
