@@ -1513,14 +1513,15 @@ func (*GetWorkerStatusRequest) Descriptor() ([]byte, []int) {
 }
 
 type GetWorkerStatusResponse struct {
-	state            protoimpl.MessageState `protogen:"open.v1"`
-	Platform         string                 `protobuf:"bytes,1,opt,name=platform,proto3" json:"platform,omitempty"`
-	Arch             string                 `protobuf:"bytes,2,opt,name=arch,proto3" json:"arch,omitempty"`
-	LogicalCpuCount  uint32                 `protobuf:"varint,3,opt,name=logical_cpu_count,json=logicalCpuCount,proto3" json:"logical_cpu_count,omitempty"`
-	TotalMemoryBytes uint64                 `protobuf:"varint,4,opt,name=total_memory_bytes,json=totalMemoryBytes,proto3" json:"total_memory_bytes,omitempty"`
-	ToolIds          []string               `protobuf:"bytes,5,rep,name=tool_ids,json=toolIds,proto3" json:"tool_ids,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	Platform           string                 `protobuf:"bytes,1,opt,name=platform,proto3" json:"platform,omitempty"`
+	Arch               string                 `protobuf:"bytes,2,opt,name=arch,proto3" json:"arch,omitempty"`
+	LogicalCpuCount    uint32                 `protobuf:"varint,3,opt,name=logical_cpu_count,json=logicalCpuCount,proto3" json:"logical_cpu_count,omitempty"`
+	TotalMemoryBytes   uint64                 `protobuf:"varint,4,opt,name=total_memory_bytes,json=totalMemoryBytes,proto3" json:"total_memory_bytes,omitempty"`
+	ToolIds            []string               `protobuf:"bytes,5,rep,name=tool_ids,json=toolIds,proto3" json:"tool_ids,omitempty"`
+	SupportedExecutors []Executor             `protobuf:"varint,6,rep,packed,name=supported_executors,json=supportedExecutors,proto3,enum=computehop.v1.Executor" json:"supported_executors,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *GetWorkerStatusResponse) Reset() {
@@ -1584,6 +1585,13 @@ func (x *GetWorkerStatusResponse) GetTotalMemoryBytes() uint64 {
 func (x *GetWorkerStatusResponse) GetToolIds() []string {
 	if x != nil {
 		return x.ToolIds
+	}
+	return nil
+}
+
+func (x *GetWorkerStatusResponse) GetSupportedExecutors() []Executor {
+	if x != nil {
+		return x.SupportedExecutors
 	}
 	return nil
 }
@@ -2734,13 +2742,14 @@ const file_computehop_v1_remote_proto_rawDesc = "" +
 	"\x06job_id\x18\x01 \x01(\tR\x05jobId\"8\n" +
 	"\x1fAcknowledgeJobArtifactsResponse\x12\x15\n" +
 	"\x06job_id\x18\x01 \x01(\tR\x05jobId\"\x18\n" +
-	"\x16GetWorkerStatusRequest\"\xbe\x01\n" +
+	"\x16GetWorkerStatusRequest\"\x88\x02\n" +
 	"\x17GetWorkerStatusResponse\x12\x1a\n" +
 	"\bplatform\x18\x01 \x01(\tR\bplatform\x12\x12\n" +
 	"\x04arch\x18\x02 \x01(\tR\x04arch\x12*\n" +
 	"\x11logical_cpu_count\x18\x03 \x01(\rR\x0flogicalCpuCount\x12,\n" +
 	"\x12total_memory_bytes\x18\x04 \x01(\x04R\x10totalMemoryBytes\x12\x19\n" +
-	"\btool_ids\x18\x05 \x03(\tR\atoolIds\"\xa1\x01\n" +
+	"\btool_ids\x18\x05 \x03(\tR\atoolIds\x12H\n" +
+	"\x13supported_executors\x18\x06 \x03(\x0e2\x17.computehop.v1.ExecutorR\x12supportedExecutors\"\xa1\x01\n" +
 	"\x10SnapshotManifest\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\rR\aversion\x12\x1f\n" +
 	"\vmanifest_id\x18\x02 \x01(\tR\n" +
@@ -2954,29 +2963,30 @@ var file_computehop_v1_remote_proto_depIdxs = []int32{
 	21, // 28: computehop.v1.GetJobArtifactsResponse.artifacts:type_name -> computehop.v1.SnapshotManifest
 	0,  // 29: computehop.v1.GetArtifactChunkRequest.accepted_encodings:type_name -> computehop.v1.ChunkEncoding
 	0,  // 30: computehop.v1.GetArtifactChunkResponse.encoding:type_name -> computehop.v1.ChunkEncoding
-	22, // 31: computehop.v1.SnapshotManifest.files:type_name -> computehop.v1.SnapshotFile
-	23, // 32: computehop.v1.SnapshotFile.chunks:type_name -> computehop.v1.SnapshotChunk
-	35, // 33: computehop.v1.SubmitJobResponse.job:type_name -> computehop.v1.Job
-	35, // 34: computehop.v1.GetJobResponse.job:type_name -> computehop.v1.Job
-	2,  // 35: computehop.v1.ListJobsRequest.states:type_name -> computehop.v1.JobState
-	35, // 36: computehop.v1.ListJobsResponse.jobs:type_name -> computehop.v1.Job
-	35, // 37: computehop.v1.CancelJobResponse.job:type_name -> computehop.v1.Job
-	35, // 38: computehop.v1.ReadJobLogsResponse.job:type_name -> computehop.v1.Job
-	33, // 39: computehop.v1.ReadJobLogsResponse.records:type_name -> computehop.v1.JobLogRecord
-	4,  // 40: computehop.v1.JobLogRecord.stream:type_name -> computehop.v1.JobLogStream
-	39, // 41: computehop.v1.JobSpec.environment:type_name -> computehop.v1.JobSpec.EnvironmentEntry
-	1,  // 42: computehop.v1.JobSpec.executor:type_name -> computehop.v1.Executor
-	34, // 43: computehop.v1.Job.spec:type_name -> computehop.v1.JobSpec
-	2,  // 44: computehop.v1.Job.state:type_name -> computehop.v1.JobState
-	37, // 45: computehop.v1.Job.failure:type_name -> computehop.v1.Failure
-	36, // 46: computehop.v1.Job.progress:type_name -> computehop.v1.JobProgress
-	3,  // 47: computehop.v1.JobProgress.phase:type_name -> computehop.v1.JobProgressPhase
-	5,  // 48: computehop.v1.RemoteError.code:type_name -> computehop.v1.RemoteErrorCode
-	49, // [49:49] is the sub-list for method output_type
-	49, // [49:49] is the sub-list for method input_type
-	49, // [49:49] is the sub-list for extension type_name
-	49, // [49:49] is the sub-list for extension extendee
-	0,  // [0:49] is the sub-list for field type_name
+	1,  // 31: computehop.v1.GetWorkerStatusResponse.supported_executors:type_name -> computehop.v1.Executor
+	22, // 32: computehop.v1.SnapshotManifest.files:type_name -> computehop.v1.SnapshotFile
+	23, // 33: computehop.v1.SnapshotFile.chunks:type_name -> computehop.v1.SnapshotChunk
+	35, // 34: computehop.v1.SubmitJobResponse.job:type_name -> computehop.v1.Job
+	35, // 35: computehop.v1.GetJobResponse.job:type_name -> computehop.v1.Job
+	2,  // 36: computehop.v1.ListJobsRequest.states:type_name -> computehop.v1.JobState
+	35, // 37: computehop.v1.ListJobsResponse.jobs:type_name -> computehop.v1.Job
+	35, // 38: computehop.v1.CancelJobResponse.job:type_name -> computehop.v1.Job
+	35, // 39: computehop.v1.ReadJobLogsResponse.job:type_name -> computehop.v1.Job
+	33, // 40: computehop.v1.ReadJobLogsResponse.records:type_name -> computehop.v1.JobLogRecord
+	4,  // 41: computehop.v1.JobLogRecord.stream:type_name -> computehop.v1.JobLogStream
+	39, // 42: computehop.v1.JobSpec.environment:type_name -> computehop.v1.JobSpec.EnvironmentEntry
+	1,  // 43: computehop.v1.JobSpec.executor:type_name -> computehop.v1.Executor
+	34, // 44: computehop.v1.Job.spec:type_name -> computehop.v1.JobSpec
+	2,  // 45: computehop.v1.Job.state:type_name -> computehop.v1.JobState
+	37, // 46: computehop.v1.Job.failure:type_name -> computehop.v1.Failure
+	36, // 47: computehop.v1.Job.progress:type_name -> computehop.v1.JobProgress
+	3,  // 48: computehop.v1.JobProgress.phase:type_name -> computehop.v1.JobProgressPhase
+	5,  // 49: computehop.v1.RemoteError.code:type_name -> computehop.v1.RemoteErrorCode
+	50, // [50:50] is the sub-list for method output_type
+	50, // [50:50] is the sub-list for method input_type
+	50, // [50:50] is the sub-list for extension type_name
+	50, // [50:50] is the sub-list for extension extendee
+	0,  // [0:50] is the sub-list for field type_name
 }
 
 func init() { file_computehop_v1_remote_proto_init() }

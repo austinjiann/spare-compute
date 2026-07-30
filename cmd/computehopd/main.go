@@ -286,7 +286,8 @@ func runWithDependencies(
 	remoteHandler, err := worker.NewRemoteHandler(jobService, worker.WithStatus(worker.Status{
 		Platform: runtime.GOOS, Architecture: runtime.GOARCH,
 		LogicalCPUCount: resourceSnapshot.LogicalCPUCount, TotalMemoryBytes: resourceSnapshot.TotalMemoryBytes,
-		ToolIDs: toolIDs,
+		ToolIDs:            toolIDs,
+		SupportedExecutors: []job.Executor{job.ExecutorNative},
 	}))
 	if err != nil {
 		return fmt.Errorf("initialize remote worker handler: %w", err)
@@ -349,14 +350,15 @@ func runWithDependencies(
 		return err
 	}
 	localDeviceInfo := orchestrator.LocalDeviceInfo{
-		DeviceID:         localDevice.Identity.ID(),
-		Name:             localDevice.Name,
-		Role:             localDevice.Role,
-		Platform:         runtime.GOOS,
-		Architecture:     runtime.GOARCH,
-		LogicalCPUCount:  resourceSnapshot.LogicalCPUCount,
-		TotalMemoryBytes: resourceSnapshot.TotalMemoryBytes,
-		ToolIDs:          toolIDs,
+		DeviceID:           localDevice.Identity.ID(),
+		Name:               localDevice.Name,
+		Role:               localDevice.Role,
+		Platform:           runtime.GOOS,
+		Architecture:       runtime.GOARCH,
+		LogicalCPUCount:    resourceSnapshot.LogicalCPUCount,
+		TotalMemoryBytes:   resourceSnapshot.TotalMemoryBytes,
+		ToolIDs:            toolIDs,
+		SupportedExecutors: []string{string(job.ExecutorNative)},
 	}
 	var connectivityControllers []orchestrator.ConnectivityController
 	if remoteManager != nil {

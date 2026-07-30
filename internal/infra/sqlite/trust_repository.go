@@ -26,6 +26,7 @@ const trustColumns = `
 	logical_cpu_count,
 	total_memory_bytes,
 	tool_ids_json,
+	supported_executors_json,
 	hints_observed_at_ns,
 	paired_at_ns,
 	updated_at_ns,
@@ -247,10 +248,12 @@ func (repository *TrustRepository) UpdateHints(
 	result, err := transaction.ExecContext(ctx, `
 		UPDATE trusted_devices
 		SET platform = ?, arch = ?, logical_cpu_count = ?,
-			total_memory_bytes = ?, tool_ids_json = ?, hints_observed_at_ns = ?
+			total_memory_bytes = ?, tool_ids_json = ?, supported_executors_json = ?,
+			hints_observed_at_ns = ?
 		WHERE device_id = ? AND state = 'active'
 	`, hints.Platform, hints.Architecture, hints.LogicalCPUCount,
-		int64(hints.TotalMemoryBytes), toolIDsJSON(hints.ToolIDs),
+		int64(hints.TotalMemoryBytes), stringListJSON(hints.ToolIDs),
+		stringListJSON(hints.SupportedExecutors),
 		hints.ObservedAt.UnixNano(), id)
 	if err != nil {
 		return trust.Peer{}, fmt.Errorf("update trusted peer hints: %w", err)
@@ -292,6 +295,7 @@ func scanTrustedPeer(scanner trustRowScanner) (trust.Peer, error) {
 		platform, architecture              string
 		publicKey, connectivitySecret       []byte
 		toolIDsJSONValue                    string
+		supportedExecutorsJSONValue         string
 		pairedAtNS, updatedAtNS             int64
 		logicalCPUCount                     int64
 		totalMemoryBytes                    int64
@@ -299,7 +303,8 @@ func scanTrustedPeer(scanner trustRowScanner) (trust.Peer, error) {
 	)
 	if err := scanner.Scan(
 		&deviceID, &pairID, &publicKey, &name, &role, &state,
-		&platform, &architecture, &logicalCPUCount, &totalMemoryBytes, &toolIDsJSONValue, &hintsObservedAtNS,
+		&platform, &architecture, &logicalCPUCount, &totalMemoryBytes, &toolIDsJSONValue,
+		&supportedExecutorsJSONValue, &hintsObservedAtNS,
 		&pairedAtNS, &updatedAtNS, &revokedAtNS, &connectivitySecret,
 	); err != nil {
 		return trust.Peer{}, err
@@ -312,7 +317,11 @@ func scanTrustedPeer(scanner trustRowScanner) (trust.Peer, error) {
 	if err != nil {
 		return trust.Peer{}, err
 	}
-	toolIDs, err := parseToolIDsJSON(toolIDsJSONValue)
+	toolIDs, err := parseStringListJSON(toolIDsJSONValue)
+	if err != nil {
+		return trust.Peer{}, trust.ErrInvalidPeer
+	}
+	supportedExecutors, err := parseStringListJSON(supportedExecutorsJSONValue)
 	if err != nil {
 		return trust.Peer{}, trust.ErrInvalidPeer
 	}
@@ -323,7 +332,7 @@ func scanTrustedPeer(scanner trustRowScanner) (trust.Peer, error) {
 		Name:               name, Role: device.Role(role), State: trust.State(state),
 		Platform: platform, Architecture: architecture,
 		LogicalCPUCount: uint32(logicalCPUCount), TotalMemoryBytes: uint64(totalMemoryBytes),
-		ToolIDs:  toolIDs,
+		ToolIDs: toolIDs, SupportedExecutors: supportedExecutors,
 		PairedAt: time.Unix(0, pairedAtNS).UTC(), UpdatedAt: time.Unix(0, updatedAtNS).UTC(),
 	}
 	if logicalCPUCount < 0 || totalMemoryBytes < 0 {
@@ -350,7 +359,7 @@ func nullableSecret(secret trust.ConnectivitySecret) any {
 	return []byte(secret)
 }
 
-func toolIDsJSON(values []string) string {
+func stringListJSON(values []string) string {
 	if len(values) == 0 {
 		return "[]"
 	}
@@ -361,7 +370,7 @@ func toolIDsJSON(values []string) string {
 	return string(encoded)
 }
 
-func parseToolIDsJSON(value string) ([]string, error) {
+func parseStringListJSON(value string) ([]string, error) {
 	if value == "" {
 		value = "[]"
 	}

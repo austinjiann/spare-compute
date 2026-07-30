@@ -66,6 +66,7 @@ message PingResponse {
   uint32 logical_cpu_count = 7;
   uint64 total_memory_bytes = 8;
   repeated string tool_ids = 9;
+  repeated Executor supported_executors = 10;
 }
 
 message SubmitJobRequest {
@@ -239,6 +240,7 @@ message TrustedDevice {
   uint64 total_memory_bytes = 17;
   int64 hints_observed_at_unix_nano = 18;
   repeated string tool_ids = 19;
+  repeated Executor supported_executors = 20;
 }
 
 message NearbyDevice {

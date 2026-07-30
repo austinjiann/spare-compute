@@ -320,6 +320,49 @@ func TestRemoteJobServiceAutoSubmitSkipsWorkersMissingPlannedTool(t *testing.T) 
 	}
 }
 
+func TestRemoteJobServiceAutoSubmitRejectsUnsupportedExecutor(t *testing.T) {
+	buildPeer := activeWorkerPeer(t, 52, "Build PC")
+	renderPeer := activeWorkerPeer(t, 53, "Render PC")
+	service, err := NewRemoteJobService(RemoteDependencies{
+		Nearby: stubDeviceController{list: func(context.Context) (device.DiscoverySnapshot, error) {
+			return device.DiscoverySnapshot{Available: true, Devices: []device.NearbyDevice{
+				nearbyWorkerWithResources(t, "Build PC", 47823, 64, 128<<30),
+				nearbyWorkerWithResources(t, "Render PC", 47824, 8, 16<<30),
+			}}, nil
+		}},
+		Trust:      remoteTrustStub{peers: []trust.Peer{buildPeer, renderPeer}},
+		Placements: newRemotePlacementStub(),
+		Dialer: remoteDialerFunc(func(
+			_ context.Context,
+			_ device.NearbyDevice,
+			_ trust.Peer,
+		) (remoteprotocol.Caller, error) {
+			return &remoteCallerStub{call: func(
+				_ context.Context,
+				request *computehopv1.RemoteRequest,
+			) (*computehopv1.RemoteResponse, error) {
+				if request.GetGetWorkerStatus() == nil {
+					t.Fatalf("request = %#v", request)
+				}
+				return workerStatusResponse("linux", "amd64", 8, 16<<30, "docker"), nil
+			}}, nil
+		}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	spec := queuedJobForTest().Spec.Clone()
+	spec.Executable = "docker"
+	spec.Arguments = []string{"run", "alpine", "echo", "hello"}
+	spec.Executor = job.ExecutorContainer
+	spec.ContainerImage = "alpine:latest"
+	_, err = service.Submit(context.Background(), "auto", spec)
+	if !errors.Is(err, ErrRemoteWorkerIncompatible) ||
+		!strings.Contains(err.Error(), "no active paired worker supports container execution") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
 func TestRemoteJobServiceSubmitRejectsSelectedWorkerMissingPlannedToolBeforeSnapshot(t *testing.T) {
 	peer := activeWorkerPeer(t, 14, "Node PC")
 	service, err := NewRemoteJobService(RemoteDependencies{
@@ -359,8 +402,48 @@ func TestRemoteJobServiceSubmitRejectsSelectedWorkerMissingPlannedToolBeforeSnap
 	}
 }
 
+func TestRemoteJobServiceSubmitRejectsSelectedWorkerUnsupportedExecutorBeforeSnapshot(t *testing.T) {
+	peer := activeWorkerPeer(t, 15, "Native Worker")
+	service, err := NewRemoteJobService(RemoteDependencies{
+		Nearby:     stubDeviceController{},
+		Trust:      remoteTrustStub{peers: []trust.Peer{peer}},
+		Placements: newRemotePlacementStub(),
+		Dialer: remoteDialerFunc(func(context.Context, device.NearbyDevice, trust.Peer) (remoteprotocol.Caller, error) {
+			t.Fatal("absent LAN path was dialed")
+			return nil, nil
+		}),
+		Remote: pairedRemoteDialerFunc(func(context.Context, trust.Peer) (remoteprotocol.Caller, error) {
+			return &remoteCallerStub{call: func(
+				_ context.Context,
+				request *computehopv1.RemoteRequest,
+			) (*computehopv1.RemoteResponse, error) {
+				if request.GetGetWorkerStatus() == nil {
+					t.Fatalf("request = %#v", request)
+				}
+				return workerStatusResponse("linux", "amd64", 8, 16<<30, "docker"), nil
+			}}, nil
+		}),
+		Snapshots: projectSnapshotterStub{err: errors.New("snapshot should not be built")},
+		Content:   snapshotContentStub{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	spec := queuedJobForTest().Spec.Clone()
+	spec.Executable = "docker"
+	spec.Arguments = []string{"run", "alpine", "echo", "hello"}
+	spec.Executor = job.ExecutorContainer
+	spec.ContainerImage = "alpine:latest"
+	spec.WorkingDirectory = "/local/project"
+	_, err = service.Submit(context.Background(), "Native Worker", spec)
+	if !errors.Is(err, ErrRemoteWorkerIncompatible) ||
+		!strings.Contains(err.Error(), "Native Worker does not support container execution") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
 func TestRemoteJobServiceSubmitRejectsSelectedWorkerMissingRequiredToolsBeforeSnapshot(t *testing.T) {
-	peer := activeWorkerPeer(t, 15, "Small Builder")
+	peer := activeWorkerPeer(t, 16, "Small Builder")
 	service, err := NewRemoteJobService(RemoteDependencies{
 		Nearby:     stubDeviceController{},
 		Trust:      remoteTrustStub{peers: []trust.Peer{peer}},
@@ -1254,7 +1337,8 @@ func workerStatusResponse(platform, architecture string, logicalCPUCount uint32,
 		GetWorkerStatus: &computehopv1.GetWorkerStatusResponse{
 			Platform: platform, Arch: architecture,
 			LogicalCpuCount: logicalCPUCount, TotalMemoryBytes: totalMemoryBytes,
-			ToolIds: append([]string(nil), toolIDs...),
+			ToolIds:            append([]string(nil), toolIDs...),
+			SupportedExecutors: []computehopv1.Executor{computehopv1.Executor_EXECUTOR_NATIVE},
 		},
 	}}
 }

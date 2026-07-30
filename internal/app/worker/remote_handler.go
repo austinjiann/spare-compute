@@ -76,11 +76,12 @@ type RemoteHandler struct {
 // Status is authenticated, secret-free worker metadata exposed to paired
 // orchestrators for scheduling and display.
 type Status struct {
-	Platform         string
-	Architecture     string
-	LogicalCPUCount  uint32
-	TotalMemoryBytes uint64
-	ToolIDs          []string
+	Platform           string
+	Architecture       string
+	LogicalCPUCount    uint32
+	TotalMemoryBytes   uint64
+	ToolIDs            []string
+	SupportedExecutors []job.Executor
 }
 
 func (status Status) Validate() error {
@@ -91,7 +92,8 @@ func (status Status) Validate() error {
 	if validateStatusHint(status.Platform) != nil ||
 		validateStatusHint(status.Architecture) != nil ||
 		status.LogicalCPUCount > 4096 ||
-		validateStatusToolIDs(status.ToolIDs) != nil {
+		validateStatusToolIDs(status.ToolIDs) != nil ||
+		validateStatusExecutors(status.SupportedExecutors) != nil {
 		return ErrInvalidStatus
 	}
 	return nil
@@ -175,11 +177,12 @@ func (handler *RemoteHandler) getWorkerStatus(
 	}
 	return &computehopv1.RemoteResponse{Result: &computehopv1.RemoteResponse_GetWorkerStatus{
 		GetWorkerStatus: &computehopv1.GetWorkerStatusResponse{
-			Platform:         handler.status.Platform,
-			Arch:             handler.status.Architecture,
-			LogicalCpuCount:  handler.status.LogicalCPUCount,
-			TotalMemoryBytes: handler.status.TotalMemoryBytes,
-			ToolIds:          append([]string(nil), handler.status.ToolIDs...),
+			Platform:           handler.status.Platform,
+			Arch:               handler.status.Architecture,
+			LogicalCpuCount:    handler.status.LogicalCPUCount,
+			TotalMemoryBytes:   handler.status.TotalMemoryBytes,
+			ToolIds:            append([]string(nil), handler.status.ToolIDs...),
+			SupportedExecutors: supportedExecutorsToRemoteProto(handler.status.SupportedExecutors),
 		},
 	}}
 }
@@ -639,4 +642,37 @@ func validateStatusToolIDs(values []string) error {
 		previous = value
 	}
 	return nil
+}
+
+func validateStatusExecutors(values []job.Executor) error {
+	if len(values) > 8 {
+		return ErrInvalidStatus
+	}
+	previous := ""
+	for _, value := range values {
+		switch value {
+		case job.ExecutorNative, job.ExecutorContainer:
+		default:
+			return ErrInvalidStatus
+		}
+		current := string(value)
+		if current <= previous {
+			return ErrInvalidStatus
+		}
+		previous = current
+	}
+	return nil
+}
+
+func supportedExecutorsToRemoteProto(values []job.Executor) []computehopv1.Executor {
+	result := make([]computehopv1.Executor, 0, len(values))
+	for _, value := range values {
+		switch value {
+		case job.ExecutorNative:
+			result = append(result, computehopv1.Executor_EXECUTOR_NATIVE)
+		case job.ExecutorContainer:
+			result = append(result, computehopv1.Executor_EXECUTOR_CONTAINER)
+		}
+	}
+	return result
 }
