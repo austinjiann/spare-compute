@@ -10,6 +10,10 @@ const {
 const { startDaemon } = require("./daemon-launcher");
 const { planTask } = require("./planner");
 const { appRuntimeInfo, normalizeDaemonRole } = require("./runtime-info");
+const {
+  loadSettings: loadControlCenterSettings,
+  saveSettings: saveControlCenterSettings
+} = require("./settings-store");
 
 const repoRoot = path.resolve(__dirname, "..", "..", "..");
 const activeRuns = new Map();
@@ -82,6 +86,18 @@ ipcMain.handle("devices:list", async () => {
 });
 
 ipcMain.handle("app:info", async () => appRuntimeInfo(process.platform));
+
+ipcMain.handle("settings:load", async () => {
+  return {
+    settings: await loadControlCenterSettings({ userDataPath: app.getPath("userData") })
+  };
+});
+
+ipcMain.handle("settings:save", async (_event, settings) => {
+  return {
+    settings: await saveControlCenterSettings(settings, { userDataPath: app.getPath("userData") })
+  };
+});
 
 ipcMain.handle("daemon:start", async (_event, request) => {
   try {

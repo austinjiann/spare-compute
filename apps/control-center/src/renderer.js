@@ -73,12 +73,14 @@ bindCheckbox("lanDiscovery", document.getElementById("lan-discovery"));
 bindCheckbox("askBeforeRun", document.getElementById("ask-before-run"));
 bindSetting("aiProvider", document.getElementById("ai-provider"));
 bindSetting("daemonRole", document.getElementById("daemon-role"));
+bindSetting("artifacts", document.getElementById("outputs-input"));
 
 renderCapabilities();
 renderPlanPreview();
 renderRunControls();
 renderDaemonCard();
 renderJobs();
+void hydrateSettings();
 void loadAppInfo();
 refreshDevices();
 setInterval(refreshDevices, 5000);
@@ -821,6 +823,7 @@ function validateRunReadiness(selected, planned, outputs = []) {
 function declaredOutputs() {
   const input = document.getElementById("outputs-input");
   const seen = new Set();
+  state.settings.artifacts = input.value;
   return input.value
     .split(",")
     .map((value) => value.trim())
@@ -1036,6 +1039,35 @@ function bindSetting(key, input) {
   });
 }
 
+async function hydrateSettings() {
+  if (!window.computeHop.loadSettings) {
+    return;
+  }
+
+  try {
+    const response = await window.computeHop.loadSettings();
+    state.settings = mergeSettings(state.settings, response.settings || {});
+    persistLocalSettings();
+    renderSettingsControls();
+    renderCapabilities();
+    renderPlanPreview();
+    renderRunControls();
+    applyDaemonRoleOptions();
+    await refreshDevices();
+  } catch {
+    // Keep the localStorage/default bootstrap settings if app-side settings
+    // cannot be read. Saves still retry through the normal save path.
+  }
+}
+
+function renderSettingsControls() {
+  document.getElementById("lan-discovery").checked = state.settings.lanDiscovery !== false;
+  document.getElementById("ask-before-run").checked = state.settings.askBeforeRun !== false;
+  document.getElementById("ai-provider").value = state.settings.aiProvider || "off";
+  document.getElementById("daemon-role").value = state.settings.daemonRole || "orchestrator";
+  document.getElementById("outputs-input").value = state.settings.artifacts || "";
+}
+
 function bindCheckbox(key, input) {
   input.checked = state.settings[key] !== false;
   input.addEventListener("change", () => {
@@ -1053,7 +1085,15 @@ function bindCheckbox(key, input) {
 }
 
 function loadSettings() {
-  const defaults = {
+  try {
+    return mergeSettings(defaultSettings(), JSON.parse(localStorage.getItem("computehop.controlCenter") || "{}"));
+  } catch {
+    return defaultSettings();
+  }
+}
+
+function defaultSettings() {
+  return {
     projectRoot: "",
     artifacts: "",
     ignoreHeavyFolders: true,
@@ -1072,19 +1112,41 @@ function loadSettings() {
       commands: false
     }
   };
+}
 
-  try {
-    return {
-      ...defaults,
-      ...JSON.parse(localStorage.getItem("computehop.controlCenter") || "{}")
-    };
-  } catch {
-    return defaults;
-  }
+function mergeSettings(base, incoming) {
+  const defaults = defaultSettings();
+  const next = {
+    ...defaults,
+    ...base,
+    ...(incoming && typeof incoming === "object" ? incoming : {})
+  };
+  next.capabilities = {
+    ...defaults.capabilities,
+    ...(base && typeof base.capabilities === "object" ? base.capabilities : {}),
+    ...(incoming && typeof incoming.capabilities === "object" ? incoming.capabilities : {})
+  };
+  next.syncedDevices = {
+    ...(base && typeof base.syncedDevices === "object" ? base.syncedDevices : {}),
+    ...(incoming && typeof incoming.syncedDevices === "object" ? incoming.syncedDevices : {})
+  };
+  return next;
+}
+
+function persistLocalSettings() {
+  localStorage.setItem("computehop.controlCenter", JSON.stringify(state.settings));
 }
 
 function saveSettings() {
-  localStorage.setItem("computehop.controlCenter", JSON.stringify(state.settings));
+  persistLocalSettings();
+  if (!window.computeHop.saveSettings) {
+    return;
+  }
+
+  window.computeHop.saveSettings(state.settings).catch(() => {
+    // The app-side JSON store is best-effort from the renderer's point of view.
+    // localStorage keeps the UI usable and the next explicit change retries.
+  });
 }
 
 function selectedDevice() {

@@ -271,8 +271,9 @@ for the native macOS application.
 - **Runtime language:** a supported stable Go release, pinned by the `go` and
   `toolchain` directives in `go.mod`.
 - **macOS menu-bar application:** Swift 6 and SwiftUI.
-- **Desktop Control Center:** Electron with a small local UI layer; durable
-  settings still belong in the Go daemon, not in renderer-only state.
+- **Desktop Control Center:** Electron with a small local UI layer; local
+  preferences live in the app user-data directory, while cluster-affecting
+  settings still belong in the Go daemon.
 - **Build system:** the Go toolchain and Xcode/Swift Package Manager for macOS.
 - **Dependency locking:** commit `go.mod`, `go.sum`, `Package.resolved`, and
   package lockfiles for JavaScript apps.
@@ -1450,10 +1451,11 @@ previewed commands, runs a projectless smoke test on the selected computer, and
 blocks project-style remote runs until a project folder is selected for
 transfer. It can also start the local daemon from the app in development and
 from the bundled daemon in packaged builds, package an unpacked current-platform
-app directory with the daemon copied into Electron's runtime resources, list
-recent jobs for the selected computer, open persisted job logs, declare
-files/folders to bring back, restore succeeded job outputs, and cancel listed
-jobs. Durable daemon-backed settings for that app remain. A host-architecture
+app directory with the daemon copied into Electron's runtime resources, persist
+Control Center preferences under the app user-data directory, list recent jobs
+for the selected computer, open persisted job logs, declare files/folders to
+bring back, restore succeeded job outputs, and cancel listed jobs. Durable
+daemon-backed cluster settings for that app remain. A host-architecture
 developer app bundle now includes the menu app, CLI, and daemon; a guarded
 per-user installer configures an
 unprivileged launch agent and preserves durable state on uninstall. Developer

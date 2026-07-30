@@ -2,6 +2,8 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("computeHop", {
   appInfo: () => ipcRenderer.invoke("app:info"),
+  loadSettings: () => ipcRenderer.invoke("settings:load"),
+  saveSettings: (settings) => ipcRenderer.invoke("settings:save", settings),
   startDaemon: (request) => ipcRenderer.invoke("daemon:start", request),
   listDevices: () => ipcRenderer.invoke("devices:list"),
   connectDevice: (deviceID) => ipcRenderer.invoke("devices:connect", deviceID),

@@ -66,7 +66,8 @@ Current scope:
 - targets This Mac by default, or a selected connected worker;
 - skips project sync for remote utility commands until a project folder is
   selected;
-- stores UI-only settings in browser local storage for now.
+- stores Control Center preferences in the app user-data directory, with
+  browser local storage kept only as a migration/fallback path.
 
 Manual two-computer check:
 
