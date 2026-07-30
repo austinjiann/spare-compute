@@ -7,6 +7,7 @@ const {
   jobSucceeded,
   jobTerminal
 } = require("./local-daemon");
+const { startDaemon } = require("./daemon-launcher");
 const { planTask } = require("./planner");
 
 const repoRoot = path.resolve(__dirname, "..", "..", "..");
@@ -60,7 +61,18 @@ ipcMain.handle("devices:list", async () => {
     const pairings = await client.listPairings();
     return { ok: true, error: "", devices: mapDevices(result), pairings: mapPairings(pairings) };
   } catch (error) {
-    return { ok: false, error: readableError(error), devices: [], pairings: [] };
+    return { ok: false, error: readableError(error), errorCode: error?.code || "", devices: [], pairings: [] };
+  }
+});
+
+ipcMain.handle("daemon:start", async () => {
+  try {
+    return await startDaemon({
+      isPackaged: app.isPackaged,
+      resourcesPath: process.resourcesPath
+    });
+  } catch (error) {
+    return { ok: false, error: readableError(error), errorCode: error?.code || "" };
   }
 });
 

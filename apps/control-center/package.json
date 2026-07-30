@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "electron .",
     "start": "electron .",
-    "lint": "node --check src/main.js && node --check src/preload.js && node --check src/renderer.js && node --check src/local-daemon.js && node --check src/planner.js",
+    "lint": "node --check src/main.js && node --check src/preload.js && node --check src/renderer.js && node --check src/local-daemon.js && node --check src/daemon-launcher.js && node --check src/planner.js",
     "test": "node --test src/*.test.js"
   },
   "devDependencies": {

@@ -103,6 +103,27 @@ small {
   gap: 10px;
 }
 
+.daemon-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 18px;
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(255, 196, 107, 0.12);
+}
+
+.daemon-card div {
+  display: grid;
+  gap: 3px;
+}
+
+.daemon-card strong {
+  font-size: 16px;
+  font-weight: 720;
+}
+
 .section-title {
   display: flex;
   align-items: center;

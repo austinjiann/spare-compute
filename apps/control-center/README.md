@@ -16,6 +16,8 @@ Current scope:
 
 - connects directly to the local ComputeHop daemon over the owner-only local IPC
   socket;
+- can start the local daemon from the app in development or from the bundled
+  daemon in packaged builds;
 - reads trusted and nearby devices from the daemon;
 - starts nearby-device pairing from the Devices list;
 - shows active pairing verification codes and lets the user confirm or reject

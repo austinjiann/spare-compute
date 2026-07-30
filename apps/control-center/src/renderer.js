@@ -4,6 +4,9 @@ const state = {
   selectedDeviceID: "local",
   currentRunID: null,
   plannedTask: null,
+  daemonAvailable: false,
+  daemonError: "",
+  startingDaemon: false,
   settings: loadSettings()
 };
 let refreshInFlight = false;
@@ -32,6 +35,7 @@ const capabilities = [
 ];
 
 document.getElementById("refresh-devices").addEventListener("click", refreshDevices);
+document.getElementById("start-daemon").addEventListener("click", startDaemon);
 document.getElementById("run-job").addEventListener("click", runSelectedJob);
 document.getElementById("test-device").addEventListener("click", testSelectedDevice);
 document.getElementById("command-input").addEventListener("keydown", (event) => {
@@ -53,6 +57,7 @@ bindSetting("aiProvider", document.getElementById("ai-provider"));
 renderCapabilities();
 renderPlanPreview();
 renderRunControls();
+renderDaemonCard();
 refreshDevices();
 setInterval(refreshDevices, 5000);
 
@@ -72,6 +77,9 @@ async function refreshDevices() {
     state.pairings = [];
     error.classList.add("hidden");
     status.textContent = "Nearby discovery off";
+    state.daemonAvailable = true;
+    state.daemonError = "";
+    renderDaemonCard();
     renderDevices();
     renderPairings();
     renderRunControls();
@@ -87,22 +95,67 @@ async function refreshDevices() {
     const response = await window.computeHop.listDevices();
     state.devices = mergeDevices(defaultDevices, response.devices || []);
     state.pairings = response.pairings || [];
-    error.classList.toggle("hidden", response.ok);
-    error.textContent = response.ok ? "" : "Start ComputeHop to discover nearby devices.";
+    state.daemonAvailable = response.ok;
+    state.daemonError = response.ok ? "" : response.error || "Start ComputeHop to discover nearby devices.";
+    error.classList.add("hidden");
+    error.textContent = "";
     status.textContent = response.ok ? scanSummary(state.devices) : "Discovery unavailable";
   } catch (err) {
     state.devices = defaultDevices;
     state.pairings = [];
-    error.classList.remove("hidden");
-    error.textContent = "Start ComputeHop to discover nearby devices.";
+    state.daemonAvailable = false;
+    state.daemonError = err.message || "Start ComputeHop to discover nearby devices.";
+    error.classList.add("hidden");
+    error.textContent = "";
     status.textContent = "Discovery unavailable";
   } finally {
+    renderDaemonCard();
     renderDevices();
     renderPairings();
     button.disabled = false;
     button.textContent = "Refresh";
     refreshInFlight = false;
   }
+}
+
+async function startDaemon() {
+  if (state.startingDaemon) {
+    return;
+  }
+  const button = document.getElementById("start-daemon");
+  const error = document.getElementById("device-error");
+  state.startingDaemon = true;
+  button.disabled = true;
+  button.textContent = "Starting";
+  renderDaemonCard();
+  try {
+    const result = await window.computeHop.startDaemon();
+    if (!result.ok) {
+      throw new Error(result.error || "Could not start ComputeHop.");
+    }
+    state.daemonAvailable = true;
+    state.daemonError = "";
+    error.classList.add("hidden");
+    await refreshDevices();
+  } catch (err) {
+    state.daemonAvailable = false;
+    state.daemonError = err.message || "Could not start ComputeHop.";
+    error.classList.remove("hidden");
+    error.textContent = state.daemonError;
+  } finally {
+    state.startingDaemon = false;
+    button.disabled = false;
+    button.textContent = "Start";
+    renderDaemonCard();
+  }
+}
+
+function renderDaemonCard() {
+  const card = document.getElementById("daemon-card");
+  const button = document.getElementById("start-daemon");
+  card.classList.toggle("hidden", state.daemonAvailable || !state.settings.lanDiscovery);
+  button.disabled = state.startingDaemon;
+  button.textContent = state.startingDaemon ? "Starting" : "Start";
 }
 
 function mergeDevices(localDevices, remoteDevices) {
