@@ -79,6 +79,10 @@ const {
   outputRestoreDefaultPath,
   shouldOfferOutputRestore
 } = window.computeHopOutputRestore;
+const {
+  initialRunMessage,
+  runSummaryLines
+} = window.computeHopRunSummary;
 
 function defaultLocalDevice() {
   return state.localDevice || {
@@ -1339,7 +1343,7 @@ async function startPlannedJob(planned, selected, options = {}) {
   });
   output.classList.remove("hidden");
   output.classList.remove("success", "failure");
-  output.textContent = `Running ${planned.command} on ${jobRequest.deviceName || selected.name}…`;
+  output.textContent = initialRunMessage(jobRequest);
 
   try {
     const result = await window.computeHop.startJob(jobRequest);
@@ -1374,6 +1378,25 @@ function declaredOutputs() {
   if (state.settings.artifacts !== input.value) {
     state.settings.artifacts = input.value;
     saveSettings();
+  }
+  return input.value
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .filter((value) => {
+      if (seen.has(value)) {
+        return false;
+      }
+      seen.add(value);
+      return true;
+    });
+}
+
+function currentOutputDeclarations() {
+  const input = document.getElementById("outputs-input");
+  const seen = new Set();
+  if (!input) {
+    return [];
   }
   return input.value
     .split(",")
@@ -1474,9 +1497,15 @@ function renderPlanPreview() {
   title.textContent = plan.title || "Planned command";
   detail.textContent = [
     plan.detail || "",
-    Array.isArray(plan.outputs) && plan.outputs.length > 0
-      ? `Returns ${plan.outputs.join(", ")}`
-      : ""
+    ...runSummaryLines({
+      plan,
+      device: selectedDevice(),
+      projectRoot: state.settings.projectRoot,
+      outputs: jobOutputsForPlan({
+        plan,
+        outputs: currentOutputDeclarations()
+      })
+    })
   ].filter(Boolean).join(" · ");
   command.textContent = plan.command || "";
 }
@@ -1731,6 +1760,14 @@ function renderCapabilities() {
 
 function bindSetting(key, input) {
   input.value = state.settings[key] || "";
+  input.addEventListener("input", () => {
+    if (key !== "artifacts") {
+      return;
+    }
+    state.settings[key] = input.value;
+    renderPlanPreview();
+    renderRunControls();
+  });
   input.addEventListener("change", () => {
     state.settings[key] = input.value;
     saveSettings();

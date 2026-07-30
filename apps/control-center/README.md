@@ -111,6 +111,9 @@ Current scope:
 - displays job-history commands with quoting for spaces and empty arguments;
 - previews the exact command before running when Preview before running is
   enabled;
+- summarizes the selected computer, copied project, and files to bring back
+  before a planned run, so remote work is visible without exposing route
+  internals;
 - opens the project picker and retries planning/running once when a
   project-style task such as CI, tests, builds, or declared outputs needs files
   but no project is selected yet;
