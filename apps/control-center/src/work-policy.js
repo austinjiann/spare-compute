@@ -24,7 +24,7 @@
     if (!capability || capabilities[capability] !== false) {
       return "";
     }
-    return `${capabilityLabels[capability] || "This work"} is turned off for this computer. Enable it in Allow, or choose a different task.`;
+    return `${capabilityLabels[capability] || "This work"} is turned off for this computer. Open Advanced, enable it in Allow on selected device, or choose a different task.`;
   }
 
   function isWorkAllowed(work, capabilities = {}) {
