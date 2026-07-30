@@ -158,8 +158,8 @@ Current scope:
 - parses exact commands with quote/escape handling before submitting them to the
   daemon;
 - displays job-history commands with quoting for spaces and empty arguments;
-- previews the exact command before running when Preview before running is
-  enabled;
+- runs planned tasks directly by default, while the Advanced **Preview before
+  running** setting can require an explicit review click first;
 - summarizes the selected computer, copied project, and files to bring back
   before a planned run, so remote work is visible without exposing route
   internals;

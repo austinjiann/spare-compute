@@ -2292,7 +2292,7 @@ function defaultSettings() {
     selectedDeviceID: "",
     selectedDeviceName: "",
     lanDiscovery: true,
-    askBeforeRun: true,
+    askBeforeRun: false,
     daemonRole: "orchestrator",
     syncedDevices: {},
     capabilities: defaultCapabilities(),
