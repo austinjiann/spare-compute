@@ -1,0 +1,302 @@
+const fs = require("node:fs/promises");
+const path = require("node:path");
+
+async function planTask(request) {
+  const task = String(request?.task || "").trim();
+  if (!task) {
+    return {
+      ok: false,
+      error: "Enter what you want to do."
+    };
+  }
+
+  const projectRoot = String(request?.projectRoot || "").trim();
+  const profile = await inspectProject(projectRoot);
+  const intent = classifyIntent(task);
+  const exact = exactCommand(task);
+  if (exact && intent === "exact") {
+    return plan("Exact command", exact, "This looks like a command already.", profile);
+  }
+
+  const planned = chooseCommand(intent, profile);
+  if (planned) {
+    return plan(planned.title, planned.command, planned.detail, profile);
+  }
+
+  if (exact) {
+    return plan("Exact command", exact, "No project rule matched, so this will run exactly as typed.", profile);
+  }
+
+  return {
+    ok: false,
+    error: "I could not turn that into a safe local command yet. Try: run tests, build app, check ci, or type the exact command.",
+    profile
+  };
+}
+
+async function inspectProject(projectRoot) {
+  const root = projectRoot || "";
+  const profile = {
+    root,
+    files: {},
+    packageManager: "npm",
+    packageScripts: {},
+    makeTargets: []
+  };
+  if (!root) {
+    return profile;
+  }
+
+  const entries = await Promise.all(
+    [
+      "package.json",
+      "pnpm-lock.yaml",
+      "yarn.lock",
+      "bun.lock",
+      "bun.lockb",
+      "go.mod",
+      "Package.swift",
+      "Cargo.toml",
+      "pyproject.toml",
+      "pytest.ini",
+      "Makefile",
+      "makefile"
+    ].map(async (name) => [name, await fileExists(path.join(root, name))])
+  );
+  profile.files = Object.fromEntries(entries);
+  profile.packageManager = packageManager(profile.files);
+
+  if (profile.files["package.json"]) {
+    try {
+      const value = JSON.parse(await fs.readFile(path.join(root, "package.json"), "utf8"));
+      profile.packageScripts = value.scripts || {};
+    } catch {
+      profile.packageScripts = {};
+    }
+  }
+
+  const makefile = profile.files.Makefile ? "Makefile" : profile.files.makefile ? "makefile" : "";
+  if (makefile) {
+    try {
+      profile.makeTargets = parseMakeTargets(await fs.readFile(path.join(root, makefile), "utf8"));
+    } catch {
+      profile.makeTargets = [];
+    }
+  }
+
+  return profile;
+}
+
+function chooseCommand(intent, profile) {
+  if (intent === "ci") {
+    return makeTarget(profile, "pr-check", "Run project checks", "Use the repo's PR validation target.")
+      || makeTarget(profile, "check", "Run project checks", "Use the repo's check target.")
+      || script(profile, "ci", "Run project checks", "Use the package's CI script.")
+      || commandForTests(profile);
+  }
+
+  if (intent === "test") {
+    return script(profile, "test", "Run tests", "Use the package's test script.")
+      || makeTarget(profile, "test", "Run tests", "Use the repo's test target.")
+      || commandForTests(profile);
+  }
+
+  if (intent === "build") {
+    return script(profile, "build", "Build project", "Use the package's build script.")
+      || makeTarget(profile, "build", "Build project", "Use the repo's build target.")
+      || commandForBuild(profile);
+  }
+
+  if (intent === "lint") {
+    return script(profile, "lint", "Lint project", "Use the package's lint script.")
+      || makeTarget(profile, "lint", "Lint project", "Use the repo's lint target.")
+      || makeTarget(profile, "fmt", "Check formatting", "Use the repo's formatting target.");
+  }
+
+  if (intent === "install") {
+    if (profile.files["package.json"]) {
+      return {
+        title: "Install dependencies",
+        command: `${profile.packageManager} install`,
+        detail: `Use ${profile.packageManager} for this JavaScript project.`
+      };
+    }
+  }
+
+  if (intent === "smoke") {
+    return {
+      title: "Test connection",
+      command: "/bin/hostname",
+      detail: "Run a tiny command that prints the selected computer's hostname."
+    };
+  }
+
+  return null;
+}
+
+function commandForTests(profile) {
+  if (profile.files["go.mod"]) {
+    return { title: "Run Go tests", command: "go test ./...", detail: "Detected go.mod." };
+  }
+  if (profile.files["Package.swift"]) {
+    return { title: "Run Swift tests", command: "swift test", detail: "Detected Package.swift." };
+  }
+  if (profile.files["Cargo.toml"]) {
+    return { title: "Run Rust tests", command: "cargo test", detail: "Detected Cargo.toml." };
+  }
+  if (profile.files["pyproject.toml"] || profile.files["pytest.ini"]) {
+    return { title: "Run Python tests", command: "pytest", detail: "Detected Python project files." };
+  }
+  return null;
+}
+
+function commandForBuild(profile) {
+  if (profile.files["go.mod"]) {
+    return { title: "Build Go project", command: "go build ./...", detail: "Detected go.mod." };
+  }
+  if (profile.files["Package.swift"]) {
+    return { title: "Build Swift package", command: "swift build", detail: "Detected Package.swift." };
+  }
+  if (profile.files["Cargo.toml"]) {
+    return { title: "Build Rust project", command: "cargo build", detail: "Detected Cargo.toml." };
+  }
+  return null;
+}
+
+function script(profile, name, title, detail) {
+  if (!profile.packageScripts[name]) {
+    return null;
+  }
+  return {
+    title,
+    command: `${profile.packageManager} run ${name}`,
+    detail
+  };
+}
+
+function makeTarget(profile, name, title, detail) {
+  if (!profile.makeTargets.includes(name)) {
+    return null;
+  }
+  return {
+    title,
+    command: `make ${name}`,
+    detail
+  };
+}
+
+function classifyIntent(task) {
+  const value = task.toLowerCase();
+  if (looksLikeCommand(task)) {
+    return "exact";
+  }
+  if (/\b(ci|pr check|preflight|validate|checks?)\b/.test(value)) {
+    return "ci";
+  }
+  if (/\b(test|tests|specs?)\b/.test(value)) {
+    return "test";
+  }
+  if (/\b(build|compile|bundle|package)\b/.test(value)) {
+    return "build";
+  }
+  if (/\b(lint|format|fmt|style)\b/.test(value)) {
+    return "lint";
+  }
+  if (/\b(install|deps|dependencies)\b/.test(value)) {
+    return "install";
+  }
+  if (/\b(hostname|smoke|connection|ping)\b/.test(value)) {
+    return "smoke";
+  }
+  return "unknown";
+}
+
+function exactCommand(task) {
+  return looksLikeCommand(task) ? task : "";
+}
+
+function looksLikeCommand(task) {
+  const value = task.trim();
+  return (
+    /^make\s+[A-Za-z0-9_.-]+(?:\s|$)/i.test(value) ||
+    value.includes("/") ||
+    value.includes("./") ||
+    value.includes("--") ||
+    /^[a-z0-9_.-]+(\s|$)/i.test(value) && !/^(run|build|test|check|please|can|could|make|do)\b/i.test(value)
+  );
+}
+
+function packageManager(files) {
+  if (files["pnpm-lock.yaml"]) {
+    return "pnpm";
+  }
+  if (files["yarn.lock"]) {
+    return "yarn";
+  }
+  if (files["bun.lock"] || files["bun.lockb"]) {
+    return "bun";
+  }
+  return "npm";
+}
+
+function parseMakeTargets(contents) {
+  const targets = [];
+  for (const line of contents.split(/\r?\n/)) {
+    const match = line.match(/^([A-Za-z0-9][A-Za-z0-9_.-]*):(?:\s|$)/);
+    if (match && !targets.includes(match[1])) {
+      targets.push(match[1]);
+    }
+  }
+  return targets;
+}
+
+async function fileExists(filePath) {
+  try {
+    const info = await fs.stat(filePath);
+    return info.isFile();
+  } catch {
+    return false;
+  }
+}
+
+function plan(title, command, detail, profile) {
+  return {
+    ok: true,
+    plan: {
+      title,
+      command,
+      detail,
+      projectRoot: profile.root || "",
+      detected: detectedLabels(profile)
+    }
+  };
+}
+
+function detectedLabels(profile) {
+  const labels = [];
+  if (profile.files["package.json"]) {
+    labels.push(`${profile.packageManager} package`);
+  }
+  if (profile.files["go.mod"]) {
+    labels.push("Go");
+  }
+  if (profile.files["Package.swift"]) {
+    labels.push("Swift");
+  }
+  if (profile.files["Cargo.toml"]) {
+    labels.push("Rust");
+  }
+  if (profile.files["pyproject.toml"] || profile.files["pytest.ini"]) {
+    labels.push("Python");
+  }
+  if (profile.makeTargets.length > 0) {
+    labels.push("Makefile");
+  }
+  return labels;
+}
+
+module.exports = {
+  classifyIntent,
+  inspectProject,
+  planTask
+};

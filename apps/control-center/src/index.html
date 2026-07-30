@@ -41,12 +41,19 @@
             <span id="run-target" class="section-meta">on This Mac</span>
           </div>
           <div class="run-box">
-            <input id="command-input" placeholder="hostname, go test ./..., npm run build" />
+            <input id="command-input" placeholder="Run tests, build the app, check CI, or type a command" />
             <div class="run-actions">
               <button id="choose-project" class="pill-button">Project</button>
               <span id="project-label" class="project-label">No project</span>
               <button id="run-job" class="primary-button">Run</button>
             </div>
+          </div>
+          <div id="plan-preview" class="plan-preview hidden">
+            <div>
+              <strong id="plan-title">Plan</strong>
+              <small id="plan-detail"></small>
+            </div>
+            <code id="plan-command"></code>
           </div>
           <pre id="job-output" class="output hidden"></pre>
         </section>
