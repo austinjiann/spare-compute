@@ -24,6 +24,7 @@ test("saveSettings writes normalized settings to app user data", async (t) => {
     projectRoot: "/Users/austin/project",
     artifacts: "dist, report.pdf",
     selectedDeviceID: "worker-1",
+    selectedDeviceName: "Gaming PC",
     lanDiscovery: false,
     daemonRole: "worker",
     syncedDevices: {
@@ -44,6 +45,7 @@ test("saveSettings writes normalized settings to app user data", async (t) => {
   assert.equal(saved.projectRoot, "/Users/austin/project");
   assert.equal(saved.artifacts, "dist, report.pdf");
   assert.equal(saved.selectedDeviceID, "worker-1");
+  assert.equal(saved.selectedDeviceName, "Gaming PC");
   assert.equal(saved.lanDiscovery, false);
   assert.equal(saved.daemonRole, "worker");
   assert.deepEqual(saved.syncedDevices, { "worker-1": false });
@@ -71,6 +73,7 @@ test("normalizeSettings rejects malformed values without dropping valid fields",
     projectRoot: 42,
     artifacts: "target/release",
     selectedDeviceID: 123,
+    selectedDeviceName: "Austin MacBook 2",
     lanDiscovery: "false",
     daemonRole: "invalid",
     syncedDevices: {
@@ -99,6 +102,7 @@ test("normalizeSettings rejects malformed values without dropping valid fields",
   assert.equal(normalized.projectRoot, "");
   assert.equal(normalized.artifacts, "target/release");
   assert.equal(normalized.selectedDeviceID, "");
+  assert.equal(normalized.selectedDeviceName, "Austin MacBook 2");
   assert.equal(normalized.lanDiscovery, true);
   assert.equal(normalized.daemonRole, "orchestrator");
   assert.deepEqual(normalized.syncedDevices, {

@@ -568,14 +568,64 @@ function mergeDevices(localDevices, remoteDevices) {
   if (!state.userSelectedDevice && !devices.some((device) => device.id === state.selectedDeviceID)) {
     state.selectedDeviceID = "local";
   }
+  rememberAvailableSelectedDeviceName(devices);
   return devices;
+}
+
+function rememberAvailableSelectedDeviceName(devices) {
+  if (!state.userSelectedDevice) {
+    return;
+  }
+  const selected = devices.find((device) => device.id === state.selectedDeviceID);
+  if (!selected) {
+    return;
+  }
+  const nextName = runDeviceSelectionName(state.selectedDeviceID, selected);
+  if (nextName && state.settings.selectedDeviceName !== nextName) {
+    state.settings.selectedDeviceName = nextName;
+    saveSettings();
+  }
+}
+
+function devicesForDisplay() {
+  const devices = [...state.devices];
+  const selectedID = state.selectedDeviceID;
+  if (!selectedID || selectedID === "local" || devices.some((device) => device.id === selectedID)) {
+    return devices;
+  }
+
+  const placeholder = unavailableSelectedDevice();
+  const localIndex = devices.findIndex((device) => device.id === "local");
+  if (localIndex >= 0) {
+    devices.splice(localIndex + 1, 0, placeholder);
+  } else {
+    devices.unshift(placeholder);
+  }
+  return devices;
+}
+
+function unavailableSelectedDevice() {
+  const id = state.selectedDeviceID || "local";
+  const isAuto = id === "auto";
+  return {
+    id,
+    name: state.settings.selectedDeviceName || (isAuto ? "Auto worker" : "Selected worker"),
+    detail: isAuto ? "Waiting for a connected worker" : "Waiting for this worker",
+    role: "worker",
+    connection: "offline",
+    availability: "offline",
+    trustState: "paired",
+    path: "pending",
+    synced: true,
+    unavailableSelection: true
+  };
 }
 
 function renderDevices() {
   const list = document.getElementById("device-list");
   list.replaceChildren();
 
-  state.devices.forEach((device) => {
+  devicesForDisplay().forEach((device) => {
     const row = document.createElement("div");
     row.className = "device-row";
     row.classList.toggle("selected", device.id === state.selectedDeviceID);
@@ -583,7 +633,7 @@ function renderDevices() {
       if (!canSelectDeviceForRun(device)) {
         return;
       }
-      selectRunDevice(device.id);
+      selectRunDevice(device);
     });
 
     const icon = document.createElement("span");
@@ -607,11 +657,11 @@ function renderDevices() {
 }
 
 function selectRunDevice(deviceID) {
+  const device = typeof deviceID === "object" ? deviceID : state.devices.find((candidate) => candidate.id === deviceID);
+  const id = typeof deviceID === "object" ? deviceID.id : deviceID;
   state.userSelectedDevice = true;
-  state.selectedDeviceID = deviceID;
-  state.settings.selectedDeviceID = deviceID;
+  setRunDeviceSelection(id, device);
   state.selectedJobID = null;
-  state.selectedJobDeviceID = deviceID;
   state.selectedJobLogText = "";
   state.selectedJobLogTruncated = false;
   state.selectedJobLogFailed = false;
@@ -623,16 +673,47 @@ function selectRunDevice(deviceID) {
   void refreshJobs();
 }
 
+function setRunDeviceSelection(deviceID, device) {
+  const id = String(deviceID || "local").trim() || "local";
+  state.selectedDeviceID = id;
+  state.settings.selectedDeviceID = id;
+  state.settings.selectedDeviceName = runDeviceSelectionName(id, device);
+  state.selectedJobDeviceID = id;
+}
+
+function runDeviceSelectionName(deviceID, device) {
+  const id = String(deviceID || "local").trim();
+  if (device?.name) {
+    return String(device.name);
+  }
+  if (id === "local") {
+    return "This Mac";
+  }
+  if (id === "auto") {
+    return "Auto worker";
+  }
+  return state.settings.selectedDeviceName || "Selected worker";
+}
+
 function deviceActionButton(device) {
   const action = document.createElement("button");
   action.className = "row-button";
+
+  if (device.unavailableSelection) {
+    action.textContent = "Use Mac";
+    action.addEventListener("click", (event) => {
+      event.stopPropagation();
+      selectRunDevice(defaultLocalDevice());
+    });
+    return action;
+  }
 
   if (device.id === "local" || device.id === "auto") {
     action.textContent = device.id === state.selectedDeviceID ? "Selected" : "Use";
     action.disabled = device.id === state.selectedDeviceID;
     action.addEventListener("click", (event) => {
       event.stopPropagation();
-      selectRunDevice(device.id);
+      selectRunDevice(device);
     });
     return action;
   }
@@ -751,11 +832,10 @@ async function forgetDevice(device) {
     if (state.settings.deviceCapabilities) {
       delete state.settings.deviceCapabilities[device.id];
     }
-    saveSettings();
     if (state.selectedDeviceID === device.id) {
-      state.selectedDeviceID = "local";
-      state.settings.selectedDeviceID = "local";
+      setRunDeviceSelection("local", defaultLocalDevice());
     }
+    saveSettings();
     await refreshDevices();
   });
 }
@@ -767,10 +847,8 @@ function toggleDeviceSync(device) {
   const enabled = device.synced === false;
   state.settings.syncedDevices[device.id] = enabled;
   if (!enabled && (state.selectedDeviceID === device.id || state.selectedDeviceID === "auto")) {
-    state.selectedDeviceID = "local";
-    state.settings.selectedDeviceID = "local";
+    setRunDeviceSelection("local", defaultLocalDevice());
     state.selectedJobID = null;
-    state.selectedJobDeviceID = "local";
     state.selectedJobLogText = "";
     state.selectedJobLogTruncated = false;
     state.selectedJobLogFailed = false;
@@ -1216,7 +1294,7 @@ function renderRunControls() {
   const testButton = document.getElementById("test-device");
   const task = document.getElementById("command-input").value.trim();
 
-  target.textContent = selected ? `on ${selected.name}` : "choose a device";
+  target.textContent = runTargetLabel(selected);
   projectLabel.textContent = state.settings.projectRoot
     ? shortPath(state.settings.projectRoot)
     : "No project";
@@ -1456,6 +1534,7 @@ function defaultSettings() {
     projectRoot: "",
     artifacts: "",
     selectedDeviceID: "",
+    selectedDeviceName: "",
     lanDiscovery: true,
     askBeforeRun: true,
     daemonRole: "orchestrator",
@@ -1489,6 +1568,7 @@ function mergeSettings(base, incoming) {
     ...(incoming && typeof incoming.capabilities === "object" ? incoming.capabilities : {})
   };
   next.selectedDeviceID = typeof next.selectedDeviceID === "string" ? next.selectedDeviceID : "";
+  next.selectedDeviceName = typeof next.selectedDeviceName === "string" ? next.selectedDeviceName : "";
   next.syncedDevices = {
     ...booleanMap(base?.syncedDevices),
     ...booleanMap(incoming?.syncedDevices)
@@ -1556,7 +1636,10 @@ function selectedDevice() {
   if (selected) {
     return selected;
   }
-  return state.selectedDeviceID === "local" ? defaultLocalDevice() : null;
+  if (!state.selectedDeviceID || state.selectedDeviceID === "local") {
+    return defaultLocalDevice();
+  }
+  return unavailableSelectedDevice();
 }
 
 function selectedCapabilityDeviceID() {
@@ -1596,6 +1679,9 @@ function setSelectedDeviceCapability(capability, enabled) {
 }
 
 function canRunOn(device) {
+  if (!device || device.unavailableSelection) {
+    return false;
+  }
   if (isSyncManagedDevice(device) && device.synced === false) {
     return false;
   }
@@ -1609,6 +1695,9 @@ function canRunOn(device) {
 }
 
 function canSelectDeviceForRun(device) {
+  if (device?.unavailableSelection) {
+    return false;
+  }
   return device?.id === "local" || device?.id === "auto" || canRunOn(device);
 }
 
@@ -1621,6 +1710,9 @@ function isUnpaired(device) {
 }
 
 function deviceLabel(device) {
+  if (device.unavailableSelection) {
+    return device.detail || "Waiting for this worker";
+  }
   if (device.id === "local") {
     return device.role === "worker" ? "This computer · worker" : "This computer";
   }
@@ -1638,6 +1730,9 @@ function deviceLabel(device) {
 }
 
 function availabilityLabel(device) {
+  if (device.unavailableSelection) {
+    return "Waiting";
+  }
   if (isSyncManagedDevice(device) && device.synced === false) {
     return "Off";
   }
@@ -1717,6 +1812,16 @@ function deviceType(device) {
     default:
       return "Device";
   }
+}
+
+function runTargetLabel(device) {
+  if (!device) {
+    return "choose a device";
+  }
+  if (device.unavailableSelection) {
+    return `waiting for ${device.name}`;
+  }
+  return `on ${device.name}`;
 }
 
 function escapeHTML(value) {
