@@ -43,3 +43,19 @@ test("disallowedWorkMessage explains blocked planned work", () => {
   assert.equal(isWorkAllowed(plan, { docker: false }), false);
   assert.match(disallowedWorkMessage(plan, { docker: false }), /Docker is turned off/);
 });
+
+test("exact unknown commands require the exact command allowance", () => {
+  const exactCommand = { command: "echo hello", exact: true };
+
+  assert.equal(isWorkAllowed(exactCommand, { commands: true }), true);
+  assert.equal(isWorkAllowed(exactCommand, { commands: false }), false);
+  assert.match(disallowedWorkMessage(exactCommand, { commands: false }), /Exact commands is turned off/);
+});
+
+test("recognized exact commands still use their specific category", () => {
+  const dockerCommand = { command: "docker build .", exact: true };
+
+  assert.equal(isWorkAllowed(dockerCommand, { commands: false, docker: true }), true);
+  assert.equal(isWorkAllowed(dockerCommand, { commands: true, docker: false }), false);
+  assert.match(disallowedWorkMessage(dockerCommand, { docker: false }), /Docker is turned off/);
+});

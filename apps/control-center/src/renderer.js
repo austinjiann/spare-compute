@@ -53,7 +53,8 @@ const capabilities = [
   ["tests", "Tests"],
   ["docker", "Docker"],
   ["ai", "AI"],
-  ["video", "Video"]
+  ["video", "Video"],
+  ["commands", "Exact commands"]
 ];
 
 document.getElementById("refresh-devices").addEventListener("click", refreshDevices);

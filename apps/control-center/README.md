@@ -61,6 +61,9 @@ Current scope:
   Docker after a project folder is selected;
 - filters suggested work and blocks planned submissions when the matching Allow
   checkbox is turned off;
+- keeps arbitrary exact commands behind the disabled-by-default **Exact commands**
+  allowance while still letting recognized typed commands use their specific
+  Builds/Tests/Docker/AI/Video category;
 - previews the exact command before running when Preview before running is
   enabled;
 - runs a one-click connection test on the selected computer without requiring a

@@ -11,7 +11,8 @@
     tests: "Tests",
     docker: "Docker",
     ai: "AI",
-    video: "Video"
+    video: "Video",
+    commands: "Exact commands"
   };
 
   function filterAllowedSuggestions(suggestions = [], capabilities = {}) {
@@ -35,7 +36,11 @@
     if (explicit) {
       return explicit;
     }
-    return capabilityForCommand(work?.command || work?.task || work?.title || "");
+    const inferred = capabilityForCommand(work?.command || work?.task || work?.title || "");
+    if (inferred) {
+      return inferred;
+    }
+    return work?.exact === true ? "commands" : "";
   }
 
   function capabilityForCommand(command) {

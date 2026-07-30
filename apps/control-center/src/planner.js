@@ -16,6 +16,7 @@ async function planTask(request) {
   const exact = exactCommand(task);
   if (exact && intent === "exact") {
     return plan("Exact command", exact, "This looks like a command already.", profile, {
+      exact: true,
       requiresProject: commandNeedsProject(exact)
     });
   }
@@ -37,6 +38,7 @@ async function planTask(request) {
 
   if (exact) {
     return plan("Exact command", exact, "No project rule matched, so this will run exactly as typed.", profile, {
+      exact: true,
       requiresProject: commandNeedsProject(exact)
     });
   }
@@ -410,6 +412,7 @@ function plan(title, command, detail, profile, options = {}) {
       title,
       command,
       detail,
+      exact: Boolean(options.exact),
       requiresProject: Boolean(options.requiresProject),
       projectRoot: profile.root || "",
       detected: detectedLabels(profile)

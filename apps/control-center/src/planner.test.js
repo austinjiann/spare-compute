@@ -163,6 +163,7 @@ test("planTask preserves exact commands", async () => {
 
   assert.equal(result.ok, true);
   assert.equal(result.plan.command, "go test ./...");
+  assert.equal(result.plan.exact, true);
   assert.equal(result.plan.requiresProject, true);
   assert.equal(classifyIntent("go test ./..."), "exact");
 });
