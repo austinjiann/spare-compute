@@ -3,15 +3,18 @@ function splitCommandLine(input) {
   let current = "";
   let quote = null;
   let escaping = false;
+  let tokenStarted = false;
 
   for (const char of String(input || "")) {
     if (escaping) {
       current += char;
       escaping = false;
+      tokenStarted = true;
       continue;
     }
     if (char === "\\") {
       escaping = true;
+      tokenStarted = true;
       continue;
     }
     if (quote) {
@@ -20,20 +23,24 @@ function splitCommandLine(input) {
       } else {
         current += char;
       }
+      tokenStarted = true;
       continue;
     }
     if (char === "'" || char === '"') {
       quote = char;
+      tokenStarted = true;
       continue;
     }
     if (/\s/.test(char)) {
-      if (current !== "") {
+      if (tokenStarted) {
         tokens.push(current);
         current = "";
+        tokenStarted = false;
       }
       continue;
     }
     current += char;
+    tokenStarted = true;
   }
 
   if (escaping) {
@@ -42,7 +49,7 @@ function splitCommandLine(input) {
   if (quote) {
     throw new Error("Command has an unfinished quote.");
   }
-  if (current !== "") {
+  if (tokenStarted) {
     tokens.push(current);
   }
   return tokens;

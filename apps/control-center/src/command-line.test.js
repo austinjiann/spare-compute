@@ -11,6 +11,15 @@ test("splitCommandLine preserves quoted arguments", () => {
   assert.deepEqual(splitCommandLine("sh -c 'echo hello'"), ["sh", "-c", "echo hello"]);
 });
 
+test("splitCommandLine preserves empty quoted arguments", () => {
+  assert.deepEqual(splitCommandLine('printf ""'), ["printf", ""]);
+  assert.deepEqual(splitCommandLine("printf '' done"), ["printf", "", "done"]);
+});
+
+test("splitCommandLine joins adjacent quoted and unquoted segments", () => {
+  assert.deepEqual(splitCommandLine('printf hello""world'), ["printf", "helloworld"]);
+});
+
 test("splitCommandLine handles escaped whitespace", () => {
   assert.deepEqual(splitCommandLine("printf hello\\ world"), ["printf", "hello world"]);
 });
