@@ -1859,11 +1859,13 @@ func TestSetupHelpShowsRoleAliasesMacAndVPS(t *testing.T) {
 		"Print first-run commands without requiring the ComputeHop daemon",
 		"computehop setup worker --device-name \"Gaming PC\"",
 		"computehop setup worker --device-name \"Gaming PC\" --lan-only",
+		"computehop setup workers",
 		"computehop setup smoke",
 		"computehop setup vps --connectivity-domain connect.example.com",
 		"orchestrator",
 		"worker",
 		"mac",
+		"workers",
 		"smoke",
 		"vps",
 	} {
@@ -1909,6 +1911,16 @@ func TestSetupSubcommandHelpShowsExamplesWithoutDaemon(t *testing.T) {
 			},
 		},
 		{
+			name: "workers",
+			args: []string{"setup", "workers", "--help"},
+			want: []string{
+				"Linux and Windows worker package commands",
+				"package and pairing checklist",
+				"computehop setup workers --target linux --device-name \"Home Server\"",
+				"computehop setup workers --target windows --device-name \"Gaming PC\"",
+			},
+		},
+		{
 			name: "vps",
 			args: []string{"setup", "vps", "--help"},
 			want: []string{
@@ -1947,6 +1959,121 @@ func TestSetupSubcommandHelpShowsExamplesWithoutDaemon(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestSetupWorkersCommandPrintsLinuxAndWindowsPackageChecklistWithoutDaemon(t *testing.T) {
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			t.Fatal("setup workers should not require a daemon client")
+			return nil, nil
+		},
+	})
+	command.SetArgs([]string{"setup", "workers", "--device-name", "Austin Gaming PC"})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	for _, want := range []string{
+		"ComputeHop Linux/Windows worker setup",
+		"make worker-archives",
+		"ComputeHop-worker-linux-amd64.tar.gz.sha256",
+		"COMPUTEHOP_DEVICE_NAME='Austin Gaming PC' ./run-worker.sh --lan-only",
+		"COMPUTEHOP_DEVICE_NAME='Austin Gaming PC' ./install-systemd-user.sh",
+		"ComputeHop-worker-windows-amd64.zip",
+		".\\run-worker.ps1 -DeviceName 'Austin Gaming PC' --lan-only",
+		".\\install-scheduled-task.ps1 -DeviceName 'Austin Gaming PC'",
+		"computehop connect nearby",
+		"./bin/computehop connect confirm",
+		".\\bin\\computehop.exe connect confirm",
+		"computehop smoke",
+		"computehop run --on auto --no-project --follow hostname",
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
+		}
+	}
+}
+
+func TestSetupWorkersCommandCanPrintTargetSpecificChecklist(t *testing.T) {
+	tests := []struct {
+		name   string
+		target string
+		want   []string
+		omit   []string
+	}{
+		{
+			name:   "linux",
+			target: "linux",
+			want: []string{
+				"Linux worker:",
+				"COMPUTEHOP_DEVICE_NAME=HomeServer ./run-worker.sh --lan-only",
+				"Confirm the same code on the Linux worker:",
+			},
+			omit: []string{
+				"Windows worker:",
+				".\\run-worker.ps1",
+			},
+		},
+		{
+			name:   "windows",
+			target: "windows",
+			want: []string{
+				"Windows worker:",
+				".\\run-worker.ps1 -DeviceName 'HomeServer' --lan-only",
+				"Confirm the same code on the Windows worker:",
+			},
+			omit: []string{
+				"Linux worker:",
+				"./run-worker.sh",
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var stdout bytes.Buffer
+			command := newRootCommand(dependencies{
+				stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+				newClient: func(string) (caller, error) {
+					t.Fatal("setup workers should not require a daemon client")
+					return nil, nil
+				},
+			})
+			command.SetArgs([]string{"setup", "workers", "--target", test.target, "--device-name", "HomeServer"})
+			if err := command.Execute(); err != nil {
+				t.Fatalf("Execute() error = %v", err)
+			}
+			for _, want := range test.want {
+				if !strings.Contains(stdout.String(), want) {
+					t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
+				}
+			}
+			for _, omit := range test.omit {
+				if strings.Contains(stdout.String(), omit) {
+					t.Fatalf("stdout %q unexpectedly contains %q", stdout.String(), omit)
+				}
+			}
+		})
+	}
+}
+
+func TestSetupWorkersCommandRejectsInvalidTargetWithoutDaemon(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &stderr, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			t.Fatal("setup workers validation should not require a daemon client")
+			return nil, nil
+		},
+	})
+	command.SetArgs([]string{"setup", "workers", "--target", "solaris"})
+	err := command.Execute()
+	if err == nil {
+		t.Fatal("Execute() error = nil, want invalid target")
+	}
+	if !strings.Contains(err.Error(), "--target must be all, linux, or windows") {
+		t.Fatalf("error %q does not explain invalid target", err)
 	}
 }
 

@@ -10,6 +10,14 @@ Build worker archives from the repo:
 make worker-archives
 ```
 
+Print the copy/paste setup checklist:
+
+```bash
+computehop setup workers
+computehop setup workers --target linux --device-name "Home Server"
+computehop setup workers --target windows --device-name "Gaming PC"
+```
+
 Outputs are written to `dist/workers/`:
 
 - `ComputeHop-worker-linux-amd64.tar.gz`

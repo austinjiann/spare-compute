@@ -23,3 +23,6 @@ jobs:
 
       - name: Run PR validation
         run: make pr-check
+
+      - name: Build worker archives
+        run: make worker-archives

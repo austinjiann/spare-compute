@@ -4,7 +4,7 @@ BUF_VERSION := v1.72.0
 
 check: fmt proto-check proto-lint vet test race
 
-pr-check: fmt proto-check proto-lint vet test deploy-check
+pr-check: fmt proto-check proto-lint vet test deploy-check worker-archives-check
 
 fmt:
 	@test -z "$$(gofmt -l .)" || (gofmt -d . && exit 1)

@@ -461,11 +461,13 @@ func newSetupCommand(stdout io.Writer) *cobra.Command {
 
 Use this before the app is installed, when the daemon is stopped, or when you
 want the exact install command for this Mac or a worker Mac. Advanced subcommands
-cover LAN-only installs and the self-hosted VPS connectivity stack.`),
+cover LAN-only installs, Linux/Windows worker packages, and the self-hosted VPS
+connectivity stack.`),
 		Example: strings.TrimSpace(`computehop setup
 computehop setup orchestrator
 computehop setup worker --device-name "Gaming PC"
 computehop setup worker --device-name "Gaming PC" --lan-only
+computehop setup workers
 computehop setup smoke
 computehop setup vps --connectivity-domain connect.example.com --turn-domain turn.example.com --email admin@example.com --public-ip 203.0.113.10`),
 		Args: cobra.NoArgs,
@@ -476,6 +478,7 @@ computehop setup vps --connectivity-domain connect.example.com --turn-domain tur
 	command.AddCommand(newSetupMacCommand(stdout))
 	command.AddCommand(newSetupMacRoleCommand(stdout, device.RoleOrchestrator))
 	command.AddCommand(newSetupMacRoleCommand(stdout, device.RoleWorker))
+	command.AddCommand(newSetupWorkersCommand(stdout))
 	command.AddCommand(newSetupSmokeCommand(stdout))
 	command.AddCommand(newSetupVPSCommand(stdout))
 	return command
@@ -550,6 +553,36 @@ func setupRoleExample(role device.Role) string {
 	}
 }
 
+func newSetupWorkersCommand(stdout io.Writer) *cobra.Command {
+	options := workerPackageSetupOptions{
+		deviceName: exampleWorkerDeviceName,
+		target:     "all",
+	}
+	command := &cobra.Command{
+		Use:     "workers",
+		Aliases: []string{"pc", "worker-packages"},
+		Short:   "Print the Linux and Windows worker package checklist",
+		Long: strings.TrimSpace(`Print copyable Linux and Windows worker package commands.
+
+Use this when the Mac is the orchestrator and another computer should run as a
+worker. This command only prints the package and pairing checklist; it does not
+install anything or require the daemon.`),
+		Example: strings.TrimSpace(`computehop setup workers
+computehop setup workers --target linux --device-name "Home Server"
+computehop setup workers --target windows --device-name "Gaming PC"`),
+		Args: cobra.NoArgs,
+		RunE: func(*cobra.Command, []string) error {
+			if err := options.validate(); err != nil {
+				return err
+			}
+			return printWorkerPackageSetupGuide(stdout, options)
+		},
+	}
+	command.Flags().StringVar(&options.deviceName, "device-name", options.deviceName, "human-readable worker device name")
+	command.Flags().StringVar(&options.target, "target", options.target, "worker target: all, linux, or windows")
+	return command
+}
+
 func newSetupVPSCommand(stdout io.Writer) *cobra.Command {
 	options := defaultVPSSetupOptions()
 	command := &cobra.Command{
@@ -610,6 +643,11 @@ type vpsSetupOptions struct {
 	publicIP           string
 }
 
+type workerPackageSetupOptions struct {
+	deviceName string
+	target     string
+}
+
 type macSetupOptions struct {
 	role                   string
 	deviceName             string
@@ -667,6 +705,15 @@ func (options macSetupOptions) validate() error {
 		return fmt.Errorf("--cache-size: %w", err)
 	}
 	return nil
+}
+
+func (options workerPackageSetupOptions) validate() error {
+	switch strings.ToLower(strings.TrimSpace(options.target)) {
+	case "all", "linux", "windows":
+		return nil
+	default:
+		return errors.New("--target must be all, linux, or windows")
+	}
 }
 
 func validateSetupCacheSize(encoded string) error {
@@ -913,6 +960,10 @@ func shellArg(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
 }
 
+func powershellArg(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "''") + "'"
+}
+
 func printSetupGuide(stdout io.Writer) error {
 	lines := []string{
 		"ComputeHop setup",
@@ -948,6 +999,100 @@ func printSetupGuide(stdout io.Writer) error {
 		"Development-only daemon:",
 		"   go run ./cmd/computehopd --role worker --device-name \"Gaming PC\"",
 	}
+	for _, line := range lines {
+		if _, err := fmt.Fprintln(stdout, line); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func printWorkerPackageSetupGuide(stdout io.Writer, options workerPackageSetupOptions) error {
+	deviceName := strings.TrimSpace(options.deviceName)
+	if deviceName == "" {
+		deviceName = exampleWorkerDeviceName
+	}
+	target := strings.ToLower(strings.TrimSpace(options.target))
+	if target == "" {
+		target = "all"
+	}
+	lines := []string{
+		"ComputeHop Linux/Windows worker setup",
+		"",
+		"Goal:",
+		"   run another computer as a worker controlled by the Mac orchestrator.",
+		"",
+		"0. On the Mac checkout, build copyable worker packages:",
+		"   make worker-archives",
+		"",
+	}
+	if target == "all" || target == "linux" {
+		lines = append(lines,
+			"Linux worker:",
+			"   # Copy the matching archive and .sha256 from dist/workers/ to the Linux computer.",
+			"   shasum -a 256 -c ComputeHop-worker-linux-amd64.tar.gz.sha256",
+			"   # If shasum is unavailable on Linux:",
+			"   sha256sum -c ComputeHop-worker-linux-amd64.tar.gz.sha256",
+			"   tar -xzf ComputeHop-worker-linux-amd64.tar.gz",
+			"   cd ComputeHop-worker-linux-amd64",
+			"   COMPUTEHOP_DEVICE_NAME="+shellArg(deviceName)+" ./run-worker.sh --lan-only",
+			"",
+			"Linux optional login service:",
+			"   COMPUTEHOP_DEVICE_NAME="+shellArg(deviceName)+" ./install-systemd-user.sh",
+			"",
+		)
+	}
+	if target == "all" || target == "windows" {
+		lines = append(lines,
+			"Windows worker:",
+			"   # Copy the Windows zip and .sha256 from dist/workers/ to the Windows computer.",
+			"   Get-FileHash .\\ComputeHop-worker-windows-amd64.zip -Algorithm SHA256",
+			"   # Compare that hash with ComputeHop-worker-windows-amd64.zip.sha256.",
+			"   Expand-Archive .\\ComputeHop-worker-windows-amd64.zip .",
+			"   cd .\\ComputeHop-worker-windows-amd64",
+			"   .\\run-worker.ps1 -DeviceName "+powershellArg(deviceName)+" --lan-only",
+			"",
+			"Windows optional login task:",
+			"   .\\install-scheduled-task.ps1 -DeviceName "+powershellArg(deviceName),
+			"",
+		)
+	}
+	lines = append(lines,
+		"Pair from the Mac orchestrator while both devices are on the same LAN:",
+		"   computehop connect nearby",
+		"   computehop connect confirm",
+		"",
+	)
+	switch target {
+	case "linux":
+		lines = append(lines,
+			"Confirm the same code on the Linux worker:",
+			"   ./bin/computehop connect confirm",
+			"",
+		)
+	case "windows":
+		lines = append(lines,
+			"Confirm the same code on the Windows worker:",
+			"   .\\bin\\computehop.exe connect confirm",
+			"",
+		)
+	default:
+		lines = append(lines,
+			"Confirm the same code on the worker:",
+			"   # Linux:",
+			"   ./bin/computehop connect confirm",
+			"   # Windows:",
+			"   .\\bin\\computehop.exe connect confirm",
+			"",
+		)
+	}
+	lines = append(lines,
+		"Prove remote execution:",
+		"   computehop smoke",
+		"   computehop run --on auto --no-project --follow hostname",
+		"",
+		"After smoke prints the worker hostname, remote jobs are running on that computer.",
+	)
 	for _, line := range lines {
 		if _, err := fmt.Fprintln(stdout, line); err != nil {
 			return err
