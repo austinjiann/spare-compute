@@ -13,6 +13,7 @@ test("capabilityForCommand classifies common work commands", () => {
   assert.equal(capabilityForCommand("npm run lint"), "tests");
   assert.equal(capabilityForCommand("go build ./..."), "builds");
   assert.equal(capabilityForCommand("pnpm run build"), "builds");
+  assert.equal(capabilityForCommand("make macos-package"), "builds");
   assert.equal(capabilityForCommand("docker compose build"), "docker");
   assert.equal(capabilityForCommand("docker build ."), "docker");
   assert.equal(capabilityForCommand("ffmpeg -i in.mov out.mp4"), "video");

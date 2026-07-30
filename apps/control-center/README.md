@@ -56,9 +56,10 @@ Current scope:
   cannot be selected, used by Auto worker, or used as run targets;
 - stores allowed work categories per selected device, so This Mac and each
   worker can have different Builds/Tests/Docker/AI/Video/Exact-command policy;
-- plans plain-language tasks such as "run tests", "build the app", and
-  "check CI" into one safe command using local project rules, preferring
-  repository validation targets such as `make pr-check` when present;
+- plans plain-language tasks such as "run tests", "build the app", "package
+  the app", and "check CI" into one safe command using local project rules,
+  preferring repository validation targets such as `make pr-check` and package
+  targets such as `make macos-package` when present;
 - uses deterministic local planning first, so no API key is required for normal
   Check/Test/Build/Lint/Docker planning;
 - can fall back to an optional OpenAI Responses API planner for tasks local

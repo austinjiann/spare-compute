@@ -139,7 +139,7 @@ test("planControlCenterTask does not let AI bypass missing-project guidance", as
 
 test("planControlCenterTask keeps the local error when AI fails", async () => {
   const result = await planControlCenterTask({
-    task: "do the special release thing",
+    task: "do the special workflow thing",
     projectRoot: ""
   }, {
     config: {

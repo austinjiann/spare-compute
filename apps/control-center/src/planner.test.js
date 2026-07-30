@@ -39,6 +39,21 @@ test("planTask uses detected package manager scripts", async (t) => {
   assert.equal(tests.plan.requiresProject, true);
 });
 
+test("planTask prefers app packaging targets for package requests", async (t) => {
+  const project = await tempProject(t, {
+    Makefile: "macos-package:\n\tpackaging/macos/build.sh\n",
+    "go.mod": "module example.com/app\n"
+  });
+
+  const result = await planTask({ task: "package the app", projectRoot: project });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.plan.title, "Package macOS app");
+  assert.equal(result.plan.command, "make macos-package");
+  assert.equal(result.plan.requiresProject, true);
+  assert.equal(classifyIntent("package the app"), "package");
+});
+
 test("planTask maps Swift package tests", async (t) => {
   const project = await tempProject(t, {
     "Package.swift": "// swift-tools-version: 6.0\n"

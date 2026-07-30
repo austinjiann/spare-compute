@@ -175,6 +175,17 @@ function chooseCommand(intent, profile) {
       || commandForDockerBuild(profile);
   }
 
+  if (intent === "package") {
+    return makeTarget(profile, "macos-package", "Package macOS app", "Use the repo's macOS app packaging target.")
+      || makeTarget(profile, "package", "Package project", "Use the repo's package target.")
+      || makeTarget(profile, "release", "Package project", "Use the repo's release target.")
+      || script(profile, "package", "Package project", "Use the package's package script.")
+      || script(profile, "release", "Package project", "Use the package's release script.")
+      || script(profile, "build", "Build project", "Use the package's build script.")
+      || makeTarget(profile, "build", "Build project", "Use the repo's build target.")
+      || commandForBuild(profile);
+  }
+
   if (intent === "docker-build") {
     return commandForDockerBuild(profile);
   }
@@ -296,7 +307,7 @@ function makeTarget(profile, name, title, detail) {
 }
 
 function projectIntent(intent) {
-  return ["ci", "test", "build", "docker-build", "lint", "install"].includes(intent);
+  return ["ci", "test", "build", "package", "docker-build", "lint", "install"].includes(intent);
 }
 
 function commandNeedsProject(command) {
@@ -332,6 +343,9 @@ function classifyIntent(task) {
   if (/\b(hostname|smoke|connection|ping)\b/.test(value)) {
     return "smoke";
   }
+  if (/\b(package|release)\b/.test(value)) {
+    return "package";
+  }
   if (/\b(test|tests|specs?)\b/.test(value)) {
     return "test";
   }
@@ -355,7 +369,7 @@ function looksLikeCommand(task) {
     value.includes("/") ||
     value.includes("./") ||
     value.includes("--") ||
-    /^[a-z0-9_.-]+(\s|$)/i.test(value) && !/^(run|build|test|check|checks|ci|fix|verify|validate|preflight|lint|format|fmt|style|install|deps|dependencies|smoke|ping|connection|please|can|could|make|do)\b/i.test(value)
+    /^[a-z0-9_.-]+(\s|$)/i.test(value) && !/^(run|build|bundle|package|release|test|check|checks|ci|fix|verify|validate|preflight|lint|format|fmt|style|install|deps|dependencies|smoke|ping|connection|please|can|could|make|do)\b/i.test(value)
   );
 }
 

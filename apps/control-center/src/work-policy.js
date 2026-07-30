@@ -69,7 +69,7 @@
       return "tests";
     }
     if (
-      /^make\s+(build|bundle|package)(?:\s|$)/.test(value) ||
+      /^make\s+([a-z0-9_.-]+-)?(build|bundle|package)(?:\s|$)/.test(value) ||
       /^(npm|pnpm|yarn|bun)\s+(run\s+)?(build|bundle|package)(?:\s|$)/.test(value) ||
       /^go\s+build(?:\s|$)/.test(value) ||
       /^swift\s+build(?:\s|$)/.test(value) ||
