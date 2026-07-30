@@ -15,16 +15,30 @@ async function planTask(request) {
   const intent = classifyIntent(task);
   const exact = exactCommand(task);
   if (exact && intent === "exact") {
-    return plan("Exact command", exact, "This looks like a command already.", profile);
+    return plan("Exact command", exact, "This looks like a command already.", profile, {
+      requiresProject: commandNeedsProject(exact)
+    });
   }
 
   const planned = chooseCommand(intent, profile);
   if (planned) {
-    return plan(planned.title, planned.command, planned.detail, profile);
+    return plan(planned.title, planned.command, planned.detail, profile, {
+      requiresProject: planned.requiresProject
+    });
+  }
+
+  if (projectIntent(intent) && !projectRoot) {
+    return {
+      ok: false,
+      error: "Choose a project first so ComputeHop can pick the right command and send those files to the worker.",
+      profile
+    };
   }
 
   if (exact) {
-    return plan("Exact command", exact, "No project rule matched, so this will run exactly as typed.", profile);
+    return plan("Exact command", exact, "No project rule matched, so this will run exactly as typed.", profile, {
+      requiresProject: commandNeedsProject(exact)
+    });
   }
 
   return {
@@ -118,7 +132,8 @@ function chooseCommand(intent, profile) {
       return {
         title: "Install dependencies",
         command: `${profile.packageManager} install`,
-        detail: `Use ${profile.packageManager} for this JavaScript project.`
+        detail: `Use ${profile.packageManager} for this JavaScript project.`,
+        requiresProject: true
       };
     }
   }
@@ -127,7 +142,8 @@ function chooseCommand(intent, profile) {
     return {
       title: "Test connection",
       command: "/bin/hostname",
-      detail: "Run a tiny command that prints the selected computer's hostname."
+      detail: "Run a tiny command that prints the selected computer's hostname.",
+      requiresProject: false
     };
   }
 
@@ -136,29 +152,29 @@ function chooseCommand(intent, profile) {
 
 function commandForTests(profile) {
   if (profile.files["go.mod"]) {
-    return { title: "Run Go tests", command: "go test ./...", detail: "Detected go.mod." };
+    return { title: "Run Go tests", command: "go test ./...", detail: "Detected go.mod.", requiresProject: true };
   }
   if (profile.files["Package.swift"]) {
-    return { title: "Run Swift tests", command: "swift test", detail: "Detected Package.swift." };
+    return { title: "Run Swift tests", command: "swift test", detail: "Detected Package.swift.", requiresProject: true };
   }
   if (profile.files["Cargo.toml"]) {
-    return { title: "Run Rust tests", command: "cargo test", detail: "Detected Cargo.toml." };
+    return { title: "Run Rust tests", command: "cargo test", detail: "Detected Cargo.toml.", requiresProject: true };
   }
   if (profile.files["pyproject.toml"] || profile.files["pytest.ini"]) {
-    return { title: "Run Python tests", command: "pytest", detail: "Detected Python project files." };
+    return { title: "Run Python tests", command: "pytest", detail: "Detected Python project files.", requiresProject: true };
   }
   return null;
 }
 
 function commandForBuild(profile) {
   if (profile.files["go.mod"]) {
-    return { title: "Build Go project", command: "go build ./...", detail: "Detected go.mod." };
+    return { title: "Build Go project", command: "go build ./...", detail: "Detected go.mod.", requiresProject: true };
   }
   if (profile.files["Package.swift"]) {
-    return { title: "Build Swift package", command: "swift build", detail: "Detected Package.swift." };
+    return { title: "Build Swift package", command: "swift build", detail: "Detected Package.swift.", requiresProject: true };
   }
   if (profile.files["Cargo.toml"]) {
-    return { title: "Build Rust project", command: "cargo build", detail: "Detected Cargo.toml." };
+    return { title: "Build Rust project", command: "cargo build", detail: "Detected Cargo.toml.", requiresProject: true };
   }
   return null;
 }
@@ -170,7 +186,8 @@ function script(profile, name, title, detail) {
   return {
     title,
     command: `${profile.packageManager} run ${name}`,
-    detail
+    detail,
+    requiresProject: true
   };
 }
 
@@ -181,8 +198,29 @@ function makeTarget(profile, name, title, detail) {
   return {
     title,
     command: `make ${name}`,
-    detail
+    detail,
+    requiresProject: true
   };
+}
+
+function projectIntent(intent) {
+  return ["ci", "test", "build", "lint", "install"].includes(intent);
+}
+
+function commandNeedsProject(command) {
+  const value = String(command || "").trim().toLowerCase();
+  return (
+    /^\.\//.test(value) ||
+    /^make(?:\s|$)/.test(value) ||
+    /^(npm|pnpm|yarn|bun)(?:\s|$)/.test(value) ||
+    /^go\s+(test|build|run|generate|vet)(?:\s|$)/.test(value) ||
+    /^swift\s+(test|build|run|package)(?:\s|$)/.test(value) ||
+    /^cargo\s+(test|build|run|check|clippy)(?:\s|$)/.test(value) ||
+    /^(pytest|ruff|mypy)(?:\s|$)/.test(value) ||
+    /^python\s+(-m\s+)?(pytest|ruff|mypy)(?:\s|$)/.test(value) ||
+    /^(uv|poetry)\s+run(?:\s|$)/.test(value) ||
+    /^docker\s+(build|compose)(?:\s|$)/.test(value)
+  );
 }
 
 function classifyIntent(task) {
@@ -192,6 +230,9 @@ function classifyIntent(task) {
   }
   if (/\b(ci|pr check|preflight|validate|checks?)\b/.test(value)) {
     return "ci";
+  }
+  if (/\b(hostname|smoke|connection|ping)\b/.test(value)) {
+    return "smoke";
   }
   if (/\b(test|tests|specs?)\b/.test(value)) {
     return "test";
@@ -204,9 +245,6 @@ function classifyIntent(task) {
   }
   if (/\b(install|deps|dependencies)\b/.test(value)) {
     return "install";
-  }
-  if (/\b(hostname|smoke|connection|ping)\b/.test(value)) {
-    return "smoke";
   }
   return "unknown";
 }
@@ -259,13 +297,14 @@ async function fileExists(filePath) {
   }
 }
 
-function plan(title, command, detail, profile) {
+function plan(title, command, detail, profile, options = {}) {
   return {
     ok: true,
     plan: {
       title,
       command,
       detail,
+      requiresProject: Boolean(options.requiresProject),
       projectRoot: profile.root || "",
       detected: detectedLabels(profile)
     }
@@ -296,6 +335,7 @@ function detectedLabels(profile) {
 }
 
 module.exports = {
+  commandNeedsProject,
   classifyIntent,
   inspectProject,
   planTask

@@ -25,6 +25,10 @@ Current scope:
   "check CI" into one safe command using local project rules;
 - previews the exact command before running when Preview before running is
   enabled;
+- runs a one-click connection test on the selected computer without requiring a
+  project folder;
+- requires a project folder before sending project-style commands such as tests,
+  builds, package scripts, and Makefile targets to another computer;
 - submits selected commands as durable native jobs;
 - polls daemon job logs and streams stdout/stderr into the window;
 - cancels running jobs through daemon IPC;

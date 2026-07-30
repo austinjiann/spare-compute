@@ -33,6 +33,7 @@ const capabilities = [
 
 document.getElementById("refresh-devices").addEventListener("click", refreshDevices);
 document.getElementById("run-job").addEventListener("click", runSelectedJob);
+document.getElementById("test-device").addEventListener("click", testSelectedDevice);
 document.getElementById("command-input").addEventListener("keydown", (event) => {
   if (event.key === "Enter") {
     runSelectedJob();
@@ -313,20 +314,45 @@ async function runSelectedJob() {
 
   const selected = selectedDevice();
   const task = document.getElementById("command-input").value.trim();
-  const output = document.getElementById("job-output");
-  const button = document.getElementById("run-job");
 
   if (!task) {
     showJobOutput("Enter something to run.", false);
     return;
   }
-  if (!selected || !canRunOn(selected)) {
-    showJobOutput("Choose This Mac or a connected worker first.", false);
-    return;
-  }
 
   const planned = await plannedCommandFor(task);
   if (!planned) {
+    return;
+  }
+
+  await startPlannedJob(planned, selected);
+}
+
+async function testSelectedDevice() {
+  if (runInFlight) {
+    return;
+  }
+
+  const selected = selectedDevice();
+  const planned = {
+    source: "test connection",
+    title: "Test connection",
+    command: "/bin/hostname",
+    detail: "Runs on the selected computer and prints its hostname.",
+    requiresProject: false,
+    projectRoot: ""
+  };
+  state.plannedTask = planned;
+  renderPlanPreview();
+  await startPlannedJob(planned, selected);
+}
+
+async function startPlannedJob(planned, selected) {
+  const output = document.getElementById("job-output");
+  const button = document.getElementById("run-job");
+  const readinessError = validateRunReadiness(selected, planned);
+  if (readinessError) {
+    showJobOutput(readinessError, false);
     return;
   }
 
@@ -353,6 +379,16 @@ async function runSelectedJob() {
     state.currentRunID = null;
     renderRunControls();
   }
+}
+
+function validateRunReadiness(selected, planned) {
+  if (!selected || !canRunOn(selected)) {
+    return "Choose This Mac or a connected worker first.";
+  }
+  if (selected.id !== "local" && planned.requiresProject && !state.settings.projectRoot) {
+    return `Choose a project before running this on ${selected.name}. ComputeHop needs the folder so it can copy the files to that computer.`;
+  }
+  return "";
 }
 
 async function plannedCommandFor(task) {
@@ -492,6 +528,7 @@ function renderRunControls() {
   const target = document.getElementById("run-target");
   const projectLabel = document.getElementById("project-label");
   const runButton = document.getElementById("run-job");
+  const testButton = document.getElementById("test-device");
   const task = document.getElementById("command-input").value.trim();
 
   target.textContent = selected ? `on ${selected.name}` : "choose a device";
@@ -505,6 +542,8 @@ function renderRunControls() {
   } else {
     runButton.textContent = "Run";
   }
+  testButton.textContent = selected && selected.id === "local" ? "Test Mac" : "Test worker";
+  testButton.disabled = runInFlight || !selected || !canRunOn(selected);
   runButton.disabled = !runInFlight && (!selected || !canRunOn(selected));
 }
 

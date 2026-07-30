@@ -109,7 +109,7 @@ ipcMain.handle("project:choose", async () => {
 ipcMain.handle("planner:plan", async (_event, request) => {
   return planTask({
     task: request?.task,
-    projectRoot: request?.projectRoot || repoRoot
+    projectRoot: request?.projectRoot || ""
   });
 });
 

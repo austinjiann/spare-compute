@@ -1443,9 +1443,12 @@ command-input guidance, empty-log placeholders, copyable CLI run/log handoffs,
 job-completion notifications and their persisted setting, diagnostic command
 copying, configurable setup/VPS defaults, and safe command parsing; a real
 Swift client has successfully pinged the Go daemon, submitted a durable native
-job, and read its output. A separate Electron Control Center scaffold now owns
-the direction for heavier settings. Durable daemon-backed settings for that app
-remain. A host-architecture
+job, and read its output. A separate Electron Control Center now owns the
+heavier settings surface, connects to the daemon over local IPC, lists nearby
+and trusted devices, pairs or forgets workers, plans plain-language tasks into
+previewed commands, runs a projectless smoke test on the selected computer, and
+blocks project-style remote runs until a project folder is selected for
+transfer. Durable daemon-backed settings for that app remain. A host-architecture
 developer app bundle now includes the menu app, CLI, and daemon; a guarded
 per-user installer configures an
 unprivileged launch agent and preserves durable state on uninstall. Developer

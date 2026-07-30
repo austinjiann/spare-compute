@@ -3,7 +3,7 @@ const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
-const { classifyIntent, planTask } = require("./planner");
+const { classifyIntent, commandNeedsProject, planTask } = require("./planner");
 
 test("planTask prefers Makefile PR check for CI", async (t) => {
   const project = await tempProject(t, {
@@ -15,6 +15,7 @@ test("planTask prefers Makefile PR check for CI", async (t) => {
 
   assert.equal(result.ok, true);
   assert.equal(result.plan.command, "make pr-check");
+  assert.equal(result.plan.requiresProject, true);
   assert.deepEqual(result.plan.detected.sort(), ["Go", "Makefile"].sort());
 });
 
@@ -29,8 +30,10 @@ test("planTask uses detected package manager scripts", async (t) => {
 
   assert.equal(build.ok, true);
   assert.equal(build.plan.command, "pnpm run build");
+  assert.equal(build.plan.requiresProject, true);
   assert.equal(tests.ok, true);
   assert.equal(tests.plan.command, "pnpm run test");
+  assert.equal(tests.plan.requiresProject, true);
 });
 
 test("planTask maps Swift package tests", async (t) => {
@@ -42,6 +45,7 @@ test("planTask maps Swift package tests", async (t) => {
 
   assert.equal(result.ok, true);
   assert.equal(result.plan.command, "swift test");
+  assert.equal(result.plan.requiresProject, true);
 });
 
 test("planTask preserves exact commands", async () => {
@@ -49,6 +53,7 @@ test("planTask preserves exact commands", async () => {
 
   assert.equal(result.ok, true);
   assert.equal(result.plan.command, "go test ./...");
+  assert.equal(result.plan.requiresProject, true);
   assert.equal(classifyIntent("go test ./..."), "exact");
 });
 
@@ -57,7 +62,32 @@ test("planTask preserves exact make commands", async () => {
 
   assert.equal(result.ok, true);
   assert.equal(result.plan.command, "make pr-check");
+  assert.equal(result.plan.requiresProject, true);
   assert.equal(classifyIntent("make pr-check"), "exact");
+});
+
+test("planTask asks for a project before planning project work", async () => {
+  const result = await planTask({ task: "run tests", projectRoot: "" });
+
+  assert.equal(result.ok, false);
+  assert.match(result.error, /Choose a project first/);
+});
+
+test("planTask keeps smoke tests projectless", async () => {
+  const result = await planTask({ task: "test connection", projectRoot: "" });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.plan.command, "/bin/hostname");
+  assert.equal(result.plan.requiresProject, false);
+});
+
+test("commandNeedsProject only flags project-style commands", () => {
+  assert.equal(commandNeedsProject("go test ./..."), true);
+  assert.equal(commandNeedsProject("npm run build"), true);
+  assert.equal(commandNeedsProject("make pr-check"), true);
+  assert.equal(commandNeedsProject("./scripts/check"), true);
+  assert.equal(commandNeedsProject("/bin/hostname"), false);
+  assert.equal(commandNeedsProject("echo hello"), false);
 });
 
 async function tempProject(t, files) {
