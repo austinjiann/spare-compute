@@ -9,6 +9,7 @@ const {
 } = require("./local-daemon");
 const { startDaemon } = require("./daemon-launcher");
 const { planTask } = require("./planner");
+const { appRuntimeInfo, normalizeDaemonRole } = require("./runtime-info");
 
 const repoRoot = path.resolve(__dirname, "..", "..", "..");
 const activeRuns = new Map();
@@ -65,6 +66,8 @@ ipcMain.handle("devices:list", async () => {
     return { ok: false, error: readableError(error), errorCode: error?.code || "", devices: [], pairings: [] };
   }
 });
+
+ipcMain.handle("app:info", async () => appRuntimeInfo(process.platform));
 
 ipcMain.handle("daemon:start", async (_event, request) => {
   try {
@@ -368,8 +371,7 @@ function deviceSelectorFromRequest(request) {
 }
 
 function daemonRoleFromRequest(request) {
-  const role = String(request?.role || "").trim().toLowerCase();
-  return role === "worker" ? "worker" : "orchestrator";
+  return normalizeDaemonRole(request?.role, process.platform);
 }
 
 function mapJob(value, deviceSelector = "") {

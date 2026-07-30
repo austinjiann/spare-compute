@@ -18,6 +18,7 @@ Current scope:
   socket;
 - can start the local daemon from the app in development or from the bundled
   daemon in packaged builds, either as the Control Mac or as a Worker;
+- defaults non-macOS computers to Worker because Control Mac is macOS-only;
 - reads trusted and nearby devices from the daemon;
 - starts nearby-device pairing from the Devices list;
 - shows active pairing verification codes and lets the user confirm or reject

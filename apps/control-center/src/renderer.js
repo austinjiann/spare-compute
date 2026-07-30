@@ -8,6 +8,14 @@ const state = {
   selectedJobLogText: "",
   selectedJobLogTruncated: false,
   selectedJobLogFailed: false,
+  runtime: {
+    platform: "",
+    defaultDaemonRole: "orchestrator",
+    daemonRoles: [
+      { id: "orchestrator", label: "Control Mac" },
+      { id: "worker", label: "Worker" }
+    ]
+  },
   currentRunID: null,
   plannedTask: null,
   daemonAvailable: false,
@@ -70,6 +78,7 @@ renderPlanPreview();
 renderRunControls();
 renderDaemonCard();
 renderJobs();
+void loadAppInfo();
 refreshDevices();
 setInterval(refreshDevices, 5000);
 
@@ -175,6 +184,42 @@ function renderDaemonCard() {
   button.disabled = state.startingDaemon;
   button.textContent = state.startingDaemon ? "Starting" : "Start";
   role.disabled = state.startingDaemon;
+}
+
+async function loadAppInfo() {
+  if (!window.computeHop.appInfo) {
+    return;
+  }
+  try {
+    const info = await window.computeHop.appInfo();
+    state.runtime = {
+      ...state.runtime,
+      ...info,
+      daemonRoles: Array.isArray(info?.daemonRoles) && info.daemonRoles.length > 0
+        ? info.daemonRoles
+        : state.runtime.daemonRoles
+    };
+    applyDaemonRoleOptions();
+  } catch {
+    applyDaemonRoleOptions();
+  }
+}
+
+function applyDaemonRoleOptions() {
+  const role = document.getElementById("daemon-role");
+  const roles = state.runtime.daemonRoles;
+  role.replaceChildren(...roles.map((candidate) => {
+    const option = document.createElement("option");
+    option.value = candidate.id;
+    option.textContent = candidate.label;
+    return option;
+  }));
+  if (!roles.some((candidate) => candidate.id === state.settings.daemonRole)) {
+    state.settings.daemonRole = state.runtime.defaultDaemonRole || roles[0].id;
+    saveSettings();
+  }
+  role.value = state.settings.daemonRole;
+  renderDaemonCard();
 }
 
 async function refreshJobs() {
