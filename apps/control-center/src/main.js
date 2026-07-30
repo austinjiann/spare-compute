@@ -11,7 +11,7 @@ const { startDaemon } = require("./daemon-launcher");
 const { planTask, suggestTasks } = require("./planner");
 const { appRuntimeInfo, normalizeDaemonRole } = require("./runtime-info");
 const { remotePreparationMessage } = require("./run-feedback");
-const { runWorkingDirectory } = require("./run-request");
+const { jobOutputsForPlan, runWorkingDirectory } = require("./run-request");
 const {
   deviceSelectorFromDeviceID,
   followupDeviceSelector,
@@ -681,9 +681,7 @@ function normalizeJobRequest(request) {
     deviceID: String(request.deviceID || "local").trim(),
     deviceName: String(request.deviceName || "").trim(),
     workingDirectory: String(request.workingDirectory || "").trim(),
-    outputs: Array.isArray(request.outputs)
-      ? request.outputs.map((value) => String(value || "").trim()).filter(Boolean)
-      : []
+    outputs: jobOutputsForPlan({ outputs: request.outputs })
   };
 }
 
