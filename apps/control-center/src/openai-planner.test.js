@@ -122,6 +122,27 @@ test("normalizeOpenAIPlan infers known work capability from the command", () => 
   assert.equal(result.plan.requiresProject, true);
 });
 
+test("normalizeOpenAIPlan preserves placement hints without leaving them in commands", () => {
+  const result = normalizeOpenAIPlan({
+    output_text: JSON.stringify({
+      ok: true,
+      title: "Run smoke",
+      command: "hostname on the worker",
+      detail: "Print the worker hostname.",
+      requiresProject: false,
+      outputs: [],
+      capability: "commands"
+    })
+  }, {
+    task: "run a smoke check on the worker",
+    projectRoot: ""
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.plan.command, "hostname");
+  assert.equal(result.plan.targetPreference, "worker");
+});
+
 test("normalizeOpenAIPlan rejects unsafe or unusable plans", () => {
   assert.match(
     normalizeOpenAIPlan({

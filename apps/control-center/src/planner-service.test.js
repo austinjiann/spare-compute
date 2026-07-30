@@ -110,6 +110,40 @@ test("planControlCenterTask falls back to AI for unknown local tasks", async () 
   assert.equal(result.plan.planner, "openai");
 });
 
+test("planControlCenterTask preserves worker placement through AI fallback", async () => {
+  const result = await planControlCenterTask({
+    task: "do the special workflow on the worker",
+    projectRoot: ""
+  }, {
+    config: {
+      configured: true,
+      apiKey: "key",
+      baseURL: "https://api.openai.test/v1",
+      model: "test-model"
+    },
+    fetchImpl: async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        output_text: JSON.stringify({
+          ok: true,
+          title: "Show hostname",
+          command: "hostname on the worker",
+          detail: "Prints the selected worker hostname.",
+          requiresProject: false,
+          capability: "commands"
+        })
+      })
+    }),
+    timeoutMs: 100
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.plan.command, "hostname");
+  assert.equal(result.plan.targetPreference, "worker");
+  assert.equal(result.plan.planner, "openai");
+});
+
 test("planControlCenterTask does not let AI bypass missing-project guidance", async () => {
   let calls = 0;
   const result = await planControlCenterTask({

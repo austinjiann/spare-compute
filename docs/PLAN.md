@@ -1477,7 +1477,8 @@ declarations, and are still previewed, mapped through the same per-device
 allowed-work policy, and rejected
 before preview when they contain shell operators, multiline commands, shell
 wrappers, obvious interactive commands, privilege escalation, or destructive
-removal. The optional OpenAI key can be saved from
+removal, and share the same placement-hint preservation and command-suffix
+cleanup as deterministic plans. The optional OpenAI key can be saved from
 the app using Electron `safeStorage` encryption where available, with
 environment variables retained as a fallback. It can also start the local daemon
 from the app in development and
