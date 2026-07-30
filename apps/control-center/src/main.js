@@ -8,6 +8,7 @@ const {
   jobTerminal
 } = require("./local-daemon");
 const { startDaemon } = require("./daemon-launcher");
+const { installLaunchAgent } = require("./launch-agent-service");
 const { launchAgentStatus } = require("./launch-agent-status");
 const { splitCommandLine } = require("./command-line");
 const {
@@ -193,6 +194,27 @@ ipcMain.handle("daemon:start", async (_event, request) => {
 
 ipcMain.handle("daemon:launchAgentStatus", async () => {
   return { status: await launchAgentStatus() };
+});
+
+ipcMain.handle("daemon:installLaunchAgent", async (_event, request) => {
+  const status = await launchAgentStatus();
+  const daemonRunning = await localDaemonIsRunning();
+  try {
+    return await installLaunchAgent({
+      role: daemonRoleFromRequest(request),
+      isPackaged: app.isPackaged,
+      resourcesPath: process.resourcesPath,
+      controlCenterRoot: path.resolve(__dirname, ".."),
+      currentDaemonRunning: daemonRunning && !status.loaded,
+      status
+    });
+  } catch (error) {
+    return {
+      ok: false,
+      error: readableError(error),
+      status: await safeLaunchAgentStatus(status)
+    };
+  }
 });
 
 ipcMain.handle("devices:connect", async (_event, deviceID) => {
@@ -668,6 +690,24 @@ function timestampLabel(value) {
     return "";
   }
   return new Date(Math.floor(numeric / 1_000_000)).toISOString();
+}
+
+async function localDaemonIsRunning() {
+  try {
+    const client = new LocalDaemonClient();
+    await client.ping();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function safeLaunchAgentStatus(fallback) {
+  try {
+    return await launchAgentStatus();
+  } catch {
+    return fallback;
+  }
 }
 
 function readableError(error) {

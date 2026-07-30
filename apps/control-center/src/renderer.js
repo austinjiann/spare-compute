@@ -25,6 +25,8 @@ const state = {
   daemonAvailable: false,
   daemonError: "",
   startingDaemon: false,
+  installingBackgroundService: false,
+  backgroundServiceMessage: "",
   loadingJobs: false,
   loadingLogs: false,
   runtimeLoaded: false,
@@ -96,6 +98,7 @@ const capabilities = [
 document.getElementById("refresh-devices").addEventListener("click", refreshDevices);
 document.getElementById("refresh-jobs").addEventListener("click", refreshJobs);
 document.getElementById("start-daemon").addEventListener("click", startDaemon);
+document.getElementById("background-action").addEventListener("click", installBackgroundService);
 document.getElementById("run-job").addEventListener("click", runSelectedJob);
 document.getElementById("test-device").addEventListener("click", testSelectedDevice);
 document.getElementById("command-input").addEventListener("keydown", (event) => {
@@ -250,35 +253,82 @@ async function refreshLaunchAgentStatus() {
   renderBackgroundCard();
 }
 
+async function installBackgroundService() {
+  if (state.installingBackgroundService || !window.computeHop.installLaunchAgent) {
+    return;
+  }
+  state.installingBackgroundService = true;
+  state.backgroundServiceMessage = "";
+  renderBackgroundCard();
+  try {
+    const response = await window.computeHop.installLaunchAgent({
+      role: state.settings.daemonRole
+    });
+    if (!response?.ok) {
+      state.backgroundServiceMessage = response?.error || "Could not set up the background service.";
+      if (response?.status) {
+        state.launchAgentStatus = normalizeLaunchAgentStatus(response.status);
+      }
+      return;
+    }
+    state.launchAgentStatus = normalizeLaunchAgentStatus(response.status);
+    state.backgroundServiceMessage = response.detail || "";
+    if (response.started) {
+      await refreshDevices();
+    }
+  } catch (error) {
+    state.backgroundServiceMessage = error.message || "Could not set up the background service.";
+  } finally {
+    state.installingBackgroundService = false;
+    await refreshLaunchAgentStatus();
+    renderBackgroundCard();
+  }
+}
+
 function renderBackgroundCard() {
   const card = document.getElementById("background-card");
   const title = document.getElementById("background-title");
   const detail = document.getElementById("background-detail");
   const pill = document.getElementById("background-pill");
+  const action = document.getElementById("background-action");
   const status = normalizeLaunchAgentStatus(state.launchAgentStatus);
 
   card.classList.toggle("hidden", !status.supported && status.status !== "checking");
   pill.classList.remove("on", "warning");
+  action.classList.add("hidden");
+  action.disabled = state.installingBackgroundService || status.status === "checking";
 
   if (status.loaded) {
     title.textContent = "Starts at login";
-    detail.textContent = status.detail || "ComputeHop keeps running in the background.";
+    detail.textContent = state.backgroundServiceMessage || status.detail || "ComputeHop keeps running in the background.";
     pill.textContent = "On";
     pill.classList.add("on");
     return;
   }
 
-  if (status.installed) {
-    title.textContent = "Installed but stopped";
-    detail.textContent = status.detail || "ComputeHop is installed for login, but it is not running right now.";
-    pill.textContent = "Off";
+  if (status.installed && state.daemonAvailable) {
+    title.textContent = "Starts next login";
+    detail.textContent = state.backgroundServiceMessage || "ComputeHop is running for this session; the login service will take over next login.";
+    pill.textContent = "Queued";
     pill.classList.add("warning");
     return;
   }
 
+  if (status.installed) {
+    title.textContent = "Installed but stopped";
+    detail.textContent = state.backgroundServiceMessage || status.detail || "ComputeHop is installed for login, but it is not running right now.";
+    pill.textContent = "Off";
+    pill.classList.add("warning");
+    action.classList.remove("hidden");
+    action.textContent = state.installingBackgroundService ? "Starting" : "Start now";
+    return;
+  }
+
   title.textContent = status.status === "checking" ? "Checking background" : "This session only";
-  detail.textContent = status.detail || "Use the macOS installer when you want ComputeHop to keep running after login.";
+  detail.textContent = state.backgroundServiceMessage || status.detail || "Use the macOS installer when you want ComputeHop to keep running after login.";
   pill.textContent = status.status === "checking" ? "Checking" : "Manual";
+  action.classList.toggle("hidden", status.status === "checking");
+  action.textContent = state.installingBackgroundService ? "Setting up" : "Set up";
 }
 
 function normalizeLaunchAgentStatus(status = {}) {

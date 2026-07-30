@@ -151,6 +151,12 @@ small {
   font-weight: 720;
 }
 
+.background-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .status-pill {
   flex: 0 0 auto;
   padding: 5px 9px;

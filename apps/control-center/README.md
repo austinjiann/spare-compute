@@ -44,6 +44,10 @@ Current scope:
 - shows whether the macOS background service is installed and loaded, using
   plain-language labels such as **Starts at login**, **Installed but stopped**,
   or **This session only**;
+- can set up or start the current user's macOS background service from the
+  Control Center when a bundled daemon is available, while refusing unrelated
+  LaunchAgent files and leaving an already-running session daemon alone until
+  the next login;
 - can start the local daemon from the app in development or from the bundled
   daemon in packaged builds, either as the Control Mac or as a Worker;
 - defaults non-macOS computers to Worker because Control Mac is macOS-only;

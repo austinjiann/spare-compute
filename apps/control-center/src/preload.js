@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld("computeHop", {
   startDaemon: (request) => ipcRenderer.invoke("daemon:start", request),
   daemonStatus: () => ipcRenderer.invoke("daemon:status"),
   launchAgentStatus: () => ipcRenderer.invoke("daemon:launchAgentStatus"),
+  installLaunchAgent: (request) => ipcRenderer.invoke("daemon:installLaunchAgent", request),
   listDevices: () => ipcRenderer.invoke("devices:list"),
   connectDevice: (deviceID) => ipcRenderer.invoke("devices:connect", deviceID),
   forgetDevice: (deviceID) => ipcRenderer.invoke("devices:forget", deviceID),
