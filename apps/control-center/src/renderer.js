@@ -61,7 +61,8 @@ const {
   singleConnectedWorkerTarget,
   workerMatchesArchitecture,
   workerMatchesPlatform,
-  workerRunTargetForAction
+  workerRunTargetForAction,
+  workerTargetAfterPairingConfirmation
 } = window.computeHopDeviceTargets;
 const {
   availabilityLabel,
@@ -1220,10 +1221,20 @@ function recomputeDeviceTargets() {
   renderWorkerReadiness();
 }
 
+function selectWorkerAfterPairingConfirmation() {
+  const target = workerTargetAfterPairingConfirmation(state.devices, state.selectedDeviceID);
+  if (!target) {
+    return;
+  }
+  state.userSelectedDevice = false;
+  selectPlannedRunDevice(target);
+}
+
 async function confirmPairing(pairing) {
   await performDeviceAction(`pairing:${pairing.id}`, async () => {
     await window.computeHop.confirmPairing(pairing.id);
     await refreshDevices();
+    selectWorkerAfterPairingConfirmation();
   });
 }
 

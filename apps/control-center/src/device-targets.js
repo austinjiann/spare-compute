@@ -158,6 +158,14 @@
     return automatic || worker;
   }
 
+  function workerTargetAfterPairingConfirmation(devices = [], selectedDeviceID = "local") {
+    const selected = devices.find((device) => device?.id === selectedDeviceID);
+    if (selected && selected.id !== "local" && isSingleAutoCandidate(selected)) {
+      return null;
+    }
+    return singleConnectedWorkerTarget(devices);
+  }
+
   function workerResourceScore(device = {}) {
     const cpuCount = numericHint(device.logicalCPUCount || device.logicalCpuCount || device.cpuCount);
     const memoryGiB = numericHint(device.totalMemoryBytes || device.memoryBytes) / 1024 ** 3;
@@ -246,6 +254,7 @@
     workerMatchesArchitecture,
     workerMatchesPlatform,
     workerRunTargetForAction,
+    workerTargetAfterPairingConfirmation,
     deviceHasRequiredTools,
     missingToolIDsForPlan,
     requiredToolIDsForPlan

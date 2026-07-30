@@ -14,7 +14,8 @@ const {
   workerResourceScore,
   workerMatchesArchitecture,
   workerMatchesPlatform,
-  workerRunTargetForAction
+  workerRunTargetForAction,
+  workerTargetAfterPairingConfirmation
 } = require("./device-targets");
 
 test("addAutomaticWorkerTarget inserts Auto worker for exactly one connected worker", () => {
@@ -278,6 +279,32 @@ test("workerRunTargetForAction prefers the Auto worker target for readiness acti
       { ...worker, synced: false }
     ], "worker-1"),
     null
+  );
+});
+
+test("workerTargetAfterPairingConfirmation selects only unambiguous new worker targets", () => {
+  const worker = connectedWorker("Austin MacBook 2", "worker-1");
+  const otherWorker = connectedWorker("Gaming PC", "worker-2");
+  const withAuto = addAutomaticWorkerTarget([
+    localDevice(),
+    worker
+  ], "local");
+
+  const target = workerTargetAfterPairingConfirmation(withAuto.devices, "local");
+
+  assert.equal(target.id, automaticWorkerID);
+  assert.equal(target.workerID, "worker-1");
+  assert.equal(
+    workerTargetAfterPairingConfirmation([localDevice(), worker, otherWorker], "local"),
+    null
+  );
+  assert.equal(
+    workerTargetAfterPairingConfirmation(withAuto.devices, "worker-1"),
+    null
+  );
+  assert.equal(
+    workerTargetAfterPairingConfirmation(withAuto.devices, "missing-worker").workerID,
+    "worker-1"
   );
 });
 

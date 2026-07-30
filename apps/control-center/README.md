@@ -65,6 +65,9 @@ Current scope:
 - starts nearby-device pairing from the Devices list;
 - shows active pairing verification codes and lets the user confirm or reject
   them in-app;
+- automatically targets the only runnable worker after pairing confirmation, so
+  the next test or run action points at that computer without another manual
+  selection;
 - forgets paired devices through daemon IPC;
 - clears local sync and allowed-work overrides when a paired device is
   forgotten;
