@@ -19,16 +19,27 @@ const (
 	defaultStopGracePeriod   = 5 * time.Second
 )
 
-// NativeProcess is the process-tree boundary required by a runner.
-type NativeProcess interface {
+// ManagedProcess is the process-tree boundary required by a runner.
+type ManagedProcess interface {
 	PID() int
 	GracefulStop() error
 	Kill() error
 	Wait() processes.Exit
 }
 
+// NativeProcess is kept as a compatibility alias for existing native runner
+// tests and platform process starters.
+type NativeProcess = ManagedProcess
+
 // ProcessStarter starts a native process with separately tagged output streams.
-type ProcessStarter func(job.Spec, io.Writer, io.Writer) (NativeProcess, error)
+type ProcessStarter func(job.Spec, io.Writer, io.Writer) (ManagedProcess, error)
+
+// ExecutorStarter starts one supported execution mode with separately tagged
+// output streams.
+type ExecutorStarter interface {
+	Start(job.Spec, io.Writer, io.Writer) (ManagedProcess, error)
+	SupportedExecutors() []job.Executor
+}
 
 // LogStore is the durable output boundary required by a runner.
 type LogStore interface {
@@ -41,6 +52,7 @@ type RunnerDependencies struct {
 	Jobs              job.Repository
 	Executions        execution.Repository
 	Logs              LogStore
+	StartExecution    ExecutorStarter
 	StartProcess      ProcessStarter
 	RunnerPID         func() int
 	Now               func() time.Time
@@ -54,12 +66,12 @@ type ArtifactCollector interface {
 	Collect(context.Context, job.Job) (artifact.Bundle, error)
 }
 
-// Runner owns one claimed native process until a durable terminal result exists.
+// Runner owns one claimed process until a durable terminal result exists.
 type Runner struct {
 	jobs              job.Repository
 	executions        execution.Repository
 	logs              LogStore
-	startProcess      ProcessStarter
+	startExecution    ExecutorStarter
 	runnerPID         func() int
 	now               func() time.Time
 	heartbeatInterval time.Duration
@@ -67,10 +79,21 @@ type Runner struct {
 	artifacts         ArtifactCollector
 }
 
-// NewRunner validates and constructs a supervised native runner.
+// NewRunner validates and constructs a supervised runner.
 func NewRunner(dependencies RunnerDependencies) (*Runner, error) {
+	starter := dependencies.StartExecution
+	if starter == nil && dependencies.StartProcess != nil {
+		var err error
+		starter, err = NewNativeExecutorStarter(dependencies.StartProcess)
+		if err != nil {
+			return nil, err
+		}
+	}
 	if dependencies.Jobs == nil || dependencies.Executions == nil || dependencies.Logs == nil ||
-		dependencies.StartProcess == nil || dependencies.RunnerPID == nil || dependencies.Now == nil {
+		starter == nil || dependencies.RunnerPID == nil || dependencies.Now == nil {
+		return nil, ErrMissingDependency
+	}
+	if len(starter.SupportedExecutors()) == 0 {
 		return nil, ErrMissingDependency
 	}
 	if dependencies.HeartbeatInterval == 0 {
@@ -86,7 +109,7 @@ func NewRunner(dependencies RunnerDependencies) (*Runner, error) {
 		jobs:              dependencies.Jobs,
 		executions:        dependencies.Executions,
 		logs:              dependencies.Logs,
-		startProcess:      dependencies.StartProcess,
+		startExecution:    starter,
 		runnerPID:         dependencies.RunnerPID,
 		now:               dependencies.Now,
 		heartbeatInterval: dependencies.HeartbeatInterval,
@@ -207,13 +230,13 @@ func (runner *Runner) runClaimed(
 		return execution.Completion{At: runner.now().UTC(), Cancelled: true}, nil
 	}
 
-	process, err := runner.startProcess(
+	process, err := runner.startExecution.Start(
 		current.Spec,
 		writer.Stream(context.Background(), joblogging.StreamStdout),
 		writer.Stream(context.Background(), joblogging.StreamStderr),
 	)
 	if err != nil {
-		return failedCompletion(runner.now(), "process_start", "start native process", err, nil, ""), nil
+		return failedCompletion(runner.now(), "process_start", "start process", err, nil, ""), nil
 	}
 	if _, err := runner.executions.MarkRunning(ctx, current.ID, runnerPID, process.PID(), runner.now()); err != nil {
 		_ = process.Kill()
@@ -255,7 +278,7 @@ func (runner *Runner) runClaimed(
 }
 
 func (runner *Runner) stopAfterFailure(
-	process NativeProcess,
+	process ManagedProcess,
 	waited <-chan processes.Exit,
 	code string,
 	message string,
@@ -265,7 +288,7 @@ func (runner *Runner) stopAfterFailure(
 	return failedCompletion(runner.now(), code, message, cause, intPointer(exit.Code), exit.Signal), errors.Join(cause, exit.WaitErr)
 }
 
-func (runner *Runner) stop(process NativeProcess, waited <-chan processes.Exit) processes.Exit {
+func (runner *Runner) stop(process ManagedProcess, waited <-chan processes.Exit) processes.Exit {
 	_ = process.GracefulStop()
 	timer := time.NewTimer(runner.stopGracePeriod)
 	defer timer.Stop()
