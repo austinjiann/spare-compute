@@ -12,6 +12,7 @@ const {
   singleConnectedWorkerTarget,
   compatibleWorkerForPlan,
   workerResourceScore,
+  workerToolReadiness,
   workerMatchesArchitecture,
   workerMatchesPlatform,
   workerRunTargetForAction,
@@ -167,6 +168,7 @@ test("compatibleWorkerForPlan prefers workers that report required tools", () =>
   const goWorker = { ...connectedWorker("Build Mac", "worker-1"), toolIDs: ["go", "make"] };
   const dockerWorker = { ...connectedWorker("Docker PC", "worker-2"), toolIDs: ["docker", "node"] };
   const oldWorker = { ...connectedWorker("Old worker", "worker-3"), toolIDs: [] };
+  const strongOldWorker = { ...oldWorker, logicalCPUCount: 64, totalMemoryBytes: 128 * 1024 ** 3 };
 
   assert.equal(
     compatibleWorkerForPlan([localDevice(), goWorker, dockerWorker], { command: "docker build .", targetPreference: "worker" }).id,
@@ -179,6 +181,10 @@ test("compatibleWorkerForPlan prefers workers that report required tools", () =>
   assert.equal(
     compatibleWorkerForPlan([localDevice(), oldWorker], { command: "go test ./...", targetPreference: "worker" }).id,
     "worker-3"
+  );
+  assert.equal(
+    compatibleWorkerForPlan([localDevice(), goWorker, strongOldWorker], { command: "go test ./...", targetPreference: "worker" }).id,
+    "worker-1"
   );
 });
 
@@ -198,6 +204,30 @@ test("tool matching derives command executables and ignores unknown old hints", 
   assert.equal(deviceHasRequiredTools({ toolIDs: ["go", "make"] }, { requiredToolIDs: ["go", "make"] }), true);
   assert.equal(deviceHasRequiredTools({ toolIDs: [] }, { command: "go test ./..." }), true);
   assert.deepEqual(missingToolIDsForPlan({ toolIDs: ["node"] }, { command: "go test ./..." }), ["go"]);
+  assert.deepEqual(workerToolReadiness({ toolIDs: ["go"] }, { command: "go test ./..." }), {
+    state: "ready",
+    required: ["go"],
+    missing: [],
+    reported: true
+  });
+  assert.deepEqual(workerToolReadiness({ toolIDs: ["node"] }, { command: "go test ./..." }), {
+    state: "missing",
+    required: ["go"],
+    missing: ["go"],
+    reported: true
+  });
+  assert.deepEqual(workerToolReadiness({ toolIDs: [] }, { command: "go test ./..." }), {
+    state: "unknown",
+    required: ["go"],
+    missing: [],
+    reported: false
+  });
+  assert.deepEqual(workerToolReadiness({ toolIDs: [] }, { command: "./scripts/check" }), {
+    state: "not-required",
+    required: [],
+    missing: [],
+    reported: false
+  });
 });
 
 test("compatibleWorkerForPlan picks the strongest worker for worker-targeted tasks", () => {
