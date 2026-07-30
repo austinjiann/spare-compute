@@ -22,6 +22,10 @@ struct MenuContentView: View {
             DevicesSection(model: model)
             Divider()
             RunJobSection(model: model)
+            if model.menuTaskJob != nil {
+                Divider()
+                JobsSection(model: model)
+            }
             Divider()
             advanced
 

@@ -757,6 +757,61 @@ func selectedJobLogsCommandFollowsSelectedJob() {
 
 @Test
 @MainActor
+func menuTaskJobStaysHiddenForUnselectedTerminalHistory() {
+    let model = AppModel(client: RecordingDaemonClient())
+    model.jobs = [
+        jobSummary(
+            id: "7a338fa3-7ba4-4c54-bf59-da1161f6b76f",
+            target: "Gaming PC",
+            state: .succeeded
+        )
+    ]
+
+    #expect(model.menuTaskJob == nil)
+}
+
+@Test
+@MainActor
+func menuTaskJobShowsActiveJobWithoutShowingPastHistory() {
+    let model = AppModel(client: RecordingDaemonClient())
+    let finished = jobSummary(
+        id: "7a338fa3-7ba4-4c54-bf59-da1161f6b76f",
+        target: "Gaming PC",
+        state: .succeeded
+    )
+    let running = jobSummary(
+        id: "a4b19e19-5de6-479a-868b-1c66abc6d7f9",
+        executable: "sleep",
+        arguments: ["3600"],
+        target: "Gaming PC",
+        state: .running
+    )
+    model.jobs = [finished, running]
+
+    #expect(model.menuTaskJob?.id == running.id)
+}
+
+@Test
+@MainActor
+func menuTaskJobShowsSelectedTerminalJobUntilClosed() {
+    let model = AppModel(client: RecordingDaemonClient())
+    let finished = jobSummary(
+        id: "7a338fa3-7ba4-4c54-bf59-da1161f6b76f",
+        target: "Gaming PC",
+        state: .succeeded
+    )
+    model.jobs = [finished]
+    model.selectedJobID = finished.id
+
+    #expect(model.menuTaskJob?.id == finished.id)
+
+    model.closeLogs()
+
+    #expect(model.menuTaskJob == nil)
+}
+
+@Test
+@MainActor
 func submitSmokeTestUsesSelectedWorkerWhenMultipleWorkersExist() async {
     let first = runTargetDevice(id: "first-worker-id", name: "Gaming PC")
     let second = runTargetDevice(id: "second-worker-id", name: "Mini PC")

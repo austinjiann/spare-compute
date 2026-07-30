@@ -275,6 +275,13 @@ final class AppModel {
         return "computehop logs --follow \(selectedJobID)"
     }
 
+    var menuTaskJob: JobSummary? {
+        if let selectedJobID, let selected = jobs.first(where: { $0.id == selectedJobID }) {
+            return selected
+        }
+        return jobs.first { !$0.terminal }
+    }
+
     var canSubmitCommand: Bool { runDisabledReason == nil }
 
     var runDisabledReason: String? {
