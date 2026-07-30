@@ -50,6 +50,7 @@
       trustState: "paired",
       path: "auto",
       workerID: worker.id || "",
+      workerName: worker.name || "",
       address: "",
       updated: worker.updated || "",
       automatic: true

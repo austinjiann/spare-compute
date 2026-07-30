@@ -17,6 +17,7 @@ test("addAutomaticWorkerTarget inserts Auto worker for exactly one connected wor
   assert.equal(result.devices[1].name, "Auto worker");
   assert.equal(result.devices[1].detail, "Uses Austin MacBook 2");
   assert.equal(result.devices[1].workerID, "worker-1");
+  assert.equal(result.devices[1].workerName, "Austin MacBook 2");
   assert.equal(result.selectedDeviceID, "local");
 });
 

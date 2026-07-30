@@ -936,17 +936,18 @@ async function startPlannedJob(planned, selected) {
   state.currentRunID = null;
   button.disabled = true;
   button.textContent = "Starting";
+  const jobRequest = jobStartRequestForPlan({
+    plan: planned,
+    device: selected,
+    projectRoot: state.settings.projectRoot,
+    outputs
+  });
   output.classList.remove("hidden");
   output.classList.remove("success", "failure");
-  output.textContent = `Running ${planned.command} on ${selected.name}…`;
+  output.textContent = `Running ${planned.command} on ${jobRequest.deviceName || selected.name}…`;
 
   try {
-    const result = await window.computeHop.startJob(jobStartRequestForPlan({
-      plan: planned,
-      device: selected,
-      projectRoot: state.settings.projectRoot,
-      outputs
-    }));
+    const result = await window.computeHop.startJob(jobRequest);
     state.currentRunID = result.runID;
     button.disabled = false;
     renderRunControls();

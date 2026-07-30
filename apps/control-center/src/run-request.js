@@ -20,7 +20,7 @@
     return {
       command: cleanString(plan.command),
       deviceID: cleanString(device.id),
-      deviceName: cleanString(device.name),
+      deviceName: jobDeviceName(device),
       workingDirectory: jobWorkingDirectoryForPlan({
         projectRoot: request.projectRoot,
         plan,
@@ -28,6 +28,13 @@
       }),
       outputs
     };
+  }
+
+  function jobDeviceName(device = {}) {
+    if (cleanString(device.id) === "auto") {
+      return cleanString(device.workerName) || stripAutoDetail(cleanString(device.detail)) || cleanString(device.name);
+    }
+    return cleanString(device.name);
   }
 
   function jobWorkingDirectoryForPlan(request = {}) {
@@ -101,7 +108,12 @@
     return String(value || "").trim();
   }
 
+  function stripAutoDetail(value) {
+    return value.replace(/^uses\s+/i, "").trim();
+  }
+
   return {
+    jobDeviceName,
     jobStartRequestForPlan,
     jobOutputsForPlan,
     jobWorkingDirectoryForPlan,

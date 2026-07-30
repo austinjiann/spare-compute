@@ -1,6 +1,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const {
+  jobDeviceName,
   jobOutputsForPlan,
   jobStartRequestForPlan,
   jobWorkingDirectoryForPlan,
@@ -96,7 +97,8 @@ test("jobStartRequestForPlan builds the daemon request for a remote project run"
       },
       device: {
         id: "auto",
-        name: "Auto worker"
+        name: "Auto worker",
+        workerName: "Austin MacBook 2"
       },
       projectRoot: "/Users/austin/project",
       outputs: [" coverage.out ", "coverage.out", ""]
@@ -104,11 +106,32 @@ test("jobStartRequestForPlan builds the daemon request for a remote project run"
     {
       command: "go test ./...",
       deviceID: "auto",
-      deviceName: "Auto worker",
+      deviceName: "Austin MacBook 2",
       workingDirectory: "/Users/austin/project",
       outputs: ["coverage.out"]
     }
   );
+});
+
+test("jobDeviceName shows the backing worker for Auto worker runs", () => {
+  assert.equal(
+    jobDeviceName({
+      id: "auto",
+      name: "Auto worker",
+      workerName: "Austin MacBook 2",
+      detail: "Uses another worker"
+    }),
+    "Austin MacBook 2"
+  );
+  assert.equal(
+    jobDeviceName({
+      id: "auto",
+      name: "Auto worker",
+      detail: "Uses Gaming PC"
+    }),
+    "Gaming PC"
+  );
+  assert.equal(jobDeviceName({ id: "local", name: "This Mac" }), "This Mac");
 });
 
 test("jobStartRequestForPlan keeps remote utility runs projectless", () => {
