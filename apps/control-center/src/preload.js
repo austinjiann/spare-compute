@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld("computeHop", {
   confirmPairing: (pairingID) => ipcRenderer.invoke("pairings:confirm", pairingID),
   rejectPairing: (pairingID) => ipcRenderer.invoke("pairings:reject", pairingID),
   planTask: (request) => ipcRenderer.invoke("planner:plan", request),
+  suggestTasks: (request) => ipcRenderer.invoke("planner:suggest", request),
   startJob: (request) => ipcRenderer.invoke("jobs:start", request),
   stopJob: (runID) => ipcRenderer.invoke("jobs:stop", runID),
   listJobs: (request) => ipcRenderer.invoke("jobs:list", request),

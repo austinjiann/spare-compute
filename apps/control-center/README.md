@@ -55,6 +55,8 @@ Current scope:
   when no package script or Makefile target exists;
 - maps Docker/Compose build requests to `docker build .` or
   `docker compose build` when matching project files are present;
+- suggests project-aware task chips such as Check, Test, Build, Lint, and
+  Docker after a project folder is selected;
 - previews the exact command before running when Preview before running is
   enabled;
 - runs a one-click connection test on the selected computer without requiring a

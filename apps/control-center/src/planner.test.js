@@ -3,7 +3,7 @@ const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
-const { classifyIntent, commandNeedsProject, planTask } = require("./planner");
+const { classifyIntent, commandNeedsProject, planTask, suggestTasks } = require("./planner");
 
 test("planTask prefers Makefile PR check for CI", async (t) => {
   const project = await tempProject(t, {
@@ -113,6 +113,49 @@ test("planTask lets explicit Docker build requests override package scripts", as
   assert.equal(appBuild.plan.command, "npm run build");
   assert.equal(dockerBuild.ok, true);
   assert.equal(dockerBuild.plan.command, "docker build .");
+});
+
+test("suggestTasks returns project-aware task chips", async (t) => {
+  const project = await tempProject(t, {
+    "package.json": JSON.stringify({ scripts: { build: "vite build", test: "vitest", lint: "eslint ." } }),
+    "docker-compose.yml": "services:\n  app:\n    build: .\n",
+    Makefile: "pr-check:\n\tnpm test\n"
+  });
+
+  const result = await suggestTasks({ projectRoot: project });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.suggestions.map((suggestion) => suggestion.label), ["Check", "Test", "Build", "Lint", "Docker"]);
+  assert.deepEqual(result.suggestions.map((suggestion) => suggestion.command), [
+    "make pr-check",
+    "npm run test",
+    "npm run build",
+    "npm run lint",
+    "docker compose build"
+  ]);
+  assert.equal(result.suggestions.every((suggestion) => suggestion.requiresProject), true);
+});
+
+test("suggestTasks dedupes CI fallback when it matches tests", async (t) => {
+  const project = await tempProject(t, {
+    "go.mod": "module example.com/app\n"
+  });
+
+  const result = await suggestTasks({ projectRoot: project });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.suggestions.map((suggestion) => suggestion.command), [
+    "go test ./...",
+    "go build ./...",
+    "go vet ./..."
+  ]);
+});
+
+test("suggestTasks stays empty until a project is chosen", async () => {
+  const result = await suggestTasks({ projectRoot: "" });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.suggestions, []);
 });
 
 test("planTask preserves exact commands", async () => {

@@ -8,7 +8,7 @@ const {
   jobTerminal
 } = require("./local-daemon");
 const { startDaemon } = require("./daemon-launcher");
-const { planTask } = require("./planner");
+const { planTask, suggestTasks } = require("./planner");
 const { appRuntimeInfo, normalizeDaemonRole } = require("./runtime-info");
 const { remotePreparationMessage } = require("./run-feedback");
 const {
@@ -162,6 +162,12 @@ ipcMain.handle("project:choose", async () => {
 ipcMain.handle("planner:plan", async (_event, request) => {
   return planTask({
     task: request?.task,
+    projectRoot: request?.projectRoot || ""
+  });
+});
+
+ipcMain.handle("planner:suggest", async (_event, request) => {
+  return suggestTasks({
     projectRoot: request?.projectRoot || ""
   });
 });

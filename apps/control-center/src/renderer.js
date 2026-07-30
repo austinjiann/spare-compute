@@ -9,6 +9,8 @@ const state = {
   selectedJobLogText: "",
   selectedJobLogTruncated: false,
   selectedJobLogFailed: false,
+  taskSuggestions: [],
+  loadingTaskSuggestions: false,
   runtime: {
     platform: "",
     defaultDaemonRole: "orchestrator",
@@ -77,12 +79,14 @@ bindSetting("daemonRole", document.getElementById("daemon-role"));
 bindSetting("artifacts", document.getElementById("outputs-input"));
 
 renderCapabilities();
+renderTaskSuggestions();
 renderPlanPreview();
 renderRunControls();
 renderDaemonCard();
 renderJobs();
 void hydrateSettings();
 void loadAppInfo();
+void refreshTaskSuggestions();
 refreshDevices();
 setInterval(refreshDevices, 5000);
 
@@ -730,8 +734,45 @@ async function chooseProject() {
   state.settings.projectRoot = selected;
   state.plannedTask = null;
   saveSettings();
+  await refreshTaskSuggestions();
   renderPlanPreview();
   renderRunControls();
+}
+
+async function refreshTaskSuggestions() {
+  if (!window.computeHop.suggestTasks) {
+    state.taskSuggestions = [];
+    renderTaskSuggestions();
+    return;
+  }
+
+  const projectRoot = state.settings.projectRoot || "";
+  if (!projectRoot) {
+    state.taskSuggestions = [];
+    state.loadingTaskSuggestions = false;
+    renderTaskSuggestions();
+    return;
+  }
+
+  const expectedProjectRoot = projectRoot;
+  state.loadingTaskSuggestions = true;
+  renderTaskSuggestions();
+  try {
+    const response = await window.computeHop.suggestTasks({ projectRoot });
+    if ((state.settings.projectRoot || "") !== expectedProjectRoot) {
+      return;
+    }
+    state.taskSuggestions = response?.suggestions || [];
+  } catch {
+    if ((state.settings.projectRoot || "") === expectedProjectRoot) {
+      state.taskSuggestions = [];
+    }
+  } finally {
+    if ((state.settings.projectRoot || "") === expectedProjectRoot) {
+      state.loadingTaskSuggestions = false;
+      renderTaskSuggestions();
+    }
+  }
 }
 
 async function runSelectedJob() {
@@ -916,6 +957,51 @@ function renderPlanPreview() {
   command.textContent = plan.command || "";
 }
 
+function renderTaskSuggestions() {
+  const container = document.getElementById("task-suggestions");
+  container.replaceChildren();
+  const suggestions = state.taskSuggestions || [];
+  container.classList.toggle("hidden", !state.loadingTaskSuggestions && suggestions.length === 0);
+
+  if (state.loadingTaskSuggestions) {
+    const pill = document.createElement("span");
+    pill.className = "suggestion-status";
+    pill.textContent = "Finding project tasks…";
+    container.append(pill);
+    return;
+  }
+
+  suggestions.forEach((suggestion) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "suggestion-chip";
+    button.textContent = suggestion.label || suggestion.title || suggestion.task;
+    button.title = suggestion.command || "";
+    button.addEventListener("click", () => {
+      applyTaskSuggestion(suggestion);
+    });
+    container.append(button);
+  });
+}
+
+function applyTaskSuggestion(suggestion) {
+  const input = document.getElementById("command-input");
+  const source = suggestion.task || suggestion.title || "";
+  input.value = source;
+  state.plannedTask = {
+    source,
+    title: suggestion.title || suggestion.label || "Planned command",
+    command: suggestion.command || "",
+    detail: suggestion.detail || "",
+    requiresProject: Boolean(suggestion.requiresProject),
+    projectRoot: state.settings.projectRoot || "",
+    detected: suggestion.detected || []
+  };
+  renderPlanPreview();
+  renderRunControls();
+  input.focus();
+}
+
 async function stopCurrentJob() {
   if (!state.currentRunID) {
     return;
@@ -1055,6 +1141,7 @@ async function hydrateSettings() {
     persistLocalSettings();
     renderSettingsControls();
     renderCapabilities();
+    await refreshTaskSuggestions();
     renderPlanPreview();
     renderRunControls();
     applyDaemonRoleOptions();

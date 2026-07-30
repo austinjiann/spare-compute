@@ -1448,7 +1448,8 @@ job, and read its output. A separate Electron Control Center now owns the
 heavier settings surface, connects to the daemon over local IPC, lists nearby
 and trusted devices, pairs or forgets workers, plans plain-language tasks into
 previewed commands with package/Makefile/language/Docker fallbacks, runs a projectless
-smoke test on the selected computer, and blocks project-style remote runs until
+smoke test on the selected computer, suggests project-aware Check/Test/Build/Lint/Docker
+task chips after project selection, and blocks project-style remote runs until
 a project folder is selected for transfer. It can also start the local daemon
 from the app in development and
 from the bundled daemon in packaged builds, package an unpacked current-platform

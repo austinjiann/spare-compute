@@ -48,6 +48,51 @@ async function planTask(request) {
   };
 }
 
+async function suggestTasks(request) {
+  const projectRoot = String(request?.projectRoot || "").trim();
+  const profile = await inspectProject(projectRoot);
+  if (!projectRoot) {
+    return {
+      ok: true,
+      suggestions: []
+    };
+  }
+
+  const candidates = [
+    { id: "ci", label: "Check", task: "check CI", intent: "ci" },
+    { id: "test", label: "Test", task: "run tests", intent: "test" },
+    { id: "build", label: "Build", task: "build the app", intent: "build" },
+    { id: "lint", label: "Lint", task: "lint project", intent: "lint" },
+    { id: "docker-build", label: "Docker", task: "build docker image", intent: "docker-build" }
+  ];
+  const seenCommands = new Set();
+  const suggestions = [];
+
+  for (const candidate of candidates) {
+    const planned = chooseCommand(candidate.intent, profile);
+    if (!planned || seenCommands.has(planned.command)) {
+      continue;
+    }
+    seenCommands.add(planned.command);
+    suggestions.push({
+      id: candidate.id,
+      label: candidate.label,
+      task: candidate.task,
+      title: planned.title,
+      command: planned.command,
+      detail: planned.detail,
+      requiresProject: Boolean(planned.requiresProject),
+      projectRoot,
+      detected: detectedLabels(profile)
+    });
+  }
+
+  return {
+    ok: true,
+    suggestions
+  };
+}
+
 async function inspectProject(projectRoot) {
   const root = projectRoot || "";
   const profile = {
@@ -405,5 +450,6 @@ module.exports = {
   commandNeedsProject,
   classifyIntent,
   inspectProject,
-  planTask
+  planTask,
+  suggestTasks
 };

@@ -351,6 +351,37 @@ select {
   gap: 10px;
 }
 
+.task-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.suggestion-chip,
+.suggestion-status {
+  border-radius: 999px;
+  padding: 7px 11px;
+  font-size: 13px;
+  font-weight: 680;
+}
+
+.suggestion-chip {
+  -webkit-app-region: no-drag;
+  border: 0;
+  color: var(--text);
+  background: var(--row);
+  cursor: pointer;
+}
+
+.suggestion-chip:hover {
+  background: var(--row-hover);
+}
+
+.suggestion-status {
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.055);
+}
+
 #command-input,
 #outputs-input {
   width: 100%;
