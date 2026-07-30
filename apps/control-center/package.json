@@ -9,7 +9,7 @@
     "dev": "electron .",
     "package:dir": "node scripts/package-app.js",
     "start": "electron .",
-    "lint": "node --check src/main.js && node --check src/preload.js && node --check src/renderer.js && node --check src/device-targets.js && node --check src/job-routing.js && node --check src/local-daemon.js && node --check src/daemon-launcher.js && node --check src/planner.js && node --check src/runtime-info.js && node --check src/run-feedback.js && node --check src/settings-store.js && node --check scripts/bundle-daemon.js && node --check scripts/package-app.js",
+    "lint": "node --check src/main.js && node --check src/preload.js && node --check src/renderer.js && node --check src/device-targets.js && node --check src/work-policy.js && node --check src/job-routing.js && node --check src/local-daemon.js && node --check src/daemon-launcher.js && node --check src/planner.js && node --check src/runtime-info.js && node --check src/run-feedback.js && node --check src/settings-store.js && node --check scripts/bundle-daemon.js && node --check scripts/package-app.js",
     "test": "node --test src/*.test.js scripts/*.test.js"
   },
   "devDependencies": {

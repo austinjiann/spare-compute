@@ -33,6 +33,7 @@ let jobsRefreshInFlight = false;
 let runInFlight = false;
 const pendingActions = new Set();
 const { addAutomaticWorkerTarget } = window.computeHopDeviceTargets;
+const { disallowedWorkMessage, filterAllowedSuggestions } = window.computeHopWorkPolicy;
 
 function defaultLocalDevice() {
   return state.localDevice || {
@@ -762,7 +763,7 @@ async function refreshTaskSuggestions() {
     if ((state.settings.projectRoot || "") !== expectedProjectRoot) {
       return;
     }
-    state.taskSuggestions = response?.suggestions || [];
+    state.taskSuggestions = allowedSuggestions(response?.suggestions || []);
   } catch {
     if ((state.settings.projectRoot || "") === expectedProjectRoot) {
       state.taskSuggestions = [];
@@ -862,6 +863,10 @@ function validateRunReadiness(selected, planned, outputs = []) {
   }
   if (selected.id !== "local" && outputs.length > 0 && !state.settings.projectRoot) {
     return "Choose a project before bringing files back from another computer.";
+  }
+  const policyError = disallowedWorkMessage(planned, state.settings.capabilities);
+  if (policyError) {
+    return policyError;
   }
   return "";
 }
@@ -1112,6 +1117,8 @@ function renderCapabilities() {
     checkbox.addEventListener("change", () => {
       state.settings.capabilities[id] = checkbox.checked;
       saveSettings();
+      void refreshTaskSuggestions();
+      renderRunControls();
     });
 
     const copy = document.createElement("span");
@@ -1239,6 +1246,10 @@ function saveSettings() {
     // The app-side JSON store is best-effort from the renderer's point of view.
     // localStorage keeps the UI usable and the next explicit change retries.
   });
+}
+
+function allowedSuggestions(suggestions) {
+  return filterAllowedSuggestions(suggestions, state.settings.capabilities);
 }
 
 function selectedDevice() {
