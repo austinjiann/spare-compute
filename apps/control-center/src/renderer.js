@@ -105,6 +105,7 @@ renderRunControls();
 renderDaemonCard();
 renderJobs();
 renderAIPlannerStatus();
+applyStoredRunDeviceSelection();
 void hydrateSettings();
 void loadAppInfo();
 void refreshAIPlannerStatus();
@@ -607,12 +608,14 @@ function renderDevices() {
 function selectRunDevice(deviceID) {
   state.userSelectedDevice = true;
   state.selectedDeviceID = deviceID;
+  state.settings.selectedDeviceID = deviceID;
   state.selectedJobID = null;
   state.selectedJobDeviceID = deviceID;
   state.selectedJobLogText = "";
   state.selectedJobLogTruncated = false;
   state.selectedJobLogFailed = false;
   state.jobs = [];
+  saveSettings();
   renderDevices();
   renderJobs();
   void refreshTaskSuggestions();
@@ -750,6 +753,7 @@ async function forgetDevice(device) {
     saveSettings();
     if (state.selectedDeviceID === device.id) {
       state.selectedDeviceID = "local";
+      state.settings.selectedDeviceID = "local";
     }
     await refreshDevices();
   });
@@ -763,6 +767,7 @@ function toggleDeviceSync(device) {
   state.settings.syncedDevices[device.id] = enabled;
   if (!enabled && (state.selectedDeviceID === device.id || state.selectedDeviceID === "auto")) {
     state.selectedDeviceID = "local";
+    state.settings.selectedDeviceID = "local";
     state.selectedJobID = null;
     state.selectedJobDeviceID = "local";
     state.selectedJobLogText = "";
@@ -1281,6 +1286,7 @@ async function hydrateSettings() {
   try {
     const response = await window.computeHop.loadSettings();
     state.settings = mergeSettings(state.settings, response.settings || {});
+    applyStoredRunDeviceSelection();
     persistLocalSettings();
     renderSettingsControls();
     renderCapabilities();
@@ -1312,6 +1318,17 @@ function renderSettingsControls() {
   document.getElementById("ask-before-run").checked = state.settings.askBeforeRun !== false;
   document.getElementById("daemon-role").value = state.settings.daemonRole || "orchestrator";
   document.getElementById("outputs-input").value = state.settings.artifacts || "";
+}
+
+function applyStoredRunDeviceSelection() {
+  const selected = String(state.settings.selectedDeviceID || "").trim();
+  if (!selected) {
+    state.userSelectedDevice = false;
+    return;
+  }
+  state.selectedDeviceID = selected;
+  state.selectedJobDeviceID = selected;
+  state.userSelectedDevice = true;
 }
 
 async function refreshAIPlannerStatus() {
@@ -1437,6 +1454,7 @@ function defaultSettings() {
   return {
     projectRoot: "",
     artifacts: "",
+    selectedDeviceID: "",
     lanDiscovery: true,
     askBeforeRun: true,
     daemonRole: "orchestrator",
@@ -1469,6 +1487,7 @@ function mergeSettings(base, incoming) {
     ...(base && typeof base.capabilities === "object" ? base.capabilities : {}),
     ...(incoming && typeof incoming.capabilities === "object" ? incoming.capabilities : {})
   };
+  next.selectedDeviceID = typeof next.selectedDeviceID === "string" ? next.selectedDeviceID : "";
   next.syncedDevices = {
     ...booleanMap(base?.syncedDevices),
     ...booleanMap(incoming?.syncedDevices)

@@ -8,6 +8,7 @@ function defaultSettings() {
   return {
     projectRoot: "",
     artifacts: "",
+    selectedDeviceID: "",
     lanDiscovery: true,
     askBeforeRun: true,
     daemonRole: "orchestrator",
@@ -58,6 +59,7 @@ function normalizeSettings(settings = {}) {
   return {
     projectRoot: stringSetting(source.projectRoot, defaults.projectRoot),
     artifacts: stringSetting(source.artifacts, defaults.artifacts),
+    selectedDeviceID: stringSetting(source.selectedDeviceID, defaults.selectedDeviceID),
     lanDiscovery: booleanSetting(source.lanDiscovery, defaults.lanDiscovery),
     askBeforeRun: booleanSetting(source.askBeforeRun, defaults.askBeforeRun),
     daemonRole: normalizeDaemonRole(source.daemonRole, defaults.daemonRole),

@@ -1469,9 +1469,10 @@ app directory with the daemon copied into Electron's runtime resources, persist
 Control Center preferences under the app user-data directory, auto-start the
 daemon once after settings/runtime load when LAN discovery is enabled, offer an Auto
 worker target and default to it until the user makes an explicit device choice
-when exactly one connected worker is available, display the resolved backing
-worker name for Auto-worker submissions, route Auto-worker job follow-ups
-through remembered job placement, list recent jobs for the
+when exactly one connected worker is available, persist explicit run-target
+choices across app restarts, display the resolved backing worker name for
+Auto-worker submissions, route Auto-worker job follow-ups through remembered
+job placement, list recent jobs for the
 selected computer, open persisted job logs, declare files/folders to bring back,
 show remote snapshot/upload preparation feedback before long project
 submissions, detach live Control Center streams without cancelling daemon jobs
