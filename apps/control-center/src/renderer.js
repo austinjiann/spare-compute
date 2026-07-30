@@ -96,6 +96,7 @@ const {
   initialRunMessage,
   runSummaryLines
 } = window.computeHopRunSummary;
+const { planFromSuggestion } = window.computeHopSuggestionPlan;
 const { friendlyJobFailure } = window.computeHopJobFailure;
 
 function defaultLocalDevice() {
@@ -1724,18 +1725,9 @@ function renderTaskSuggestions() {
 
 function applyTaskSuggestion(suggestion) {
   const input = document.getElementById("command-input");
-  const source = suggestion.task || suggestion.title || "";
+  const source = suggestion.task || suggestion.title || suggestion.label || "";
   input.value = source;
-  state.plannedTask = {
-    source,
-    title: suggestion.title || suggestion.label || "Planned command",
-    command: suggestion.command || "",
-    detail: suggestion.detail || "",
-    requiresProject: Boolean(suggestion.requiresProject),
-    outputs: Array.isArray(suggestion.outputs) ? suggestion.outputs : [],
-    projectRoot: state.settings.projectRoot || "",
-    detected: suggestion.detected || []
-  };
+  state.plannedTask = planFromSuggestion(suggestion, state.settings.projectRoot || "");
   applyPlanTargetPreference(state.plannedTask);
   renderPlanPreview();
   renderRunControls();
