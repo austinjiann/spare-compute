@@ -167,7 +167,11 @@ func runWithDependencies(
 		if err != nil {
 			return err
 		}
-		executorStarter, err := defaultExecutorStarter()
+		currentJob, err := database.Jobs().Get(ctx, id)
+		if err != nil {
+			return fmt.Errorf("load runner job: %w", err)
+		}
+		executorStarter, err := defaultExecutorStarter(ctx, currentJob.Spec.Executor == job.ExecutorContainer)
 		if err != nil {
 			return fmt.Errorf("initialize executors: %w", err)
 		}
@@ -285,7 +289,7 @@ func runWithDependencies(
 	if err != nil {
 		return fmt.Errorf("initialize pairing service: %w", err)
 	}
-	executorStarter, err := defaultExecutorStarter()
+	executorStarter, err := defaultExecutorStarter(ctx, true)
 	if err != nil {
 		return fmt.Errorf("initialize executors: %w", err)
 	}
@@ -480,7 +484,7 @@ func daemonStartupError(stage string, err error) error {
 	return fmt.Errorf("%s: %w", stage, err)
 }
 
-func defaultExecutorStarter() (worker.ExecutorStarter, error) {
+func defaultExecutorStarter(ctx context.Context, includeContainers bool) (worker.ExecutorStarter, error) {
 	nativeStarter, err := worker.NewNativeExecutorStarter(
 		func(spec job.Spec, stdout, stderr io.Writer) (worker.ManagedProcess, error) {
 			return processes.Start(spec, stdout, stderr)
@@ -489,7 +493,18 @@ func defaultExecutorStarter() (worker.ExecutorStarter, error) {
 	if err != nil {
 		return nil, err
 	}
-	return worker.NewExecutorSet(nativeStarter)
+	starters := []worker.ExecutorStarter{nativeStarter}
+	if !includeContainers {
+		return worker.NewExecutorSet(starters...)
+	}
+	containerStarter, err := worker.NewContainerExecutorStarterFromEnv(ctx)
+	if err != nil && !errors.Is(err, worker.ErrContainerEngineUnavailable) {
+		return nil, err
+	}
+	if err == nil {
+		starters = append(starters, containerStarter)
+	}
+	return worker.NewExecutorSet(starters...)
 }
 
 func addressAlreadyInUse(err error) bool {
