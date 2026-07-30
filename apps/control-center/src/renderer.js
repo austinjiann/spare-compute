@@ -288,6 +288,13 @@ async function performWorkerReadinessAction() {
       }
       return;
     }
+    case "enable-device": {
+      const device = state.devices.find((candidate) => candidate.id === summary.deviceID);
+      if (device) {
+        setDeviceSync(device, true);
+      }
+      return;
+    }
     case "enable-discovery":
       await enableLanDiscovery();
       return;
@@ -300,7 +307,7 @@ async function performWorkerReadinessAction() {
 }
 
 function readinessActionKey(summary) {
-  if (summary?.actionKind === "connect-device" && summary.deviceID) {
+  if ((summary?.actionKind === "connect-device" || summary?.actionKind === "enable-device") && summary.deviceID) {
     return `device:${summary.deviceID}`;
   }
   return "";
@@ -1119,7 +1126,13 @@ function toggleDeviceSync(device) {
   if (!isSyncManagedDevice(device)) {
     return;
   }
-  const enabled = device.synced === false;
+  setDeviceSync(device, device.synced === false);
+}
+
+function setDeviceSync(device, enabled) {
+  if (!isSyncManagedDevice(device)) {
+    return;
+  }
   state.settings.syncedDevices[device.id] = enabled;
   if (!enabled && (state.selectedDeviceID === device.id || state.selectedDeviceID === "auto")) {
     setRunDeviceSelection("local", defaultLocalDevice());

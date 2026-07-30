@@ -184,7 +184,8 @@ small {
 
 .readiness-dot.offline,
 .readiness-dot.daemon-off,
-.readiness-dot.discovery-off {
+.readiness-dot.discovery-off,
+.readiness-dot.disabled {
   background: rgba(255, 255, 255, 0.38);
 }
 

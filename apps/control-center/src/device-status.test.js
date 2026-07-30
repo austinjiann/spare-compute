@@ -130,6 +130,48 @@ test("workerReadinessSummary reports ready workers", () => {
   );
 });
 
+test("workerReadinessSummary reports disabled workers", () => {
+  assert.deepEqual(
+    workerReadinessSummary({
+      daemonAvailable: true,
+      devices: [localDevice(), { ...connectedWorker("Austin MacBook 2", "worker-1"), synced: false }]
+    }),
+    {
+      kind: "disabled",
+      title: "Worker paused",
+      detail: "Austin MacBook 2 is disabled for tasks.",
+      actionLabel: "Enable",
+      actionKind: "enable-device",
+      deviceID: "worker-1"
+    }
+  );
+
+  assert.equal(
+    workerReadinessSummary({
+      daemonAvailable: true,
+      selectedDeviceID: "worker-2",
+      devices: [
+        localDevice(),
+        { ...connectedWorker("Austin MacBook 2", "worker-1"), synced: false },
+        { ...connectedWorker("Gaming PC", "worker-2"), synced: false }
+      ]
+    }).deviceID,
+    ""
+  );
+
+  assert.equal(
+    workerReadinessSummary({
+      daemonAvailable: true,
+      devices: [
+        localDevice(),
+        { ...connectedWorker("Austin MacBook 2", "worker-1"), synced: false },
+        { ...connectedWorker("Gaming PC", "worker-2"), synced: false }
+      ]
+    }).kind,
+    "disabled"
+  );
+});
+
 test("workerReadinessSummary reports pairing and nearby workers", () => {
   assert.deepEqual(
     workerReadinessSummary({

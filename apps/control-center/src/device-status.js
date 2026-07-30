@@ -218,6 +218,39 @@
       );
     }
 
+    const selectedDisabled = isDisabledWorker(selected) ? selected : null;
+    if (selectedDisabled) {
+      return summary(
+        "disabled",
+        "Worker paused",
+        `${selectedDisabled.name || "Selected worker"} is disabled for tasks.`,
+        "Enable",
+        "enable-device"
+      );
+    }
+
+    const disabledWorkers = devices.filter(isDisabledWorker);
+    if (disabledWorkers.length === 1) {
+      const worker = disabledWorkers[0];
+      return summary(
+        "disabled",
+        "Worker paused",
+        `${worker.name || "A worker"} is disabled for tasks.`,
+        "Enable",
+        "enable-device",
+        worker.id
+      );
+    }
+    if (disabledWorkers.length > 1) {
+      return summary(
+        "disabled",
+        "Workers paused",
+        "Enable the computer you want to use below.",
+        "",
+        ""
+      );
+    }
+
     const waitingPairing = pairings.find((pairing) => pairing.state === "waiting");
     if (waitingPairing) {
       const peer = waitingPairing.peerName || "the other computer";
@@ -306,6 +339,17 @@
       device.role === "worker" &&
       device.trustState === "paired" &&
       availabilityLabel(device) === "Offline"
+    );
+  }
+
+  function isDisabledWorker(device = {}) {
+    return (
+      device &&
+      device.id !== "local" &&
+      device.id !== "auto" &&
+      device.role === "worker" &&
+      device.trustState === "paired" &&
+      device.synced === false
     );
   }
 
