@@ -90,14 +90,17 @@ Current scope:
 - lets the daemon refresh reachable paired workers through authenticated remote
   status before Auto worker placement falls back to cached resource hints;
 - carries authenticated common-tool hints such as Go, Node, Docker, FFmpeg, or
-  Ollama for This Mac and paired workers, and blocks submission early when a
-  selected computer reports that the planned executable is missing;
+  Ollama for This Mac and paired workers, carries planner-declared required
+  tool lists through job submission, and blocks submission early when a selected
+  computer reports that any planned required tool is missing;
 - stores allowed work categories per selected device, so This Mac and each
   worker can have different Builds/Tests/Docker/AI/Video/Exact-command policy;
 - plans plain-language tasks such as "run tests", "build the app", "package
   the app", and "check CI" into one safe command using local project rules,
   preferring repository validation targets such as `make pr-check` and package
-  targets such as `make macos-archive` or `make macos-package` when present;
+  targets such as `make macos-archive` or `make macos-package` when present,
+  while preserving conservative required-tool hints such as Go, Docker, Swift,
+  Node, npm, pnpm, or make;
 - preserves OS hints such as "on Windows", "on Linux", or "on macOS" in the
   plan, selects the best matching connected worker when that is safe,
   and blocks submission when the selected computer advertises the wrong OS;

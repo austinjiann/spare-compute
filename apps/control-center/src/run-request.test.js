@@ -119,7 +119,8 @@ test("jobStartRequestForPlan builds the daemon request for a remote project run"
       plan: {
         command: "go test ./...",
         requiresProject: true,
-        outputs: ["coverage.out"]
+        outputs: ["coverage.out"],
+        requiredToolIDs: ["go"]
       },
       device: {
         id: "auto",
@@ -134,7 +135,8 @@ test("jobStartRequestForPlan builds the daemon request for a remote project run"
       deviceID: "auto",
       deviceName: "Austin MacBook 2",
       workingDirectory: "/Users/austin/project",
-      outputs: ["coverage.out", "report.xml"]
+      outputs: ["coverage.out", "report.xml"],
+      requiredToolIDs: ["go"]
     }
   );
 });
@@ -179,7 +181,8 @@ test("jobStartRequestForPlan keeps remote utility runs projectless", () => {
       deviceID: "worker-1",
       deviceName: "Gaming PC",
       workingDirectory: "",
-      outputs: []
+      outputs: [],
+      requiredToolIDs: ["hostname"]
     }
   );
 });

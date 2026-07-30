@@ -132,7 +132,8 @@ class LocalDaemonClient {
             workingDirectory: jobRequest.workingDirectory || "",
             environment: {},
             executor: enumValues.executorNative,
-            outputs: jobRequest.outputs || []
+            outputs: jobRequest.outputs || [],
+            requiredToolIds: jobRequest.requiredToolIDs || jobRequest.requiredToolIds || []
           },
           deviceSelector: jobRequest.deviceSelector || "",
           jobId: jobRequest.jobID || ""

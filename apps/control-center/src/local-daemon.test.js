@@ -237,6 +237,7 @@ test("LocalDaemonClient sends job listing, logs, cancellation, and output fetch 
     arguments: argv.slice(1),
     workingDirectory: jobRequest.workingDirectory,
     outputs: jobRequest.outputs,
+    requiredToolIDs: ["make", "swift"],
     deviceSelector: jobRequest.deviceID,
     jobID: "019abcdf-0123-4567-89ab-000000000333"
   });
@@ -260,6 +261,7 @@ test("LocalDaemonClient sends job listing, logs, cancellation, and output fetch 
   assert.deepEqual(received[0].submitJob.spec.arguments, ["macos-package"]);
   assert.equal(received[0].submitJob.spec.workingDirectory, project);
   assert.deepEqual(received[0].submitJob.spec.outputs, ["dist/macos/ComputeHop.app"]);
+  assert.deepEqual(received[0].submitJob.spec.requiredToolIds, ["make", "swift"]);
   assert.equal(received[1].listJobs.deviceSelector, "worker-1");
   assert.equal(received[1].listJobs.limit, 3);
   assert.equal(received[2].getJobProgress.jobId, "job-1");

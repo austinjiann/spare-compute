@@ -33,6 +33,7 @@ async function planTask(request) {
     return plan(planned.title, planned.command, planned.detail, profile, {
       requiresProject: planned.requiresProject,
       outputs: planned.outputs,
+      requiredToolIDs: planned.requiredToolIDs,
       targetPreference,
       targetPlatform: targetPlatform || planned.targetPlatform,
       targetArchitecture
@@ -102,6 +103,7 @@ async function suggestTasks(request) {
       detail: planned.detail,
       requiresProject: Boolean(planned.requiresProject),
       outputs: normalizeOutputs(planned.outputs),
+      requiredToolIDs: normalizeToolIDs(planned.requiredToolIDs),
       targetPlatform: cleanTargetPlatform(planned.targetPlatform),
       targetArchitecture: cleanTargetArchitecture(planned.targetArchitecture),
       projectRoot,
@@ -122,7 +124,9 @@ async function inspectProject(projectRoot) {
     files: {},
     packageManager: "npm",
     packageScripts: {},
-    makeTargets: []
+    makeTargets: [],
+    makeRecipes: {},
+    makePrerequisites: {}
   };
   if (!root) {
     return profile;
@@ -165,9 +169,14 @@ async function inspectProject(projectRoot) {
   const makefile = profile.files.Makefile ? "Makefile" : profile.files.makefile ? "makefile" : "";
   if (makefile) {
     try {
-      profile.makeTargets = parseMakeTargets(await fs.readFile(path.join(root, makefile), "utf8"));
+      const makefileProfile = parseMakefile(await fs.readFile(path.join(root, makefile), "utf8"));
+      profile.makeTargets = makefileProfile.targets;
+      profile.makeRecipes = makefileProfile.recipes;
+      profile.makePrerequisites = makefileProfile.prerequisites;
     } catch {
       profile.makeTargets = [];
+      profile.makeRecipes = {};
+      profile.makePrerequisites = {};
     }
   }
 
@@ -230,7 +239,8 @@ function chooseCommand(intent, profile) {
         title: "Install dependencies",
         command: `${profile.packageManager} install`,
         detail: `Use ${profile.packageManager} for this JavaScript project.`,
-        requiresProject: true
+        requiresProject: true,
+        requiredToolIDs: packageManagerToolIDs(profile.packageManager)
       };
     }
   }
@@ -240,7 +250,8 @@ function chooseCommand(intent, profile) {
       title: "Test connection",
       command: "hostname",
       detail: "Run a tiny command that prints the selected computer's hostname.",
-      requiresProject: false
+      requiresProject: false,
+      requiredToolIDs: ["hostname"]
     };
   }
 
@@ -249,29 +260,29 @@ function chooseCommand(intent, profile) {
 
 function commandForTests(profile) {
   if (profile.files["go.mod"]) {
-    return { title: "Run Go tests", command: "go test ./...", detail: "Detected go.mod.", requiresProject: true };
+    return { title: "Run Go tests", command: "go test ./...", detail: "Detected go.mod.", requiresProject: true, requiredToolIDs: ["go"] };
   }
   if (profile.files["Package.swift"]) {
-    return { title: "Run Swift tests", command: "swift test", detail: "Detected Package.swift.", requiresProject: true };
+    return { title: "Run Swift tests", command: "swift test", detail: "Detected Package.swift.", requiresProject: true, requiredToolIDs: ["swift"] };
   }
   if (profile.files["Cargo.toml"]) {
-    return { title: "Run Rust tests", command: "cargo test", detail: "Detected Cargo.toml.", requiresProject: true };
+    return { title: "Run Rust tests", command: "cargo test", detail: "Detected Cargo.toml.", requiresProject: true, requiredToolIDs: ["cargo"] };
   }
   if (profile.files["pyproject.toml"] || profile.files["pytest.ini"]) {
-    return { title: "Run Python tests", command: "pytest", detail: "Detected Python project files.", requiresProject: true };
+    return { title: "Run Python tests", command: "pytest", detail: "Detected Python project files.", requiresProject: true, requiredToolIDs: ["pytest"] };
   }
   return null;
 }
 
 function commandForBuild(profile) {
   if (profile.files["go.mod"]) {
-    return { title: "Build Go project", command: "go build ./...", detail: "Detected go.mod.", requiresProject: true };
+    return { title: "Build Go project", command: "go build ./...", detail: "Detected go.mod.", requiresProject: true, requiredToolIDs: ["go"] };
   }
   if (profile.files["Package.swift"]) {
-    return { title: "Build Swift package", command: "swift build", detail: "Detected Package.swift.", requiresProject: true };
+    return { title: "Build Swift package", command: "swift build", detail: "Detected Package.swift.", requiresProject: true, requiredToolIDs: ["swift"] };
   }
   if (profile.files["Cargo.toml"]) {
-    return { title: "Build Rust project", command: "cargo build", detail: "Detected Cargo.toml.", requiresProject: true };
+    return { title: "Build Rust project", command: "cargo build", detail: "Detected Cargo.toml.", requiresProject: true, requiredToolIDs: ["cargo"] };
   }
   return null;
 }
@@ -282,7 +293,8 @@ function commandForDockerBuild(profile) {
       title: "Build containers",
       command: "docker compose build",
       detail: "Detected a Compose file.",
-      requiresProject: true
+      requiresProject: true,
+      requiredToolIDs: ["docker"]
     };
   }
   if (hasDockerfile(profile)) {
@@ -290,7 +302,8 @@ function commandForDockerBuild(profile) {
       title: "Build Docker image",
       command: "docker build .",
       detail: "Detected a Dockerfile.",
-      requiresProject: true
+      requiresProject: true,
+      requiredToolIDs: ["docker"]
     };
   }
   return null;
@@ -298,13 +311,13 @@ function commandForDockerBuild(profile) {
 
 function commandForLint(profile) {
   if (profile.files["go.mod"]) {
-    return { title: "Vet Go project", command: "go vet ./...", detail: "Detected go.mod.", requiresProject: true };
+    return { title: "Vet Go project", command: "go vet ./...", detail: "Detected go.mod.", requiresProject: true, requiredToolIDs: ["go"] };
   }
   if (profile.files["Cargo.toml"]) {
-    return { title: "Lint Rust project", command: "cargo clippy", detail: "Detected Cargo.toml.", requiresProject: true };
+    return { title: "Lint Rust project", command: "cargo clippy", detail: "Detected Cargo.toml.", requiresProject: true, requiredToolIDs: ["cargo"] };
   }
   if (profile.files["pyproject.toml"]) {
-    return { title: "Lint Python project", command: "ruff check .", detail: "Detected pyproject.toml.", requiresProject: true };
+    return { title: "Lint Python project", command: "ruff check .", detail: "Detected pyproject.toml.", requiresProject: true, requiredToolIDs: ["ruff"] };
   }
   return null;
 }
@@ -319,6 +332,7 @@ function script(profile, name, title, detail, options = {}) {
     detail,
     requiresProject: true,
     outputs: normalizeOutputs(options.outputs),
+    requiredToolIDs: normalizeToolIDs(options.requiredToolIDs || packageManagerToolIDs(profile.packageManager)),
     targetPlatform: cleanTargetPlatform(options.targetPlatform),
     targetArchitecture: cleanTargetArchitecture(options.targetArchitecture)
   };
@@ -334,6 +348,7 @@ function makeTarget(profile, name, title, detail, options = {}) {
     detail,
     requiresProject: true,
     outputs: normalizeOutputs(options.outputs),
+    requiredToolIDs: normalizeToolIDs(options.requiredToolIDs || requiredToolIDsForMakeTarget(profile, name)),
     targetPlatform: cleanTargetPlatform(options.targetPlatform),
     targetArchitecture: cleanTargetArchitecture(options.targetArchitecture)
   };
@@ -660,15 +675,194 @@ function hasComposeFile(profile) {
   );
 }
 
-function parseMakeTargets(contents) {
+function parseMakefile(contents) {
   const targets = [];
+  const recipes = {};
+  const prerequisites = {};
+  let currentTarget = "";
   for (const line of contents.split(/\r?\n/)) {
-    const match = line.match(/^([A-Za-z0-9][A-Za-z0-9_.-]*):(?:\s|$)/);
+    const match = line.match(/^([A-Za-z0-9][A-Za-z0-9_.-]*):(?:\s+(.*)|$)/);
     if (match && !targets.includes(match[1])) {
       targets.push(match[1]);
     }
+    if (match) {
+      currentTarget = match[1];
+      recipes[currentTarget] = recipes[currentTarget] || [];
+      prerequisites[currentTarget] = String(match[2] || "")
+        .split(/\s+/)
+        .map((value) => value.trim())
+        .filter((value) => /^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(value));
+      continue;
+    }
+    if (/^\t/.test(line) && currentTarget) {
+      recipes[currentTarget].push(line.replace(/^\t/, "").trim());
+      continue;
+    }
+    if (line.trim() && !/^\s/.test(line)) {
+      currentTarget = "";
+    }
   }
-  return targets;
+  return { targets, recipes, prerequisites };
+}
+
+function requiredToolIDsForMakeTarget(profile, target) {
+  const required = new Set(["make"]);
+  const seen = new Set();
+  const visit = (name, depth = 0) => {
+    if (!name || seen.has(name) || depth > 32) {
+      return;
+    }
+    seen.add(name);
+    for (const line of profile.makeRecipes?.[name] || []) {
+      for (const toolID of requiredToolIDsForRecipeLine(line)) {
+        required.add(toolID);
+      }
+    }
+    for (const dependency of profile.makePrerequisites?.[name] || []) {
+      if (profile.makeRecipes?.[dependency] || profile.makePrerequisites?.[dependency]) {
+        visit(dependency, depth + 1);
+      }
+    }
+  };
+  visit(target);
+  for (const toolID of projectToolIDs(profile)) {
+    required.add(toolID);
+  }
+  return normalizeToolIDs([...required]);
+}
+
+function requiredToolIDsForRecipeLine(line) {
+  const text = String(line || "").trim().replace(/^[@+-]+/, "").trim().toLowerCase();
+  if (!text || text.startsWith("#")) {
+    return [];
+  }
+  const required = new Set();
+  for (const toolID of commonToolIDs()) {
+    const expression = new RegExp(`(?:^|[^a-z0-9_.-])${escapeRegExp(toolID)}(?:$|[^a-z0-9_.-])`, "i");
+    if (expression.test(text)) {
+      required.add(toolID);
+    }
+  }
+  if (/\bnpm\s+run\b/.test(text)) {
+    required.add("node");
+    required.add("npm");
+  }
+  if (/\b(pnpm|yarn|bun)\s+(run|install|test|build)\b/.test(text)) {
+    const manager = text.match(/\b(pnpm|yarn|bun)\b/)?.[1] || "";
+    for (const toolID of packageManagerToolIDs(manager)) {
+      required.add(toolID);
+    }
+  }
+  if (/\bdocker\s+compose\b/.test(text)) {
+    required.add("docker");
+  }
+  return normalizeToolIDs([...required]);
+}
+
+function projectToolIDs(profile) {
+  const required = [];
+  if (profile.files["go.mod"]) {
+    required.push("go");
+  }
+  if (profile.files["Package.swift"]) {
+    required.push("swift");
+  }
+  if (profile.files["Cargo.toml"]) {
+    required.push("cargo");
+  }
+  if (profile.files["package.json"]) {
+    required.push(...packageManagerToolIDs(profile.packageManager));
+  }
+  if (profile.files["pyproject.toml"] || profile.files["pytest.ini"]) {
+    required.push("python3");
+  }
+  if (hasDockerfile(profile) || hasComposeFile(profile)) {
+    required.push("docker");
+  }
+  return normalizeToolIDs(required);
+}
+
+function packageManagerToolIDs(packageManagerID) {
+  const manager = String(packageManagerID || "").trim().toLowerCase();
+  if (!manager) {
+    return [];
+  }
+  if (manager === "npm") {
+    return ["node", "npm"];
+  }
+  if (["pnpm", "yarn", "bun"].includes(manager)) {
+    return ["node", manager];
+  }
+  return [manager];
+}
+
+function requiredToolIDsForCommand(command) {
+  const value = String(command || "").trim();
+  const executable = value.match(/^"([^"]+)"|'([^']+)'|(\S+)/)?.slice(1).find(Boolean) || "";
+  const toolID = executable
+    .replace(/\\/g, "/")
+    .split("/")
+    .filter(Boolean)
+    .pop()
+    ?.replace(/\.(exe|cmd|bat)$/i, "")
+    .toLowerCase() || "";
+  if (!toolID || executable.startsWith("./") || executable.startsWith("../")) {
+    return [];
+  }
+  if (/^docker\s+compose(?:\s|$)/i.test(value)) {
+    return ["docker"];
+  }
+  if (["npm", "pnpm", "yarn", "bun"].includes(toolID)) {
+    return packageManagerToolIDs(toolID);
+  }
+  return [toolID];
+}
+
+function commonToolIDs() {
+  return [
+    "blender",
+    "bun",
+    "cargo",
+    "docker",
+    "docker-compose",
+    "ffmpeg",
+    "go",
+    "make",
+    "node",
+    "npm",
+    "ollama",
+    "pnpm",
+    "podman",
+    "python",
+    "python3",
+    "ruff",
+    "sh",
+    "swift",
+    "xcodebuild",
+    "yarn"
+  ];
+}
+
+function normalizeToolIDs(values) {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+  const seen = new Set();
+  return values
+    .map((value) => String(value || "").trim().toLowerCase())
+    .filter((value) => value && !/\s|=/.test(value))
+    .sort()
+    .filter((value) => {
+      if (seen.has(value)) {
+        return false;
+      }
+      seen.add(value);
+      return true;
+    });
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 async function fileExists(filePath) {
@@ -690,6 +884,7 @@ function plan(title, command, detail, profile, options = {}) {
       exact: Boolean(options.exact),
       requiresProject: Boolean(options.requiresProject),
       outputs: normalizeOutputs(options.outputs),
+      requiredToolIDs: normalizeToolIDs(options.requiredToolIDs || requiredToolIDsForCommand(command)),
       targetPreference: cleanTargetPreference(options.targetPreference),
       targetPlatform: cleanTargetPlatform(options.targetPlatform),
       targetArchitecture: cleanTargetArchitecture(options.targetArchitecture),

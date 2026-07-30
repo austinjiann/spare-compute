@@ -3368,6 +3368,7 @@ type JobSpec struct {
 	Executor         Executor               `protobuf:"varint,5,opt,name=executor,proto3,enum=computehop.local.v1.Executor" json:"executor,omitempty"`
 	ContainerImage   string                 `protobuf:"bytes,6,opt,name=container_image,json=containerImage,proto3" json:"container_image,omitempty"`
 	Outputs          []string               `protobuf:"bytes,7,rep,name=outputs,proto3" json:"outputs,omitempty"`
+	RequiredToolIds  []string               `protobuf:"bytes,8,rep,name=required_tool_ids,json=requiredToolIds,proto3" json:"required_tool_ids,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -3447,6 +3448,13 @@ func (x *JobSpec) GetContainerImage() string {
 func (x *JobSpec) GetOutputs() []string {
 	if x != nil {
 		return x.Outputs
+	}
+	return nil
+}
+
+func (x *JobSpec) GetRequiredToolIds() []string {
+	if x != nil {
+		return x.RequiredToolIds
 	}
 	return nil
 }
@@ -3927,7 +3935,7 @@ const file_computehop_local_v1_local_proto_rawDesc = "" +
 	"\bplatform\x18\x0e \x01(\tR\bplatform\x12\x12\n" +
 	"\x04arch\x18\x0f \x01(\tR\x04arch\x12*\n" +
 	"\x11logical_cpu_count\x18\x10 \x01(\rR\x0flogicalCpuCount\x12,\n" +
-	"\x12total_memory_bytes\x18\x11 \x01(\x04R\x10totalMemoryBytes\"\x83\x03\n" +
+	"\x12total_memory_bytes\x18\x11 \x01(\x04R\x10totalMemoryBytes\"\xaf\x03\n" +
 	"\aJobSpec\x12\x1e\n" +
 	"\n" +
 	"executable\x18\x01 \x01(\tR\n" +
@@ -3937,7 +3945,8 @@ const file_computehop_local_v1_local_proto_rawDesc = "" +
 	"\venvironment\x18\x04 \x03(\v2-.computehop.local.v1.JobSpec.EnvironmentEntryR\venvironment\x129\n" +
 	"\bexecutor\x18\x05 \x01(\x0e2\x1d.computehop.local.v1.ExecutorR\bexecutor\x12'\n" +
 	"\x0fcontainer_image\x18\x06 \x01(\tR\x0econtainerImage\x12\x18\n" +
-	"\aoutputs\x18\a \x03(\tR\aoutputs\x1a>\n" +
+	"\aoutputs\x18\a \x03(\tR\aoutputs\x12*\n" +
+	"\x11required_tool_ids\x18\b \x03(\tR\x0frequiredToolIds\x1a>\n" +
 	"\x10EnvironmentEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xd4\x02\n" +

@@ -949,13 +949,13 @@ func (service *RemoteJobService) resolveAutomaticWorkerForSpec(
 		})
 	}
 	if len(candidates) == 0 {
-		required := requiredToolID(spec.Executable)
-		if incompatible > 0 && required != "" {
+		required := requiredToolIDs(spec)
+		if incompatible > 0 && len(required) > 0 {
 			return trust.Peer{}, fmt.Errorf(
 				"%w: no active paired worker reports %s; choose another worker or install %s on a worker",
 				ErrRemoteWorkerIncompatible,
-				required,
-				required,
+				toolList(required),
+				toolList(required),
 			)
 		}
 		return trust.Peer{}, fmt.Errorf(
@@ -1061,30 +1061,43 @@ func (service *RemoteJobService) updateHintsFromWorkerStatus(
 }
 
 func (service *RemoteJobService) preflightWorkerTools(ctx context.Context, peer trust.Peer, spec job.Spec) error {
-	required := requiredToolID(spec.Executable)
-	if required == "" {
+	required := requiredToolIDs(spec)
+	if len(required) == 0 {
 		return nil
 	}
 	if hints, ok := service.authenticatedWorkerHints(ctx, peer); ok && len(hints.ToolIDs) > 0 {
-		if !toolIDSetContains(hints.ToolIDs, required) {
-			return missingWorkerToolError(peer, required)
+		if missing := missingToolIDs(hints.ToolIDs, required); len(missing) > 0 {
+			return missingWorkerToolError(peer, missing)
 		}
 		return nil
 	}
-	if len(peer.ToolIDs) > 0 && !toolIDSetContains(peer.ToolIDs, required) {
-		return missingWorkerToolError(peer, required)
+	if len(peer.ToolIDs) > 0 {
+		if missing := missingToolIDs(peer.ToolIDs, required); len(missing) > 0 {
+			return missingWorkerToolError(peer, missing)
+		}
 	}
 	return nil
 }
 
-func missingWorkerToolError(peer trust.Peer, toolID string) error {
+func missingWorkerToolError(peer trust.Peer, toolIDs []string) error {
+	label := toolList(toolIDs)
 	return fmt.Errorf(
 		"%w: %s does not report %s; choose another worker or install %s on that worker",
 		ErrRemoteWorkerIncompatible,
 		peer.Name,
-		toolID,
-		toolID,
+		label,
+		label,
 	)
+}
+
+func missingToolIDs(values []string, required []string) []string {
+	missing := make([]string, 0)
+	for _, toolID := range required {
+		if !toolIDSetContains(values, toolID) {
+			missing = append(missing, toolID)
+		}
+	}
+	return missing
 }
 
 func toolIDSetContains(values []string, required string) bool {
@@ -1094,6 +1107,15 @@ func toolIDSetContains(values []string, required string) bool {
 		}
 	}
 	return false
+}
+
+func requiredToolIDs(spec job.Spec) []string {
+	values := append([]string(nil), spec.RequiredToolIDs...)
+	if executable := requiredToolID(spec.Executable); executable != "" {
+		values = append(values, executable)
+	}
+	slices.Sort(values)
+	return slices.Compact(values)
 }
 
 func requiredToolID(executable string) string {
@@ -1110,6 +1132,13 @@ func requiredToolID(executable string) string {
 		value = strings.TrimSuffix(value, suffix)
 	}
 	return value
+}
+
+func toolList(values []string) string {
+	if len(values) == 0 {
+		return "the needed tools"
+	}
+	return strings.Join(values, ", ")
 }
 
 func (service *RemoteJobService) nearbyCandidates(ctx context.Context, peer trust.Peer) ([]device.NearbyDevice, error) {

@@ -1670,6 +1670,8 @@ public nonisolated struct Computehop_Local_V1_JobSpec: Sendable {
 
   public var outputs: [String] = []
 
+  public var requiredToolIds: [String] = []
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
@@ -4021,7 +4023,7 @@ nonisolated extension Computehop_Local_V1_NearbyDevice: SwiftProtobuf.Message, S
 
 nonisolated extension Computehop_Local_V1_JobSpec: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".JobSpec"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}executable\0\u{1}arguments\0\u{3}working_directory\0\u{1}environment\0\u{1}executor\0\u{3}container_image\0\u{1}outputs\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}executable\0\u{1}arguments\0\u{3}working_directory\0\u{1}environment\0\u{1}executor\0\u{3}container_image\0\u{1}outputs\0\u{3}required_tool_ids\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -4036,6 +4038,7 @@ nonisolated extension Computehop_Local_V1_JobSpec: SwiftProtobuf.Message, SwiftP
       case 5: try { try decoder.decodeSingularEnumField(value: &self.executor) }()
       case 6: try { try decoder.decodeSingularStringField(value: &self.containerImage) }()
       case 7: try { try decoder.decodeRepeatedStringField(value: &self.outputs) }()
+      case 8: try { try decoder.decodeRepeatedStringField(value: &self.requiredToolIds) }()
       default: break
       }
     }
@@ -4063,6 +4066,9 @@ nonisolated extension Computehop_Local_V1_JobSpec: SwiftProtobuf.Message, SwiftP
     if !self.outputs.isEmpty {
       try visitor.visitRepeatedStringField(value: self.outputs, fieldNumber: 7)
     }
+    if !self.requiredToolIds.isEmpty {
+      try visitor.visitRepeatedStringField(value: self.requiredToolIds, fieldNumber: 8)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -4074,6 +4080,7 @@ nonisolated extension Computehop_Local_V1_JobSpec: SwiftProtobuf.Message, SwiftP
     if lhs.executor != rhs.executor {return false}
     if lhs.containerImage != rhs.containerImage {return false}
     if lhs.outputs != rhs.outputs {return false}
+    if lhs.requiredToolIds != rhs.requiredToolIds {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

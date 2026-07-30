@@ -359,6 +359,46 @@ func TestRemoteJobServiceSubmitRejectsSelectedWorkerMissingPlannedToolBeforeSnap
 	}
 }
 
+func TestRemoteJobServiceSubmitRejectsSelectedWorkerMissingRequiredToolsBeforeSnapshot(t *testing.T) {
+	peer := activeWorkerPeer(t, 15, "Small Builder")
+	service, err := NewRemoteJobService(RemoteDependencies{
+		Nearby:     stubDeviceController{},
+		Trust:      remoteTrustStub{peers: []trust.Peer{peer}},
+		Placements: newRemotePlacementStub(),
+		Dialer: remoteDialerFunc(func(context.Context, device.NearbyDevice, trust.Peer) (remoteprotocol.Caller, error) {
+			t.Fatal("absent LAN path was dialed")
+			return nil, nil
+		}),
+		Remote: pairedRemoteDialerFunc(func(context.Context, trust.Peer) (remoteprotocol.Caller, error) {
+			return &remoteCallerStub{call: func(
+				_ context.Context,
+				request *computehopv1.RemoteRequest,
+			) (*computehopv1.RemoteResponse, error) {
+				if request.GetGetWorkerStatus() == nil {
+					t.Fatalf("request = %#v", request)
+				}
+				return workerStatusResponse("linux", "amd64", 8, 16<<30, "make"), nil
+			}}, nil
+		}),
+		Snapshots: projectSnapshotterStub{err: errors.New("snapshot should not be built")},
+		Content:   snapshotContentStub{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	spec := queuedJobForTest().Spec.Clone()
+	spec.Executable = "make"
+	spec.Arguments = []string{"pr-check"}
+	spec.RequiredToolIDs = []string{"docker", "go", "make"}
+	spec.WorkingDirectory = "/local/project"
+	_, err = service.Submit(context.Background(), "Small Builder", spec)
+	if !errors.Is(err, ErrRemoteWorkerIncompatible) ||
+		!strings.Contains(err.Error(), "Small Builder does not report docker, go") ||
+		!strings.Contains(err.Error(), "install docker, go") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
 func TestRemoteJobServiceAutoSelectorUsesCachedResourceHints(t *testing.T) {
 	buildPeer := activeWorkerPeer(t, 12, "Build PC")
 	renderPeer := activeWorkerPeer(t, 13, "Render PC")

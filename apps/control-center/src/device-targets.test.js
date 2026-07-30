@@ -185,12 +185,17 @@ test("compatibleWorkerForPlan prefers workers that report required tools", () =>
 test("tool matching derives command executables and ignores unknown old hints", () => {
   assert.deepEqual(requiredToolIDsForPlan({ command: "go test ./..." }), ["go"]);
   assert.deepEqual(requiredToolIDsForPlan({ command: "docker compose build" }), ["docker"]);
+  assert.deepEqual(requiredToolIDsForPlan({ command: "npm run build" }), ["node", "npm"]);
+  assert.deepEqual(requiredToolIDsForPlan({ command: "pnpm run test" }), ["node", "pnpm"]);
   assert.deepEqual(requiredToolIDsForPlan({ command: "/bin/hostname" }), ["hostname"]);
   assert.deepEqual(requiredToolIDsForPlan({ command: "./scripts/check" }), []);
   assert.deepEqual(requiredToolIDsForPlan({ requiredTools: [" Docker ", "go", "go"] }), ["docker", "go"]);
+  assert.deepEqual(requiredToolIDsForPlan({ requiredToolIDs: ["make", "go", "docker"] }), ["docker", "go", "make"]);
 
   assert.equal(deviceHasRequiredTools({ toolIDs: ["go"] }, { command: "go test ./..." }), true);
   assert.equal(deviceHasRequiredTools({ toolIDs: ["node"] }, { command: "go test ./..." }), false);
+  assert.equal(deviceHasRequiredTools({ toolIDs: ["make"] }, { requiredToolIDs: ["go", "make"] }), false);
+  assert.equal(deviceHasRequiredTools({ toolIDs: ["go", "make"] }, { requiredToolIDs: ["go", "make"] }), true);
   assert.equal(deviceHasRequiredTools({ toolIDs: [] }, { command: "go test ./..." }), true);
   assert.deepEqual(missingToolIDsForPlan({ toolIDs: ["node"] }, { command: "go test ./..." }), ["go"]);
 });

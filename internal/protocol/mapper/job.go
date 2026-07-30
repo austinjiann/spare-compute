@@ -67,6 +67,7 @@ func SpecToProto(spec job.Spec) (*localv1.JobSpec, error) {
 		Executor:         executor,
 		ContainerImage:   spec.ContainerImage,
 		Outputs:          append([]string(nil), spec.Outputs...),
+		RequiredToolIds:  append([]string(nil), spec.RequiredToolIDs...),
 	}, nil
 }
 
@@ -87,6 +88,7 @@ func SpecFromProto(message *localv1.JobSpec) (job.Spec, error) {
 		Executor:         executor,
 		ContainerImage:   message.GetContainerImage(),
 		Outputs:          append([]string(nil), message.GetOutputs()...),
+		RequiredToolIDs:  append([]string(nil), message.GetRequiredToolIds()...),
 	}
 	if err := spec.Validate(); err != nil {
 		return job.Spec{}, err

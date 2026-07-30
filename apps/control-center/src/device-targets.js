@@ -205,6 +205,12 @@
     if (toolID === "docker" && /^\s*docker\s+compose(?:\s|$)/i.test(plan.command || "")) {
       return ["docker"];
     }
+    if (toolID === "npm") {
+      return ["node", "npm"];
+    }
+    if (["pnpm", "yarn", "bun"].includes(toolID)) {
+      return ["node", toolID];
+    }
     return [toolID];
   }
 

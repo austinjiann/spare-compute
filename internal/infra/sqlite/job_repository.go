@@ -28,6 +28,7 @@ const jobColumns = `
 	jobs.executor,
 	jobs.container_image,
 	jobs.outputs_json,
+	jobs.required_tool_ids_json,
 	jobs.state,
 	jobs.created_at_ns,
 	jobs.updated_at_ns,
@@ -57,7 +58,7 @@ func (repository *JobRepository) Create(ctx context.Context, value job.Job) erro
 		return fmt.Errorf("%w: new repository job must be in %s state", job.ErrInvalidJob, job.StateCreated)
 	}
 
-	arguments, environment, outputs, err := encodeSpecCollections(value.Spec)
+	arguments, environment, outputs, requiredToolIDs, err := encodeSpecCollections(value.Spec)
 	if err != nil {
 		return err
 	}
@@ -73,13 +74,14 @@ func (repository *JobRepository) Create(ctx context.Context, value job.Job) erro
 			executor,
 			container_image,
 			outputs_json,
+			required_tool_ids_json,
 			state,
 			created_at_ns,
 			updated_at_ns,
 			failure_code,
 			failure_message,
 			failure_retryable
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`,
 		value.ID,
 		value.Spec.Executable,
@@ -89,6 +91,7 @@ func (repository *JobRepository) Create(ctx context.Context, value job.Job) erro
 		value.Spec.Executor,
 		value.Spec.ContainerImage,
 		outputs,
+		requiredToolIDs,
 		value.State,
 		value.CreatedAt.UTC().UnixNano(),
 		value.UpdatedAt.UTC().UnixNano(),
@@ -366,24 +369,25 @@ func queryJob(ctx context.Context, queryer rowQueryer, query string, arguments .
 
 func scanJob(scanner rowScanner) (job.Job, error) {
 	var (
-		id               string
-		executable       string
-		argumentsJSON    string
-		workingDirectory string
-		environmentJSON  string
-		executor         string
-		containerImage   string
-		outputsJSON      string
-		state            string
-		createdAtNS      int64
-		updatedAtNS      int64
-		failureCode      sql.NullString
-		failureMessage   sql.NullString
-		failureRetryable sql.NullBool
-		progressPhase    sql.NullString
-		progressDone     sql.NullInt64
-		progressTotal    sql.NullInt64
-		progressUpdated  sql.NullInt64
+		id                string
+		executable        string
+		argumentsJSON     string
+		workingDirectory  string
+		environmentJSON   string
+		executor          string
+		containerImage    string
+		outputsJSON       string
+		requiredToolsJSON string
+		state             string
+		createdAtNS       int64
+		updatedAtNS       int64
+		failureCode       sql.NullString
+		failureMessage    sql.NullString
+		failureRetryable  sql.NullBool
+		progressPhase     sql.NullString
+		progressDone      sql.NullInt64
+		progressTotal     sql.NullInt64
+		progressUpdated   sql.NullInt64
 	)
 
 	if err := scanner.Scan(
@@ -395,6 +399,7 @@ func scanJob(scanner rowScanner) (job.Job, error) {
 		&executor,
 		&containerImage,
 		&outputsJSON,
+		&requiredToolsJSON,
 		&state,
 		&createdAtNS,
 		&updatedAtNS,
@@ -430,6 +435,10 @@ func scanJob(scanner rowScanner) (job.Job, error) {
 	if err := json.Unmarshal([]byte(outputsJSON), &outputs); err != nil {
 		return job.Job{}, fmt.Errorf("decode job outputs: %w", err)
 	}
+	var requiredToolIDs []string
+	if err := json.Unmarshal([]byte(requiredToolsJSON), &requiredToolIDs); err != nil {
+		return job.Job{}, fmt.Errorf("decode job required tools: %w", err)
+	}
 
 	failure, err := decodeFailure(failureCode, failureMessage, failureRetryable)
 	if err != nil {
@@ -450,6 +459,7 @@ func scanJob(scanner rowScanner) (job.Job, error) {
 			Executor:         job.Executor(executor),
 			ContainerImage:   containerImage,
 			Outputs:          outputs,
+			RequiredToolIDs:  requiredToolIDs,
 		},
 		State:     parsedState,
 		CreatedAt: time.Unix(0, createdAtNS).UTC(),
@@ -498,20 +508,24 @@ func decodeProgressValues(
 	return progress, nil
 }
 
-func encodeSpecCollections(spec job.Spec) (string, string, string, error) {
+func encodeSpecCollections(spec job.Spec) (string, string, string, string, error) {
 	arguments, err := json.Marshal(spec.Arguments)
 	if err != nil {
-		return "", "", "", fmt.Errorf("encode job arguments: %w", err)
+		return "", "", "", "", fmt.Errorf("encode job arguments: %w", err)
 	}
 	environment, err := json.Marshal(spec.Environment)
 	if err != nil {
-		return "", "", "", fmt.Errorf("encode job environment: %w", err)
+		return "", "", "", "", fmt.Errorf("encode job environment: %w", err)
 	}
 	outputs, err := json.Marshal(spec.Outputs)
 	if err != nil {
-		return "", "", "", fmt.Errorf("encode job outputs: %w", err)
+		return "", "", "", "", fmt.Errorf("encode job outputs: %w", err)
 	}
-	return string(arguments), string(environment), string(outputs), nil
+	requiredToolIDs, err := json.Marshal(spec.RequiredToolIDs)
+	if err != nil {
+		return "", "", "", "", fmt.Errorf("encode job required tools: %w", err)
+	}
+	return string(arguments), string(environment), string(outputs), string(requiredToolIDs), nil
 }
 
 func encodeFailure(failure *job.Failure) (any, any, any) {

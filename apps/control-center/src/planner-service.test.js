@@ -73,7 +73,8 @@ test("planControlCenterTask composes CI planning into a selected-worker run requ
     deviceID: "worker-1",
     deviceName: "Gaming PC",
     workingDirectory: project,
-    outputs: []
+    outputs: [],
+    requiredToolIDs: ["go", "make"]
   });
 });
 

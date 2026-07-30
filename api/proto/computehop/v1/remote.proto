@@ -198,6 +198,7 @@ message JobSpec {
   Executor executor = 5;
   string container_image = 6;
   repeated string outputs = 7;
+  repeated string required_tool_ids = 8;
 }
 
 message Job {

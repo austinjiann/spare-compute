@@ -428,6 +428,7 @@ async function runDaemonJobStream(runID, jobRequest, argv) {
           arguments: argv.slice(1),
           workingDirectory,
           outputs: jobRequest.outputs,
+          requiredToolIDs: jobRequest.requiredToolIDs,
           deviceSelector: submitDeviceSelector,
           jobID: runID
         },
@@ -623,6 +624,7 @@ function preparationJob({
     arguments: argv.slice(1),
     workingDirectory,
     outputs: jobRequest.outputs || [],
+    requiredToolIDs: jobRequest.requiredToolIDs || [],
     state: "preparing",
     terminal: false,
     succeeded: false,
@@ -777,6 +779,25 @@ function normalizeJobRequest(request) {
     deviceID: String(request.deviceID || "local").trim(),
     deviceName: String(request.deviceName || "").trim(),
     workingDirectory: String(request.workingDirectory || "").trim(),
-    outputs: jobOutputsForPlan({ outputs: request.outputs })
+    outputs: jobOutputsForPlan({ outputs: request.outputs }),
+    requiredToolIDs: normalizeToolIDs(request.requiredToolIDs || request.requiredToolIds)
   };
+}
+
+function normalizeToolIDs(values) {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+  const seen = new Set();
+  return values
+    .map((value) => String(value || "").trim().toLowerCase())
+    .filter((value) => value && !/\s|=/.test(value))
+    .sort()
+    .filter((value) => {
+      if (seen.has(value)) {
+        return false;
+      }
+      seen.add(value);
+      return true;
+    });
 }

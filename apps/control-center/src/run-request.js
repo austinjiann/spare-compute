@@ -14,6 +14,7 @@
 }(typeof globalThis === "object" ? globalThis : window, function createRunRequest(outputPath = {}, deviceTargets = {}) {
   const validatePortableOutputs = outputPath?.validatePortableOutputs || fallbackValidatePortableOutputs;
   const missingToolIDsForPlan = deviceTargets?.missingToolIDsForPlan || (() => []);
+  const requiredToolIDsForPlan = deviceTargets?.requiredToolIDsForPlan || (() => []);
 
   function runWorkingDirectory(jobRequest) {
     return cleanPath(jobRequest?.workingDirectory);
@@ -35,7 +36,8 @@
         plan,
         outputs
       }),
-      outputs
+      outputs,
+      requiredToolIDs: requiredToolIDsForPlan(plan)
     };
   }
 

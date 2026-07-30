@@ -18,6 +18,7 @@ func TestJobRepositoryPersistsAcrossReopen(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "computehop.db")
 	want := newTestJob(t, 1, testTime(1))
 	want.Spec.Outputs = []string{"dist/app", "reports/test.json"}
+	want.Spec.RequiredToolIDs = []string{"go", "make"}
 
 	first, err := Open(ctx, path)
 	if err != nil {

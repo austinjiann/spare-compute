@@ -25,6 +25,7 @@ test("planTask prefers Makefile PR check for CI", async (t) => {
   assert.equal(result.ok, true);
   assert.equal(result.plan.command, "make pr-check");
   assert.equal(result.plan.requiresProject, true);
+  assert.deepEqual(result.plan.requiredToolIDs, ["go", "make"]);
   assert.deepEqual(result.plan.detected.sort(), ["Go", "Makefile"].sort());
   assert.equal(classifyIntent("fix ci"), "ci");
   assert.equal(classifyIntent("validate project"), "ci");
@@ -134,6 +135,27 @@ test("planTask uses detected package manager scripts", async (t) => {
   assert.equal(tests.ok, true);
   assert.equal(tests.plan.command, "pnpm run test");
   assert.equal(tests.plan.requiresProject, true);
+  assert.deepEqual(build.plan.requiredToolIDs, ["node", "pnpm"]);
+  assert.deepEqual(tests.plan.requiredToolIDs, ["node", "pnpm"]);
+});
+
+test("planTask infers common tools from Makefile prerequisites", async (t) => {
+  const project = await tempProject(t, {
+    "go.mod": "module example.com/app\n",
+    Makefile: [
+      "pr-check: test deploy-check",
+      "test:",
+      "\tgo test ./...",
+      "deploy-check:",
+      "\tdocker compose config --quiet"
+    ].join("\n")
+  });
+
+  const result = await planTask({ task: "check ci", projectRoot: project });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.plan.command, "make pr-check");
+  assert.deepEqual(result.plan.requiredToolIDs, ["docker", "go", "make"]);
 });
 
 test("planTask prefers app packaging targets for package requests", async (t) => {
@@ -149,6 +171,7 @@ test("planTask prefers app packaging targets for package requests", async (t) =>
   assert.equal(result.plan.command, "make macos-archive");
   assert.equal(result.plan.requiresProject, true);
   assert.equal(result.plan.targetPlatform, "darwin");
+  assert.deepEqual(result.plan.requiredToolIDs, ["go", "make"]);
   assert.deepEqual(result.plan.outputs, [
     "dist/macos/ComputeHop-macos.zip",
     "dist/macos/ComputeHop-macos.zip.sha256"
@@ -167,6 +190,7 @@ test("suggestTasks includes package targets with inferred outputs", async (t) =>
   assert.equal(result.ok, true);
   assert.equal(suggestion.label, "Package");
   assert.equal(suggestion.command, "make macos-archive");
+  assert.deepEqual(suggestion.requiredToolIDs, ["make"]);
   assert.deepEqual(suggestion.outputs, [
     "dist/macos/ComputeHop-macos.zip",
     "dist/macos/ComputeHop-macos.zip.sha256"
@@ -184,6 +208,7 @@ test("planTask maps Swift package tests", async (t) => {
   assert.equal(result.ok, true);
   assert.equal(result.plan.command, "swift test");
   assert.equal(result.plan.requiresProject, true);
+  assert.deepEqual(result.plan.requiredToolIDs, ["swift"]);
 });
 
 test("planTask falls back to language lint commands", async (t) => {
@@ -222,6 +247,7 @@ test("planTask maps Docker build requests", async (t) => {
   assert.equal(result.ok, true);
   assert.equal(result.plan.command, "docker build .");
   assert.equal(result.plan.requiresProject, true);
+  assert.deepEqual(result.plan.requiredToolIDs, ["docker"]);
   assert.deepEqual(result.plan.detected, ["Docker"]);
 });
 
