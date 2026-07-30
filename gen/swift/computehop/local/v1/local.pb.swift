@@ -906,6 +906,8 @@ public nonisolated struct Computehop_Local_V1_PingResponse: Sendable {
 
   public var totalMemoryBytes: UInt64 = 0
 
+  public var toolIds: [String] = []
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
@@ -1481,6 +1483,11 @@ public nonisolated struct Computehop_Local_V1_TrustedDevice: @unchecked Sendable
   public var hintsObservedAtUnixNano: Int64 {
     get {_storage._hintsObservedAtUnixNano}
     set {_uniqueStorage()._hintsObservedAtUnixNano = newValue}
+  }
+
+  public var toolIds: [String] {
+    get {_storage._toolIds}
+    set {_uniqueStorage()._toolIds = newValue}
   }
 
   public var unknownFields = SwiftProtobuf.UnknownStorage()
@@ -2401,7 +2408,7 @@ nonisolated extension Computehop_Local_V1_PingRequest: SwiftProtobuf.Message, Sw
 
 nonisolated extension Computehop_Local_V1_PingResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".PingResponse"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}daemon_version\0\u{3}device_id\0\u{3}device_name\0\u{1}role\0\u{1}platform\0\u{1}arch\0\u{3}logical_cpu_count\0\u{3}total_memory_bytes\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}daemon_version\0\u{3}device_id\0\u{3}device_name\0\u{1}role\0\u{1}platform\0\u{1}arch\0\u{3}logical_cpu_count\0\u{3}total_memory_bytes\0\u{3}tool_ids\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -2417,6 +2424,7 @@ nonisolated extension Computehop_Local_V1_PingResponse: SwiftProtobuf.Message, S
       case 6: try { try decoder.decodeSingularStringField(value: &self.arch) }()
       case 7: try { try decoder.decodeSingularUInt32Field(value: &self.logicalCpuCount) }()
       case 8: try { try decoder.decodeSingularUInt64Field(value: &self.totalMemoryBytes) }()
+      case 9: try { try decoder.decodeRepeatedStringField(value: &self.toolIds) }()
       default: break
       }
     }
@@ -2447,6 +2455,9 @@ nonisolated extension Computehop_Local_V1_PingResponse: SwiftProtobuf.Message, S
     if self.totalMemoryBytes != 0 {
       try visitor.visitSingularUInt64Field(value: self.totalMemoryBytes, fieldNumber: 8)
     }
+    if !self.toolIds.isEmpty {
+      try visitor.visitRepeatedStringField(value: self.toolIds, fieldNumber: 9)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -2459,6 +2470,7 @@ nonisolated extension Computehop_Local_V1_PingResponse: SwiftProtobuf.Message, S
     if lhs.arch != rhs.arch {return false}
     if lhs.logicalCpuCount != rhs.logicalCpuCount {return false}
     if lhs.totalMemoryBytes != rhs.totalMemoryBytes {return false}
+    if lhs.toolIds != rhs.toolIds {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -3474,7 +3486,7 @@ nonisolated extension Computehop_Local_V1_Pairing: SwiftProtobuf.Message, SwiftP
 
 nonisolated extension Computehop_Local_V1_TrustedDevice: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".TrustedDevice"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}pair_id\0\u{3}device_id\0\u{3}public_key\0\u{1}name\0\u{1}role\0\u{3}trust_state\0\u{3}paired_at_unix_nano\0\u{3}updated_at_unix_nano\0\u{3}revoked_at_unix_nano\0\u{3}connectivity_state\0\u{3}connectivity_path\0\u{3}connectivity_error\0\u{3}connectivity_updated_at_unix_nano\0\u{1}platform\0\u{1}arch\0\u{3}logical_cpu_count\0\u{3}total_memory_bytes\0\u{3}hints_observed_at_unix_nano\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}pair_id\0\u{3}device_id\0\u{3}public_key\0\u{1}name\0\u{1}role\0\u{3}trust_state\0\u{3}paired_at_unix_nano\0\u{3}updated_at_unix_nano\0\u{3}revoked_at_unix_nano\0\u{3}connectivity_state\0\u{3}connectivity_path\0\u{3}connectivity_error\0\u{3}connectivity_updated_at_unix_nano\0\u{1}platform\0\u{1}arch\0\u{3}logical_cpu_count\0\u{3}total_memory_bytes\0\u{3}hints_observed_at_unix_nano\0\u{3}tool_ids\0")
 
   fileprivate class _StorageClass {
     var _pairID: String = String()
@@ -3495,6 +3507,7 @@ nonisolated extension Computehop_Local_V1_TrustedDevice: SwiftProtobuf.Message, 
     var _logicalCpuCount: UInt32 = 0
     var _totalMemoryBytes: UInt64 = 0
     var _hintsObservedAtUnixNano: Int64 = 0
+    var _toolIds: [String] = []
 
       // This property is used as the initial default value for new instances of the type.
       // The type itself is protecting the reference to its storage via CoW semantics.
@@ -3523,6 +3536,7 @@ nonisolated extension Computehop_Local_V1_TrustedDevice: SwiftProtobuf.Message, 
       _logicalCpuCount = source._logicalCpuCount
       _totalMemoryBytes = source._totalMemoryBytes
       _hintsObservedAtUnixNano = source._hintsObservedAtUnixNano
+      _toolIds = source._toolIds
     }
   }
 
@@ -3559,6 +3573,7 @@ nonisolated extension Computehop_Local_V1_TrustedDevice: SwiftProtobuf.Message, 
         case 16: try { try decoder.decodeSingularUInt32Field(value: &_storage._logicalCpuCount) }()
         case 17: try { try decoder.decodeSingularUInt64Field(value: &_storage._totalMemoryBytes) }()
         case 18: try { try decoder.decodeSingularInt64Field(value: &_storage._hintsObservedAtUnixNano) }()
+        case 19: try { try decoder.decodeRepeatedStringField(value: &_storage._toolIds) }()
         default: break
         }
       }
@@ -3621,6 +3636,9 @@ nonisolated extension Computehop_Local_V1_TrustedDevice: SwiftProtobuf.Message, 
       if _storage._hintsObservedAtUnixNano != 0 {
         try visitor.visitSingularInt64Field(value: _storage._hintsObservedAtUnixNano, fieldNumber: 18)
       }
+      if !_storage._toolIds.isEmpty {
+        try visitor.visitRepeatedStringField(value: _storage._toolIds, fieldNumber: 19)
+      }
     }
     try unknownFields.traverse(visitor: &visitor)
   }
@@ -3648,6 +3666,7 @@ nonisolated extension Computehop_Local_V1_TrustedDevice: SwiftProtobuf.Message, 
         if _storage._logicalCpuCount != rhs_storage._logicalCpuCount {return false}
         if _storage._totalMemoryBytes != rhs_storage._totalMemoryBytes {return false}
         if _storage._hintsObservedAtUnixNano != rhs_storage._hintsObservedAtUnixNano {return false}
+        if _storage._toolIds != rhs_storage._toolIds {return false}
         return true
       }
       if !storagesAreEqual {return false}

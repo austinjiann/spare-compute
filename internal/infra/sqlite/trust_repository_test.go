@@ -88,6 +88,7 @@ func TestTrustRepositoryPersistsNewestHints(t *testing.T) {
 	got, err := database.Trust().UpdateHints(context.Background(), peer.DeviceID, trust.PeerHints{
 		Platform: "linux", Architecture: "amd64",
 		LogicalCPUCount: 32, TotalMemoryBytes: 64 << 30,
+		ToolIDs:    []string{"docker", "go"},
 		ObservedAt: observedAt,
 	})
 	if err != nil {
@@ -95,6 +96,8 @@ func TestTrustRepositoryPersistsNewestHints(t *testing.T) {
 	}
 	if got.Platform != "linux" || got.Architecture != "amd64" ||
 		got.LogicalCPUCount != 32 || got.TotalMemoryBytes != 64<<30 ||
+		len(got.ToolIDs) != 2 || got.ToolIDs[0] != "docker" ||
+		got.ToolIDs[1] != "go" ||
 		got.HintsObservedAt == nil || !got.HintsObservedAt.Equal(observedAt) {
 		t.Fatalf("updated hints = %#v", got)
 	}
@@ -107,7 +110,9 @@ func TestTrustRepositoryPersistsNewestHints(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got.Platform != "linux" || got.Architecture != "amd64" ||
-		got.LogicalCPUCount != 32 || got.TotalMemoryBytes != 64<<30 {
+		got.LogicalCPUCount != 32 || got.TotalMemoryBytes != 64<<30 ||
+		len(got.ToolIDs) != 2 || got.ToolIDs[0] != "docker" ||
+		got.ToolIDs[1] != "go" {
 		t.Fatalf("stale hints replaced newer hints: %#v", got)
 	}
 }
@@ -143,7 +148,8 @@ func TestTrustRepositoryKeepsRevokedPeerHintsButDoesNotUpdateThem(t *testing.T) 
 		t.Fatal(err)
 	}
 	if got.State != trust.StateRevoked || got.Platform != revoked.Platform ||
-		got.Architecture != revoked.Architecture || got.LogicalCPUCount != revoked.LogicalCPUCount {
+		got.Architecture != revoked.Architecture || got.LogicalCPUCount != revoked.LogicalCPUCount ||
+		len(got.ToolIDs) != len(revoked.ToolIDs) {
 		t.Fatalf("revoked peer hints changed: %#v", got)
 	}
 }

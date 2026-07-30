@@ -2,14 +2,18 @@
   const outputPath = typeof module === "object" && module.exports
     ? require("./output-path")
     : root.computeHopOutputPath;
-  const exports = factory(outputPath);
+  const deviceTargets = typeof module === "object" && module.exports
+    ? require("./device-targets")
+    : root.computeHopDeviceTargets;
+  const exports = factory(outputPath, deviceTargets);
   if (typeof module === "object" && module.exports) {
     module.exports = exports;
   } else {
     root.computeHopRunRequest = exports;
   }
-}(typeof globalThis === "object" ? globalThis : window, function createRunRequest(outputPath = {}) {
+}(typeof globalThis === "object" ? globalThis : window, function createRunRequest(outputPath = {}, deviceTargets = {}) {
   const validatePortableOutputs = outputPath?.validatePortableOutputs || fallbackValidatePortableOutputs;
+  const missingToolIDsForPlan = deviceTargets?.missingToolIDsForPlan || (() => []);
 
   function runWorkingDirectory(jobRequest) {
     return cleanPath(jobRequest?.workingDirectory);
@@ -108,6 +112,10 @@
     if (architectureBlocker.message) {
       return architectureBlocker;
     }
+    const toolBlocker = missingToolBlocker(device, plan);
+    if (toolBlocker.message) {
+      return toolBlocker;
+    }
     if (plan.requiresProject && !cleanPath(request.projectRoot)) {
       if (deviceID !== "local") {
         return block(
@@ -196,6 +204,15 @@
     }
     const label = architectureLabel(target);
     return block(`This task needs ${label}. Choose ${architectureArticle(label)} ${label} computer first.`);
+  }
+
+  function missingToolBlocker(device = {}, plan = {}) {
+    const missing = missingToolIDsForPlan(device, plan);
+    if (!Array.isArray(missing) || missing.length === 0) {
+      return block("");
+    }
+    const deviceName = cleanString(device?.name) || "that computer";
+    return block(`${deviceName} does not report ${toolListLabel(missing)}. Choose another computer or install it there.`);
   }
 
   function offlineWorkerBlock(deviceName) {
@@ -314,6 +331,17 @@
 
   function architectureArticle(label) {
     return /^[aeiou]/i.test(cleanString(label)) || cleanString(label).toLowerCase() === "x64" ? "an" : "a";
+  }
+
+  function toolListLabel(values) {
+    const labels = values.map((value) => cleanString(value)).filter(Boolean);
+    if (labels.length === 0) {
+      return "the needed tool";
+    }
+    if (labels.length === 1) {
+      return labels[0];
+    }
+    return `${labels.slice(0, -1).join(", ")} and ${labels[labels.length - 1]}`;
   }
 
   function fallbackValidatePortableOutputs(outputs) {

@@ -56,6 +56,7 @@ function mapLocalDevice(ping) {
     arch: ping.arch || processArchHint(),
     logicalCPUCount: numericHint(ping.logicalCpuCount),
     totalMemoryBytes: numericHint(ping.totalMemoryBytes),
+    toolIDs: normalizeToolIDs(ping.toolIds),
     address: "",
     updated: ""
   };
@@ -79,6 +80,7 @@ function mapTrustedDevice(trusted) {
     arch: trusted.arch || "",
     logicalCPUCount: numericHint(trusted.logicalCpuCount),
     totalMemoryBytes: numericHint(trusted.totalMemoryBytes),
+    toolIDs: normalizeToolIDs(trusted.toolIds),
     address: "",
     updated: timestampLabel(trusted.connectivityUpdatedAtUnixNano || trusted.hintsObservedAtUnixNano || trusted.updatedAtUnixNano)
   };
@@ -122,6 +124,7 @@ function mergeNearbyTrustedDevice(trusted, nearbyMatches) {
     arch: nearby.arch || trusted.arch || "",
     logicalCPUCount: numericHint(nearby.logicalCpuCount || trusted.logicalCPUCount),
     totalMemoryBytes: numericHint(nearby.totalMemoryBytes || trusted.totalMemoryBytes),
+    toolIDs: trusted.toolIDs || [],
     updated: timestampLabel(nearby.lastSeenAtUnixNano) || trusted.updated
   };
 }
@@ -139,6 +142,7 @@ function mapNearbyDevice(nearby, id) {
     arch: nearby.arch || "",
     logicalCPUCount: numericHint(nearby.logicalCpuCount),
     totalMemoryBytes: numericHint(nearby.totalMemoryBytes),
+    toolIDs: [],
     address: nearbyAddress(nearby),
     updated: timestampLabel(nearby.lastSeenAtUnixNano)
   };
@@ -293,6 +297,24 @@ function numericHint(value) {
     return 0;
   }
   return Math.floor(numeric);
+}
+
+function normalizeToolIDs(values) {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+  const seen = new Set();
+  return values
+    .map((value) => String(value || "").trim().toLowerCase())
+    .filter((value) => value && !/\s|=/.test(value))
+    .sort()
+    .filter((value) => {
+      if (seen.has(value)) {
+        return false;
+      }
+      seen.add(value);
+      return true;
+    });
 }
 
 module.exports = {

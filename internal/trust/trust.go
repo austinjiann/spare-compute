@@ -99,6 +99,7 @@ type Peer struct {
 	Architecture       string
 	LogicalCPUCount    uint32
 	TotalMemoryBytes   uint64
+	ToolIDs            []string
 	HintsObservedAt    *time.Time
 	PairedAt           time.Time
 	UpdatedAt          time.Time
@@ -113,6 +114,7 @@ type PeerHints struct {
 	Architecture     string
 	LogicalCPUCount  uint32
 	TotalMemoryBytes uint64
+	ToolIDs          []string
 	ObservedAt       time.Time
 }
 
@@ -120,7 +122,8 @@ func (hints PeerHints) Validate() error {
 	if hints.ObservedAt.IsZero() ||
 		validateHint(hints.Platform) != nil ||
 		validateHint(hints.Architecture) != nil ||
-		hints.LogicalCPUCount > 4096 {
+		hints.LogicalCPUCount > 4096 ||
+		validateToolIDs(hints.ToolIDs) != nil {
 		return ErrInvalidHints
 	}
 	return nil
@@ -134,13 +137,14 @@ func (peer Peer) Validate() error {
 		(len(peer.ConnectivitySecret) != 0 && !peer.ConnectivitySecret.Valid()) ||
 		(peer.Role != device.RoleWorker && peer.Role != device.RoleOrchestrator) ||
 		validateHint(peer.Platform) != nil || validateHint(peer.Architecture) != nil ||
-		peer.LogicalCPUCount > 4096 ||
+		peer.LogicalCPUCount > 4096 || validateToolIDs(peer.ToolIDs) != nil ||
 		peer.PairedAt.IsZero() || peer.UpdatedAt.Before(peer.PairedAt) {
 		return ErrInvalidPeer
 	}
 	if peer.HintsObservedAt == nil {
 		if peer.Platform != "" || peer.Architecture != "" ||
-			peer.LogicalCPUCount != 0 || peer.TotalMemoryBytes != 0 {
+			peer.LogicalCPUCount != 0 || peer.TotalMemoryBytes != 0 ||
+			len(peer.ToolIDs) != 0 {
 			return ErrInvalidPeer
 		}
 	} else if peer.HintsObservedAt.IsZero() {
@@ -166,6 +170,7 @@ func (peer Peer) Validate() error {
 func (peer Peer) Clone() Peer {
 	peer.PublicKey = append(ed25519.PublicKey(nil), peer.PublicKey...)
 	peer.ConnectivitySecret = append(ConnectivitySecret(nil), peer.ConnectivitySecret...)
+	peer.ToolIDs = append([]string(nil), peer.ToolIDs...)
 	if peer.HintsObservedAt != nil {
 		observedAt := *peer.HintsObservedAt
 		peer.HintsObservedAt = &observedAt
@@ -231,6 +236,20 @@ func validateHint(value string) error {
 		if unicode.IsControl(character) || unicode.IsSpace(character) || character == '=' {
 			return ErrInvalidHints
 		}
+	}
+	return nil
+}
+
+func validateToolIDs(values []string) error {
+	if len(values) > 128 {
+		return ErrInvalidHints
+	}
+	previous := ""
+	for _, value := range values {
+		if validateHint(value) != nil || len(value) > 64 || value == "" || value <= previous {
+			return ErrInvalidHints
+		}
+		previous = value
 	}
 	return nil
 }

@@ -92,6 +92,7 @@ type LocalDeviceInfo struct {
 	Architecture     string
 	LogicalCPUCount  uint32
 	TotalMemoryBytes uint64
+	ToolIDs          []string
 }
 
 func (info LocalDeviceInfo) Validate() error {
@@ -194,6 +195,7 @@ func (handler *LocalHandler) Handle(ctx context.Context, request *localv1.Reques
 			ping.Arch = handler.local.Architecture
 			ping.LogicalCpuCount = handler.local.LogicalCPUCount
 			ping.TotalMemoryBytes = handler.local.TotalMemoryBytes
+			ping.ToolIds = append([]string(nil), handler.local.ToolIDs...)
 		}
 		return &localv1.Response{Result: &localv1.Response_Ping{Ping: ping}}
 	case *localv1.Request_SubmitJob:

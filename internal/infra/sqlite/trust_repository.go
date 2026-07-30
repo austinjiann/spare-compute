@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -24,6 +25,7 @@ const trustColumns = `
 	arch,
 	logical_cpu_count,
 	total_memory_bytes,
+	tool_ids_json,
 	hints_observed_at_ns,
 	paired_at_ns,
 	updated_at_ns,
@@ -245,10 +247,11 @@ func (repository *TrustRepository) UpdateHints(
 	result, err := transaction.ExecContext(ctx, `
 		UPDATE trusted_devices
 		SET platform = ?, arch = ?, logical_cpu_count = ?,
-			total_memory_bytes = ?, hints_observed_at_ns = ?
+			total_memory_bytes = ?, tool_ids_json = ?, hints_observed_at_ns = ?
 		WHERE device_id = ? AND state = 'active'
 	`, hints.Platform, hints.Architecture, hints.LogicalCPUCount,
-		int64(hints.TotalMemoryBytes), hints.ObservedAt.UnixNano(), id)
+		int64(hints.TotalMemoryBytes), toolIDsJSON(hints.ToolIDs),
+		hints.ObservedAt.UnixNano(), id)
 	if err != nil {
 		return trust.Peer{}, fmt.Errorf("update trusted peer hints: %w", err)
 	}
@@ -288,6 +291,7 @@ func scanTrustedPeer(scanner trustRowScanner) (trust.Peer, error) {
 		deviceID, pairID, name, role, state string
 		platform, architecture              string
 		publicKey, connectivitySecret       []byte
+		toolIDsJSONValue                    string
 		pairedAtNS, updatedAtNS             int64
 		logicalCPUCount                     int64
 		totalMemoryBytes                    int64
@@ -295,7 +299,7 @@ func scanTrustedPeer(scanner trustRowScanner) (trust.Peer, error) {
 	)
 	if err := scanner.Scan(
 		&deviceID, &pairID, &publicKey, &name, &role, &state,
-		&platform, &architecture, &logicalCPUCount, &totalMemoryBytes, &hintsObservedAtNS,
+		&platform, &architecture, &logicalCPUCount, &totalMemoryBytes, &toolIDsJSONValue, &hintsObservedAtNS,
 		&pairedAtNS, &updatedAtNS, &revokedAtNS, &connectivitySecret,
 	); err != nil {
 		return trust.Peer{}, err
@@ -308,6 +312,10 @@ func scanTrustedPeer(scanner trustRowScanner) (trust.Peer, error) {
 	if err != nil {
 		return trust.Peer{}, err
 	}
+	toolIDs, err := parseToolIDsJSON(toolIDsJSONValue)
+	if err != nil {
+		return trust.Peer{}, trust.ErrInvalidPeer
+	}
 	peer := trust.Peer{
 		PairID: parsedPairID, DeviceID: parsedDeviceID,
 		PublicKey:          ed25519.PublicKey(append([]byte(nil), publicKey...)),
@@ -315,6 +323,7 @@ func scanTrustedPeer(scanner trustRowScanner) (trust.Peer, error) {
 		Name:               name, Role: device.Role(role), State: trust.State(state),
 		Platform: platform, Architecture: architecture,
 		LogicalCPUCount: uint32(logicalCPUCount), TotalMemoryBytes: uint64(totalMemoryBytes),
+		ToolIDs:  toolIDs,
 		PairedAt: time.Unix(0, pairedAtNS).UTC(), UpdatedAt: time.Unix(0, updatedAtNS).UTC(),
 	}
 	if logicalCPUCount < 0 || totalMemoryBytes < 0 {
@@ -339,4 +348,29 @@ func nullableSecret(secret trust.ConnectivitySecret) any {
 		return nil
 	}
 	return []byte(secret)
+}
+
+func toolIDsJSON(values []string) string {
+	if len(values) == 0 {
+		return "[]"
+	}
+	encoded, err := json.Marshal(values)
+	if err != nil {
+		return "[]"
+	}
+	return string(encoded)
+}
+
+func parseToolIDsJSON(value string) ([]string, error) {
+	if value == "" {
+		value = "[]"
+	}
+	var decoded []string
+	if err := json.Unmarshal([]byte(value), &decoded); err != nil {
+		return nil, err
+	}
+	if decoded == nil {
+		return []string{}, nil
+	}
+	return decoded, nil
 }

@@ -30,6 +30,7 @@ import (
 	quictransport "github.com/austinjiann/spare-compute/internal/infra/transport/quic"
 	"github.com/austinjiann/spare-compute/internal/job"
 	joblogging "github.com/austinjiann/spare-compute/internal/logging"
+	"github.com/austinjiann/spare-compute/internal/platform/capabilities"
 	"github.com/austinjiann/spare-compute/internal/platform/paths"
 	"github.com/austinjiann/spare-compute/internal/platform/permissions"
 	"github.com/austinjiann/spare-compute/internal/platform/processes"
@@ -248,6 +249,7 @@ func runWithDependencies(
 		return errors.New("initialize pairing endpoint: listener has no UDP port")
 	}
 	resourceSnapshot := resources.Static()
+	toolIDs := capabilities.ToolIDs()
 	localAnnouncement := device.Announcement{
 		PresenceID: presenceID, Name: deviceName, Role: localRole,
 		ProtocolVersion:  device.DiscoveryProtocolVersion,
@@ -284,6 +286,7 @@ func runWithDependencies(
 	remoteHandler, err := worker.NewRemoteHandler(jobService, worker.WithStatus(worker.Status{
 		Platform: runtime.GOOS, Architecture: runtime.GOARCH,
 		LogicalCPUCount: resourceSnapshot.LogicalCPUCount, TotalMemoryBytes: resourceSnapshot.TotalMemoryBytes,
+		ToolIDs: toolIDs,
 	}))
 	if err != nil {
 		return fmt.Errorf("initialize remote worker handler: %w", err)
@@ -353,6 +356,7 @@ func runWithDependencies(
 		Architecture:     runtime.GOARCH,
 		LogicalCPUCount:  resourceSnapshot.LogicalCPUCount,
 		TotalMemoryBytes: resourceSnapshot.TotalMemoryBytes,
+		ToolIDs:          toolIDs,
 	}
 	var connectivityControllers []orchestrator.ConnectivityController
 	if remoteManager != nil {

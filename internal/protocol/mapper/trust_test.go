@@ -43,6 +43,7 @@ func TestTrustProtocolRoundTripsValidatedValues(t *testing.T) {
 		Name:               "Worker", Role: device.RoleWorker, State: trust.StateActive,
 		Platform: "linux", Architecture: "amd64",
 		LogicalCPUCount: 32, TotalMemoryBytes: 64 << 30,
+		ToolIDs:         []string{"docker", "go"},
 		HintsObservedAt: ptrTime(now.Add(30 * time.Second)),
 		PairedAt:        now, UpdatedAt: now,
 	}
@@ -59,6 +60,8 @@ func TestTrustProtocolRoundTripsValidatedValues(t *testing.T) {
 	}
 	if peerMessage.GetPlatform() != "linux" || peerMessage.GetArch() != "amd64" ||
 		peerMessage.GetLogicalCpuCount() != 32 || peerMessage.GetTotalMemoryBytes() != 64<<30 ||
+		len(peerMessage.GetToolIds()) != 2 || peerMessage.GetToolIds()[0] != "docker" ||
+		peerMessage.GetToolIds()[1] != "go" ||
 		peerMessage.GetHintsObservedAtUnixNano() != now.Add(30*time.Second).UnixNano() {
 		t.Fatalf("trusted-device hints = %#v", peerMessage)
 	}

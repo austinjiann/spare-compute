@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -67,6 +68,7 @@ type Status struct {
 	Architecture     string
 	LogicalCPUCount  uint32
 	TotalMemoryBytes uint64
+	ToolIDs          []string
 }
 
 func (status Status) Validate() error {
@@ -76,7 +78,8 @@ func (status Status) Validate() error {
 	}
 	if validateStatusHint(status.Platform) != nil ||
 		validateStatusHint(status.Architecture) != nil ||
-		status.LogicalCPUCount > 4096 {
+		status.LogicalCPUCount > 4096 ||
+		validateStatusToolIDs(status.ToolIDs) != nil {
 		return ErrInvalidStatus
 	}
 	return nil
@@ -164,6 +167,7 @@ func (handler *RemoteHandler) getWorkerStatus(
 			Arch:             handler.status.Architecture,
 			LogicalCpuCount:  handler.status.LogicalCPUCount,
 			TotalMemoryBytes: handler.status.TotalMemoryBytes,
+			ToolIds:          append([]string(nil), handler.status.ToolIDs...),
 		},
 	}}
 }
@@ -578,6 +582,20 @@ func validateStatusHint(value string) error {
 		if unicode.IsControl(character) || unicode.IsSpace(character) || character == '=' {
 			return ErrInvalidStatus
 		}
+	}
+	return nil
+}
+
+func validateStatusToolIDs(values []string) error {
+	if len(values) > 128 || !slices.IsSorted(values) {
+		return ErrInvalidStatus
+	}
+	previous := ""
+	for _, value := range values {
+		if value == "" || value == previous || validateStatusHint(value) != nil {
+			return ErrInvalidStatus
+		}
+		previous = value
 	}
 	return nil
 }

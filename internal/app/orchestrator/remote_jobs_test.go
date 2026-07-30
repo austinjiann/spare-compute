@@ -983,6 +983,7 @@ func (stub remoteTrustStub) UpdateHints(_ context.Context, id device.ID, hints t
 		peer.Architecture = hints.Architecture
 		peer.LogicalCPUCount = hints.LogicalCPUCount
 		peer.TotalMemoryBytes = hints.TotalMemoryBytes
+		peer.ToolIDs = append([]string(nil), hints.ToolIDs...)
 		observedAt := hints.ObservedAt.UTC()
 		peer.HintsObservedAt = &observedAt
 		return peer, nil
@@ -1088,11 +1089,12 @@ func peerWithResourceHints(peer trust.Peer, logicalCPUCount uint32, totalMemoryB
 	return peer
 }
 
-func workerStatusResponse(platform, architecture string, logicalCPUCount uint32, totalMemoryBytes uint64) *computehopv1.RemoteResponse {
+func workerStatusResponse(platform, architecture string, logicalCPUCount uint32, totalMemoryBytes uint64, toolIDs ...string) *computehopv1.RemoteResponse {
 	return &computehopv1.RemoteResponse{Result: &computehopv1.RemoteResponse_GetWorkerStatus{
 		GetWorkerStatus: &computehopv1.GetWorkerStatusResponse{
 			Platform: platform, Arch: architecture,
 			LogicalCpuCount: logicalCPUCount, TotalMemoryBytes: totalMemoryBytes,
+			ToolIds: append([]string(nil), toolIDs...),
 		},
 	}}
 }

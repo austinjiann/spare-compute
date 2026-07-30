@@ -882,6 +882,7 @@ func (service *RemoteJobService) updateHintsFromWorkerStatus(
 		Architecture:     status.GetArch(),
 		LogicalCPUCount:  status.GetLogicalCpuCount(),
 		TotalMemoryBytes: status.GetTotalMemoryBytes(),
+		ToolIDs:          append([]string(nil), status.GetToolIds()...),
 		ObservedAt:       time.Now().UTC(),
 	}
 	if hints.Validate() != nil {

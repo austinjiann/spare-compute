@@ -62,6 +62,7 @@
       isSingleAutoCandidate(device) &&
       workerMatchesPlatform(device, platform) &&
       workerMatchesArchitecture(device, architecture) &&
+      deviceHasRequiredTools(device, plan) &&
       allowed(device)
     ));
     return bestWorkerFromCandidates(workers);
@@ -116,6 +117,7 @@
       path: "auto",
       workerID: worker.id || "",
       workerName: worker.name || "",
+      toolIDs: normalizeToolIDs(worker.toolIDs || worker.toolIds),
       address: "",
       updated: worker.updated || "",
       automatic: true
@@ -162,6 +164,60 @@
     return (cpuCount * 1_000) + memoryGiB;
   }
 
+  function deviceHasRequiredTools(device = {}, plan = {}) {
+    return missingToolIDsForPlan(device, plan).length === 0;
+  }
+
+  function missingToolIDsForPlan(device = {}, plan = {}) {
+    const reported = normalizeToolIDs(device.toolIDs || device.toolIds);
+    if (reported.length === 0) {
+      return [];
+    }
+    const available = new Set(reported);
+    return requiredToolIDsForPlan(plan).filter((toolID) => !available.has(toolID));
+  }
+
+  function requiredToolIDsForPlan(plan = {}) {
+    const explicit = normalizeToolIDs(
+      plan.requiredToolIDs ||
+      plan.requiredToolIds ||
+      plan.requiredTools ||
+      plan.toolIDs ||
+      plan.toolIds ||
+      plan.tools
+    );
+    if (explicit.length > 0) {
+      return explicit;
+    }
+    const executable = commandExecutable(plan.command || "");
+    const toolID = toolIDFromExecutable(executable);
+    if (!toolID || localScriptExecutable(executable)) {
+      return [];
+    }
+    if (toolID === "docker" && /^\s*docker\s+compose(?:\s|$)/i.test(plan.command || "")) {
+      return ["docker"];
+    }
+    return [toolID];
+  }
+
+  function commandExecutable(command) {
+    const value = String(command || "").trim();
+    if (!value) {
+      return "";
+    }
+    const match = value.match(/^"([^"]+)"|'([^']+)'|(\S+)/);
+    return match?.[1] || match?.[2] || match?.[3] || "";
+  }
+
+  function toolIDFromExecutable(value) {
+    const executable = String(value || "").trim().replace(/\\/g, "/").split("/").filter(Boolean).pop() || "";
+    return executable.toLowerCase().replace(/\.(exe|cmd|bat)$/i, "");
+  }
+
+  function localScriptExecutable(value) {
+    return value.startsWith("./") || value.startsWith("../");
+  }
+
   function stableWorkerKey(device = {}) {
     return String(device.id || device.name || "").trim();
   }
@@ -189,7 +245,10 @@
     workerResourceScore,
     workerMatchesArchitecture,
     workerMatchesPlatform,
-    workerRunTargetForAction
+    workerRunTargetForAction,
+    deviceHasRequiredTools,
+    missingToolIDsForPlan,
+    requiredToolIDsForPlan
   };
 
   function normalizeTargetPlatform(value) {
@@ -246,5 +305,23 @@
       return 0;
     }
     return numeric;
+  }
+
+  function normalizeToolIDs(values) {
+    if (!Array.isArray(values)) {
+      return [];
+    }
+    const seen = new Set();
+    return values
+      .map((value) => String(value || "").trim().toLowerCase())
+      .filter((value) => value && !/\s|=/.test(value))
+      .sort()
+      .filter((value) => {
+        if (seen.has(value)) {
+          return false;
+        }
+        seen.add(value);
+        return true;
+      });
   }
 }));

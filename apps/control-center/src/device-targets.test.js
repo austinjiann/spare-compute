@@ -5,7 +5,10 @@ const {
   automaticWorkerID,
   bestWorkerFromCandidates,
   concreteDeviceID,
+  deviceHasRequiredTools,
   isSingleAutoCandidate,
+  missingToolIDsForPlan,
+  requiredToolIDsForPlan,
   singleConnectedWorkerTarget,
   compatibleWorkerForPlan,
   workerResourceScore,
@@ -157,6 +160,38 @@ test("compatibleWorkerForPlan can select by allowed-work policy", () => {
     }).id,
     "worker-2"
   );
+});
+
+test("compatibleWorkerForPlan prefers workers that report required tools", () => {
+  const goWorker = { ...connectedWorker("Build Mac", "worker-1"), toolIDs: ["go", "make"] };
+  const dockerWorker = { ...connectedWorker("Docker PC", "worker-2"), toolIDs: ["docker", "node"] };
+  const oldWorker = { ...connectedWorker("Old worker", "worker-3"), toolIDs: [] };
+
+  assert.equal(
+    compatibleWorkerForPlan([localDevice(), goWorker, dockerWorker], { command: "docker build .", targetPreference: "worker" }).id,
+    "worker-2"
+  );
+  assert.equal(
+    compatibleWorkerForPlan([localDevice(), dockerWorker], { command: "go test ./...", targetPreference: "worker" }),
+    null
+  );
+  assert.equal(
+    compatibleWorkerForPlan([localDevice(), oldWorker], { command: "go test ./...", targetPreference: "worker" }).id,
+    "worker-3"
+  );
+});
+
+test("tool matching derives command executables and ignores unknown old hints", () => {
+  assert.deepEqual(requiredToolIDsForPlan({ command: "go test ./..." }), ["go"]);
+  assert.deepEqual(requiredToolIDsForPlan({ command: "docker compose build" }), ["docker"]);
+  assert.deepEqual(requiredToolIDsForPlan({ command: "/bin/hostname" }), ["hostname"]);
+  assert.deepEqual(requiredToolIDsForPlan({ command: "./scripts/check" }), []);
+  assert.deepEqual(requiredToolIDsForPlan({ requiredTools: [" Docker ", "go", "go"] }), ["docker", "go"]);
+
+  assert.equal(deviceHasRequiredTools({ toolIDs: ["go"] }, { command: "go test ./..." }), true);
+  assert.equal(deviceHasRequiredTools({ toolIDs: ["node"] }, { command: "go test ./..." }), false);
+  assert.equal(deviceHasRequiredTools({ toolIDs: [] }, { command: "go test ./..." }), true);
+  assert.deepEqual(missingToolIDsForPlan({ toolIDs: ["node"] }, { command: "go test ./..." }), ["go"]);
 });
 
 test("compatibleWorkerForPlan picks the strongest worker for worker-targeted tasks", () => {

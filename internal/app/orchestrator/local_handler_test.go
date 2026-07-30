@@ -89,6 +89,7 @@ func TestLocalHandlerPingIncludesLocalDevice(t *testing.T) {
 			DeviceID: identity.ID(), Name: "Austin MacBook 1", Role: device.RoleOrchestrator,
 			Platform: "darwin", Architecture: "arm64",
 			LogicalCPUCount: 12, TotalMemoryBytes: 32 << 30,
+			ToolIDs: []string{"go", "swift"},
 		},
 		"test-version",
 	)
@@ -105,7 +106,9 @@ func TestLocalHandlerPingIncludesLocalDevice(t *testing.T) {
 		ping.GetPlatform() != "darwin" ||
 		ping.GetArch() != "arm64" ||
 		ping.GetLogicalCpuCount() != 12 ||
-		ping.GetTotalMemoryBytes() != 32<<30 {
+		ping.GetTotalMemoryBytes() != 32<<30 ||
+		len(ping.GetToolIds()) != 2 || ping.GetToolIds()[0] != "go" ||
+		ping.GetToolIds()[1] != "swift" {
 		t.Fatalf("ping = %#v", ping)
 	}
 }
@@ -138,6 +141,7 @@ func TestLocalHandlerRefreshesTrustedDeviceHints(t *testing.T) {
 	refreshed.Architecture = "amd64"
 	refreshed.LogicalCPUCount = 32
 	refreshed.TotalMemoryBytes = 64 << 30
+	refreshed.ToolIDs = []string{"docker", "go"}
 	refreshed.HintsObservedAt = &observedAt
 	handler, err := NewLocalHandler(stubJobController{}, stubPairedJobController{}, stubDeviceController{
 		list: func(context.Context) (device.DiscoverySnapshot, error) {
@@ -163,6 +167,8 @@ func TestLocalHandlerRefreshesTrustedDeviceHints(t *testing.T) {
 	message := response.GetListDevices().GetTrustedDevices()[0]
 	if message.GetPlatform() != "linux" || message.GetArch() != "amd64" ||
 		message.GetLogicalCpuCount() != 32 || message.GetTotalMemoryBytes() != 64<<30 ||
+		len(message.GetToolIds()) != 2 || message.GetToolIds()[0] != "docker" ||
+		message.GetToolIds()[1] != "go" ||
 		message.GetHintsObservedAtUnixNano() != observedAt.UnixNano() {
 		t.Fatalf("trusted device = %#v", message)
 	}

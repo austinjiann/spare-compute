@@ -13,7 +13,8 @@ test("mapDevices merges a paired trusted worker with its nearby LAN sighting", (
       trustedWorker({
         deviceId: "durable-worker-id",
         name: "Gaming PC",
-        connectivityState: "CONNECTIVITY_STATE_DISABLED"
+        connectivityState: "CONNECTIVITY_STATE_DISABLED",
+        toolIds: ["go", "docker"]
       })
     ],
     devices: [
@@ -40,6 +41,7 @@ test("mapDevices merges a paired trusted worker with its nearby LAN sighting", (
   assert.equal(result[0].arch, "amd64");
   assert.equal(result[0].logicalCPUCount, 32);
   assert.equal(result[0].totalMemoryBytes, 64 * 1024 ** 3);
+  assert.deepEqual(result[0].toolIDs, ["docker", "go"]);
   assert.equal(result[0].address, "192.0.2.20:47823");
   assert.equal(result[0].updated, "1970-01-01T00:00:01.800Z");
 });
@@ -70,6 +72,7 @@ test("mapDevices preserves cached trusted-device hints without a nearby LAN row"
         arch: "amd64",
         logicalCpuCount: 32,
         totalMemoryBytes: 64 * 1024 ** 3,
+        toolIds: ["docker", "go"],
         hintsObservedAtUnixNano: 2_500_000_000
       })
     ]
@@ -82,6 +85,7 @@ test("mapDevices preserves cached trusted-device hints without a nearby LAN row"
   assert.equal(result[0].arch, "amd64");
   assert.equal(result[0].logicalCPUCount, 32);
   assert.equal(result[0].totalMemoryBytes, 64 * 1024 ** 3);
+  assert.deepEqual(result[0].toolIDs, ["docker", "go"]);
   assert.equal(result[0].updated, "1970-01-01T00:00:02.500Z");
 });
 
@@ -108,7 +112,8 @@ test("mapLocalDevice labels this process platform and architecture", () => {
     platform: "darwin",
     arch: "arm64",
     logicalCpuCount: 12,
-    totalMemoryBytes: 32 * 1024 ** 3
+    totalMemoryBytes: 32 * 1024 ** 3,
+    toolIds: ["npm", "go"]
   });
 
   assert.equal(local.id, "local");
@@ -118,6 +123,7 @@ test("mapLocalDevice labels this process platform and architecture", () => {
   assert.equal(local.arch, "arm64");
   assert.equal(local.logicalCPUCount, 12);
   assert.equal(local.totalMemoryBytes, 32 * 1024 ** 3);
+  assert.deepEqual(local.toolIDs, ["go", "npm"]);
 });
 
 test("mapLocalDevice falls back to this process platform and architecture", () => {

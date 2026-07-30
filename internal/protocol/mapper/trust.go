@@ -131,6 +131,7 @@ func TrustedPeerToProto(peer trust.Peer) (*localv1.TrustedDevice, error) {
 		PairedAtUnixNano: peer.PairedAt.UnixNano(), UpdatedAtUnixNano: peer.UpdatedAt.UnixNano(),
 		Platform: peer.Platform, Arch: peer.Architecture,
 		LogicalCpuCount: peer.LogicalCPUCount, TotalMemoryBytes: peer.TotalMemoryBytes,
+		ToolIds: append([]string(nil), peer.ToolIDs...),
 	}
 	if peer.RevokedAt != nil {
 		message.RevokedAtUnixNano = peer.RevokedAt.UnixNano()
@@ -171,6 +172,7 @@ func TrustedPeerFromProto(message *localv1.TrustedDevice) (trust.Peer, error) {
 		Name:      message.GetName(), Role: role, State: state,
 		Platform: message.GetPlatform(), Architecture: message.GetArch(),
 		LogicalCPUCount: message.GetLogicalCpuCount(), TotalMemoryBytes: message.GetTotalMemoryBytes(),
+		ToolIDs:   append([]string(nil), message.GetToolIds()...),
 		PairedAt:  time.Unix(0, message.GetPairedAtUnixNano()).UTC(),
 		UpdatedAt: time.Unix(0, message.GetUpdatedAtUnixNano()).UTC(),
 	}

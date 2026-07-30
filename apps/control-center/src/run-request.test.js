@@ -535,6 +535,29 @@ test("runReadinessError allows remote utility runs without a project", () => {
   );
 });
 
+test("runReadinessError explains reported missing tools", () => {
+  assert.equal(
+    runReadinessError({
+      device: { id: "worker-1", name: "Gaming PC", toolIDs: ["node"] },
+      canRun: true,
+      plan: { command: "go test ./...", requiresProject: false },
+      outputs: [],
+      projectRoot: ""
+    }),
+    "Gaming PC does not report go. Choose another computer or install it there."
+  );
+  assert.equal(
+    runReadinessError({
+      device: { id: "worker-1", name: "Old worker", toolIDs: [] },
+      canRun: true,
+      plan: { command: "go test ./...", requiresProject: false },
+      outputs: [],
+      projectRoot: ""
+    }),
+    ""
+  );
+});
+
 test("runReadinessError returns selected device policy failures last", () => {
   assert.equal(
     runReadinessError({

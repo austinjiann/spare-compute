@@ -1291,6 +1291,7 @@ type PingResponse struct {
 	Arch             string                 `protobuf:"bytes,6,opt,name=arch,proto3" json:"arch,omitempty"`
 	LogicalCpuCount  uint32                 `protobuf:"varint,7,opt,name=logical_cpu_count,json=logicalCpuCount,proto3" json:"logical_cpu_count,omitempty"`
 	TotalMemoryBytes uint64                 `protobuf:"varint,8,opt,name=total_memory_bytes,json=totalMemoryBytes,proto3" json:"total_memory_bytes,omitempty"`
+	ToolIds          []string               `protobuf:"bytes,9,rep,name=tool_ids,json=toolIds,proto3" json:"tool_ids,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -1379,6 +1380,13 @@ func (x *PingResponse) GetTotalMemoryBytes() uint64 {
 		return x.TotalMemoryBytes
 	}
 	return 0
+}
+
+func (x *PingResponse) GetToolIds() []string {
+	if x != nil {
+		return x.ToolIds
+	}
+	return nil
 }
 
 type SubmitJobRequest struct {
@@ -2873,6 +2881,7 @@ type TrustedDevice struct {
 	LogicalCpuCount               uint32                 `protobuf:"varint,16,opt,name=logical_cpu_count,json=logicalCpuCount,proto3" json:"logical_cpu_count,omitempty"`
 	TotalMemoryBytes              uint64                 `protobuf:"varint,17,opt,name=total_memory_bytes,json=totalMemoryBytes,proto3" json:"total_memory_bytes,omitempty"`
 	HintsObservedAtUnixNano       int64                  `protobuf:"varint,18,opt,name=hints_observed_at_unix_nano,json=hintsObservedAtUnixNano,proto3" json:"hints_observed_at_unix_nano,omitempty"`
+	ToolIds                       []string               `protobuf:"bytes,19,rep,name=tool_ids,json=toolIds,proto3" json:"tool_ids,omitempty"`
 	unknownFields                 protoimpl.UnknownFields
 	sizeCache                     protoimpl.SizeCache
 }
@@ -3031,6 +3040,13 @@ func (x *TrustedDevice) GetHintsObservedAtUnixNano() int64 {
 		return x.HintsObservedAtUnixNano
 	}
 	return 0
+}
+
+func (x *TrustedDevice) GetToolIds() []string {
+	if x != nil {
+		return x.ToolIds
+	}
+	return nil
 }
 
 type NearbyDevice struct {
@@ -3620,7 +3636,7 @@ const file_computehop_local_v1_local_proto_rawDesc = "" +
 	"\runpair_device\x18\x16 \x01(\v2).computehop.local.v1.UnpairDeviceResponseH\x00R\funpairDevice\x12V\n" +
 	"\x0ffetch_artifacts\x18\x17 \x01(\v2+.computehop.local.v1.FetchArtifactsResponseH\x00R\x0efetchArtifactsB\b\n" +
 	"\x06result\"\r\n" +
-	"\vPingRequest\"\xb2\x02\n" +
+	"\vPingRequest\"\xcd\x02\n" +
 	"\fPingResponse\x12%\n" +
 	"\x0edaemon_version\x18\x01 \x01(\tR\rdaemonVersion\x12\x1b\n" +
 	"\tdevice_id\x18\x02 \x01(\tR\bdeviceId\x12\x1f\n" +
@@ -3630,7 +3646,8 @@ const file_computehop_local_v1_local_proto_rawDesc = "" +
 	"\bplatform\x18\x05 \x01(\tR\bplatform\x12\x12\n" +
 	"\x04arch\x18\x06 \x01(\tR\x04arch\x12*\n" +
 	"\x11logical_cpu_count\x18\a \x01(\rR\x0flogicalCpuCount\x12,\n" +
-	"\x12total_memory_bytes\x18\b \x01(\x04R\x10totalMemoryBytes\"m\n" +
+	"\x12total_memory_bytes\x18\b \x01(\x04R\x10totalMemoryBytes\x12\x19\n" +
+	"\btool_ids\x18\t \x03(\tR\atoolIds\"m\n" +
 	"\x10SubmitJobRequest\x120\n" +
 	"\x04spec\x18\x01 \x01(\v2\x1c.computehop.local.v1.JobSpecR\x04spec\x12'\n" +
 	"\x0fdevice_selector\x18\x02 \x01(\tR\x0edeviceSelector\"?\n" +
@@ -3718,7 +3735,7 @@ const file_computehop_local_v1_local_proto_rawDesc = "" +
 	" \x01(\bR\x0fremoteConfirmed\x12/\n" +
 	"\x14started_at_unix_nano\x18\v \x01(\x03R\x11startedAtUnixNano\x12/\n" +
 	"\x14expires_at_unix_nano\x18\f \x01(\x03R\x11expiresAtUnixNano\x12\x18\n" +
-	"\afailure\x18\r \x01(\tR\afailure\"\xcb\x06\n" +
+	"\afailure\x18\r \x01(\tR\afailure\"\xe6\x06\n" +
 	"\rTrustedDevice\x12\x17\n" +
 	"\apair_id\x18\x01 \x01(\tR\x06pairId\x12\x1b\n" +
 	"\tdevice_id\x18\x02 \x01(\tR\bdeviceId\x12\x1d\n" +
@@ -3740,7 +3757,8 @@ const file_computehop_local_v1_local_proto_rawDesc = "" +
 	"\x04arch\x18\x0f \x01(\tR\x04arch\x12*\n" +
 	"\x11logical_cpu_count\x18\x10 \x01(\rR\x0flogicalCpuCount\x12,\n" +
 	"\x12total_memory_bytes\x18\x11 \x01(\x04R\x10totalMemoryBytes\x12<\n" +
-	"\x1bhints_observed_at_unix_nano\x18\x12 \x01(\x03R\x17hintsObservedAtUnixNano\"\xa2\x05\n" +
+	"\x1bhints_observed_at_unix_nano\x18\x12 \x01(\x03R\x17hintsObservedAtUnixNano\x12\x19\n" +
+	"\btool_ids\x18\x13 \x03(\tR\atoolIds\"\xa2\x05\n" +
 	"\fNearbyDevice\x12\x1f\n" +
 	"\vpresence_id\x18\x01 \x01(\tR\n" +
 	"presenceId\x12\x12\n" +

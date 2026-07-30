@@ -1508,6 +1508,7 @@ type GetWorkerStatusResponse struct {
 	Arch             string                 `protobuf:"bytes,2,opt,name=arch,proto3" json:"arch,omitempty"`
 	LogicalCpuCount  uint32                 `protobuf:"varint,3,opt,name=logical_cpu_count,json=logicalCpuCount,proto3" json:"logical_cpu_count,omitempty"`
 	TotalMemoryBytes uint64                 `protobuf:"varint,4,opt,name=total_memory_bytes,json=totalMemoryBytes,proto3" json:"total_memory_bytes,omitempty"`
+	ToolIds          []string               `protobuf:"bytes,5,rep,name=tool_ids,json=toolIds,proto3" json:"tool_ids,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -1568,6 +1569,13 @@ func (x *GetWorkerStatusResponse) GetTotalMemoryBytes() uint64 {
 		return x.TotalMemoryBytes
 	}
 	return 0
+}
+
+func (x *GetWorkerStatusResponse) GetToolIds() []string {
+	if x != nil {
+		return x.ToolIds
+	}
+	return nil
 }
 
 type SnapshotManifest struct {
@@ -2707,12 +2715,13 @@ const file_computehop_v1_remote_proto_rawDesc = "" +
 	"\x06job_id\x18\x01 \x01(\tR\x05jobId\"8\n" +
 	"\x1fAcknowledgeJobArtifactsResponse\x12\x15\n" +
 	"\x06job_id\x18\x01 \x01(\tR\x05jobId\"\x18\n" +
-	"\x16GetWorkerStatusRequest\"\xa3\x01\n" +
+	"\x16GetWorkerStatusRequest\"\xbe\x01\n" +
 	"\x17GetWorkerStatusResponse\x12\x1a\n" +
 	"\bplatform\x18\x01 \x01(\tR\bplatform\x12\x12\n" +
 	"\x04arch\x18\x02 \x01(\tR\x04arch\x12*\n" +
 	"\x11logical_cpu_count\x18\x03 \x01(\rR\x0flogicalCpuCount\x12,\n" +
-	"\x12total_memory_bytes\x18\x04 \x01(\x04R\x10totalMemoryBytes\"\xa1\x01\n" +
+	"\x12total_memory_bytes\x18\x04 \x01(\x04R\x10totalMemoryBytes\x12\x19\n" +
+	"\btool_ids\x18\x05 \x03(\tR\atoolIds\"\xa1\x01\n" +
 	"\x10SnapshotManifest\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\rR\aversion\x12\x1f\n" +
 	"\vmanifest_id\x18\x02 \x01(\tR\n" +

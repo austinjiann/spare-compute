@@ -86,6 +86,9 @@ Current scope:
   compatibility information after their current LAN row disappears;
 - lets the daemon refresh reachable paired workers through authenticated remote
   status before Auto worker placement falls back to cached resource hints;
+- carries authenticated common-tool hints such as Go, Node, Docker, FFmpeg, or
+  Ollama for This Mac and paired workers, and blocks submission early when a
+  selected computer reports that the planned executable is missing;
 - stores allowed work categories per selected device, so This Mac and each
   worker can have different Builds/Tests/Docker/AI/Video/Exact-command policy;
 - plans plain-language tasks such as "run tests", "build the app", "package
