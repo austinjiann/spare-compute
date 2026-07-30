@@ -38,6 +38,10 @@ Current scope:
 
 - connects directly to the local ComputeHop daemon over the owner-only local IPC
   socket;
+- keeps the primary surface focused on nearby devices, task entry, project
+  selection, run progress, and recent jobs, while optional output declarations,
+  per-device work permissions, preview behavior, and AI planner configuration
+  stay behind disclosure controls;
 - checks the local daemon's real status even when nearby-device discovery is
   disabled, so local run controls do not pretend ComputeHop is running when it
   is not;
