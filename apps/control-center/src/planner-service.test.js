@@ -7,6 +7,10 @@ const {
   planControlCenterTask,
   shouldTryAIPlanner
 } = require("./planner-service");
+const {
+  jobStartRequestForPlan,
+  runReadinessError
+} = require("./run-request");
 
 test("planControlCenterTask uses deterministic local planning before AI", async (t) => {
   const project = await tempProject(t, {
@@ -33,6 +37,44 @@ test("planControlCenterTask uses deterministic local planning before AI", async 
   assert.equal(result.ok, true);
   assert.equal(result.plan.command, "go test ./...");
   assert.equal(calls, 0);
+});
+
+test("planControlCenterTask composes CI planning into a selected-worker run request", async (t) => {
+  const project = await tempProject(t, {
+    Makefile: "pr-check:\n\tgo test ./...\n"
+  });
+  const selectedWorker = {
+    id: "worker-1",
+    name: "Gaming PC"
+  };
+
+  const result = await planControlCenterTask({
+    task: "run project checks",
+    projectRoot: project
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.plan.command, "make pr-check");
+  assert.equal(result.plan.requiresProject, true);
+  assert.equal(runReadinessError({
+    device: selectedWorker,
+    canRun: true,
+    plan: result.plan,
+    projectRoot: project,
+    outputs: []
+  }), "");
+  assert.deepEqual(jobStartRequestForPlan({
+    plan: result.plan,
+    device: selectedWorker,
+    projectRoot: project,
+    outputs: []
+  }), {
+    command: "make pr-check",
+    deviceID: "worker-1",
+    deviceName: "Gaming PC",
+    workingDirectory: project,
+    outputs: []
+  });
 });
 
 test("planControlCenterTask falls back to AI for unknown local tasks", async () => {
