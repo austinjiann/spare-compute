@@ -68,6 +68,9 @@
       outputs: request.outputs
     });
 
+    if (request.daemonAvailable === false) {
+      return "Start ComputeHop before running jobs.";
+    }
     if (device?.unavailableSelection) {
       return `${deviceName} is not available yet. Keep the worker app open, or switch to This Mac.`;
     }

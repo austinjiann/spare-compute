@@ -130,18 +130,7 @@ async function refreshDevices() {
   const status = document.getElementById("scan-status");
 
   if (!state.settings.lanDiscovery) {
-    state.devices = [defaultLocalDevice()];
-    state.pairings = [];
-    error.classList.add("hidden");
-    status.textContent = "Nearby discovery off";
-    state.daemonAvailable = true;
-    state.daemonError = "";
-    renderDaemonCard();
-    renderDevices();
-    renderPairings();
-    renderRunControls();
-    state.jobs = [];
-    renderJobs();
+    await refreshDaemonStatusOnly({ button, error, status });
     return;
   }
 
@@ -219,10 +208,50 @@ function renderDaemonCard() {
   const card = document.getElementById("daemon-card");
   const button = document.getElementById("start-daemon");
   const role = document.getElementById("daemon-role");
-  card.classList.toggle("hidden", state.daemonAvailable || !state.settings.lanDiscovery);
+  card.classList.toggle("hidden", state.daemonAvailable);
   button.disabled = state.startingDaemon;
   button.textContent = state.startingDaemon ? "Starting" : "Start";
   role.disabled = state.startingDaemon;
+}
+
+async function refreshDaemonStatusOnly({ button, error, status }) {
+  refreshInFlight = true;
+  button.disabled = true;
+  button.textContent = "Checking";
+  status.textContent = "Nearby discovery off";
+  try {
+    const response = await window.computeHop.daemonStatus();
+    state.localDevice = response.localDevice || null;
+    state.devices = [defaultLocalDevice()];
+    state.pairings = [];
+    state.daemonAvailable = response.ok;
+    state.daemonError = response.ok ? "" : response.error || "Start ComputeHop to run jobs.";
+    error.classList.add("hidden");
+    error.textContent = "";
+    status.textContent = response.ok ? "Nearby discovery off" : "ComputeHop is off";
+  } catch (err) {
+    state.localDevice = null;
+    state.devices = [defaultLocalDevice()];
+    state.pairings = [];
+    state.daemonAvailable = false;
+    state.daemonError = err.message || "Start ComputeHop to run jobs.";
+    error.classList.add("hidden");
+    error.textContent = "";
+    status.textContent = "ComputeHop is off";
+  } finally {
+    renderDaemonCard();
+    renderDevices();
+    renderPairings();
+    button.disabled = false;
+    button.textContent = "Refresh";
+    refreshInFlight = false;
+    if (state.daemonAvailable) {
+      void refreshJobs();
+    } else {
+      state.jobs = [];
+      renderJobs();
+    }
+  }
 }
 
 async function loadAppInfo() {
@@ -1051,6 +1080,7 @@ async function startPlannedJob(planned, selected) {
 function validateRunReadiness(selected, planned, outputs = []) {
   const policyError = disallowedWorkMessage(planned, capabilitiesForSelectedDevice());
   return runReadinessError({
+    daemonAvailable: state.daemonAvailable,
     device: selected,
     canRun: Boolean(selected && canRunOn(selected)),
     plan: planned,
@@ -1333,8 +1363,8 @@ function renderRunControls() {
     runButton.textContent = "Run";
   }
   testButton.textContent = selected && selected.id === "local" ? "Test Mac" : "Test worker";
-  testButton.disabled = runInFlight || !selected || !canRunOn(selected);
-  runButton.disabled = !runInFlight && (!selected || !canRunOn(selected));
+  testButton.disabled = runInFlight || !state.daemonAvailable || !selected || !canRunOn(selected);
+  runButton.disabled = !runInFlight && (!state.daemonAvailable || !selected || !canRunOn(selected));
 }
 
 function jobsUnavailableMessage(device) {

@@ -172,6 +172,14 @@ test("jobStartRequestForPlan keeps remote utility runs projectless", () => {
 test("runReadinessError blocks missing or unusable run targets", () => {
   assert.equal(
     runReadinessError({
+      daemonAvailable: false,
+      device: { id: "local", name: "This Mac" },
+      canRun: true
+    }),
+    "Start ComputeHop before running jobs."
+  );
+  assert.equal(
+    runReadinessError({
       device: null,
       canRun: false
     }),

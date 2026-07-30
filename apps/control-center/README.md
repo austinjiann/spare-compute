@@ -38,6 +38,9 @@ Current scope:
 
 - connects directly to the local ComputeHop daemon over the owner-only local IPC
   socket;
+- checks the local daemon's real status even when nearby-device discovery is
+  disabled, so local run controls do not pretend ComputeHop is running when it
+  is not;
 - can start the local daemon from the app in development or from the bundled
   daemon in packaged builds, either as the Control Mac or as a Worker;
 - defaults non-macOS computers to Worker because Control Mac is macOS-only;

@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld("computeHop", {
   saveAIPlanner: (request) => ipcRenderer.invoke("aiPlanner:save", request),
   clearAIPlanner: () => ipcRenderer.invoke("aiPlanner:clear"),
   startDaemon: (request) => ipcRenderer.invoke("daemon:start", request),
+  daemonStatus: () => ipcRenderer.invoke("daemon:status"),
   listDevices: () => ipcRenderer.invoke("devices:list"),
   connectDevice: (deviceID) => ipcRenderer.invoke("devices:connect", deviceID),
   forgetDevice: (deviceID) => ipcRenderer.invoke("devices:forget", deviceID),

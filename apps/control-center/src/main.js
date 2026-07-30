@@ -117,6 +117,26 @@ ipcMain.handle("devices:list", async () => {
   }
 });
 
+ipcMain.handle("daemon:status", async () => {
+  try {
+    const client = new LocalDaemonClient();
+    const local = await client.ping();
+    return {
+      ok: true,
+      error: "",
+      errorCode: "",
+      localDevice: mapLocalDevice(local)
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: readableError(error),
+      errorCode: error?.code || "",
+      localDevice: null
+    };
+  }
+});
+
 ipcMain.handle("app:info", async () => appRuntimeInfo(process.platform));
 
 ipcMain.handle("settings:load", async () => {
