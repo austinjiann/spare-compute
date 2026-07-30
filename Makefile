@@ -1,4 +1,4 @@
-.PHONY: check deploy-check fmt install-macos install-macos-check macos-archive macos-package macos-package-check pr-check proto proto-check proto-lint race test uninstall-macos vet worker-archives worker-archives-check
+.PHONY: check deploy-check fmt install-macos install-macos-check macos-archive macos-archive-smoke macos-package macos-package-check pr-check proto proto-check proto-lint race test uninstall-macos vet worker-archives worker-archives-check
 
 BUF_VERSION := v1.72.0
 
@@ -68,11 +68,15 @@ macos-package: macos-package-check
 macos-archive: macos-package-check
 	packaging/macos/archive.sh
 
+macos-archive-smoke: macos-package-check
+	packaging/macos/smoke.sh
+
 macos-package-check:
 	@for script in \
 		packaging/macos/archive.sh \
 		packaging/macos/build.sh \
 		packaging/macos/install.sh \
+		packaging/macos/smoke.sh \
 		packaging/macos/uninstall.sh \
 		packaging/macos/verify.sh; do \
 		sh -n "$$script"; \

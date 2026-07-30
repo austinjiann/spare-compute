@@ -193,6 +193,42 @@ check_plist_value() {
     fi
 }
 
+check_plist_argument_value() {
+    plist_path=$1
+    flag=$2
+    expected_value=$3
+    index=0
+    while argument=$(/usr/libexec/PlistBuddy -c "Print :ProgramArguments:$index" "$plist_path" 2>/dev/null); do
+        if [ "$argument" = "$flag" ]; then
+            value_index=$((index + 1))
+            actual_value=$(/usr/libexec/PlistBuddy -c "Print :ProgramArguments:$value_index" "$plist_path" 2>/dev/null || true)
+            if [ "$actual_value" != "$expected_value" ]; then
+                echo "Unexpected $flag value in $plist_path: $actual_value" >&2
+                echo "Expected: $expected_value" >&2
+                exit 1
+            fi
+            return
+        fi
+        index=$((index + 1))
+    done
+    echo "Missing $flag in $plist_path" >&2
+    exit 1
+}
+
+check_plist_argument_present() {
+    plist_path=$1
+    flag=$2
+    index=0
+    while argument=$(/usr/libexec/PlistBuddy -c "Print :ProgramArguments:$index" "$plist_path" 2>/dev/null); do
+        if [ "$argument" = "$flag" ]; then
+            return
+        fi
+        index=$((index + 1))
+    done
+    echo "Missing $flag in $plist_path" >&2
+    exit 1
+}
+
 if [ -e "$app_target" ] || [ -L "$app_target" ]; then
     existing_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' \
         "$app_target/Contents/Info.plist" 2>/dev/null || true)
@@ -303,6 +339,26 @@ check_plist_value "$launch_agent_target" Label "$service_label"
 check_plist_value "$launch_agent_target" ProgramArguments:0 "$expected_daemon_target"
 check_plist_value "$launch_agent_target" ProgramArguments:1 "--role"
 check_plist_value "$launch_agent_target" ProgramArguments:2 "$device_role"
+if [ -n "$device_name" ]; then
+    check_plist_argument_value "$launch_agent_target" "--device-name" "$device_name"
+fi
+if [ -n "$connectivity_url" ]; then
+    check_plist_argument_value "$launch_agent_target" "--connectivity-url" "$connectivity_url"
+    if [ -n "$stun_server" ]; then
+        check_plist_argument_value "$launch_agent_target" "--stun-server" "$stun_server"
+    fi
+    if [ -n "$turn_server" ]; then
+        check_plist_argument_value "$launch_agent_target" "--turn-server" "$turn_server"
+        check_plist_argument_value "$launch_agent_target" "--turn-username" "$turn_username"
+        check_plist_argument_value "$launch_agent_target" "--turn-password" "$turn_password"
+    fi
+fi
+if [ "$lan_only" = true ]; then
+    check_plist_argument_present "$launch_agent_target" "--lan-only"
+fi
+if [ -n "$cache_size" ]; then
+    check_plist_argument_value "$launch_agent_target" "--cache-size" "$cache_size"
+fi
 check_plist_value "$launch_agent_target" StandardErrorPath "$log_dir/daemon.log"
 check_plist_value "$launch_agent_target" StandardOutPath "$log_dir/daemon.log"
 check_plist_value "$launch_agent_target" WorkingDirectory "$HOME"
@@ -318,6 +374,12 @@ if [ "$check_only" = true ]; then
     echo "Would install CLI link: $cli_target -> $expected_cli_target"
     echo "Would install launch agent: $HOME/Library/LaunchAgents/$service_label.plist"
     echo "Would run daemon as: $device_role"
+    if [ -n "$device_name" ]; then
+        echo "Would use device name: $device_name"
+    fi
+    if [ -n "$cache_size" ]; then
+        echo "Would set cache size: $cache_size"
+    fi
     if [ "$service_is_loaded" = true ]; then
         echo "Existing ComputeHop launch agent is loaded; installer would restart it."
     fi

@@ -39,6 +39,18 @@ package is accepted when Node is available. Archives are verified before they
 are written, so worker Macs can install the copied app without needing the full
 developer toolchain.
 
+Run a non-mutating archive smoke test:
+
+```bash
+make macos-archive-smoke
+```
+
+The smoke target builds the copyable archive in a temporary output directory,
+checks its SHA-256 file, extracts it, verifies the copied app, confirms the
+embedded CLI and daemons answer version checks, and runs isolated `install.sh
+--check` dry-runs for both Control Mac and Worker LAN-only installs. It does not
+write to `~/Applications`, `~/.local/bin`, or `~/Library/LaunchAgents`.
+
 Check the installer path without changing the current user account:
 
 ```bash
@@ -48,9 +60,10 @@ make install-macos-check
 `install.sh --check` builds and verifies the app in a temporary directory,
 validates the selected role/connectivity flags, rejects unrelated existing app,
 CLI, or LaunchAgent targets, renders and validates the rewritten LaunchAgent in
-the temporary directory, and prints what would be installed. It does not copy
-into `~/Applications`, touch `~/.local/bin`, write `~/Library/LaunchAgents`,
-restart launchd, or open the app.
+the temporary directory, including device-name, LAN-only, cache-size, and
+remote-connectivity arguments, and prints what would be installed. It does not
+copy into `~/Applications`, touch `~/.local/bin`, write
+`~/Library/LaunchAgents`, restart launchd, or open the app.
 
 Install it for the current user:
 
@@ -123,9 +136,10 @@ The installer places the app in `~/Applications`, adds a safe CLI symlink at
 then starts at login in the selected role and writes diagnostics to
 `~/Library/Logs/ComputeHop/daemon.log`. Before bootstrapping launchd, the
 installer validates the rewritten launch-agent label, daemon path, selected
-role, log paths, and working directory. If a manually started daemon is already
-using the ComputeHop socket or UDP port, including a daemon from a different
-development build, the installer asks you to stop it instead of killing it.
+role, device-name, LAN-only, cache-size, connectivity flags, log paths, and
+working directory. If a manually started daemon is already using the ComputeHop
+socket or UDP port, including a daemon from a different development build, the
+installer asks you to stop it instead of killing it.
 After installation, the script prints role-specific next steps: orchestrator
 installs get `doctor`, `connect nearby`, and smoke-test commands; worker
 installs tell you what to run on the orchestrator and how to confirm the pairing
