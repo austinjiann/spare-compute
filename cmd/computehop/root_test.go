@@ -174,6 +174,64 @@ func TestRunCommandAutoSelectorErrorExplainsConnectNearby(t *testing.T) {
 	}
 }
 
+func TestRunCommandUnavailableWorkerErrorAddsRecoverySteps(t *testing.T) {
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout,
+		stderr: &bytes.Buffer{},
+		getwd:  func() (string, error) { return "/project", nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+				if got := request.GetSubmitJob().GetDeviceSelector(); got != "auto" {
+					t.Fatalf("device selector = %q", got)
+				}
+				return nil, &localipc.RemoteError{
+					Code:    localv1.ErrorCode_ERROR_CODE_DEVICE_UNAVAILABLE,
+					Message: "paired worker is unavailable: Austin MacBook 2: remote connectivity path is unavailable",
+				}
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"run", "--on", "auto", "hostname"})
+	err := command.Execute()
+	if err == nil {
+		t.Fatal("Execute() error = nil")
+	}
+	for _, want := range []string{
+		"Austin MacBook 2",
+		"remote connectivity path is unavailable",
+		"Next:",
+		"Start ComputeHop on the worker",
+		"computehop devices",
+		"computehop smoke",
+		"computehop setup vps",
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("error = %q; missing %q", err, want)
+		}
+	}
+	if got := stdout.String(); got != "" {
+		t.Fatalf("stdout = %q", got)
+	}
+}
+
+func TestRunCommandUnavailableWorkerErrorDoesNotDuplicateDaemonGuidance(t *testing.T) {
+	message := "paired worker is unavailable: Austin MacBook 2 is not reachable. " +
+		"Start ComputeHop on that worker, put both devices on the same LAN, then run 'computehop smoke'. " +
+		"For cross-network workers, run 'computehop setup vps'. Last error: remote connectivity path is unavailable"
+	got := runSubmitError("auto", &localipc.RemoteError{
+		Code:    localv1.ErrorCode_ERROR_CODE_DEVICE_UNAVAILABLE,
+		Message: message,
+	})
+	if !strings.Contains(got.Error(), "computehop devices") {
+		t.Fatalf("error = %q; missing devices guidance", got)
+	}
+	if strings.Count(got.Error(), "computehop smoke") != 1 ||
+		strings.Count(got.Error(), "computehop setup vps") != 1 {
+		t.Fatalf("error duplicated daemon guidance: %q", got)
+	}
+}
+
 func TestRunCommandAutoSelectorErrorExplainsExplicitChoice(t *testing.T) {
 	var stdout bytes.Buffer
 	command := newRootCommand(dependencies{

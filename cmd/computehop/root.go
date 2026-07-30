@@ -3099,7 +3099,7 @@ func runSubmitError(selector string, err error) error {
 				"more than one active paired worker is available for --on auto; run 'computehop devices', then choose one with 'computehop run --on <device> ...'",
 			)
 		}
-		return err
+		return enrichUnavailableWorkerSubmitError(remoteError, err)
 	}
 	selector = strings.TrimSpace(selector)
 	if selector != "" && remoteError.Code == localv1.ErrorCode_ERROR_CODE_NOT_FOUND &&
@@ -3116,7 +3116,61 @@ func runSubmitError(selector string, err error) error {
 			selector,
 		)
 	}
-	return err
+	return enrichUnavailableWorkerSubmitError(remoteError, err)
+}
+
+func enrichUnavailableWorkerSubmitError(remoteError *localipc.RemoteError, fallback error) error {
+	if remoteError.Code != localv1.ErrorCode_ERROR_CODE_DEVICE_UNAVAILABLE ||
+		!isUnavailableWorkerMessage(remoteError.Message) {
+		return fallback
+	}
+	message := strings.TrimSpace(remoteError.Message)
+	if message == "" {
+		message = "paired worker is unavailable"
+	}
+	nextSteps := missingSubmitNextSteps(message, []submitNextStep{
+		{
+			text:     "Start ComputeHop on the worker and keep both devices on the same LAN.",
+			required: []string{"start computehop", "same lan"},
+		},
+		{text: "Check worker status: computehop devices", required: []string{"computehop devices"}},
+		{text: "Retry the worker test: computehop smoke", required: []string{"computehop smoke"}},
+		{text: "For cross-network workers: computehop setup vps", required: []string{"computehop setup vps"}},
+	})
+	if len(nextSteps) == 0 {
+		return errors.New(message)
+	}
+	return errors.New(message + "\n\nNext:\n- " + strings.Join(nextSteps, "\n- "))
+}
+
+type submitNextStep struct {
+	text     string
+	required []string
+}
+
+func isUnavailableWorkerMessage(message string) bool {
+	lower := strings.ToLower(message)
+	return strings.Contains(lower, "paired worker is unavailable") ||
+		strings.Contains(lower, "remote connectivity path is unavailable") ||
+		strings.Contains(lower, "is not reachable")
+}
+
+func missingSubmitNextSteps(message string, nextSteps []submitNextStep) []string {
+	missing := make([]string, 0, len(nextSteps))
+	lower := strings.ToLower(message)
+	for _, step := range nextSteps {
+		covered := true
+		for _, required := range step.required {
+			if !strings.Contains(lower, strings.ToLower(required)) {
+				covered = false
+				break
+			}
+		}
+		if !covered {
+			missing = append(missing, step.text)
+		}
+	}
+	return missing
 }
 
 func isAutoSelectorNoWorkerMessage(message string) bool {
