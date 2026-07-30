@@ -5,13 +5,16 @@
   const deviceTargets = typeof module === "object" && module.exports
     ? require("./device-targets")
     : root.computeHopDeviceTargets;
-  const exports = factory(outputPath, deviceTargets);
+  const capabilityCatalog = typeof module === "object" && module.exports
+    ? require("./capability-catalog")
+    : root.computeHopCapabilityCatalog;
+  const exports = factory(outputPath, deviceTargets, capabilityCatalog);
   if (typeof module === "object" && module.exports) {
     module.exports = exports;
   } else {
     root.computeHopRunRequest = exports;
   }
-}(typeof globalThis === "object" ? globalThis : window, function createRunRequest(outputPath = {}, deviceTargets = {}) {
+}(typeof globalThis === "object" ? globalThis : window, function createRunRequest(outputPath = {}, deviceTargets = {}, capabilityCatalog = {}) {
   const validatePortableOutputs = outputPath?.validatePortableOutputs || fallbackValidatePortableOutputs;
   const missingToolIDsForPlan = deviceTargets?.missingToolIDsForPlan || (() => []);
   const requiredToolIDsForPlan = deviceTargets?.requiredToolIDsForPlan || (() => []);
@@ -346,6 +349,9 @@
   }
 
   function toolListLabel(values) {
+    if (typeof capabilityCatalog.toolListLabel === "function") {
+      return capabilityCatalog.toolListLabel(values);
+    }
     const labels = values.map((value) => cleanString(value)).filter(Boolean);
     if (labels.length === 0) {
       return "the needed tool";

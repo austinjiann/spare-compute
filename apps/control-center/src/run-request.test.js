@@ -567,7 +567,7 @@ test("runReadinessError explains reported missing tools", () => {
       outputs: [],
       projectRoot: ""
     }),
-    "Gaming PC does not report go. Choose another computer or install it there."
+    "Gaming PC does not report Go. Choose another computer or install it there."
   );
   assert.equal(
     runReadinessError({
