@@ -68,6 +68,7 @@ const {
   workerReadinessSummary
 } = window.computeHopDeviceStatus;
 const { shouldAutoStartDaemon } = window.computeHopDaemonAutostart;
+const { mergeJobRefresh } = window.computeHopJobList;
 const { disallowedWorkMessage, filterAllowedSuggestions } = window.computeHopWorkPolicy;
 const {
   jobOutputsForPlan,
@@ -569,7 +570,7 @@ async function refreshJobs() {
       deviceID: concreteDeviceID(selected),
       limit: 12
     });
-    state.jobs = (response.jobs || []).filter(Boolean);
+    state.jobs = mergeJobRefresh((response.jobs || []).filter(Boolean), state.jobs);
     const stillSelected = state.jobs.some((job) => job.id === state.selectedJobID);
     if (!stillSelected) {
       state.selectedJobID = null;

@@ -131,6 +131,8 @@ Current scope:
 - lists recent jobs for the selected computer and opens their persisted logs;
 - updates recent-job state/progress while a UI-submitted run is still streaming,
   without duplicating job IDs in the output pane;
+- preserves active UI-submitted job rows across manual/automatic refreshes until
+  the daemon list returns the job or the job reaches a terminal state;
 - updates the recent-job row immediately when a UI-submitted job reaches a
   terminal state, before the next history refresh;
 - restores declared outputs from succeeded jobs through daemon IPC;

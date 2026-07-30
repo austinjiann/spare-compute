@@ -1500,7 +1500,8 @@ job placement, list recent jobs for the
 selected computer, open persisted job logs, declare files/folders to bring back,
 show remote snapshot/upload preparation feedback before long project
 submissions, update recent-job progress while a UI-submitted run is still
-streaming, detach live Control Center streams without cancelling daemon jobs
+streaming, preserve active UI-submitted job rows across refreshes until daemon
+history catches up or the job ends, detach live Control Center streams without cancelling daemon jobs
 when the window closes, restore succeeded job outputs to the job's submitted
 project folder by default, prompt for output restore after successful
 UI-submitted jobs with declared or inferred outputs, and cancel listed jobs.
