@@ -129,6 +129,8 @@ Current scope:
 - submits selected commands as durable native jobs;
 - polls daemon job logs and streams stdout/stderr into the window;
 - lists recent jobs for the selected computer and opens their persisted logs;
+- updates recent-job state/progress while a UI-submitted run is still streaming,
+  without duplicating job IDs in the output pane;
 - updates the recent-job row immediately when a UI-submitted job reaches a
   terminal state, before the next history refresh;
 - restores declared outputs from succeeded jobs through daemon IPC;

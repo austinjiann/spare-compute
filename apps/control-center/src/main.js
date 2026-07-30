@@ -18,6 +18,7 @@ const {
 const { appRuntimeInfo, normalizeDaemonRole } = require("./runtime-info");
 const { remotePreparationMessage } = require("./run-feedback");
 const { jobOutputsForPlan, outputValidationForPlan, runWorkingDirectory } = require("./run-request");
+const { jobUpdateSignature, nextJobUpdate } = require("./run-progress");
 const {
   detachActiveRun,
   detachAllRuns,
@@ -416,13 +417,15 @@ async function runDaemonJobStream(runID, jobRequest, argv) {
       throw new Error("ComputeHop daemon returned an empty job.");
     }
 
+    const submittedJob = mapJob(submitted, submitDeviceSelector);
+    let lastJobUpdateSignature = jobUpdateSignature(submittedJob);
     record.jobID = submitted.id;
     record.deviceSelector = followupDeviceSelector(submitDeviceSelector);
     sendRunEvent(record.webContents, runID, {
       type: "job",
       jobID: submitted.id,
       state: jobStateLabel(submitted),
-      job: mapJob(submitted, submitDeviceSelector)
+      job: submittedJob
     });
 
     let afterSequence = 0;
@@ -455,6 +458,18 @@ async function runDaemonJobStream(runID, jobRequest, argv) {
           text: `Job ${jobStateLabel(page.job)}.`
         });
         return;
+      }
+      if (page.job) {
+        const currentJob = mapJob(page.job, submitDeviceSelector);
+        const update = nextJobUpdate(lastJobUpdateSignature, currentJob);
+        lastJobUpdateSignature = update.signature || lastJobUpdateSignature;
+        if (update.changed) {
+          sendRunEvent(record.webContents, runID, {
+            type: "job-update",
+            state: currentJob.state,
+            job: currentJob
+          });
+        }
       }
       if (page.hasMore) {
         continue;

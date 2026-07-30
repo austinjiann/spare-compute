@@ -1577,6 +1577,14 @@ function handleJobEvent(event) {
     return;
   }
 
+  if (event.type === "job-update") {
+    if (event.job) {
+      upsertJob(event.job);
+      renderJobs();
+    }
+    return;
+  }
+
   if (event.type === "finished") {
     if (event.job) {
       upsertJob(event.job);
