@@ -25,6 +25,13 @@ DerivedData/
 *.xcuserstate
 xcuserdata/
 
+# Node/Electron
+node_modules/
+apps/control-center/dist/
+apps/control-center/out/
+npm-debug.log*
+yarn-error.log*
+
 # Local VPS deployment configuration and secrets
 deploy/vps/.env
 deploy/vps/secrets/*

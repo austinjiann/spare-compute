@@ -26,7 +26,7 @@ Last updated: 2026-07-22.
 | Supervised direct internet control | In progress | Daemons reconcile active pair records, retry encrypted rendezvous/ICE negotiation, run the identity-pinned control protocol over selected paths, prefer LAN for jobs, expose path state to CLI/Swift, and support explicit LAN-only daemon/install setup controls. Automated end-to-end and race coverage pass; physical unrelated-network and network-change validation remain. |
 | One-VPS staging deployment | In progress | Provider-neutral Compose stack, Caddy HTTPS edge, authenticated coturn relay, bounded ports/quotas, generated local env/secrets, operator-provisioned short-lived TURN credentials for single-owner relay testing, Ubuntu-only firewall/bootstrap preflights with DNS/init/Compose/verify next steps, cwd-independent verification/credential helpers with actionable preflight and running-service failures, health checks, rollback runbook, and daemon-free, root-oriented, flag-customizable `computehop setup vps` checklist with initial cost, SSH, DNS, firewall, bootstrap, and smoke-test guidance are ready; buying the VPS and forced-relay validation remain. |
 | CLI and physical Mac validation | In progress | Friendlier `--on`, `--on auto` for the single active worker, safe `connect nearby` for the single nearby unpaired worker with `connect auto` compatibility, and no-`--` command syntax, daemon-free `setup`, role shortcuts `setup orchestrator`/`setup worker`, role-aware `setup mac`, setup-helper support for short-lived TURN relay credentials, and `setup vps`, installer-first worker setup guidance, one-command `smoke`, remote `--no-project` utility runs, pre-submit remote project preparation feedback, actionable auto and explicit worker-selection errors that consistently point at `connect nearby`, example-rich help for `setup`/`status`/`devices`/`connect`/`disconnect`/`jobs`/`run`/`logs`/`cancel`/`outputs`/`smoke`, `devices`, empty `jobs` next-step guidance for setup/connect/smoke/offline states, explicit empty-log guidance, and friendly output-retrieval errors, `run --follow/--wait/--get`, `connect` as the guided pairing entry point that surfaces waiting verification requests before generic device guidance, `disconnect` as the friendly trust-revocation entry point with `unpair` compatibility, inferred and actionable pairing confirmation, first-run `doctor` guidance that points at the exact orchestrator/worker setup commands, duplicate-daemon and incompatible-daemon restart guidance, local daemon identity in status output, hidden legacy `pair` help, merged trusted/nearby presentation with friendly trust labels, LAN-only path visibility for disabled remote connectivity, and stale duplicate LAN-presence suppression are implemented; physical macOS-to-macOS discovery, pairing, execution, restart recovery, logs, and cancellation passed. Windows/Linux remain. |
-| macOS menu-bar foundation | In progress | SwiftUI `MenuBarExtra`, generated SwiftProtobuf models, authenticated Unix-socket IPC, local daemon identity, first-run next-step guidance that shows and copies normal, LAN-only, and VPS-ready worker setup commands with shell-safe device names and configurable worker name/cache and VPS domain defaults, one-click safe nearby-worker connection, device/connect controls that pair by discovered identifiers instead of display names, explicit local/other-device pairing confirmation status, LAN-only status for disabled remote connectivity, local trust revocation for paired devices, stale duplicate LAN-presence suppression for trusted devices, native job submission with This Mac, Auto worker, explicit worker targets, no-project remote utility runs, actionable run-target errors, visible Smoke Test disabled reasons, disabled Run explanations for offline daemon, empty command, invalid command quoting, and missing remote project folder states, menu-friendly incompatible-daemon and output-retrieval errors, empty-log placeholders for running and terminal jobs, copyable CLI run/log handoff commands, job-completion notifications for observed running jobs with a persisted menu setting, copyable diagnostic commands for setup/connect troubleshooting, and empty-jobs hints, a no-project remote Smoke Test action, output declarations and retrieval, reconnectable logs, cancellation, and role-specific installer handoff commands build and pass Swift/package checks; an ad-hoc app bundle, launch-agent template verification, rewritten launch-agent install validation, incompatible manual-daemon install guard, and per-user launchd installer are ready for development. |
+| macOS menu-bar and Control Center foundation | In progress | SwiftUI `MenuBarExtra`, generated SwiftProtobuf models, authenticated Unix-socket IPC, local daemon identity, first-run next-step guidance, one-click safe nearby-worker connection, compact device selection, AI-style task planning, native job submission with This Mac or selected workers, project folder selection, output declarations and retrieval, reconnectable logs, cancellation, notifications, and diagnostics build and pass Swift/package checks. Heavier device sync, allowed work, project sync, relay, and future AI planner settings are being moved into a separate Electron Control Center so the menu bar remains a fast status/task surface; an initial Control Center scaffold is present. An ad-hoc app bundle, launch-agent template verification, rewritten launch-agent install validation, incompatible manual-daemon install guard, and per-user launchd installer are ready for development. |
 | Project snapshots, incremental transfer, and declared artifacts | In progress | Remote runs resolve a local project root, create bounded content-defined snapshots, upload only missing verified chunks, and execute in isolated workspaces. Workers durably collect exact declared files/directories before success; orchestrators fetch only missing verified chunks and restore without overwrites or symlink traversal. Transfer peers negotiate bounded identity/zstd chunk encoding while preserving decoded-content hashes. The persistent verified content cache is SQLite-indexed, LRU-evicted, quota-bound, and protects active jobs plus unacknowledged artifact chunks. Artifact download/restore progress is durable and visible in CLI/Swift job summaries, and `run --get` restores to the submitted working directory by default. Automated LAN/supervised-path reuse, ignore behavior, and artifact coverage pass; secrets, upload progress, byte-range resume, and physical cross-platform validation remain. |
 | Later launch slices | In progress | Direct internet control still needs physical unrelated-network and reconnect validation, and public TURN relay issuance requires a hosted entitlement boundary. Full compatibility/resource scheduling, adapters, production packaging, and release operations follow. |
 
@@ -178,10 +178,10 @@ control surface.
 ## 4. System Architecture
 
 ```text
-                 macOS SwiftUI Menu Bar
-                           │
-                       Local IPC
-                           │
+        macOS SwiftUI Menu Bar      Electron Control Center
+                   │                          │
+                   └────────── Local IPC ─────┘
+                              │
                  Go Orchestrator Daemon
        ┌───────────────────┼───────────────────┐
        │                   │                   │
@@ -225,8 +225,16 @@ On workers it exposes only local setup and worker-management commands.
 #### ComputeHop Menu Bar
 
 A SwiftUI `MenuBarExtra` application that communicates only with the local
-orchestrator daemon. It does not implement networking, scheduling, or job
-execution itself.
+orchestrator daemon. It is intentionally small: daemon status, current device,
+quick task entry, and a handoff to deeper configuration. It does not implement
+networking, scheduling, or job execution itself.
+
+#### ComputeHop Control Center
+
+An Electron desktop application for heavier configuration: synced devices,
+allowed work by device, project sync defaults, relay settings, and future AI
+planner configuration. It should use the same local daemon API as the CLI and
+menu bar once those settings are durable.
 
 #### ComputeHop Connectivity Service
 
@@ -262,9 +270,12 @@ for the native macOS application.
 
 - **Runtime language:** a supported stable Go release, pinned by the `go` and
   `toolchain` directives in `go.mod`.
-- **macOS application:** Swift 6 and SwiftUI.
+- **macOS menu-bar application:** Swift 6 and SwiftUI.
+- **Desktop Control Center:** Electron with a small local UI layer; durable
+  settings still belong in the Go daemon, not in renderer-only state.
 - **Build system:** the Go toolchain and Xcode/Swift Package Manager for macOS.
-- **Dependency locking:** commit `go.mod`, `go.sum`, and `Package.resolved`.
+- **Dependency locking:** commit `go.mod`, `go.sum`, `Package.resolved`, and
+  package lockfiles for JavaScript apps.
 - **Configuration:** TOML through `github.com/pelletier/go-toml/v2`.
 - **CLI:** `github.com/spf13/cobra` with all commands delegating to shared
   application services.
@@ -289,6 +300,7 @@ internal/executor        Native and container process execution
 internal/adapters        Cargo, FFmpeg, Ollama, and future built-in adapters
 api/proto                Protocol Buffer definitions
 apps/macos/ComputeHop    SwiftUI menu-bar application
+apps/control-center      Electron settings and device-management application
 ```
 
 The daemon and CLI share these internal packages. Do not duplicate job rules or
@@ -1004,24 +1016,32 @@ secret itself. The UI must warn about that limitation.
 
 ## 15. macOS User Experience
 
-### Menu-bar sections
+### Menu-bar surface
 
-#### Devices
+The menu bar is the fast path, not the settings product. It should show:
 
-- Connection path shown as `Local`, `Direct remote`, `Relayed`, or `Offline`.
-- A LAN-only privacy control that disables rendezvous and relay use.
-- Discovered and connected devices.
-- Online, offline, paused, draining, and incompatible states.
-- CPU, memory, disk, battery, thermal, and supported GPU information.
-- Available executors, tools, services, and compatibility warnings.
-- Connect, revoke, pause, resume, and policy controls.
+- daemon status and local identity;
+- worker availability at a glance;
+- a compact device picker;
+- one natural-language task box;
+- project selection when needed;
+- the current/most recent job only when it needs attention;
+- refresh, quit, and Control Center handoff.
 
-#### Jobs
+Avoid putting detailed policy, route, cache, relay, capability, or historical
+job management in the menu bar.
 
-- Queued, running, disconnected, failed, and completed jobs.
-- Selected worker and a concise placement explanation.
-- Logs, adapter progress, runtime, resource use, cancel, retry, and artifact
-  actions.
+### Control Center surface
+
+The Control Center owns the heavier setup and management flows:
+
+- synced devices and trust/revocation;
+- allowed work by device;
+- connection mode, LAN-only, relay, and VPS settings;
+- default project sync and artifact behavior;
+- cache quotas;
+- logs/history views;
+- future AI planner provider and permission settings.
 
 #### Notifications
 
@@ -1413,18 +1433,19 @@ preflight rather than after a large transfer.
 **Implementation status:** the SwiftUI menu-bar foundation now builds from the
 root Swift package, uses generated SwiftProtobuf models, authenticates to local
 IPC protocol v6, and presents daemon health with local identity, first-run
-next-step guidance, devices, connection confirmation, trust revocation for
-paired devices, native job submission to the Mac, Auto worker, or a paired
-available worker, local project folder selection for incremental remote
-transfer, recent jobs, reconnectable output, artifact restoration, and
-cancellation. Unit tests cover framing, ping identity mapping, Auto worker
-target submission, no-project Smoke Test submission, pairing confirmation
-guidance, revocation actions, setup guidance, invalid command-input guidance,
-empty-log placeholders, copyable CLI run/log handoffs, job-completion
-notifications and their persisted setting, diagnostic command copying,
-configurable setup/VPS defaults, and safe command parsing; a real Swift client has successfully
-pinged the Go daemon, submitted a durable native job, and read its output.
-Broader settings remain. A host-architecture
+next-step guidance, compact device selection, task planning, native job
+submission to the Mac or a paired available worker, local project folder
+selection for incremental remote transfer, reconnectable output, artifact
+restoration, and cancellation. Unit tests cover framing, ping identity mapping,
+Auto worker target submission, no-project Smoke Test submission, pairing
+confirmation guidance, revocation actions, setup guidance, invalid
+command-input guidance, empty-log placeholders, copyable CLI run/log handoffs,
+job-completion notifications and their persisted setting, diagnostic command
+copying, configurable setup/VPS defaults, and safe command parsing; a real
+Swift client has successfully pinged the Go daemon, submitted a durable native
+job, and read its output. A separate Electron Control Center scaffold now owns
+the direction for heavier settings. Durable daemon-backed settings for that app
+remain. A host-architecture
 developer app bundle now includes the menu app, CLI, and daemon; a guarded
 per-user installer configures an
 unprivileged launch agent and preserves durable state on uninstall. Developer

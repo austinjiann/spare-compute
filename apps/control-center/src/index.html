@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ComputeHop Control Center</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="panel">
+        <header class="panel-head">
+          <div>
+            <h1>ComputeHop</h1>
+            <p id="scan-status">Scanning nearby devices</p>
+          </div>
+          <input id="lan-discovery" type="checkbox" checked aria-label="Find nearby devices" />
+        </header>
+
+        <div class="divider"></div>
+
+        <section class="section">
+          <div class="section-title">
+            <h2>Devices</h2>
+            <button id="refresh-devices" class="text-button">Refresh</button>
+          </div>
+          <div id="device-list" class="list"></div>
+          <pre id="device-error" class="error hidden"></pre>
+        </section>
+
+        <div class="divider"></div>
+
+        <section class="section">
+          <h2>Allow</h2>
+          <div id="capability-grid" class="check-grid"></div>
+        </section>
+
+        <div class="divider"></div>
+
+        <label class="setting-row">
+          <span><strong>Preview before running</strong><small>Show the plan first.</small></span>
+          <input id="ask-before-run" type="checkbox" checked />
+        </label>
+
+        <label class="field hidden">
+          <span>Planner</span>
+          <select id="ai-provider">
+            <option value="off">Local rules for now</option>
+            <option value="openai">OpenAI later</option>
+            <option value="local">Local model later</option>
+          </select>
+        </label>
+      </section>
+    </main>
+
+    <script src="./renderer.js"></script>
+  </body>
+</html>

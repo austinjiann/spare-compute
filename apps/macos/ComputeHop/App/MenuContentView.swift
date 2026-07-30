@@ -3,69 +3,87 @@ import SwiftUI
 
 struct MenuContentView: View {
     let model: AppModel
+    @State private var showAdvanced = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("ComputeHop")
-                        .font(.headline)
-                    if let daemon = model.daemon {
-                        Text(daemon.daemonText)
-                            .font(.caption)
-                            .foregroundStyle(Color.secondary)
-                        if let identity = daemon.identityText {
-                            Text("This Mac: \(identity)")
-                                .font(.caption2)
-                                .foregroundStyle(Color.secondary)
-                                .lineLimit(1)
-                        }
-                    } else {
-                        Text("Daemon offline")
-                            .font(.caption)
-                            .foregroundStyle(Color.red)
-                    }
-                }
-                Spacer()
-                Button {
-                    Task { await model.refresh() }
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                }
-                .buttonStyle(.plain)
-                .disabled(model.isRefreshing)
-                .help("Refresh")
-            }
+        VStack(alignment: .leading, spacing: 10) {
+            header
 
             if let error = model.lastError {
                 Text(error)
                     .font(.caption)
                     .foregroundStyle(.red)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(2)
             }
 
-            Divider()
             SetupGuideSection(model: model)
+            Divider()
             PairingSection(model: model)
             DevicesSection(model: model)
             Divider()
             RunJobSection(model: model)
             Divider()
-            JobsSection(model: model)
-            Divider()
-            SettingsSection(model: model)
-            Divider()
+            advanced
 
-            HStack {
-                Text("Nearby addresses are untrusted hints; paired sessions still verify device keys.")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Button("Quit") { NSApplication.shared.terminate(nil) }
-                    .buttonStyle(.plain)
-            }
+            Divider()
+            footer
         }
         .padding(14)
-        .frame(width: 420)
+        .frame(width: 360)
+    }
+
+    private var header: some View {
+        HStack(spacing: 8) {
+            Image(systemName: model.isConnected ? "cpu" : "exclamationmark.triangle")
+                .foregroundStyle(model.isConnected ? Color.primary : Color.orange)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("ComputeHop")
+                    .font(.headline)
+                Text(headerSubtitle)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer()
+        }
+    }
+
+    private var headerSubtitle: String {
+        guard let daemon = model.daemon else { return "Daemon offline" }
+        if let deviceName = daemon.deviceName {
+            return "Ready on \(deviceName)"
+        }
+        return daemon.daemonText
+    }
+
+    private var advanced: some View {
+        DisclosureGroup("Advanced", isExpanded: $showAdvanced) {
+            VStack(alignment: .leading, spacing: 12) {
+                SettingsSection(model: model)
+            }
+            .padding(.top, 4)
+        }
+        .font(.caption)
+    }
+
+    private var footer: some View {
+        HStack {
+            Spacer()
+            Button {
+                Task { await model.refresh() }
+            } label: {
+                Image(systemName: "arrow.clockwise")
+            }
+            .buttonStyle(.plain)
+            .disabled(model.isRefreshing)
+            .help("Refresh")
+            Button {
+                NSApplication.shared.terminate(nil)
+            } label: {
+                Image(systemName: "power")
+            }
+            .buttonStyle(.plain)
+            .help("Quit")
+        }
     }
 }

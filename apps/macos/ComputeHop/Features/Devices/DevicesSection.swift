@@ -1,51 +1,119 @@
 import SwiftUI
 
 struct DevicesSection: View {
-    let model: AppModel
+    @Bindable var model: AppModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Devices")
-                .font(.headline)
-            if model.devices.isEmpty {
-                Text("No nearby or connected devices")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
-                ForEach(model.devices) { device in
-                    HStack(spacing: 8) {
-                        Image(systemName: device.availability == .offline ? "circle" : "circle.fill")
-                            .font(.system(size: 8))
-                            .foregroundStyle(availabilityColor(device.availability))
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(device.name)
-                            Text("\(device.role) · \(device.trustDisplay) · \(device.shortID)")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        if device.canPair {
-                            Button("Connect") {
-                                Task { await model.connect(device) }
-                            }
-                            .disabled(model.actionInProgress != nil)
-                        } else if device.canDisconnect {
-                            Text(statusText(for: device))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Button("Disconnect") {
-                                Task { await model.disconnect(device) }
-                            }
-                            .disabled(model.actionInProgress != nil)
-                        } else {
-                            Text(statusText(for: device))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Device")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .padding(.bottom, 4)
+
+            deviceMenu
+
+            selectedStatus
+        }
+    }
+
+    private var deviceMenu: some View {
+        Menu {
+            Button {
+                model.selectLocalDevice()
+            } label: {
+                Label("This Mac", systemImage: model.selectedDeviceID == AppModel.localDeviceID ? "checkmark" : "desktopcomputer")
+            }
+
+            if !model.devices.isEmpty {
+                Divider()
+            }
+
+            ForEach(model.devices) { device in
+                Button {
+                    if device.canPair {
+                        Task { await model.connect(device) }
+                    } else {
+                        model.selectDevice(device)
                     }
+                } label: {
+                    Label(
+                        devicePickerLabel(device),
+                        systemImage: model.selectedDeviceID == device.id ? "checkmark" : statusIcon(for: device)
+                    )
                 }
             }
+        } label: {
+            menuRow(
+                icon: "desktopcomputer",
+                title: "Run on",
+                value: model.selectedTargetName
+            )
         }
+        .menuStyle(.borderlessButton)
+    }
+
+    private var selectedStatus: some View {
+        Group {
+            if let selected = model.selectedDevice {
+                HStack(spacing: 10) {
+                    statusDot(selected.availability)
+                    Text(shortStatus(for: selected))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    if selected.canPair {
+                        Button("Connect") {
+                            Task { await model.connect(selected) }
+                        }
+                        .disabled(model.actionInProgress != nil)
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+        }
+    }
+
+    private func menuRow(icon: String, title: String, value: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 24, height: 24)
+                .background(.quaternary, in: Circle())
+            Text(title)
+                .font(.body.weight(.semibold))
+            Spacer()
+            Text(value)
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+        }
+        .contentShape(Rectangle())
+        .padding(.vertical, 7)
+    }
+
+    private func statusIcon(for device: DeviceSummary) -> String {
+        if device.canPair {
+            return "plus.circle"
+        }
+        switch device.availability {
+        case .nearby, .remote:
+            return "circle.fill"
+        case .connecting:
+            return "circle.dotted"
+        case .offline:
+            return "circle"
+        }
+    }
+
+    private func statusDot(_ availability: DeviceSummary.Availability) -> some View {
+        Circle()
+            .fill(availabilityColor(availability))
+            .frame(width: 7, height: 7)
+            .opacity(availability == .offline ? 0.45 : 1)
     }
 
     private func availabilityColor(_ availability: DeviceSummary.Availability) -> Color {
@@ -57,9 +125,26 @@ struct DevicesSection: View {
         }
     }
 
-    private func statusText(for device: DeviceSummary) -> String {
-        [device.availability.rawValue, device.path, device.address]
-            .compactMap { $0 }
-            .joined(separator: " · ")
+    private func shortStatus(for device: DeviceSummary) -> String {
+        switch device.availability {
+        case .nearby:
+            return "Available"
+        case .remote:
+            return "Available"
+        case .connecting:
+            return "Connecting"
+        case .offline:
+            return "Offline"
+        }
+    }
+
+    private func devicePickerLabel(_ device: DeviceSummary) -> String {
+        if device.canPair {
+            return "\(device.name) · New"
+        }
+        if device.availability == .offline {
+            return "\(device.name) · Offline"
+        }
+        return device.name
     }
 }
