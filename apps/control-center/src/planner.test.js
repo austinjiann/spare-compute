@@ -3,7 +3,14 @@ const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
-const { classifyIntent, commandNeedsProject, planTask, suggestTasks, targetPreferenceForTask } = require("./planner");
+const {
+  classifyIntent,
+  commandNeedsProject,
+  planTask,
+  stripPlacementSuffix,
+  suggestTasks,
+  targetPreferenceForTask
+} = require("./planner");
 
 test("planTask prefers Makefile PR check for CI", async (t) => {
   const project = await tempProject(t, {
@@ -37,6 +44,25 @@ test("planTask carries remote placement hints from natural language", async (t) 
   assert.equal(local.plan.targetPreference, "local");
   assert.equal(targetPreferenceForTask("delegate the build to the gaming pc"), "worker");
   assert.equal(targetPreferenceForTask("run this on this Mac"), "local");
+});
+
+test("planTask strips placement words from exact commands", async () => {
+  const remoteGo = await planTask({ task: "go test ./... on the worker", projectRoot: "" });
+  const remoteMake = await planTask({ task: "make pr-check on the other computer", projectRoot: "" });
+  const remoteUtility = await planTask({ task: "hostname on the worker", projectRoot: "" });
+  const localGo = await planTask({ task: "go test ./... here", projectRoot: "" });
+
+  assert.equal(remoteGo.ok, true);
+  assert.equal(remoteGo.plan.command, "go test ./...");
+  assert.equal(remoteGo.plan.targetPreference, "worker");
+  assert.equal(remoteGo.plan.requiresProject, true);
+  assert.equal(remoteMake.plan.command, "make pr-check");
+  assert.equal(remoteMake.plan.targetPreference, "worker");
+  assert.equal(remoteUtility.plan.command, "hostname");
+  assert.equal(remoteUtility.plan.requiresProject, false);
+  assert.equal(localGo.plan.command, "go test ./...");
+  assert.equal(localGo.plan.targetPreference, "local");
+  assert.equal(stripPlacementSuffix("pnpm test on the worker"), "pnpm test");
 });
 
 test("planTask uses detected package manager scripts", async (t) => {

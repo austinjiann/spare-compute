@@ -396,7 +396,7 @@ function targetPreferenceForTask(task) {
 }
 
 function exactCommand(task) {
-  return looksLikeCommand(task) ? task : "";
+  return looksLikeCommand(task) ? stripPlacementSuffix(task) : "";
 }
 
 function looksLikeCommand(task) {
@@ -408,6 +408,19 @@ function looksLikeCommand(task) {
     value.includes("--") ||
     /^[a-z0-9_.-]+(\s|$)/i.test(value) && !/^(run|build|bundle|package|release|test|check|checks|ci|fix|verify|validate|preflight|lint|format|fmt|style|install|deps|dependencies|smoke|ping|connection|please|can|could|make|do)\b/i.test(value)
   );
+}
+
+function stripPlacementSuffix(task) {
+  let value = String(task || "").trim();
+  if (!value) {
+    return "";
+  }
+  value = value
+    .replace(/\s+(?:here|locally)$/i, "")
+    .replace(/\s+(?:on|using|with)\s+(?:this\s+mac|this\s+computer|my\s+mac|local(?:ly)?|here)$/i, "")
+    .replace(/\s+(?:on|using|with|to)\s+(?:the\s+)?(?:worker|remote|other\s+computer|another\s+computer|desktop|pc|gaming\s+pc|server|home\s+server)$/i, "")
+    .trim();
+  return value;
 }
 
 function packageManager(files) {
@@ -517,6 +530,7 @@ module.exports = {
   classifyIntent,
   inspectProject,
   planTask,
+  stripPlacementSuffix,
   suggestTasks,
   targetPreferenceForTask
 };
