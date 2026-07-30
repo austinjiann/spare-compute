@@ -175,6 +175,20 @@ test("runReadinessError blocks missing or unusable run targets", () => {
   );
 });
 
+test("runReadinessError explains pending selected workers", () => {
+  assert.equal(
+    runReadinessError({
+      device: {
+        id: "worker-1",
+        name: "Gaming PC",
+        unavailableSelection: true
+      },
+      canRun: false
+    }),
+    "Gaming PC is not available yet. Keep the worker app open, or switch to This Mac."
+  );
+});
+
 test("runReadinessError requires a project before project work on any device", () => {
   assert.equal(
     runReadinessError({

@@ -315,7 +315,7 @@ function renderJobs() {
 
   const selected = selectedDevice();
   if (!selected || !canRunOn(selected)) {
-    list.append(emptyJobsRow("Choose This Mac or a connected worker."));
+    list.append(emptyJobsRow(jobsUnavailableMessage(selected)));
     renderSelectedJobLog();
     return;
   }
@@ -1309,6 +1309,13 @@ function renderRunControls() {
   testButton.textContent = selected && selected.id === "local" ? "Test Mac" : "Test worker";
   testButton.disabled = runInFlight || !selected || !canRunOn(selected);
   runButton.disabled = !runInFlight && (!selected || !canRunOn(selected));
+}
+
+function jobsUnavailableMessage(device) {
+  if (device?.unavailableSelection) {
+    return `${device.name} is not available yet. Keep the worker app open, or switch to This Mac.`;
+  }
+  return "Choose This Mac or a connected worker.";
 }
 
 function planMatchesInput(task) {

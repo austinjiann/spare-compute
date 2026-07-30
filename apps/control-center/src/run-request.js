@@ -65,6 +65,9 @@
       outputs: request.outputs
     });
 
+    if (device?.unavailableSelection) {
+      return `${deviceName} is not available yet. Keep the worker app open, or switch to This Mac.`;
+    }
     if (!device || !request.canRun) {
       return "Choose This Mac or a connected worker first.";
     }

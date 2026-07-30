@@ -1472,8 +1472,9 @@ worker target and default to it until the user makes an explicit device choice
 when exactly one connected worker is available, persist explicit run-target
 choices across app restarts without silently falling back to This Mac while a
 remote target is temporarily unavailable, show a named waiting state for the
-selected worker while it reconnects, display the resolved backing worker name
-for Auto-worker submissions, route Auto-worker job follow-ups through remembered
+selected worker while it reconnects, keep run and job-history actions disabled
+with a worker-specific explanation until that worker is available, display the
+resolved backing worker name for Auto-worker submissions, route Auto-worker job follow-ups through remembered
 job placement, list recent jobs for the
 selected computer, open persisted job logs, declare files/folders to bring back,
 show remote snapshot/upload preparation feedback before long project
