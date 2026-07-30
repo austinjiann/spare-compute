@@ -17,9 +17,10 @@ const { appRuntimeInfo, normalizeDaemonRole } = require("./runtime-info");
 const { remotePreparationMessage } = require("./run-feedback");
 const { jobOutputsForPlan, runWorkingDirectory } = require("./run-request");
 const {
+  detachActiveRun,
+  detachAllRuns,
+  detachRunsForWebContents,
   stopActiveRun,
-  stopAllRuns,
-  stopRunsForWebContents
 } = require("./run-lifecycle");
 const {
   deviceSelectorFromDeviceID,
@@ -66,7 +67,7 @@ function createWindow() {
   win.loadFile(path.join(__dirname, "index.html"));
 
   win.on("close", () => {
-    void stopRunsForWebContents(activeRuns, win.webContents);
+    detachRunsForWebContents(activeRuns, win.webContents);
   });
 }
 
@@ -87,7 +88,7 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
-  void stopAllRuns(activeRuns);
+  detachAllRuns(activeRuns);
 });
 
 ipcMain.handle("devices:list", async () => {
@@ -414,6 +415,9 @@ async function runDaemonJobStream(runID, jobRequest, argv) {
     }
   } catch (error) {
     const current = activeRuns.get(runID);
+    if (!current) {
+      return;
+    }
     const stopped = current?.stopped || error.code === "ABORTED";
     sendRunEvent(record.webContents, runID, {
       type: "finished",
@@ -428,7 +432,7 @@ async function runDaemonJobStream(runID, jobRequest, argv) {
 
 function sendRunEvent(webContents, runID, payload) {
   if (webContents.isDestroyed()) {
-    activeRuns.delete(runID);
+    detachActiveRun(activeRuns, runID);
     return;
   }
   webContents.send("jobs:event", { runID, ...payload });

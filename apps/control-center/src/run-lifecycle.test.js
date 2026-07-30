@@ -1,10 +1,12 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const {
+  detachActiveRun,
+  detachAllRuns,
+  detachRunsForWebContents,
   runIDsForWebContents,
   stopActiveRun,
-  stopAllRuns,
-  stopRunsForWebContents
+  stopAllRuns
 } = require("./run-lifecycle");
 
 test("stopActiveRun aborts and cancels a submitted job", async () => {
@@ -80,7 +82,26 @@ test("stopActiveRun reports cancellation failures without throwing", async () =>
   assert.deepEqual(reports, [{ webContentsID: 7, runID: "run-1", error: failure }]);
 });
 
-test("stopRunsForWebContents stops only runs owned by the closed window", async () => {
+test("detachActiveRun aborts stream tracking without cancelling submitted daemon jobs", () => {
+  let cancelled = false;
+  const activeRuns = new Map([
+    ["run-1", {
+      abortController: new AbortController(),
+      client: { cancelJob: async () => { cancelled = true; } },
+      deviceSelector: "worker-1",
+      jobID: "job-1",
+      stopped: false
+    }]
+  ]);
+
+  const result = detachActiveRun(activeRuns, "run-1");
+
+  assert.deepEqual(result, { detached: true, submitted: true });
+  assert.equal(cancelled, false);
+  assert.equal(activeRuns.has("run-1"), false);
+});
+
+test("detachRunsForWebContents detaches only runs owned by the closed window", () => {
   const firstWindow = { id: 1 };
   const secondWindow = { id: 2 };
   const stopped = [];
@@ -92,12 +113,29 @@ test("stopRunsForWebContents stops only runs owned by the closed window", async 
 
   assert.deepEqual(runIDsForWebContents(activeRuns, firstWindow), ["run-1", "run-2"]);
 
-  const result = await stopRunsForWebContents(activeRuns, firstWindow);
+  const result = detachRunsForWebContents(activeRuns, firstWindow);
 
-  assert.equal(result.stopped, 2);
-  assert.equal(result.cancelled, 2);
-  assert.deepEqual(stopped, ["job-run-1", "job-run-2"]);
+  assert.equal(result.detached, 2);
+  assert.equal(result.submitted, 2);
+  assert.deepEqual(stopped, []);
+  assert.equal(activeRuns.has("run-1"), false);
+  assert.equal(activeRuns.has("run-2"), false);
   assert.equal(activeRuns.get("run-3").stopped, false);
+});
+
+test("detachAllRuns detaches every active stream without cancellation", () => {
+  const stopped = [];
+  const activeRuns = new Map([
+    ["run-1", record({ id: 1 }, stopped, "job-run-1")],
+    ["run-2", record({ id: 2 }, stopped, "job-run-2")]
+  ]);
+
+  const result = detachAllRuns(activeRuns);
+
+  assert.equal(result.detached, 2);
+  assert.equal(result.submitted, 2);
+  assert.deepEqual(stopped, []);
+  assert.equal(activeRuns.size, 0);
 });
 
 test("stopAllRuns stops every active run", async () => {

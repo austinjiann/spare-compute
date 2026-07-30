@@ -27,6 +27,41 @@ async function stopActiveRun(activeRuns, runID, options = {}) {
   }
 }
 
+function detachActiveRun(activeRuns, runID) {
+  const id = String(runID || "");
+  const record = activeRuns.get(id);
+  if (!record) {
+    return { detached: false, submitted: false };
+  }
+
+  record.detached = true;
+  if (record.abortController && typeof record.abortController.abort === "function") {
+    record.abortController.abort();
+  }
+  activeRuns.delete(id);
+  return { detached: true, submitted: Boolean(record.jobID) };
+}
+
+function detachRunsForWebContents(activeRuns, webContents) {
+  return detachRunIDs(activeRuns, runIDsForWebContents(activeRuns, webContents));
+}
+
+function detachAllRuns(activeRuns) {
+  return detachRunIDs(activeRuns, [...activeRuns.keys()]);
+}
+
+function detachRunIDs(activeRuns, runIDs) {
+  const results = [];
+  for (const runID of runIDs) {
+    results.push(detachActiveRun(activeRuns, runID));
+  }
+  return {
+    detached: results.filter((result) => result.detached).length,
+    submitted: results.filter((result) => result.submitted).length,
+    results
+  };
+}
+
 async function stopRunsForWebContents(activeRuns, webContents, options = {}) {
   return stopRunIDs(activeRuns, runIDsForWebContents(activeRuns, webContents), options);
 }
@@ -72,6 +107,9 @@ function webContentsID(webContents) {
 }
 
 module.exports = {
+  detachActiveRun,
+  detachAllRuns,
+  detachRunsForWebContents,
   runIDsForWebContents,
   stopActiveRun,
   stopAllRuns,

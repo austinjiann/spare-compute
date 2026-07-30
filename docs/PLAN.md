@@ -1471,7 +1471,8 @@ worker target when exactly one connected worker is available, route Auto-worker
 job follow-ups through remembered job placement, list recent jobs for the
 selected computer, open persisted job logs, declare files/folders to bring back,
 show remote snapshot/upload preparation feedback before long project
-submissions, restore succeeded job outputs, and cancel listed jobs.
+submissions, detach live Control Center streams without cancelling daemon jobs
+when the window closes, restore succeeded job outputs, and cancel listed jobs.
 Durable daemon-backed cluster settings for that app remain. A host-architecture
 developer app bundle now includes the menu app, CLI, and daemon; a guarded
 per-user installer configures an
