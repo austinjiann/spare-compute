@@ -1745,7 +1745,8 @@ func printDaemonStartAdvice(stdout io.Writer, err error) error {
 			"Daemon: running, but not compatible with this CLI",
 			"",
 			"Next:",
-			"- If you installed from this checkout: make install-macos",
+			"- Check the packaged install from this checkout without changing this Mac: make install-macos-check",
+			"- If the check passes, reinstall from this checkout: make install-macos",
 			"- If you want to switch back to a manual development daemon: make uninstall-macos",
 			"- Then start the daemon from this checkout:",
 			"  go run ./cmd/computehopd --role orchestrator --device-name \"This Mac\"",
@@ -1758,7 +1759,8 @@ func printDaemonStartAdvice(stdout io.Writer, err error) error {
 			"Next:",
 			"- If the app is installed: open -a ComputeHop",
 			"- If you are developing from this repo: go run ./cmd/computehopd --role orchestrator --device-name \"This Mac\"",
-			"- To print the exact menu-bar app and launch-at-login install command: computehop setup orchestrator",
+			"- To print the exact menu-bar app and launch-at-login install commands: computehop setup orchestrator",
+			"- To check that install path without changing this Mac: make install-macos-check",
 			"- Then run: computehop doctor",
 		}
 	default:

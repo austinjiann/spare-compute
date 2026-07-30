@@ -1734,6 +1734,7 @@ func TestDoctorCommandPrintsStartAdviceWhenDaemonIsNotRunning(t *testing.T) {
 		"Daemon: not running",
 		"open -a ComputeHop",
 		"computehop setup orchestrator",
+		"make install-macos-check",
 		"go run ./cmd/computehopd --role orchestrator --device-name \"This Mac\"",
 		"computehop doctor",
 	} {
@@ -1796,6 +1797,7 @@ func TestDoctorCommandPrintsRestartAdviceWhenDaemonProtocolMismatches(t *testing
 	}
 	for _, want := range []string{
 		"Daemon: running, but not compatible with this CLI",
+		"make install-macos-check",
 		"make install-macos",
 		"make uninstall-macos",
 		"go run ./cmd/computehopd --role orchestrator",
