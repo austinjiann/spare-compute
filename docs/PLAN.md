@@ -10,7 +10,7 @@ model, delivery milestones, and acceptance criteria.
 
 ### Implementation snapshot
 
-Last updated: 2026-07-22.
+Last updated: 2026-07-30.
 
 | Slice | Status | Delivered behavior |
 | --- | --- | --- |
@@ -26,7 +26,7 @@ Last updated: 2026-07-22.
 | Supervised direct internet control | In progress | Daemons reconcile active pair records, retry encrypted rendezvous/ICE negotiation, run the identity-pinned control protocol over selected paths, prefer LAN for jobs, expose path state to CLI/Swift, and support explicit LAN-only daemon/install setup controls. Automated end-to-end and race coverage pass; physical unrelated-network and network-change validation remain. |
 | One-VPS staging deployment | In progress | Provider-neutral Compose stack, Caddy HTTPS edge, authenticated coturn relay, bounded ports/quotas, generated local env/secrets, operator-provisioned short-lived TURN credentials for single-owner relay testing, Ubuntu-only firewall/bootstrap preflights with DNS/init/Compose/verify next steps, cwd-independent verification/credential helpers with actionable preflight and running-service failures, health checks, rollback runbook, and daemon-free, root-oriented, flag-customizable `computehop setup vps` checklist with initial cost, SSH, DNS, firewall, bootstrap, and smoke-test guidance are ready; buying the VPS and forced-relay validation remain. |
 | CLI and physical Mac validation | In progress | Friendlier `--on`, `--on auto` for the single active worker, safe `connect nearby` for the single nearby unpaired worker with `connect auto` compatibility, and no-`--` command syntax, daemon-free `setup`, role shortcuts `setup orchestrator`/`setup worker`, role-aware `setup mac`, setup-helper support for short-lived TURN relay credentials, and `setup vps`, installer-first worker setup guidance, one-command `smoke`, remote `--no-project` utility runs, pre-submit remote project preparation feedback, actionable auto and explicit worker-selection errors that consistently point at `connect nearby`, example-rich help for `setup`/`status`/`devices`/`connect`/`disconnect`/`jobs`/`run`/`logs`/`cancel`/`outputs`/`smoke`, `devices`, empty `jobs` next-step guidance for setup/connect/smoke/offline states, explicit empty-log guidance, and friendly output-retrieval errors, `run --follow/--wait/--get`, `connect` as the guided pairing entry point that surfaces waiting verification requests before generic device guidance, `disconnect` as the friendly trust-revocation entry point with `unpair` compatibility, inferred and actionable pairing confirmation, first-run `doctor` guidance that points at the exact orchestrator/worker setup commands, duplicate-daemon and incompatible-daemon restart guidance, local daemon identity in status output, hidden legacy `pair` help, merged trusted/nearby presentation with friendly trust labels, LAN-only path visibility for disabled remote connectivity, and stale duplicate LAN-presence suppression are implemented; physical macOS-to-macOS discovery, pairing, execution, restart recovery, logs, and cancellation passed. Windows/Linux remain. |
-| macOS menu-bar and Control Center foundation | In progress | SwiftUI `MenuBarExtra`, generated SwiftProtobuf models, authenticated Unix-socket IPC, local daemon identity, first-run next-step guidance, one-click safe nearby-worker connection, compact device selection, AI-style task planning, native job submission with This Mac or selected workers, project folder selection, output declarations and retrieval, reconnectable logs, cancellation, notifications, and diagnostics build and pass Swift/package checks. Heavier device sync, allowed work, project sync, relay, and future AI planner settings are being moved into a separate Electron Control Center so the menu bar remains a fast status/task surface; an initial Control Center scaffold is present. An ad-hoc app bundle, launch-agent template verification, rewritten launch-agent install validation, incompatible manual-daemon install guard, and per-user launchd installer are ready for development. |
+| macOS menu-bar and Control Center foundation | In progress | SwiftUI `MenuBarExtra`, generated SwiftProtobuf models, authenticated Unix-socket IPC, local daemon identity, first-run next-step guidance, one-click safe nearby-worker connection, compact device selection, native job submission with This Mac or selected workers, project folder selection, output declarations and retrieval, reconnectable logs, cancellation, notifications, and diagnostics build and pass Swift/package checks. The Electron Control Center now covers daemon startup for Control Mac/Worker roles, packaged daemon staging, nearby pairing, device enable/disable, per-device allowed work, deterministic local task planning, project-aware task suggestions, project clearing, remote preparation feedback, logs, cancellation, and output restoration so the menu bar can stay a fast status/task surface. Ad-hoc app bundle, launch-agent template verification, rewritten launch-agent install validation, incompatible manual-daemon install guard, and per-user launchd installer work remain ready for development. |
 | Project snapshots, incremental transfer, and declared artifacts | In progress | Remote runs resolve a local project root, create bounded content-defined snapshots, upload only missing verified chunks, and execute in isolated workspaces. Workers durably collect exact declared files/directories before success; orchestrators fetch only missing verified chunks and restore without overwrites or symlink traversal. Transfer peers negotiate bounded identity/zstd chunk encoding while preserving decoded-content hashes. The persistent verified content cache is SQLite-indexed, LRU-evicted, quota-bound, and protects active jobs plus unacknowledged artifact chunks. Artifact download/restore progress is durable and visible in CLI/Swift job summaries, and `run --get` restores to the submitted working directory by default. Automated LAN/supervised-path reuse, ignore behavior, and artifact coverage pass; secrets, upload progress, byte-range resume, and physical cross-platform validation remain. |
 | Later launch slices | In progress | Direct internet control still needs physical unrelated-network and reconnect validation, and public TURN relay issuance requires a hosted entitlement boundary. Full compatibility/resource scheduling, adapters, production packaging, and release operations follow. |
 
@@ -232,9 +232,10 @@ networking, scheduling, or job execution itself.
 #### ComputeHop Control Center
 
 An Electron desktop application for heavier configuration: synced devices,
-allowed work by device, project sync defaults, relay settings, and future AI
-planner configuration. It should use the same local daemon API as the CLI and
-menu bar once those settings are durable.
+allowed work by device, project sync defaults, relay settings, and eventually
+an explicit external/LLM planner configuration if that becomes a real feature.
+It uses the same local daemon API as the CLI and menu bar for device, pairing,
+job, log, cancellation, and artifact operations.
 
 #### ComputeHop Connectivity Service
 
@@ -1042,7 +1043,8 @@ The Control Center owns the heavier setup and management flows:
 - default project sync and artifact behavior;
 - cache quotas;
 - logs/history views;
-- future AI planner provider and permission settings.
+- future external/LLM planner provider and permission settings, only after that
+  planner exists.
 
 #### Notifications
 

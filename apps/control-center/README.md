@@ -2,7 +2,8 @@
 
 This is the larger settings surface for ComputeHop. The macOS menu bar should
 stay small: status, device picker, and quick task entry. Device sync, allowed
-work, project sync, relay settings, and future AI planner settings belong here.
+work, project sync, and relay settings belong here. Any external/LLM planner
+settings should only appear here after that planner exists.
 
 Run it in development:
 
@@ -49,6 +50,8 @@ Current scope:
 - shows active pairing verification codes and lets the user confirm or reject
   them in-app;
 - forgets paired devices through daemon IPC;
+- clears local sync and allowed-work overrides when a paired device is
+  forgotten;
 - can disable or re-enable paired workers so disabled devices stay visible but
   cannot be selected, used by Auto worker, or used as run targets;
 - stores allowed work categories per selected device, so This Mac and each

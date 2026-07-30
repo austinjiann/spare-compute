@@ -718,6 +718,9 @@ async function forgetDevice(device) {
   await performDeviceAction(`device:${device.id}`, async () => {
     await window.computeHop.forgetDevice(device.id);
     delete state.settings.syncedDevices[device.id];
+    if (state.settings.deviceCapabilities) {
+      delete state.settings.deviceCapabilities[device.id];
+    }
     saveSettings();
     if (state.selectedDeviceID === device.id) {
       state.selectedDeviceID = "local";
