@@ -1455,8 +1455,8 @@ smoke test on the selected computer, suggests project-aware Check/Test/Build/Lin
 task chips after project selection, applies allowed-work checkboxes to suggested and
 planned work, keeps unknown exact commands behind an explicit allowance, avoids
 substituting the development checkout when no project is selected, keeps projectless
-utility jobs from snapshotting selected projects, and blocks project-style remote runs until
-a project folder is selected for transfer. AI-planned commands are still
+utility jobs from snapshotting selected projects, and blocks project-style runs until
+a project folder is selected. AI-planned commands are still
 previewed, mapped through the same per-device allowed-work policy, and rejected
 before preview when they contain shell operators, multiline commands, shell
 wrappers, obvious interactive commands, privilege escalation, or destructive

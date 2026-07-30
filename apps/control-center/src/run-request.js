@@ -61,11 +61,17 @@
     if (!device || !request.canRun) {
       return "Choose This Mac or a connected worker first.";
     }
-    if (deviceID !== "local" && plan.requiresProject && !cleanPath(request.projectRoot)) {
-      return `Choose a project before running this on ${deviceName}. ComputeHop needs the folder so it can copy the files to that computer.`;
+    if (plan.requiresProject && !cleanPath(request.projectRoot)) {
+      if (deviceID !== "local") {
+        return `Choose a project before running this on ${deviceName}. ComputeHop needs the folder so it can copy the files to that computer.`;
+      }
+      return "Choose a project before running this. ComputeHop needs the folder so it can run from the right place.";
     }
-    if (deviceID !== "local" && outputs.length > 0 && !cleanPath(request.projectRoot)) {
-      return "Choose a project before bringing files back from another computer.";
+    if (outputs.length > 0 && !cleanPath(request.projectRoot)) {
+      if (deviceID !== "local") {
+        return "Choose a project before bringing files back from another computer.";
+      }
+      return "Choose a project before bringing files back. ComputeHop needs the folder those outputs belong to.";
     }
     return cleanString(request.policyError);
   }

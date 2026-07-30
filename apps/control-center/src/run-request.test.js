@@ -152,7 +152,16 @@ test("runReadinessError blocks missing or unusable run targets", () => {
   );
 });
 
-test("runReadinessError requires a project before remote project work", () => {
+test("runReadinessError requires a project before project work on any device", () => {
+  assert.equal(
+    runReadinessError({
+      device: { id: "local", name: "This Mac" },
+      canRun: true,
+      plan: { command: "go test ./...", requiresProject: true },
+      projectRoot: ""
+    }),
+    "Choose a project before running this. ComputeHop needs the folder so it can run from the right place."
+  );
   assert.match(
     runReadinessError({
       device: { id: "worker-1", name: "Gaming PC" },
@@ -164,7 +173,17 @@ test("runReadinessError requires a project before remote project work", () => {
   );
 });
 
-test("runReadinessError requires a project before remote output restoration", () => {
+test("runReadinessError requires a project before output restoration on any device", () => {
+  assert.equal(
+    runReadinessError({
+      device: { id: "local", name: "This Mac" },
+      canRun: true,
+      plan: { command: "hostname", requiresProject: false },
+      outputs: ["dist"],
+      projectRoot: ""
+    }),
+    "Choose a project before bringing files back. ComputeHop needs the folder those outputs belong to."
+  );
   assert.equal(
     runReadinessError({
       device: { id: "worker-1", name: "Gaming PC" },
