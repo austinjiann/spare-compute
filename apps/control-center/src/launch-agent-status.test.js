@@ -50,9 +50,11 @@ test("launchAgentStatus reports an installed loaded worker", async () => {
   assert.equal(status.installed, true);
   assert.equal(status.loaded, true);
   assert.equal(status.role, "worker");
+  assert.equal(status.deviceName, "Studio Mini");
+  assert.equal(status.lanOnly, true);
   assert.equal(status.daemonPath, "/Users/austin/Applications/ComputeHop.app/Contents/Resources/bin/computehopd");
   assert.equal(status.state, "running");
-  assert.match(status.detail, /Runs at login as Worker/);
+  assert.match(status.detail, /Runs at login as Worker named Studio Mini LAN-only/);
 });
 
 test("launchAgentStatus reports installed but stopped launch agents", async () => {
@@ -70,7 +72,7 @@ test("launchAgentStatus reports installed but stopped launch agents", async () =
   assert.equal(status.installed, true);
   assert.equal(status.loaded, false);
   assert.equal(status.role, "worker");
-  assert.match(status.detail, /Installed as Worker/);
+  assert.match(status.detail, /Installed as Worker named Studio Mini LAN-only/);
 });
 
 test("launchAgentStatus reports launch agents that point at an older daemon path", async () => {
@@ -100,7 +102,9 @@ test("roleFromPlist reads the configured daemon role", () => {
   assert.equal(roleFromPlist("<plist></plist>"), "");
   assert.deepEqual(launchAgentConfigFromPlist(workerPlist()), {
     daemonPath: "/Users/austin/Applications/ComputeHop.app/Contents/Resources/bin/computehopd",
-    role: "worker"
+    role: "worker",
+    deviceName: "Studio Mini",
+    lanOnly: true
   });
   assert.equal(launchAgentPlistPath("/tmp/home"), "/tmp/home/Library/LaunchAgents/com.computehop.daemon.plist");
 });
@@ -124,7 +128,12 @@ function memoryFS(contents) {
 }
 
 function workerPlist() {
-  return plistWithRole("worker");
+  return plistWithDaemon({
+    daemonPath: "/Users/austin/Applications/ComputeHop.app/Contents/Resources/bin/computehopd",
+    role: "worker",
+    deviceName: "Studio Mini",
+    lanOnly: true
+  });
 }
 
 function orchestratorPlist() {
@@ -147,6 +156,9 @@ function plistWithDaemon(config) {
     <string>${config.daemonPath}</string>
     <string>--role</string>
     <string>${config.role}</string>
+    ${config.deviceName ? `<string>--device-name</string>
+    <string>${config.deviceName}</string>` : ""}
+    ${config.lanOnly ? "<string>--lan-only</string>" : ""}
   </array>
 </dict>
 </plist>`;

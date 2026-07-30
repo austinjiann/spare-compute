@@ -27,6 +27,8 @@ async function installLaunchAgent(options = {}) {
   }
 
   const daemonPath = await resolveDaemonExecutable(options, fsModule, platform);
+  const deviceName = normalizedDeviceName(options.deviceName || os.hostname());
+  const lanOnly = Boolean(options.lanOnly);
   const homeDir = options.homeDir || os.homedir();
   const plistPath = launchAgentPlistPath(homeDir);
   const logsDir = path.join(homeDir, "Library", "Logs", "ComputeHop");
@@ -47,6 +49,8 @@ async function installLaunchAgent(options = {}) {
     launchAgentPlist({
       daemonPath,
       role,
+      deviceName,
+      lanOnly,
       logPath: path.join(logsDir, "daemon.log"),
       workingDirectory: homeDir
     }),
@@ -72,6 +76,8 @@ async function installLaunchAgent(options = {}) {
         loaded: false,
         needsUpdate: false,
         role,
+        deviceName,
+        lanOnly,
         daemonPath,
         expectedDaemonPath: daemonPath,
         state: "",
@@ -165,8 +171,13 @@ function launchAgentPlist(config) {
   const values = [
     config.daemonPath,
     "--role",
-    config.role
+    config.role,
+    "--device-name",
+    normalizedDeviceName(config.deviceName)
   ];
+  if (config.lanOnly) {
+    values.push("--lan-only");
+  }
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -209,6 +220,11 @@ function normalizedRole(role) {
   return String(role || "").trim().toLowerCase() === "worker" ? "worker" : "orchestrator";
 }
 
+function normalizedDeviceName(value) {
+  const trimmed = String(value || "").replace(/\.local$/i, "").trim();
+  return trimmed || "This Mac";
+}
+
 function roleLabel(role) {
   return normalizedRole(role) === "worker" ? "Worker" : "Control Mac";
 }
@@ -239,6 +255,7 @@ module.exports = {
   installLaunchAgent,
   labelFromPlist,
   launchAgentPlist,
+  normalizedDeviceName,
   parentAppDaemonPath,
   resolveDaemonExecutable
 };

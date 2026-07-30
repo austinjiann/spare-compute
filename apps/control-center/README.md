@@ -47,9 +47,10 @@ Current scope:
 - can set up or start the current user's macOS background service from the
   Control Center when a bundled daemon is available, while refusing unrelated
   LaunchAgent files and leaving an already-running session daemon alone until
-  the next login; when embedded inside `ComputeHop.app`, setup points launchd
-  at the parent app's daemon instead of the nested Control Center copy and
-  flags older login-service paths as needing an update;
+  the next login; the generated LaunchAgent now carries the selected role,
+  device name, and LAN-only flag, and when embedded inside `ComputeHop.app`,
+  setup points launchd at the parent app's daemon instead of the nested Control
+  Center copy and flags older login-service paths as needing an update;
 - can start the local daemon from the app in development or from the bundled
   daemon in packaged builds, either as the Control Mac or as a Worker;
 - defaults non-macOS computers to Worker because Control Mac is macOS-only;

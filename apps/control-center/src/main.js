@@ -210,6 +210,8 @@ ipcMain.handle("daemon:installLaunchAgent", async (_event, request) => {
   try {
     return await installLaunchAgent({
       role: daemonRoleFromRequest(request),
+      deviceName: String(request?.deviceName || "").trim(),
+      lanOnly: Boolean(request?.lanOnly),
       isPackaged: app.isPackaged,
       resourcesPath: process.resourcesPath,
       controlCenterRoot: path.resolve(__dirname, ".."),

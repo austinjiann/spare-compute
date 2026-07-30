@@ -23,6 +23,8 @@ test("installLaunchAgent writes and starts a per-user launch agent", async (t) =
     uid: 501,
     daemonPath,
     role: "worker",
+    deviceName: "Studio <Mini> & GPU",
+    lanOnly: true,
     runCommand: async (command, args) => {
       calls.push([command, args]);
       if (args[0] === "print" && !bootstrapped) {
@@ -39,6 +41,8 @@ test("installLaunchAgent writes and starts a per-user launch agent", async (t) =
   assert.equal(result.started, true);
   assert.equal(result.status.loaded, true);
   assert.equal(result.status.role, "worker");
+  assert.equal(result.status.deviceName, "Studio <Mini> & GPU");
+  assert.equal(result.status.lanOnly, true);
   assert.deepEqual(calls.map((call) => call[1][0]), ["print", "bootstrap", "kickstart", "print"]);
 
   const plist = await fs.readFile(
@@ -47,6 +51,8 @@ test("installLaunchAgent writes and starts a per-user launch agent", async (t) =
   );
   assert.equal(labelFromPlist(plist), "com.computehop.daemon");
   assert.match(plist, /<string>--role<\/string>\s*<string>worker<\/string>/);
+  assert.match(plist, /<string>--device-name<\/string>\s*<string>Studio &lt;Mini&gt; &amp; GPU<\/string>/);
+  assert.match(plist, /<string>--lan-only<\/string>/);
   assert.match(plist, /<key>KeepAlive<\/key>\s*<true\/>/);
 });
 
@@ -61,6 +67,7 @@ test("installLaunchAgent installs for next login when a session daemon is alread
     uid: 501,
     daemonPath,
     role: "orchestrator",
+    deviceName: "Control Mac",
     currentDaemonRunning: true,
     runCommand: async (command, args) => {
       calls.push([command, args]);
@@ -74,6 +81,7 @@ test("installLaunchAgent installs for next login when a session daemon is alread
   assert.equal(result.status.installed, true);
   assert.equal(result.status.loaded, false);
   assert.equal(result.status.role, "orchestrator");
+  assert.equal(result.status.deviceName, "Control Mac");
   assert.deepEqual(calls.map((call) => call[1][0]), ["print"]);
 });
 

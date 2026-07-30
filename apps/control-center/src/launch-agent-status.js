@@ -27,6 +27,8 @@ async function launchAgentStatus(options = {}) {
   const installed = await fileExists(plistPath, options.fs || fs);
   const config = installed ? await readConfig(plistPath, options.fs || fs) : {};
   const role = config.role || "";
+  const deviceName = config.deviceName || "";
+  const lanOnly = Boolean(config.lanOnly);
   const daemonPath = config.daemonPath || "";
   const expectedDaemonPath = String(options.expectedDaemonPath || "").trim();
   const needsUpdate = Boolean(installed && expectedDaemonPath && daemonPath && !samePath(daemonPath, expectedDaemonPath));
@@ -43,11 +45,21 @@ async function launchAgentStatus(options = {}) {
     loaded: launchd.loaded,
     needsUpdate,
     role,
+    deviceName,
+    lanOnly,
     daemonPath,
     expectedDaemonPath,
     state: launchd.state,
     path: plistPath,
-    detail: launchAgentDetail({ installed, loaded: launchd.loaded, needsUpdate, role, state: launchd.state })
+    detail: launchAgentDetail({
+      installed,
+      loaded: launchd.loaded,
+      needsUpdate,
+      role,
+      deviceName,
+      lanOnly,
+      state: launchd.state
+    })
   };
 }
 
@@ -76,9 +88,13 @@ function launchAgentConfigFromPlist(contents) {
   const values = plistStringValues(contents);
   const roleFlag = values.indexOf("--role");
   const role = roleFlag >= 0 ? values[roleFlag + 1] || "" : "";
+  const deviceNameFlag = values.indexOf("--device-name");
+  const deviceName = deviceNameFlag >= 0 ? values[deviceNameFlag + 1] || "" : "";
   return {
     daemonPath: values[0] || "",
-    role: role === "orchestrator" || role === "worker" ? role : ""
+    role: role === "orchestrator" || role === "worker" ? role : "",
+    deviceName,
+    lanOnly: values.includes("--lan-only")
   };
 }
 
@@ -127,12 +143,16 @@ function launchAgentDetail(status = {}) {
   }
   if (status.loaded) {
     const role = roleLabel(status.role);
+    const name = status.deviceName ? ` named ${status.deviceName}` : "";
+    const network = status.lanOnly ? " LAN-only" : "";
     const state = status.state ? ` ${status.state}.` : "";
-    return `Runs at login${role ? ` as ${role}` : ""}.${state}`;
+    return `Runs at login${role ? ` as ${role}` : ""}${name}${network}.${state}`;
   }
   if (status.installed) {
     const role = roleLabel(status.role);
-    return `Installed${role ? ` as ${role}` : ""}, but not running right now.`;
+    const name = status.deviceName ? ` named ${status.deviceName}` : "";
+    const network = status.lanOnly ? " LAN-only" : "";
+    return `Installed${role ? ` as ${role}` : ""}${name}${network}, but not running right now.`;
   }
   return "Not installed for login. This app can still start ComputeHop for this session.";
 }

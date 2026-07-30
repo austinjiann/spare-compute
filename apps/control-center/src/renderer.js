@@ -386,7 +386,8 @@ async function installBackgroundService() {
   renderBackgroundCard();
   try {
     const response = await window.computeHop.installLaunchAgent({
-      role: state.settings.daemonRole
+      role: state.settings.daemonRole,
+      deviceName: state.localDevice?.name || ""
     });
     if (!response?.ok) {
       state.backgroundServiceMessage = response?.error || "Could not set up the background service.";
@@ -473,6 +474,8 @@ function normalizeLaunchAgentStatus(status = {}) {
     loaded: Boolean(status?.loaded),
     needsUpdate: Boolean(status?.needsUpdate),
     role: String(status?.role || ""),
+    deviceName: String(status?.deviceName || ""),
+    lanOnly: Boolean(status?.lanOnly),
     daemonPath: String(status?.daemonPath || ""),
     expectedDaemonPath: String(status?.expectedDaemonPath || ""),
     detail: String(status?.detail || "")
