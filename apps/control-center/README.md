@@ -108,6 +108,8 @@ Current scope:
 - adds conservative planner-inferred outputs for known package targets, so
   `make macos-package` brings back `dist/macos/ComputeHop.app` by default while
   manual **Bring back** paths remain additive;
+- defaults output restore prompts to the job's submitted project folder, so
+  switching projects after a job finishes does not redirect the restore flow;
 - cancels running jobs through daemon IPC;
 - recovers the Run button when a stop request races with an already-finished or
   no-longer-tracked run;

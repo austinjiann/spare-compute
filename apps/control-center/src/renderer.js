@@ -439,7 +439,7 @@ async function cancelListedJob(job) {
 async function fetchJobOutputs(job) {
   try {
     const destination = await window.computeHop.chooseOutputDestination({
-      defaultPath: state.settings.projectRoot || ""
+      defaultPath: job.workingDirectory || state.settings.projectRoot || ""
     });
     if (!destination) {
       return;

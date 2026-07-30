@@ -1487,7 +1487,8 @@ job placement, list recent jobs for the
 selected computer, open persisted job logs, declare files/folders to bring back,
 show remote snapshot/upload preparation feedback before long project
 submissions, detach live Control Center streams without cancelling daemon jobs
-when the window closes, restore succeeded job outputs, and cancel listed jobs.
+when the window closes, restore succeeded job outputs to the job's submitted
+project folder by default, and cancel listed jobs.
 Durable daemon-backed cluster settings for that app remain. A host-architecture
 developer app bundle now includes the menu app, CLI, and daemon; a guarded
 per-user installer configures an
