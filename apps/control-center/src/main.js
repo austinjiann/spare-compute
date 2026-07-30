@@ -8,6 +8,7 @@ const {
   jobTerminal
 } = require("./local-daemon");
 const { startDaemon } = require("./daemon-launcher");
+const { splitCommandLine } = require("./command-line");
 const { planTask, suggestTasks } = require("./planner");
 const { appRuntimeInfo, normalizeDaemonRole } = require("./runtime-info");
 const { remotePreparationMessage } = require("./run-feedback");
@@ -683,54 +684,4 @@ function normalizeJobRequest(request) {
     workingDirectory: String(request.workingDirectory || "").trim(),
     outputs: jobOutputsForPlan({ outputs: request.outputs })
   };
-}
-
-function splitCommandLine(input) {
-  const tokens = [];
-  let current = "";
-  let quote = null;
-  let escaping = false;
-
-  for (const char of input) {
-    if (escaping) {
-      current += char;
-      escaping = false;
-      continue;
-    }
-    if (char === "\\") {
-      escaping = true;
-      continue;
-    }
-    if (quote) {
-      if (char === quote) {
-        quote = null;
-      } else {
-        current += char;
-      }
-      continue;
-    }
-    if (char === "'" || char === '"') {
-      quote = char;
-      continue;
-    }
-    if (/\s/.test(char)) {
-      if (current !== "") {
-        tokens.push(current);
-        current = "";
-      }
-      continue;
-    }
-    current += char;
-  }
-
-  if (escaping) {
-    throw new Error("Command ends with an unfinished escape.");
-  }
-  if (quote) {
-    throw new Error("Command has an unfinished quote.");
-  }
-  if (current !== "") {
-    tokens.push(current);
-  }
-  return tokens;
 }
