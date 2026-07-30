@@ -1,4 +1,4 @@
-.PHONY: check deploy-check fmt install-macos install-macos-check macos-archive macos-package macos-package-check pr-check proto proto-check proto-lint race test uninstall-macos vet
+.PHONY: check deploy-check fmt install-macos install-macos-check macos-archive macos-package macos-package-check pr-check proto proto-check proto-lint race test uninstall-macos vet worker-archives worker-archives-check
 
 BUF_VERSION := v1.72.0
 
@@ -79,6 +79,17 @@ macos-package-check:
 	done
 	node --check packaging/macos/verify-control-center-background.js
 	plutil -lint packaging/macos/Info.plist packaging/macos/com.computehop.daemon.plist
+
+worker-archives: worker-archives-check
+	packaging/workers/archive.sh
+
+worker-archives-check:
+	@for script in \
+		packaging/workers/archive.sh \
+		packaging/workers/linux/run-worker.sh \
+		packaging/workers/linux/install-systemd-user.sh; do \
+		sh -n "$$script"; \
+	done
 
 install-macos:
 	packaging/macos/install.sh

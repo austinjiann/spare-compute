@@ -925,6 +925,7 @@ func printSetupGuide(stdout io.Writer) error {
 		"",
 		"2. Install a worker on another Mac on the same LAN:",
 		"   computehop setup worker --device-name \"Gaming PC\"",
+		"   # For Linux/Windows workers, build copyable packages with: make worker-archives",
 		"",
 		"3. Connect once while both devices are nearby:",
 		"   computehop connect nearby",

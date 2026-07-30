@@ -1827,6 +1827,7 @@ func TestSetupCommandPrintsFirstRunChecklistWithoutDaemon(t *testing.T) {
 		"Happy path",
 		"computehop setup orchestrator",
 		"computehop setup worker --device-name \"Gaming PC\"",
+		"make worker-archives",
 		"computehop doctor",
 		"Development-only daemon",
 		"go run ./cmd/computehopd --role worker",
