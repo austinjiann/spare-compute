@@ -50,6 +50,9 @@ message SubmitJobRequest {
   JobSpec spec = 1;
   SnapshotManifest snapshot = 2;
   string working_subdirectory = 3;
+  // Optional orchestrator-generated UUID. New workers use it as the durable job
+  // ID so the control side can track preparation/upload before final submit.
+  string job_id = 4;
 }
 
 message CheckSnapshotRequest {

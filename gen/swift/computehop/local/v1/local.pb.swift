@@ -929,6 +929,10 @@ public nonisolated struct Computehop_Local_V1_SubmitJobRequest: Sendable {
 
   public var deviceSelector: String = String()
 
+  /// Optional client-generated UUID. It lets UI clients know the job ID before
+  /// remote snapshot preparation/upload has finished.
+  public var jobID: String = String()
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
@@ -2478,7 +2482,7 @@ nonisolated extension Computehop_Local_V1_PingResponse: SwiftProtobuf.Message, S
 
 nonisolated extension Computehop_Local_V1_SubmitJobRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".SubmitJobRequest"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}spec\0\u{3}device_selector\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}spec\0\u{3}device_selector\0\u{3}job_id\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -2488,6 +2492,7 @@ nonisolated extension Computehop_Local_V1_SubmitJobRequest: SwiftProtobuf.Messag
       switch fieldNumber {
       case 1: try { try decoder.decodeSingularMessageField(value: &self._spec) }()
       case 2: try { try decoder.decodeSingularStringField(value: &self.deviceSelector) }()
+      case 3: try { try decoder.decodeSingularStringField(value: &self.jobID) }()
       default: break
       }
     }
@@ -2504,12 +2509,16 @@ nonisolated extension Computehop_Local_V1_SubmitJobRequest: SwiftProtobuf.Messag
     if !self.deviceSelector.isEmpty {
       try visitor.visitSingularStringField(value: self.deviceSelector, fieldNumber: 2)
     }
+    if !self.jobID.isEmpty {
+      try visitor.visitSingularStringField(value: self.jobID, fieldNumber: 3)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
   public static func ==(lhs: Computehop_Local_V1_SubmitJobRequest, rhs: Computehop_Local_V1_SubmitJobRequest) -> Bool {
     if lhs._spec != rhs._spec {return false}
     if lhs.deviceSelector != rhs.deviceSelector {return false}
+    if lhs.jobID != rhs.jobID {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

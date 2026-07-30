@@ -875,8 +875,11 @@ type SubmitJobRequest struct {
 	Spec                *JobSpec               `protobuf:"bytes,1,opt,name=spec,proto3" json:"spec,omitempty"`
 	Snapshot            *SnapshotManifest      `protobuf:"bytes,2,opt,name=snapshot,proto3" json:"snapshot,omitempty"`
 	WorkingSubdirectory string                 `protobuf:"bytes,3,opt,name=working_subdirectory,json=workingSubdirectory,proto3" json:"working_subdirectory,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	// Optional orchestrator-generated UUID. New workers use it as the durable job
+	// ID so the control side can track preparation/upload before final submit.
+	JobId         string `protobuf:"bytes,4,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SubmitJobRequest) Reset() {
@@ -926,6 +929,13 @@ func (x *SubmitJobRequest) GetSnapshot() *SnapshotManifest {
 func (x *SubmitJobRequest) GetWorkingSubdirectory() string {
 	if x != nil {
 		return x.WorkingSubdirectory
+	}
+	return ""
+}
+
+func (x *SubmitJobRequest) GetJobId() string {
+	if x != nil {
+		return x.JobId
 	}
 	return ""
 }
@@ -2677,11 +2687,12 @@ const file_computehop_v1_remote_proto_rawDesc = "" +
 	"\x12get_artifact_chunk\x18\x12 \x01(\v2'.computehop.v1.GetArtifactChunkResponseH\x00R\x10getArtifactChunk\x12l\n" +
 	"\x19acknowledge_job_artifacts\x18\x13 \x01(\v2..computehop.v1.AcknowledgeJobArtifactsResponseH\x00R\x17acknowledgeJobArtifacts\x12T\n" +
 	"\x11get_worker_status\x18\x14 \x01(\v2&.computehop.v1.GetWorkerStatusResponseH\x00R\x0fgetWorkerStatusB\b\n" +
-	"\x06result\"\xae\x01\n" +
+	"\x06result\"\xc5\x01\n" +
 	"\x10SubmitJobRequest\x12*\n" +
 	"\x04spec\x18\x01 \x01(\v2\x16.computehop.v1.JobSpecR\x04spec\x12;\n" +
 	"\bsnapshot\x18\x02 \x01(\v2\x1f.computehop.v1.SnapshotManifestR\bsnapshot\x121\n" +
-	"\x14working_subdirectory\x18\x03 \x01(\tR\x13workingSubdirectory\"\\\n" +
+	"\x14working_subdirectory\x18\x03 \x01(\tR\x13workingSubdirectory\x12\x15\n" +
+	"\x06job_id\x18\x04 \x01(\tR\x05jobId\"\\\n" +
 	"\x14CheckSnapshotRequest\x12\x1f\n" +
 	"\vmanifest_id\x18\x01 \x01(\tR\n" +
 	"manifestId\x12#\n" +

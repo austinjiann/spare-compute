@@ -418,7 +418,8 @@ async function runDaemonJobStream(runID, jobRequest, argv) {
         arguments: argv.slice(1),
         workingDirectory,
         outputs: jobRequest.outputs,
-        deviceSelector: submitDeviceSelector
+        deviceSelector: submitDeviceSelector,
+        jobID: runID
       },
       { signal: record.abortController.signal }
     );

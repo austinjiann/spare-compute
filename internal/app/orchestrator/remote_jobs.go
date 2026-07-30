@@ -248,19 +248,46 @@ func (service *RemoteJobService) Submit(
 	selector string,
 	spec job.Spec,
 ) (job.Job, error) {
+	return service.submit(ctx, selector, "", spec)
+}
+
+// SubmitWithID submits a remote job using a caller-provided UUID when the
+// selected worker supports it. This lets UI clients attach preparation and
+// upload progress to a stable job ID before final worker acceptance.
+func (service *RemoteJobService) SubmitWithID(
+	ctx context.Context,
+	selector string,
+	id job.ID,
+	spec job.Spec,
+) (job.Job, error) {
+	if !id.Valid() {
+		return job.Job{}, job.ErrInvalidID
+	}
+	return service.submit(ctx, selector, id, spec)
+}
+
+func (service *RemoteJobService) submit(
+	ctx context.Context,
+	selector string,
+	requestedID job.ID,
+	spec job.Spec,
+) (job.Job, error) {
 	peer, err := service.resolveSubmitWorker(ctx, selector, spec)
 	if err != nil {
 		return job.Job{}, err
 	}
 	if service.snapshots != nil && strings.TrimSpace(spec.WorkingDirectory) != "" {
-		return service.submitSnapshot(ctx, peer, spec)
+		return service.submitSnapshot(ctx, peer, requestedID, spec)
 	}
 	message, err := mapper.SpecToRemoteProto(spec)
 	if err != nil {
 		return job.Job{}, err
 	}
 	response, err := service.call(ctx, peer, &computehopv1.RemoteRequest{
-		Operation: &computehopv1.RemoteRequest_SubmitJob{SubmitJob: &computehopv1.SubmitJobRequest{Spec: message}},
+		Operation: &computehopv1.RemoteRequest_SubmitJob{SubmitJob: &computehopv1.SubmitJobRequest{
+			Spec:  message,
+			JobId: string(requestedID),
+		}},
 	})
 	if err != nil {
 		return job.Job{}, err
@@ -308,6 +335,7 @@ func (service *RemoteJobService) resolveSubmitWorker(
 func (service *RemoteJobService) submitSnapshot(
 	ctx context.Context,
 	peer trust.Peer,
+	requestedID job.ID,
 	spec job.Spec,
 ) (job.Job, error) {
 	if strings.TrimSpace(spec.WorkingDirectory) == "" {
@@ -316,11 +344,26 @@ func (service *RemoteJobService) submitSnapshot(
 			ErrRemoteSnapshotUnavailable,
 		)
 	}
+	submissionID := requestedID
+	if !submissionID.Valid() {
+		var err error
+		submissionID, err = job.NewID()
+		if err != nil {
+			return job.Job{}, err
+		}
+	}
+	defer func() {
+		_ = service.clearProgress(context.WithoutCancel(ctx), submissionID)
+	}()
 	release := beginCacheUse(service.content)
 	defer release()
 	project, err := service.snapshots.Build(ctx, spec.WorkingDirectory)
 	if err != nil {
 		return job.Job{}, fmt.Errorf("create project snapshot: %w", err)
+	}
+	snapshotBytes := max(project.Manifest.TotalBytes, 1)
+	if err := service.setProgress(ctx, submissionID, job.ProgressSnapshot, snapshotBytes, snapshotBytes); err != nil {
+		return job.Job{}, err
 	}
 	manifestMessage, err := mapper.ManifestToRemoteProto(project.Manifest)
 	if err != nil {
@@ -339,6 +382,13 @@ func (service *RemoteJobService) submitSnapshot(
 	if err != nil {
 		return job.Job{}, err
 	}
+	uploadBytes := digestBytes(project.Manifest, missing)
+	if uploadBytes > 0 {
+		if err := service.setProgress(ctx, submissionID, job.ProgressUpload, 0, uploadBytes); err != nil {
+			return job.Job{}, err
+		}
+	}
+	completedUploadBytes := int64(0)
 	for _, digest := range missing {
 		contents, err := service.content.Read(ctx, digest)
 		if err != nil {
@@ -364,6 +414,12 @@ func (service *RemoteJobService) submitSnapshot(
 		if response.GetPutChunk() == nil || response.GetPutChunk().GetDigest() != string(digest) {
 			return job.Job{}, remoteprotocol.ErrInvalidMessage
 		}
+		if uploadBytes > 0 {
+			completedUploadBytes += digestBytes(project.Manifest, []snapshot.Digest{digest})
+			if err := service.setProgress(ctx, submissionID, job.ProgressUpload, completedUploadBytes, uploadBytes); err != nil {
+				return job.Job{}, err
+			}
+		}
 	}
 	remoteSpec := spec.Clone()
 	remoteSpec.WorkingDirectory = ""
@@ -375,6 +431,7 @@ func (service *RemoteJobService) submitSnapshot(
 		Operation: &computehopv1.RemoteRequest_SubmitJob{SubmitJob: &computehopv1.SubmitJobRequest{
 			Spec: specMessage, Snapshot: manifestMessage,
 			WorkingSubdirectory: project.WorkingSubdirectory,
+			JobId:               string(submissionID),
 		}},
 	})
 	if err != nil {
@@ -626,6 +683,13 @@ func (service *RemoteJobService) setProgress(
 		Phase: phase, CompletedBytes: completedBytes, TotalBytes: totalBytes,
 		UpdatedAt: time.Now().UTC(),
 	})
+}
+
+func (service *RemoteJobService) clearProgress(ctx context.Context, id job.ID) error {
+	if service.progress == nil || !id.Valid() {
+		return nil
+	}
+	return service.progress.ClearProgress(ctx, id)
 }
 
 func (service *RemoteJobService) withLocalProgress(ctx context.Context, value job.Job) (job.Job, error) {

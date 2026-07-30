@@ -237,7 +237,8 @@ test("LocalDaemonClient sends job listing, logs, cancellation, and output fetch 
     arguments: argv.slice(1),
     workingDirectory: jobRequest.workingDirectory,
     outputs: jobRequest.outputs,
-    deviceSelector: jobRequest.deviceID
+    deviceSelector: jobRequest.deviceID,
+    jobID: "019abcdf-0123-4567-89ab-000000000333"
   });
   const jobs = await client.listJobs({ deviceSelector: "worker-1", limit: 3 });
   const logs = await client.readJobLogs("job-1", { deviceSelector: "worker-1", afterSequence: 4, limit: 5 });
@@ -251,6 +252,7 @@ test("LocalDaemonClient sends job listing, logs, cancellation, and output fetch 
   assert.equal(outputs.destination, "/tmp/out");
   assert.equal(outputs.restoredFileCount, 2);
   assert.equal(received[0].submitJob.deviceSelector, "worker-1");
+  assert.equal(received[0].submitJob.jobId, "019abcdf-0123-4567-89ab-000000000333");
   assert.equal(received[0].submitJob.spec.executable, "make");
   assert.deepEqual(received[0].submitJob.spec.arguments, ["macos-package"]);
   assert.equal(received[0].submitJob.spec.workingDirectory, project);

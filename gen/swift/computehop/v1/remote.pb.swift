@@ -610,6 +610,10 @@ public nonisolated struct Computehop_V1_SubmitJobRequest: Sendable {
 
   public var workingSubdirectory: String = String()
 
+  /// Optional orchestrator-generated UUID. New workers use it as the durable job
+  /// ID so the control side can track preparation/upload before final submit.
+  public var jobID: String = String()
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
@@ -1657,7 +1661,7 @@ nonisolated extension Computehop_V1_RemoteResponse: SwiftProtobuf.Message, Swift
 
 nonisolated extension Computehop_V1_SubmitJobRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".SubmitJobRequest"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}spec\0\u{1}snapshot\0\u{3}working_subdirectory\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}spec\0\u{1}snapshot\0\u{3}working_subdirectory\0\u{3}job_id\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -1668,6 +1672,7 @@ nonisolated extension Computehop_V1_SubmitJobRequest: SwiftProtobuf.Message, Swi
       case 1: try { try decoder.decodeSingularMessageField(value: &self._spec) }()
       case 2: try { try decoder.decodeSingularMessageField(value: &self._snapshot) }()
       case 3: try { try decoder.decodeSingularStringField(value: &self.workingSubdirectory) }()
+      case 4: try { try decoder.decodeSingularStringField(value: &self.jobID) }()
       default: break
       }
     }
@@ -1687,6 +1692,9 @@ nonisolated extension Computehop_V1_SubmitJobRequest: SwiftProtobuf.Message, Swi
     if !self.workingSubdirectory.isEmpty {
       try visitor.visitSingularStringField(value: self.workingSubdirectory, fieldNumber: 3)
     }
+    if !self.jobID.isEmpty {
+      try visitor.visitSingularStringField(value: self.jobID, fieldNumber: 4)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -1694,6 +1702,7 @@ nonisolated extension Computehop_V1_SubmitJobRequest: SwiftProtobuf.Message, Swi
     if lhs._spec != rhs._spec {return false}
     if lhs._snapshot != rhs._snapshot {return false}
     if lhs.workingSubdirectory != rhs.workingSubdirectory {return false}
+    if lhs.jobID != rhs.jobID {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

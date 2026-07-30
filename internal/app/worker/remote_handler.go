@@ -36,11 +36,23 @@ type RemoteJobController interface {
 	ReadLogs(context.Context, job.ID, uint64, int) (JobLogs, error)
 }
 
+// RemoteJobIDController is implemented by workers that can accept a
+// caller-provided durable job ID.
+type RemoteJobIDController interface {
+	SubmitWithID(context.Context, job.ID, job.Spec) (job.Job, error)
+}
+
 // RemoteSnapshotController is implemented by workers with project transfer enabled.
 type RemoteSnapshotController interface {
 	MissingChunks(context.Context, []snapshot.Digest) ([]snapshot.Digest, error)
 	PutChunk(context.Context, snapshot.Digest, []byte) error
 	SubmitSnapshot(context.Context, job.Spec, snapshot.Manifest, string) (job.Job, error)
+}
+
+// RemoteSnapshotIDController is implemented by workers that can materialize a
+// snapshot under a caller-provided durable job ID.
+type RemoteSnapshotIDController interface {
+	SubmitSnapshotWithID(context.Context, job.ID, job.Spec, snapshot.Manifest, string) (job.Job, error)
 }
 
 type RemoteSnapshotReservationController interface {
@@ -290,6 +302,13 @@ func (handler *RemoteHandler) submit(
 	if err != nil {
 		return remoteErrorResponse(err)
 	}
+	var requestedID job.ID
+	if strings.TrimSpace(request.GetJobId()) != "" {
+		requestedID, err = job.ParseID(request.GetJobId())
+		if err != nil {
+			return remoteErrorResponse(err)
+		}
+	}
 	var value job.Job
 	if request.GetSnapshot() == nil {
 		if request.GetWorkingSubdirectory() != "" {
@@ -298,7 +317,18 @@ func (handler *RemoteHandler) submit(
 				"working subdirectory requires a project snapshot",
 			)
 		}
-		value, err = handler.jobs.Submit(ctx, spec)
+		if requestedID.Valid() {
+			controller, ok := handler.jobs.(RemoteJobIDController)
+			if !ok {
+				return remoteFailure(
+					computehopv1.RemoteErrorCode_REMOTE_ERROR_CODE_UNSUPPORTED_VERSION,
+					"worker does not support caller-provided job IDs",
+				)
+			}
+			value, err = controller.SubmitWithID(ctx, requestedID, spec)
+		} else {
+			value, err = handler.jobs.Submit(ctx, spec)
+		}
 	} else {
 		controller, ok := handler.jobs.(RemoteSnapshotController)
 		if !ok {
@@ -315,7 +345,18 @@ func (handler *RemoteHandler) submit(
 			}
 			defer reservations.ReleaseSnapshot(manifestID)
 		}
-		value, err = controller.SubmitSnapshot(ctx, spec, manifest, request.GetWorkingSubdirectory())
+		if requestedID.Valid() {
+			idController, ok := handler.jobs.(RemoteSnapshotIDController)
+			if !ok {
+				return remoteFailure(
+					computehopv1.RemoteErrorCode_REMOTE_ERROR_CODE_UNSUPPORTED_VERSION,
+					"worker does not support caller-provided snapshot job IDs",
+				)
+			}
+			value, err = idController.SubmitSnapshotWithID(ctx, requestedID, spec, manifest, request.GetWorkingSubdirectory())
+		} else {
+			value, err = controller.SubmitSnapshot(ctx, spec, manifest, request.GetWorkingSubdirectory())
+		}
 	}
 	if err != nil {
 		return remoteErrorResponse(err)

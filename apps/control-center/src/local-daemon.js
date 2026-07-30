@@ -134,7 +134,8 @@ class LocalDaemonClient {
             executor: enumValues.executorNative,
             outputs: jobRequest.outputs || []
           },
-          deviceSelector: jobRequest.deviceSelector || ""
+          deviceSelector: jobRequest.deviceSelector || "",
+          jobId: jobRequest.jobID || ""
         }
       },
       { timeoutMs: SUBMIT_TIMEOUT_MS, ...options }

@@ -20,12 +20,13 @@ import (
 )
 
 type stubJobController struct {
-	submit  func(context.Context, job.Spec) (job.Job, error)
-	get     func(context.Context, job.ID) (job.Job, error)
-	list    func(context.Context, job.ListOptions) ([]job.Job, error)
-	cancel  func(context.Context, job.ID) (job.Job, error)
-	logs    func(context.Context, job.ID, uint64, int) (worker.JobLogs, error)
-	restore func(context.Context, job.ID, string) (artifact.RestoreResult, error)
+	submit       func(context.Context, job.Spec) (job.Job, error)
+	submitWithID func(context.Context, job.ID, job.Spec) (job.Job, error)
+	get          func(context.Context, job.ID) (job.Job, error)
+	list         func(context.Context, job.ListOptions) ([]job.Job, error)
+	cancel       func(context.Context, job.ID) (job.Job, error)
+	logs         func(context.Context, job.ID, uint64, int) (worker.JobLogs, error)
+	restore      func(context.Context, job.ID, string) (artifact.RestoreResult, error)
 }
 
 func (stub stubJobController) RestoreArtifacts(
@@ -41,6 +42,10 @@ func (stub stubJobController) RestoreArtifacts(
 
 func (stub stubJobController) Submit(ctx context.Context, spec job.Spec) (job.Job, error) {
 	return stub.submit(ctx, spec)
+}
+
+func (stub stubJobController) SubmitWithID(ctx context.Context, id job.ID, spec job.Spec) (job.Job, error) {
+	return stub.submitWithID(ctx, id, spec)
 }
 
 func (stub stubJobController) Get(ctx context.Context, id job.ID) (job.Job, error) {
@@ -232,6 +237,31 @@ func TestLocalHandlerSubmit(t *testing.T) {
 	}
 }
 
+func TestLocalHandlerSubmitUsesClientJobID(t *testing.T) {
+	wantJob := queuedJobForTest()
+	controller := stubJobController{
+		submitWithID: func(_ context.Context, id job.ID, spec job.Spec) (job.Job, error) {
+			if id != wantJob.ID || spec.Executable != "echo" {
+				t.Fatalf("SubmitWithID(%s, %#v)", id, spec)
+			}
+			return wantJob, nil
+		},
+	}
+	handler := newHandlerForTest(t, controller)
+	response := handler.Handle(context.Background(), &localv1.Request{
+		Operation: &localv1.Request_SubmitJob{SubmitJob: &localv1.SubmitJobRequest{
+			JobId: string(wantJob.ID),
+			Spec: &localv1.JobSpec{
+				Executable: "echo",
+				Executor:   localv1.Executor_EXECUTOR_NATIVE,
+			},
+		}},
+	})
+	if response.GetError() != nil || response.GetSubmitJob().GetJob().GetId() != string(wantJob.ID) {
+		t.Fatalf("response = %#v", response)
+	}
+}
+
 func TestLocalHandlerRoutesExplicitDeviceSubmissionRemotely(t *testing.T) {
 	wantJob := queuedJobForTest()
 	remote := stubPairedJobController{submit: func(
@@ -252,6 +282,39 @@ func TestLocalHandlerRoutesExplicitDeviceSubmissionRemotely(t *testing.T) {
 	}
 	response := handler.Handle(context.Background(), &localv1.Request{
 		Operation: &localv1.Request_SubmitJob{SubmitJob: &localv1.SubmitJobRequest{
+			Spec: &localv1.JobSpec{
+				Executable: "echo", Executor: localv1.Executor_EXECUTOR_NATIVE,
+			},
+			DeviceSelector: "Gaming PC",
+		}},
+	})
+	if response.GetError() != nil || response.GetSubmitJob().GetJob().GetId() != string(wantJob.ID) {
+		t.Fatalf("response = %#v", response)
+	}
+}
+
+func TestLocalHandlerRoutesClientJobIDRemoteSubmission(t *testing.T) {
+	wantJob := queuedJobForTest()
+	remote := stubPairedJobController{submitWithID: func(
+		_ context.Context,
+		selector string,
+		id job.ID,
+		spec job.Spec,
+	) (job.Job, error) {
+		if selector != "Gaming PC" || id != wantJob.ID || spec.Executable != "echo" {
+			t.Fatalf("SubmitWithID(%q, %s, %#v)", selector, id, spec)
+		}
+		return wantJob, nil
+	}}
+	handler, err := NewLocalHandler(
+		stubJobController{}, remote, stubDeviceController{}, stubPairingController{}, "test-version",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := handler.Handle(context.Background(), &localv1.Request{
+		Operation: &localv1.Request_SubmitJob{SubmitJob: &localv1.SubmitJobRequest{
+			JobId: string(wantJob.ID),
 			Spec: &localv1.JobSpec{
 				Executable: "echo", Executor: localv1.Executor_EXECUTOR_NATIVE,
 			},
@@ -494,11 +557,12 @@ func newHandlerForTest(t *testing.T, controller JobController) *LocalHandler {
 }
 
 type stubPairedJobController struct {
-	submit func(context.Context, string, job.Spec) (job.Job, error)
-	get    func(context.Context, string, job.ID) (job.Job, error)
-	cancel func(context.Context, string, job.ID) (job.Job, error)
-	logs   func(context.Context, string, job.ID, uint64, int) (worker.JobLogs, error)
-	fetch  func(context.Context, string, job.ID, string) (artifact.RestoreResult, error)
+	submit       func(context.Context, string, job.Spec) (job.Job, error)
+	submitWithID func(context.Context, string, job.ID, job.Spec) (job.Job, error)
+	get          func(context.Context, string, job.ID) (job.Job, error)
+	cancel       func(context.Context, string, job.ID) (job.Job, error)
+	logs         func(context.Context, string, job.ID, uint64, int) (worker.JobLogs, error)
+	fetch        func(context.Context, string, job.ID, string) (artifact.RestoreResult, error)
 }
 
 func (stub stubPairedJobController) FetchArtifacts(
@@ -522,6 +586,18 @@ func (stub stubPairedJobController) Submit(
 		return stub.submit(ctx, selector, spec)
 	}
 	return job.Job{}, errors.New("unexpected remote submit")
+}
+
+func (stub stubPairedJobController) SubmitWithID(
+	ctx context.Context,
+	selector string,
+	id job.ID,
+	spec job.Spec,
+) (job.Job, error) {
+	if stub.submitWithID != nil {
+		return stub.submitWithID(ctx, selector, id, spec)
+	}
+	return job.Job{}, errors.New("unexpected remote submit with ID")
 }
 
 func (stub stubPairedJobController) Get(

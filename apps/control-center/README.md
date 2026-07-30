@@ -204,6 +204,8 @@ Current scope:
   ignore output-return settings;
 - tells the user when a remote project run is snapshotting/uploading before the
   job is submitted;
+- pre-assigns a job ID for remote submissions so compatible workers preserve
+  the same job identity through preparation, upload, and execution;
 - snapshots respect `.gitignore`/`.computehopignore` and exclude common local
   secrets, dependency folders, and caches by default;
 - stores Control Center preferences in the app user-data directory, with

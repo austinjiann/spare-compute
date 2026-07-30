@@ -41,6 +41,23 @@ func TestSubmitDurablyQueuesJob(t *testing.T) {
 	}
 }
 
+func TestSubmitWithIDDurablyQueuesRequestedJobID(t *testing.T) {
+	repository := newMemoryRepository()
+	service := newTestService(t, repository)
+	id := mustJobID(t, 44)
+
+	queued, err := service.SubmitWithID(context.Background(), id, validSpec())
+	if err != nil {
+		t.Fatalf("SubmitWithID() error = %v", err)
+	}
+	if queued.ID != id || queued.State != job.StateQueued {
+		t.Fatalf("queued = %#v", queued)
+	}
+	if _, err := repository.Get(context.Background(), id); err != nil {
+		t.Fatalf("Get(%s) error = %v", id, err)
+	}
+}
+
 func TestSubmitRejectsInvalidSpecBeforePersistence(t *testing.T) {
 	repository := newMemoryRepository()
 	service := newTestService(t, repository)
@@ -114,6 +131,41 @@ func TestSubmitSnapshotRequiresCompleteContentAndQueuesMaterializedWorkspace(t *
 	}
 	if workspace.manifest.Files[0].Path != "src/main.go" || workspace.subdirectory != "src" {
 		t.Fatalf("workspace request = %#v, %q", workspace.manifest, workspace.subdirectory)
+	}
+}
+
+func TestSubmitSnapshotWithIDMaterializesRequestedJobID(t *testing.T) {
+	repository := newMemoryRepository()
+	requestedID := mustJobID(t, 45)
+	contents := []byte("project")
+	digest := snapshot.Sum(contents)
+	manifest := snapshot.Manifest{
+		Version: snapshot.ManifestVersion,
+		Files: []snapshot.File{{
+			Path: "src/main.go", Mode: 0o644, Size: int64(len(contents)),
+			Chunks: []snapshot.Chunk{{Digest: digest, Size: uint32(len(contents))}},
+		}},
+		TotalBytes: int64(len(contents)),
+	}
+	workspace := &fakeSnapshotWorkspace{directory: "/jobs/45/workspace/src"}
+	service, err := NewJobService(Dependencies{
+		Jobs: repository, Executions: &fakeExecutionController{}, Logs: fakeLogReader{},
+		GenerateID: func() (job.ID, error) {
+			t.Fatal("SubmitSnapshotWithID generated a new ID")
+			return "", nil
+		},
+		Now: time.Now, Snapshots: workspace,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	queued, err := service.SubmitSnapshotWithID(context.Background(), requestedID, validSpec(), manifest, "src")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if queued.ID != requestedID || queued.Spec.WorkingDirectory != workspace.directory ||
+		workspace.id != requestedID || workspace.manifest.Files[0].Path != "src/main.go" {
+		t.Fatalf("queued = %#v, workspace = %#v", queued, workspace)
 	}
 }
 
@@ -269,6 +321,7 @@ func (fakeLogReader) Read(context.Context, job.ID, uint64, int) (joblogging.Page
 type fakeSnapshotWorkspace struct {
 	missing       []snapshot.Digest
 	directory     string
+	id            job.ID
 	manifest      snapshot.Manifest
 	subdirectory  string
 	materialized  bool
@@ -294,11 +347,12 @@ func (workspace *fakeSnapshotWorkspace) Put(
 
 func (workspace *fakeSnapshotWorkspace) Materialize(
 	_ context.Context,
-	_ job.ID,
+	id job.ID,
 	manifest snapshot.Manifest,
 	subdirectory string,
 ) (string, error) {
 	workspace.materialized = true
+	workspace.id = id
 	workspace.manifest = manifest.Clone()
 	workspace.subdirectory = subdirectory
 	return workspace.directory, nil

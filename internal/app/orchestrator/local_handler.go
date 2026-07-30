@@ -40,6 +40,12 @@ type JobController interface {
 	ReadLogs(context.Context, job.ID, uint64, int) (worker.JobLogs, error)
 }
 
+// JobIDController is implemented by local job services that can accept a
+// client-provided durable job ID.
+type JobIDController interface {
+	SubmitWithID(context.Context, job.ID, job.Spec) (job.Job, error)
+}
+
 // PairedJobController routes explicit operations to one trusted LAN worker.
 type PairedJobController interface {
 	Submit(context.Context, string, job.Spec) (job.Job, error)
@@ -47,6 +53,12 @@ type PairedJobController interface {
 	List(context.Context, string, job.ListOptions) ([]job.Job, error)
 	Cancel(context.Context, string, job.ID) (job.Job, error)
 	ReadLogs(context.Context, string, job.ID, uint64, int) (worker.JobLogs, error)
+}
+
+// PairedJobIDController is implemented by remote job services that can forward
+// a client-provided durable job ID to compatible workers.
+type PairedJobIDController interface {
+	SubmitWithID(context.Context, string, job.ID, job.Spec) (job.Job, error)
 }
 
 // LocalArtifactController restores outputs owned by this daemon.
@@ -541,11 +553,40 @@ func (handler *LocalHandler) submit(
 	if err != nil {
 		return errorResponse(err)
 	}
+	var requestedID job.ID
+	if request.GetJobId() != "" {
+		requestedID, err = job.ParseID(request.GetJobId())
+		if err != nil {
+			return errorResponse(err)
+		}
+	}
 	var value job.Job
 	if request.GetDeviceSelector() == "" {
-		value, err = handler.jobs.Submit(ctx, spec)
+		if requestedID.Valid() {
+			controller, ok := handler.jobs.(JobIDController)
+			if !ok {
+				return failureResponse(
+					localv1.ErrorCode_ERROR_CODE_UNSUPPORTED_VERSION,
+					"local daemon does not support client-provided job IDs",
+				)
+			}
+			value, err = controller.SubmitWithID(ctx, requestedID, spec)
+		} else {
+			value, err = handler.jobs.Submit(ctx, spec)
+		}
 	} else {
-		value, err = handler.remote.Submit(ctx, request.GetDeviceSelector(), spec)
+		if requestedID.Valid() {
+			controller, ok := handler.remote.(PairedJobIDController)
+			if !ok {
+				return failureResponse(
+					localv1.ErrorCode_ERROR_CODE_UNSUPPORTED_VERSION,
+					"remote job controller does not support client-provided job IDs",
+				)
+			}
+			value, err = controller.SubmitWithID(ctx, request.GetDeviceSelector(), requestedID, spec)
+		} else {
+			value, err = handler.remote.Submit(ctx, request.GetDeviceSelector(), spec)
+		}
 	}
 	if err != nil {
 		return errorResponse(err)

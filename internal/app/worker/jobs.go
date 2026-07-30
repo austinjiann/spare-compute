@@ -218,6 +218,13 @@ func (service *JobService) Submit(ctx context.Context, spec job.Spec) (job.Job, 
 	if err != nil {
 		return job.Job{}, fmt.Errorf("generate job ID: %w", err)
 	}
+	return service.SubmitWithID(ctx, id, spec)
+}
+
+// SubmitWithID validates and durably accepts a job with a caller-provided ID.
+// It is used by paired orchestrators that need to track remote preparation
+// before the worker has accepted the final job.
+func (service *JobService) SubmitWithID(ctx context.Context, id job.ID, spec job.Spec) (job.Job, error) {
 	return service.submitWithID(ctx, id, spec)
 }
 
@@ -279,8 +286,27 @@ func (service *JobService) SubmitSnapshot(
 	manifest snapshot.Manifest,
 	workingSubdirectory string,
 ) (job.Job, error) {
+	id, err := service.generateID()
+	if err != nil {
+		return job.Job{}, fmt.Errorf("generate job ID: %w", err)
+	}
+	return service.SubmitSnapshotWithID(ctx, id, spec, manifest, workingSubdirectory)
+}
+
+// SubmitSnapshotWithID materializes one complete immutable project using a
+// caller-provided job ID before durably queueing the command.
+func (service *JobService) SubmitSnapshotWithID(
+	ctx context.Context,
+	id job.ID,
+	spec job.Spec,
+	manifest snapshot.Manifest,
+	workingSubdirectory string,
+) (job.Job, error) {
 	if service.snapshots == nil {
 		return job.Job{}, ErrSnapshotsDisabled
+	}
+	if !id.Valid() {
+		return job.Job{}, job.ErrInvalidID
 	}
 	if err := spec.Validate(); err != nil {
 		return job.Job{}, err
@@ -304,10 +330,6 @@ func (service *JobService) SubmitSnapshot(
 	}
 	if len(missing) != 0 {
 		return job.Job{}, fmt.Errorf("%w: %d chunks", ErrSnapshotIncomplete, len(missing))
-	}
-	id, err := service.generateID()
-	if err != nil {
-		return job.Job{}, fmt.Errorf("generate job ID: %w", err)
 	}
 	workingDirectory, err := service.snapshots.Materialize(ctx, id, manifest, workingSubdirectory)
 	if err != nil {

@@ -586,16 +586,18 @@ func TestRemoteJobServiceTransfersOnlyMissingSnapshotChunks(t *testing.T) {
 	}
 	want := queuedJobForTest()
 	want.Spec.WorkingDirectory = "/worker/jobs/workspace/src"
-	jobMessage, err := mapper.JobToRemoteProto(want)
+	firstID := want.ID
+	secondID, err := job.ParseID("019abcdf-0123-4567-89ab-000000000222")
 	if err != nil {
 		t.Fatal(err)
 	}
 	cached := false
 	uploads := 0
 	submissions := 0
+	progress := newRemoteProgressStub()
 	service, err := NewRemoteJobService(RemoteDependencies{
 		Nearby: stubDeviceController{}, Trust: remoteTrustStub{peers: []trust.Peer{peer}},
-		Placements: newRemotePlacementStub(),
+		Placements: newRemotePlacementStub(), Progress: progress,
 		Dialer: remoteDialerFunc(func(context.Context, device.NearbyDevice, trust.Peer) (remoteprotocol.Caller, error) {
 			t.Fatal("absent LAN path was dialed")
 			return nil, nil
@@ -640,9 +642,16 @@ func TestRemoteJobServiceTransfersOnlyMissingSnapshotChunks(t *testing.T) {
 					}}, nil
 				case *computehopv1.RemoteRequest_SubmitJob:
 					submitted := request.GetSubmitJob()
+					submittedID, parseErr := job.ParseID(submitted.GetJobId())
 					if submitted.GetSnapshot() == nil || submitted.GetWorkingSubdirectory() != "src" ||
-						submitted.GetSpec().GetWorkingDirectory() != "" {
+						submitted.GetSpec().GetWorkingDirectory() != "" || parseErr != nil {
 						t.Fatalf("submit request = %#v", submitted)
+					}
+					current := want
+					current.ID = submittedID
+					jobMessage, messageErr := mapper.JobToRemoteProto(current)
+					if messageErr != nil {
+						t.Fatal(messageErr)
 					}
 					submissions++
 					return &computehopv1.RemoteResponse{Result: &computehopv1.RemoteResponse_SubmitJob{
@@ -664,13 +673,21 @@ func TestRemoteJobServiceTransfersOnlyMissingSnapshotChunks(t *testing.T) {
 	}
 	spec := want.Spec.Clone()
 	spec.WorkingDirectory = "/local/project/src"
-	for run := 0; run < 2; run++ {
-		if _, err := service.Submit(context.Background(), "Build PC", spec); err != nil {
-			t.Fatalf("Submit(%d) error = %v", run, err)
+	for index, id := range []job.ID{firstID, secondID} {
+		got, err := service.SubmitWithID(context.Background(), "Build PC", id, spec)
+		if err != nil {
+			t.Fatalf("SubmitWithID(%d) error = %v", index, err)
+		}
+		if got.ID != id {
+			t.Fatalf("SubmitWithID(%d) ID = %s, want %s", index, got.ID, id)
 		}
 	}
 	if uploads != 1 || submissions != 2 {
 		t.Fatalf("uploads = %d, submissions = %d", uploads, submissions)
+	}
+	if !progress.saw(job.ProgressSnapshot) || !progress.saw(job.ProgressUpload) ||
+		progress.clears != 2 || len(progress.values) != 0 {
+		t.Fatalf("progress history = %#v, clears = %d, values = %#v", progress.history, progress.clears, progress.values)
 	}
 }
 

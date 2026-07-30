@@ -1393,8 +1393,11 @@ type SubmitJobRequest struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	Spec           *JobSpec               `protobuf:"bytes,1,opt,name=spec,proto3" json:"spec,omitempty"`
 	DeviceSelector string                 `protobuf:"bytes,2,opt,name=device_selector,json=deviceSelector,proto3" json:"device_selector,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Optional client-generated UUID. It lets UI clients know the job ID before
+	// remote snapshot preparation/upload has finished.
+	JobId         string `protobuf:"bytes,3,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SubmitJobRequest) Reset() {
@@ -1437,6 +1440,13 @@ func (x *SubmitJobRequest) GetSpec() *JobSpec {
 func (x *SubmitJobRequest) GetDeviceSelector() string {
 	if x != nil {
 		return x.DeviceSelector
+	}
+	return ""
+}
+
+func (x *SubmitJobRequest) GetJobId() string {
+	if x != nil {
+		return x.JobId
 	}
 	return ""
 }
@@ -3647,10 +3657,11 @@ const file_computehop_local_v1_local_proto_rawDesc = "" +
 	"\x04arch\x18\x06 \x01(\tR\x04arch\x12*\n" +
 	"\x11logical_cpu_count\x18\a \x01(\rR\x0flogicalCpuCount\x12,\n" +
 	"\x12total_memory_bytes\x18\b \x01(\x04R\x10totalMemoryBytes\x12\x19\n" +
-	"\btool_ids\x18\t \x03(\tR\atoolIds\"m\n" +
+	"\btool_ids\x18\t \x03(\tR\atoolIds\"\x84\x01\n" +
 	"\x10SubmitJobRequest\x120\n" +
 	"\x04spec\x18\x01 \x01(\v2\x1c.computehop.local.v1.JobSpecR\x04spec\x12'\n" +
-	"\x0fdevice_selector\x18\x02 \x01(\tR\x0edeviceSelector\"?\n" +
+	"\x0fdevice_selector\x18\x02 \x01(\tR\x0edeviceSelector\x12\x15\n" +
+	"\x06job_id\x18\x03 \x01(\tR\x05jobId\"?\n" +
 	"\x11SubmitJobResponse\x12*\n" +
 	"\x03job\x18\x01 \x01(\v2\x18.computehop.local.v1.JobR\x03job\"O\n" +
 	"\rGetJobRequest\x12\x15\n" +
