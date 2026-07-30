@@ -55,6 +55,59 @@ class LocalDaemonClient {
     return response.listDevices || {};
   }
 
+  async listPairings(options = {}) {
+    const response = await this.call({ listPairings: {} }, options);
+    return response.listPairings?.pairings || [];
+  }
+
+  async beginPairing(deviceSelector, options = {}) {
+    const response = await this.call(
+      {
+        beginPairing: {
+          deviceSelector: deviceSelector || ""
+        }
+      },
+      options
+    );
+    return response.beginPairing?.pairing || null;
+  }
+
+  async confirmPairing(pairingSelector, options = {}) {
+    const response = await this.call(
+      {
+        confirmPairing: {
+          pairingSelector: pairingSelector || ""
+        }
+      },
+      options
+    );
+    return response.confirmPairing?.pairing || null;
+  }
+
+  async rejectPairing(pairingSelector, options = {}) {
+    const response = await this.call(
+      {
+        rejectPairing: {
+          pairingSelector: pairingSelector || ""
+        }
+      },
+      options
+    );
+    return response.rejectPairing?.pairing || null;
+  }
+
+  async unpairDevice(deviceSelector, options = {}) {
+    const response = await this.call(
+      {
+        unpairDevice: {
+          deviceSelector: deviceSelector || ""
+        }
+      },
+      options
+    );
+    return response.unpairDevice?.device || null;
+  }
+
   async submitJob(jobRequest, options = {}) {
     const response = await this.call(
       {

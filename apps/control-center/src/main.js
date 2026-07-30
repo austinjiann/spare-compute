@@ -56,10 +56,35 @@ ipcMain.handle("devices:list", async () => {
   try {
     const client = new LocalDaemonClient();
     const result = await client.listDevices();
-    return { ok: true, error: "", devices: mapDevices(result) };
+    const pairings = await client.listPairings();
+    return { ok: true, error: "", devices: mapDevices(result), pairings: mapPairings(pairings) };
   } catch (error) {
-    return { ok: false, error: readableError(error), devices: [] };
+    return { ok: false, error: readableError(error), devices: [], pairings: [] };
   }
+});
+
+ipcMain.handle("devices:connect", async (_event, deviceID) => {
+  const client = new LocalDaemonClient();
+  const pairing = await client.beginPairing(String(deviceID || "").trim());
+  return { pairing: mapPairing(pairing) };
+});
+
+ipcMain.handle("devices:forget", async (_event, deviceID) => {
+  const client = new LocalDaemonClient();
+  const device = await client.unpairDevice(String(deviceID || "").trim());
+  return { device: mapTrustedDevice(device) };
+});
+
+ipcMain.handle("pairings:confirm", async (_event, pairingID) => {
+  const client = new LocalDaemonClient();
+  const pairing = await client.confirmPairing(String(pairingID || "").trim());
+  return { pairing: mapPairing(pairing) };
+});
+
+ipcMain.handle("pairings:reject", async (_event, pairingID) => {
+  const client = new LocalDaemonClient();
+  const pairing = await client.rejectPairing(String(pairingID || "").trim());
+  return { pairing: mapPairing(pairing) };
 });
 
 ipcMain.handle("app:openExternal", async (_event, target) => {
@@ -225,21 +250,13 @@ function mapDevices(result) {
   const seen = new Set();
 
   for (const trusted of result.trustedDevices || []) {
-    const id = trusted.deviceId || trusted.pairId || trusted.name;
+    const device = mapTrustedDevice(trusted);
+    const id = device.id;
     if (!id || seen.has(id)) {
       continue;
     }
     seen.add(id);
-    devices.push({
-      name: trusted.name || "Computer",
-      id,
-      connection: trusted.trustState === "DEVICE_TRUST_STATE_PAIRED" ? connectionLabel(trusted) : "unpaired",
-      role: roleLabel(trusted.role),
-      availability: availabilityFromConnectivity(trusted.connectivityState),
-      path: trusted.connectivityPath || "",
-      address: "",
-      updated: timestampLabel(trusted.connectivityUpdatedAtUnixNano || trusted.updatedAtUnixNano)
-    });
+    devices.push(device);
   }
 
   for (const nearby of result.devices || []) {
@@ -254,6 +271,7 @@ function mapDevices(result) {
       connection: nearby.trustState === "DEVICE_TRUST_STATE_PAIRED" ? "paired" : "not connected",
       role: roleLabel(nearby.role),
       availability: nearby.endpointReady ? "nearby" : "offline",
+      trustState: trustLabel(nearby.trustState),
       path: "lan",
       address: [nearby.addresses || [], nearby.port ? [String(nearby.port)] : []].flat().filter(Boolean).join(":"),
       updated: timestampLabel(nearby.lastSeenAtUnixNano)
@@ -261,6 +279,47 @@ function mapDevices(result) {
   }
 
   return devices;
+}
+
+function mapTrustedDevice(trusted) {
+  if (!trusted) {
+    return null;
+  }
+  return {
+    name: trusted.name || "Computer",
+    id: trusted.deviceId || trusted.pairId || trusted.name || "",
+    pairID: trusted.pairId || "",
+    connection: trusted.trustState === "DEVICE_TRUST_STATE_PAIRED" ? connectionLabel(trusted) : "unpaired",
+    role: roleLabel(trusted.role),
+    availability: availabilityFromConnectivity(trusted.connectivityState),
+    trustState: trustLabel(trusted.trustState),
+    path: trusted.connectivityPath || "",
+    address: "",
+    updated: timestampLabel(trusted.connectivityUpdatedAtUnixNano || trusted.updatedAtUnixNano)
+  };
+}
+
+function mapPairings(pairings) {
+  return (pairings || []).map(mapPairing).filter(Boolean);
+}
+
+function mapPairing(pairing) {
+  if (!pairing) {
+    return null;
+  }
+  return {
+    id: pairing.id || "",
+    peerDeviceID: pairing.peerDeviceId || "",
+    peerName: pairing.peerName || "Computer",
+    peerRole: roleLabel(pairing.peerRole),
+    verificationCode: pairing.verificationCode || "",
+    direction: pairing.direction === "PAIRING_DIRECTION_INBOUND" ? "inbound" : "outbound",
+    state: pairingStateLabel(pairing.state),
+    localConfirmed: Boolean(pairing.localConfirmed),
+    remoteConfirmed: Boolean(pairing.remoteConfirmed),
+    expiresAt: timestampLabel(pairing.expiresAtUnixNano),
+    failure: pairing.failure || ""
+  };
 }
 
 function roleLabel(role) {
@@ -275,6 +334,33 @@ function roleLabel(role) {
 
 function connectionLabel(device) {
   return device.connectivityState === "CONNECTIVITY_STATE_CONNECTED" ? "active" : "not connected";
+}
+
+function trustLabel(state) {
+  if (state === "DEVICE_TRUST_STATE_PAIRED") {
+    return "paired";
+  }
+  if (state === "DEVICE_TRUST_STATE_REVOKED") {
+    return "revoked";
+  }
+  return "unpaired";
+}
+
+function pairingStateLabel(state) {
+  switch (state) {
+    case "PAIRING_STATE_WAITING":
+      return "waiting";
+    case "PAIRING_STATE_PAIRED":
+      return "paired";
+    case "PAIRING_STATE_REJECTED":
+      return "rejected";
+    case "PAIRING_STATE_EXPIRED":
+      return "expired";
+    case "PAIRING_STATE_FAILED":
+      return "failed";
+    default:
+      return "unknown";
+  }
 }
 
 function availabilityFromConnectivity(state) {

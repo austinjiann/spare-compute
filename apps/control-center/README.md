@@ -17,6 +17,10 @@ Current scope:
 - connects directly to the local ComputeHop daemon over the owner-only local IPC
   socket;
 - reads trusted and nearby devices from the daemon;
+- starts nearby-device pairing from the Devices list;
+- shows active pairing verification codes and lets the user confirm or reject
+  them in-app;
+- forgets paired devices through daemon IPC;
 - submits selected commands as durable native jobs;
 - polls daemon job logs and streams stdout/stderr into the window;
 - cancels running jobs through daemon IPC;

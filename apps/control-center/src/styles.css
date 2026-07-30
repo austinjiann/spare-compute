@@ -145,6 +145,73 @@ small {
   cursor: pointer;
 }
 
+.row-button {
+  -webkit-app-region: no-drag;
+  border: 0;
+  border-radius: 999px;
+  padding: 7px 12px;
+  color: var(--text);
+  background: var(--row);
+  font-weight: 680;
+  cursor: pointer;
+}
+
+.row-button.primary {
+  color: white;
+  background: var(--blue);
+}
+
+.row-button.muted {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.row-button:disabled {
+  opacity: 0.46;
+  cursor: default;
+}
+
+.pairing-list {
+  display: grid;
+  gap: 8px;
+}
+
+.pairing-card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(63, 130, 255, 0.14);
+}
+
+.pairing-copy {
+  display: grid;
+  gap: 5px;
+}
+
+.pairing-copy strong {
+  font-size: 16px;
+  font-weight: 720;
+}
+
+.pairing-copy code {
+  width: fit-content;
+  padding: 5px 8px;
+  border-radius: 9px;
+  background: rgba(0, 0, 0, 0.22);
+  color: rgba(255, 255, 255, 0.92);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 14px;
+  letter-spacing: 0.025em;
+}
+
+.pairing-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .device-row:hover,
 .device-row.selected {
   background: var(--row-hover);
