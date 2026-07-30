@@ -988,6 +988,21 @@ function selectRunDevice(deviceID) {
   void refreshJobs();
 }
 
+function selectPlannedRunDevice(deviceID) {
+  const device = typeof deviceID === "object" ? deviceID : state.devices.find((candidate) => candidate.id === deviceID);
+  const id = typeof deviceID === "object" ? deviceID.id : deviceID;
+  setRunDeviceSelection(id, device);
+  state.selectedJobID = null;
+  state.selectedJobLogText = "";
+  state.selectedJobLogTruncated = false;
+  state.selectedJobLogFailed = false;
+  state.jobs = [];
+  renderDevices();
+  renderJobs();
+  void refreshTaskSuggestions();
+  void refreshJobs();
+}
+
 function setRunDeviceSelection(deviceID, device) {
   const id = String(deviceID || "local").trim() || "local";
   state.selectedDeviceID = id;
@@ -1514,7 +1529,7 @@ function applyPlanTargetPreference(plan) {
 
   if (target === "local") {
     if (selected?.id !== "local") {
-      selectRunDevice(defaultLocalDevice());
+      selectPlannedRunDevice(defaultLocalDevice());
     }
     return;
   }
@@ -1524,20 +1539,25 @@ function applyPlanTargetPreference(plan) {
       return;
     }
     if (compatible) {
-      selectRunDevice(compatible);
+      selectPlannedRunDevice(compatible);
       return;
     }
     const worker = singleConnectedWorkerTarget(state.devices);
     if (worker && workerCanRunPlan(worker, plan)) {
-      selectRunDevice(worker);
+      selectPlannedRunDevice(worker);
     }
     return;
   }
 
   if (selected && !workerCanRunPlan(selected, plan)) {
     if (compatible) {
-      selectRunDevice(compatible);
+      selectPlannedRunDevice(compatible);
     }
+    return;
+  }
+
+  if (!state.userSelectedDevice && selected?.id === "local" && compatible) {
+    selectPlannedRunDevice(compatible);
   }
 }
 
@@ -1620,6 +1640,7 @@ function applyTaskSuggestion(suggestion) {
     projectRoot: state.settings.projectRoot || "",
     detected: suggestion.detected || []
   };
+  applyPlanTargetPreference(state.plannedTask);
   renderPlanPreview();
   renderRunControls();
   input.focus();
@@ -1846,7 +1867,9 @@ function smokeTestDevice(selected = selectedDevice()) {
   if (selected && selected.id !== "local" && canRunOn(selected)) {
     return selected;
   }
-  return singleConnectedWorkerTarget(state.devices) || selected;
+  return compatibleWorkerForPlan(state.devices, { targetPreference: "worker" }, { preferBestWorker: true }) ||
+    singleConnectedWorkerTarget(state.devices) ||
+    selected;
 }
 
 function smokeTestDetail(device) {

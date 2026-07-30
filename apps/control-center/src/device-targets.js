@@ -52,7 +52,9 @@
     const platform = normalizeTargetPlatform(plan.targetPlatform || plan.requiredPlatform);
     const architecture = normalizeTargetArchitecture(plan.targetArchitecture || plan.requiredArchitecture || plan.targetArch || plan.requiredArch);
     const allowed = typeof options.isWorkerAllowed === "function" ? options.isWorkerAllowed : () => true;
-    const shouldTry = platform || architecture || options.requireAllowedMatch;
+    const shouldTry = platform || architecture || options.requireAllowedMatch ||
+      normalizeTargetPreference(plan.targetPreference) === "worker" ||
+      options.preferBestWorker;
     if (!shouldTry) {
       return null;
     }
@@ -62,7 +64,31 @@
       workerMatchesArchitecture(device, architecture) &&
       allowed(device)
     ));
-    return workers.length === 1 ? workers[0] : null;
+    return bestWorkerFromCandidates(workers);
+  }
+
+  function bestWorkerFromCandidates(workers = []) {
+    if (workers.length === 0) {
+      return null;
+    }
+    if (workers.length === 1) {
+      return workers[0];
+    }
+    const ranked = workers
+      .map((worker) => ({
+        worker,
+        score: workerResourceScore(worker)
+      }))
+      .sort((left, right) => {
+        if (right.score !== left.score) {
+          return right.score - left.score;
+        }
+        return stableWorkerKey(left.worker).localeCompare(stableWorkerKey(right.worker));
+      });
+    if (ranked[0].score === ranked[1].score) {
+      return null;
+    }
+    return ranked[0].worker;
   }
 
   function workerMatchesPlatform(device = {}, targetPlatform = "") {
@@ -133,6 +159,16 @@
     return automatic || worker;
   }
 
+  function workerResourceScore(device = {}) {
+    const cpuCount = numericHint(device.logicalCPUCount || device.logicalCpuCount || device.cpuCount);
+    const memoryGiB = numericHint(device.totalMemoryBytes || device.memoryBytes) / 1024 ** 3;
+    return (cpuCount * 1_000) + memoryGiB;
+  }
+
+  function stableWorkerKey(device = {}) {
+    return String(device.id || device.name || "").trim();
+  }
+
   function insertAfterLocal(devices, target) {
     const localIndex = devices.findIndex((device) => device.id === "local");
     if (localIndex < 0) {
@@ -148,10 +184,12 @@
   return {
     addAutomaticWorkerTarget,
     automaticWorkerID,
+    bestWorkerFromCandidates,
     compatibleWorkerForPlan,
     concreteDeviceID,
     isSingleAutoCandidate,
     singleConnectedWorkerTarget,
+    workerResourceScore,
     workerMatchesArchitecture,
     workerMatchesPlatform,
     workerRunTargetForAction
@@ -198,5 +236,18 @@
 
   function normalizeDeviceArchitecture(value) {
     return normalizeTargetArchitecture(value);
+  }
+
+  function normalizeTargetPreference(value) {
+    const target = String(value || "").trim().toLowerCase();
+    return target === "worker" || target === "local" ? target : "";
+  }
+
+  function numericHint(value) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric <= 0) {
+      return 0;
+    }
+    return numeric;
   }
 }));

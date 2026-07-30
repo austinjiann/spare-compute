@@ -93,8 +93,12 @@ Current scope:
   "on x64" using the daemon's advertised architecture, with the same
   unambiguous-worker selection and pre-submit mismatch checks;
 - uses each device's Allow settings as an early scheduling hint, so if the
-  selected computer has a work category turned off but exactly one connected
-  worker allows it, the plan can move to that worker before submission;
+  selected computer has a work category turned off but a connected worker
+  allows it, the plan can move to the best compatible worker before submission;
+- scores compatible connected workers by advertised CPU count and total memory
+  when OS, architecture, worker-target, or Allow hints leave more than one
+  possible target; equal-score ties stay conservative instead of picking a
+  random worker;
 - uses deterministic local planning first, so no API key is required for normal
   Check/Test/Build/Lint/Docker planning;
 - can fall back to an optional OpenAI Responses API planner for tasks local

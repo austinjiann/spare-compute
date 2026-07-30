@@ -3,10 +3,12 @@ const test = require("node:test");
 const {
   addAutomaticWorkerTarget,
   automaticWorkerID,
+  bestWorkerFromCandidates,
   concreteDeviceID,
   isSingleAutoCandidate,
   singleConnectedWorkerTarget,
   compatibleWorkerForPlan,
+  workerResourceScore,
   workerMatchesArchitecture,
   workerMatchesPlatform,
   workerRunTargetForAction
@@ -108,11 +110,13 @@ test("compatibleWorkerForPlan selects one matching worker by platform", () => {
   const mac = { ...connectedWorker("Mac mini", "worker-1"), platform: "darwin" };
   const windows = { ...connectedWorker("Gaming PC", "worker-2"), platform: "windows" };
   const linux = { ...connectedWorker("Home Server", "worker-3"), platform: "linux" };
+  const strongerWindows = { ...windows, id: "worker-4", logicalCPUCount: 32, totalMemoryBytes: 64 * 1024 ** 3 };
 
   assert.equal(compatibleWorkerForPlan([localDevice(), mac, windows, linux], { targetPlatform: "windows" }).id, "worker-2");
   assert.equal(compatibleWorkerForPlan([localDevice(), mac, windows, linux], { targetPlatform: "macos" }).id, "worker-1");
   assert.equal(compatibleWorkerForPlan([localDevice(), mac, windows, linux], { requiredPlatform: "linux" }).id, "worker-3");
   assert.equal(compatibleWorkerForPlan([localDevice(), mac, windows, { ...windows, id: "worker-4" }], { targetPlatform: "windows" }), null);
+  assert.equal(compatibleWorkerForPlan([localDevice(), mac, windows, strongerWindows], { targetPlatform: "windows" }).id, "worker-4");
   assert.equal(compatibleWorkerForPlan([localDevice(), mac, windows], { targetPlatform: "" }), null);
   assert.equal(workerMatchesPlatform({ platform: "win32" }, "windows"), true);
   assert.equal(workerMatchesPlatform({ platform: "darwin" }, "linux"), false);
@@ -142,6 +146,37 @@ test("compatibleWorkerForPlan can select by allowed-work policy", () => {
     }),
     null
   );
+  assert.equal(
+    compatibleWorkerForPlan([
+      localDevice(),
+      { ...buildWorker, logicalCPUCount: 8, totalMemoryBytes: 16 * 1024 ** 3 },
+      { ...dockerWorker, logicalCPUCount: 24, totalMemoryBytes: 64 * 1024 ** 3 }
+    ], { command: "docker build ." }, {
+      requireAllowedMatch: true,
+      isWorkerAllowed: () => true
+    }).id,
+    "worker-2"
+  );
+});
+
+test("compatibleWorkerForPlan picks the strongest worker for worker-targeted tasks", () => {
+  const weak = { ...connectedWorker("Small Mac", "worker-1"), logicalCPUCount: 8, totalMemoryBytes: 16 * 1024 ** 3 };
+  const strong = { ...connectedWorker("Gaming PC", "worker-2"), logicalCPUCount: 32, totalMemoryBytes: 64 * 1024 ** 3 };
+
+  assert.equal(
+    compatibleWorkerForPlan([localDevice(), weak, strong], { command: "hostname", targetPreference: "worker" }).id,
+    "worker-2"
+  );
+});
+
+test("bestWorkerFromCandidates remains conservative when workers tie", () => {
+  const left = { ...connectedWorker("Left", "worker-1"), logicalCPUCount: 8, totalMemoryBytes: 16 * 1024 ** 3 };
+  const right = { ...connectedWorker("Right", "worker-2"), logicalCPUCount: 8, totalMemoryBytes: 16 * 1024 ** 3 };
+  const stronger = { ...connectedWorker("Strong", "worker-3"), logicalCPUCount: 8, totalMemoryBytes: 32 * 1024 ** 3 };
+
+  assert.equal(bestWorkerFromCandidates([left, right]), null);
+  assert.equal(bestWorkerFromCandidates([left, stronger]).id, "worker-3");
+  assert.equal(workerResourceScore(stronger) > workerResourceScore(left), true);
 });
 
 test("compatibleWorkerForPlan selects one matching worker by architecture", () => {
