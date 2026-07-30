@@ -9,7 +9,7 @@ contextBridge.exposeInMainWorld("computeHop", {
   clearAIPlanner: () => ipcRenderer.invoke("aiPlanner:clear"),
   startDaemon: (request) => ipcRenderer.invoke("daemon:start", request),
   daemonStatus: () => ipcRenderer.invoke("daemon:status"),
-  launchAgentStatus: () => ipcRenderer.invoke("daemon:launchAgentStatus"),
+  launchAgentStatus: (request) => ipcRenderer.invoke("daemon:launchAgentStatus", request),
   installLaunchAgent: (request) => ipcRenderer.invoke("daemon:installLaunchAgent", request),
   listDevices: () => ipcRenderer.invoke("devices:list"),
   connectDevice: (deviceID) => ipcRenderer.invoke("devices:connect", deviceID),

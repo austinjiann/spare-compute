@@ -31,7 +31,14 @@ async function launchAgentStatus(options = {}) {
   const lanOnly = Boolean(config.lanOnly);
   const daemonPath = config.daemonPath || "";
   const expectedDaemonPath = String(options.expectedDaemonPath || "").trim();
-  const needsUpdate = Boolean(installed && expectedDaemonPath && daemonPath && !samePath(daemonPath, expectedDaemonPath));
+  const expectedRole = expectedRoleValue(options.expectedRole);
+  const expectedDeviceName = String(options.expectedDeviceName || "").trim();
+  const hasExpectedLanOnly = typeof options.expectedLanOnly === "boolean";
+  const daemonPathNeedsUpdate = Boolean(installed && expectedDaemonPath && daemonPath && !samePath(daemonPath, expectedDaemonPath));
+  const roleNeedsUpdate = Boolean(installed && expectedRole && role !== expectedRole);
+  const deviceNameNeedsUpdate = Boolean(installed && expectedDeviceName && deviceName !== expectedDeviceName);
+  const lanOnlyNeedsUpdate = Boolean(installed && hasExpectedLanOnly && lanOnly !== options.expectedLanOnly);
+  const needsUpdate = daemonPathNeedsUpdate || roleNeedsUpdate || deviceNameNeedsUpdate || lanOnlyNeedsUpdate;
   const uid = options.uid ?? currentUID();
   const launchd = uid === "" || uid === null || uid === undefined
     ? { loaded: false, state: "", error: "Current macOS user id is unavailable." }
@@ -49,12 +56,23 @@ async function launchAgentStatus(options = {}) {
     lanOnly,
     daemonPath,
     expectedDaemonPath,
+    expectedRole,
+    expectedDeviceName,
+    expectedLanOnly: hasExpectedLanOnly ? options.expectedLanOnly : undefined,
+    daemonPathNeedsUpdate,
+    roleNeedsUpdate,
+    deviceNameNeedsUpdate,
+    lanOnlyNeedsUpdate,
     state: launchd.state,
     path: plistPath,
     detail: launchAgentDetail({
       installed,
       loaded: launchd.loaded,
       needsUpdate,
+      daemonPathNeedsUpdate,
+      roleNeedsUpdate,
+      deviceNameNeedsUpdate,
+      lanOnlyNeedsUpdate,
       role,
       deviceName,
       lanOnly,
@@ -102,6 +120,11 @@ function roleFromPlist(contents) {
   return launchAgentConfigFromPlist(contents).role;
 }
 
+function expectedRoleValue(value) {
+  const role = String(value || "").trim().toLowerCase();
+  return role === "orchestrator" || role === "worker" ? role : "";
+}
+
 function plistStringValues(contents) {
   return [...String(contents || "").matchAll(/<string>([^<]*)<\/string>/g)]
     .map((match) => decodePlistString(match[1]).trim());
@@ -139,6 +162,18 @@ function launchdStateFromOutput(output) {
 
 function launchAgentDetail(status = {}) {
   if (status.needsUpdate) {
+    if (status.daemonPathNeedsUpdate) {
+      return "Installed from an older app location. Update the background service when convenient.";
+    }
+    if (status.roleNeedsUpdate) {
+      return "Installed for a different role. Update the background service to match this app.";
+    }
+    if (status.deviceNameNeedsUpdate) {
+      return "Installed with a different device name. Update the background service to match this app.";
+    }
+    if (status.lanOnlyNeedsUpdate) {
+      return "Installed with different network settings. Update the background service to match this app.";
+    }
     return "Installed from an older app location. Update the background service when convenient.";
   }
   if (status.loaded) {

@@ -38,7 +38,10 @@ async function installLaunchAgent(options = {}) {
     uid,
     fs: fsModule,
     runCommand,
-    expectedDaemonPath: daemonPath
+    expectedDaemonPath: daemonPath,
+    expectedRole: role,
+    expectedDeviceName: deviceName,
+    expectedLanOnly: lanOnly
   });
   await assertReplaceablePlist(plistPath, fsModule);
 
@@ -67,7 +70,17 @@ async function installLaunchAgent(options = {}) {
   }
 
   const status = shouldBootstrap
-    ? await launchAgentStatus({ platform, homeDir, uid, fs: fsModule, runCommand, expectedDaemonPath: daemonPath })
+    ? await launchAgentStatus({
+        platform,
+        homeDir,
+        uid,
+        fs: fsModule,
+        runCommand,
+        expectedDaemonPath: daemonPath,
+        expectedRole: role,
+        expectedDeviceName: deviceName,
+        expectedLanOnly: lanOnly
+      })
     : {
         supported: true,
         label: serviceLabel,

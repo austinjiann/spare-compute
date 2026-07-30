@@ -96,6 +96,28 @@ test("launchAgentStatus reports launch agents that point at an older daemon path
   assert.match(status.detail, /older app location/);
 });
 
+test("launchAgentStatus reports launch agents with stale role and device name", async () => {
+  const status = await launchAgentStatus({
+    platform: "darwin",
+    homeDir: "/Users/austin",
+    uid: 501,
+    expectedRole: "orchestrator",
+    expectedDeviceName: "Austin MacBook",
+    fs: memoryFS(workerPlist()),
+    runCommand: async () => ({ stdout: "state = running\npid = 123\n" })
+  });
+
+  assert.equal(status.status, "needs-update");
+  assert.equal(status.needsUpdate, true);
+  assert.equal(status.roleNeedsUpdate, true);
+  assert.equal(status.deviceNameNeedsUpdate, true);
+  assert.equal(status.role, "worker");
+  assert.equal(status.expectedRole, "orchestrator");
+  assert.equal(status.deviceName, "Studio Mini");
+  assert.equal(status.expectedDeviceName, "Austin MacBook");
+  assert.match(status.detail, /different role/);
+});
+
 test("roleFromPlist reads the configured daemon role", () => {
   assert.equal(roleFromPlist(workerPlist()), "worker");
   assert.equal(roleFromPlist(orchestratorPlist()), "orchestrator");

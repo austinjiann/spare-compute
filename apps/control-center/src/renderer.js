@@ -366,7 +366,7 @@ async function refreshLaunchAgentStatus() {
     return;
   }
   try {
-    const response = await window.computeHop.launchAgentStatus();
+    const response = await window.computeHop.launchAgentStatus(backgroundDaemonRequest());
     state.launchAgentStatus = normalizeLaunchAgentStatus(response?.status);
   } catch {
     state.launchAgentStatus = normalizeLaunchAgentStatus({
@@ -386,8 +386,7 @@ async function installBackgroundService() {
   renderBackgroundCard();
   try {
     const response = await window.computeHop.installLaunchAgent({
-      role: state.settings.daemonRole,
-      deviceName: state.localDevice?.name || ""
+      ...backgroundDaemonRequest()
     });
     if (!response?.ok) {
       state.backgroundServiceMessage = response?.error || "Could not set up the background service.";
@@ -408,6 +407,13 @@ async function installBackgroundService() {
     await refreshLaunchAgentStatus();
     renderBackgroundCard();
   }
+}
+
+function backgroundDaemonRequest() {
+  return {
+    role: state.settings.daemonRole,
+    deviceName: state.localDevice?.name || ""
+  };
 }
 
 function renderBackgroundCard() {
@@ -476,6 +482,9 @@ function normalizeLaunchAgentStatus(status = {}) {
     role: String(status?.role || ""),
     deviceName: String(status?.deviceName || ""),
     lanOnly: Boolean(status?.lanOnly),
+    roleNeedsUpdate: Boolean(status?.roleNeedsUpdate),
+    deviceNameNeedsUpdate: Boolean(status?.deviceNameNeedsUpdate),
+    lanOnlyNeedsUpdate: Boolean(status?.lanOnlyNeedsUpdate),
     daemonPath: String(status?.daemonPath || ""),
     expectedDaemonPath: String(status?.expectedDaemonPath || ""),
     detail: String(status?.detail || "")
@@ -1950,6 +1959,9 @@ function bindSetting(key, input) {
   input.addEventListener("change", () => {
     state.settings[key] = input.value;
     saveSettings();
+    if (key === "daemonRole") {
+      void refreshLaunchAgentStatus();
+    }
   });
 }
 

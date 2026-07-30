@@ -200,12 +200,12 @@ ipcMain.handle("daemon:start", async (_event, request) => {
   }
 });
 
-ipcMain.handle("daemon:launchAgentStatus", async () => {
-  return { status: await launchAgentStatusForCurrentApp() };
+ipcMain.handle("daemon:launchAgentStatus", async (_event, request) => {
+  return { status: await launchAgentStatusForCurrentApp(request) };
 });
 
 ipcMain.handle("daemon:installLaunchAgent", async (_event, request) => {
-  const status = await launchAgentStatusForCurrentApp();
+  const status = await launchAgentStatusForCurrentApp(request);
   const daemonRunning = await localDaemonIsRunning();
   try {
     return await installLaunchAgent({
@@ -222,7 +222,7 @@ ipcMain.handle("daemon:installLaunchAgent", async (_event, request) => {
     return {
       ok: false,
       error: readableError(error),
-      status: await safeLaunchAgentStatus(status)
+      status: await safeLaunchAgentStatus(status, request)
     };
   }
 });
@@ -571,17 +571,21 @@ async function localDaemonIsRunning() {
   }
 }
 
-async function safeLaunchAgentStatus(fallback) {
+async function safeLaunchAgentStatus(fallback, request) {
   try {
-    return await launchAgentStatusForCurrentApp();
+    return await launchAgentStatusForCurrentApp(request);
   } catch {
     return fallback;
   }
 }
 
-async function launchAgentStatusForCurrentApp() {
+async function launchAgentStatusForCurrentApp(request = {}) {
   const expectedDaemonPath = await preferredLaunchAgentDaemonPath();
-  return launchAgentStatus(expectedDaemonPath ? { expectedDaemonPath } : {});
+  return launchAgentStatus({
+    ...(expectedDaemonPath ? { expectedDaemonPath } : {}),
+    expectedRole: normalizeDaemonRole(request?.role, process.platform),
+    expectedDeviceName: String(request?.deviceName || "").trim()
+  });
 }
 
 async function preferredLaunchAgentDaemonPath() {
