@@ -288,6 +288,9 @@ async function performWorkerReadinessAction() {
       }
       return;
     }
+    case "enable-discovery":
+      await enableLanDiscovery();
+      return;
     case "refresh":
       await refreshDevices();
       return;
@@ -316,7 +319,18 @@ function readinessActionDisabled(summary) {
   if (summary.actionKind === "refresh") {
     return refreshInFlight;
   }
+  if (summary.actionKind === "enable-discovery") {
+    return refreshInFlight;
+  }
   return pendingActions.has(readinessActionKey(summary));
+}
+
+async function enableLanDiscovery() {
+  state.settings.lanDiscovery = true;
+  document.getElementById("lan-discovery").checked = true;
+  saveSettings();
+  renderWorkerReadiness();
+  await refreshDevices();
 }
 
 async function refreshLaunchAgentStatus() {

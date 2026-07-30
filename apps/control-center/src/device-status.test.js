@@ -80,7 +80,17 @@ test("workerReadinessSummary reports daemon and discovery blockers", () => {
     }
   );
 
-  assert.equal(workerReadinessSummary({ lanDiscovery: false }).kind, "discovery-off");
+  assert.deepEqual(
+    workerReadinessSummary({ lanDiscovery: false }),
+    {
+      kind: "discovery-off",
+      title: "Nearby discovery off",
+      detail: "Turn on discovery to find workers on this network.",
+      actionLabel: "Turn on",
+      actionKind: "enable-discovery",
+      deviceID: ""
+    }
+  );
 });
 
 test("workerReadinessSummary reports ready workers", () => {

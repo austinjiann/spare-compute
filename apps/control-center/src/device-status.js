@@ -180,8 +180,8 @@
         "discovery-off",
         "Nearby discovery off",
         "Turn on discovery to find workers on this network.",
-        "Refresh",
-        "refresh"
+        "Turn on",
+        "enable-discovery"
       );
     }
 
