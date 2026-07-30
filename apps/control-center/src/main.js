@@ -1,10 +1,16 @@
 const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
-const { execFile, spawn } = require("node:child_process");
 const { randomUUID } = require("node:crypto");
 const path = require("node:path");
+const {
+  LocalDaemonClient,
+  jobStateLabel,
+  jobSucceeded,
+  jobTerminal
+} = require("./local-daemon");
 
 const repoRoot = path.resolve(__dirname, "..", "..", "..");
 const activeRuns = new Map();
+const logPollMs = 900;
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -47,13 +53,13 @@ app.on("window-all-closed", () => {
 });
 
 ipcMain.handle("devices:list", async () => {
-  const result = await runComputeHop(["devices"]);
-  return {
-    ok: result.ok,
-    error: result.error,
-    raw: result.stdout,
-    devices: result.ok ? parseDevices(result.stdout) : []
-  };
+  try {
+    const client = new LocalDaemonClient();
+    const result = await client.listDevices();
+    return { ok: true, error: "", devices: mapDevices(result) };
+  } catch (error) {
+    return { ok: false, error: readableError(error), devices: [] };
+  }
 });
 
 ipcMain.handle("app:openExternal", async (_event, target) => {
@@ -81,25 +87,8 @@ ipcMain.handle("jobs:start", async (event, request) => {
     throw new Error("Enter something to run.");
   }
 
-  const args = ["run"];
-  if (jobRequest.deviceID && jobRequest.deviceID !== "local") {
-    args.push("--on", jobRequest.deviceID);
-    if (jobRequest.workingDirectory) {
-      args.push("-C", jobRequest.workingDirectory);
-    } else {
-      args.push("--no-project");
-    }
-  } else if (jobRequest.workingDirectory) {
-    args.push("-C", jobRequest.workingDirectory);
-  }
-  args.push("--follow", ...argv);
-
-  const cwd = jobRequest.workingDirectory || repoRoot;
   const runID = randomUUID();
-  setImmediate(() => startComputeHopStream(event.sender, runID, args, {
-    cwd,
-    deviceSelector: jobRequest.deviceID === "local" ? "" : jobRequest.deviceID
-  }));
+  setImmediate(() => startDaemonJobStream(event.sender, runID, jobRequest, argv));
   return { runID };
 });
 
@@ -109,171 +98,118 @@ ipcMain.handle("jobs:stop", async (_event, runID) => {
     return { stopped: false };
   }
 
-  if (record.jobID) {
-    const args = ["cancel"];
-    if (record.deviceSelector) {
-      args.push("--on", record.deviceSelector);
-    }
-    args.push(record.jobID);
-    const result = await runComputeHop(args, { cwd: repoRoot, timeout: 10000 });
-    if (!result.ok) {
-      sendRunEvent(record.webContents, String(runID), {
-        type: "output",
-        stream: "stderr",
-        text: `\nCancel failed: ${result.error || "unknown error"}\n`
-      });
-    }
+  record.stopped = true;
+  record.abortController.abort();
+
+  if (!record.jobID) {
+    return { stopped: true, cancelled: false };
   }
-
-  record.child.kill("SIGINT");
-  return { stopped: true, cancelled: Boolean(record.jobID) };
-});
-
-async function runComputeHop(args, options) {
-  const cwd = options?.cwd || process.cwd();
-  const timeout = options?.timeout || 7000;
-  const installed = await execCommand("computehop", args, cwd, timeout);
-  if (installed.ok || !installed.missing) {
-    return installed;
-  }
-
-  return execCommand("go", ["run", "./cmd/computehop", ...args], repoRoot, timeout);
-}
-
-function execCommand(command, args, cwd, timeout = 7000) {
-  return new Promise((resolve) => {
-    execFile(
-      command,
-      args,
-      {
-        cwd,
-        timeout,
-        maxBuffer: 8 * 1024 * 1024,
-        windowsHide: true
-      },
-      (error, stdout, stderr) => {
-        if (error) {
-          resolve({
-            ok: false,
-            missing: error.code === "ENOENT",
-            stdout: stdout || "",
-            stderr: stderr || "",
-            error: (stderr || error.message || "Command failed").trim()
-          });
-          return;
-        }
-        resolve({ ok: true, missing: false, stdout: stdout.trim(), stderr: stderr.trim(), error: "" });
-      }
-    );
-  });
-}
-
-function startComputeHopStream(webContents, runID, args, options) {
-  startProcessStream(webContents, runID, {
-    command: "computehop",
-    args,
-    cwd: options.cwd,
-    deviceSelector: options.deviceSelector,
-    fallback: {
-      command: "go",
-      args: ["run", "./cmd/computehop", ...args],
-      cwd: repoRoot,
-      deviceSelector: options.deviceSelector
-    }
-  });
-}
-
-function startProcessStream(webContents, runID, spec) {
-  let child;
-  let spawnFailed = false;
 
   try {
-    child = spawn(spec.command, spec.args, {
-      cwd: spec.cwd,
-      windowsHide: true
+    await record.client.cancelJob(record.jobID, {
+      deviceSelector: record.deviceSelector
     });
   } catch (error) {
-    sendRunEvent(webContents, runID, {
-      type: "finished",
-      ok: false,
-      text: error.message || "Run failed."
+    sendRunEvent(record.webContents, String(runID), {
+      type: "output",
+      stream: "stderr",
+      text: `\nCancel failed: ${readableError(error)}\n`
     });
-    return;
   }
 
+  return { stopped: true, cancelled: true };
+});
+
+function startDaemonJobStream(webContents, runID, jobRequest, argv) {
+  const client = new LocalDaemonClient();
+  const abortController = new AbortController();
+  const deviceSelector = jobRequest.deviceID === "local" ? "" : jobRequest.deviceID;
+
   activeRuns.set(runID, {
-    child,
-    deviceSelector: spec.deviceSelector || "",
+    abortController,
+    client,
+    deviceSelector,
     jobID: null,
+    stopped: false,
     webContents
   });
   sendRunEvent(webContents, runID, { type: "started" });
-
-  child.stdout.on("data", (chunk) => {
-    rememberSubmittedJobID(runID, chunk.toString());
-    sendRunEvent(webContents, runID, {
-      type: "output",
-      stream: "stdout",
-      text: chunk.toString()
-    });
-  });
-
-  child.stderr.on("data", (chunk) => {
-    rememberSubmittedJobID(runID, chunk.toString());
-    sendRunEvent(webContents, runID, {
-      type: "output",
-      stream: "stderr",
-      text: chunk.toString()
-    });
-  });
-
-  child.once("error", (error) => {
-    spawnFailed = true;
-    activeRuns.delete(runID);
-    if (error.code === "ENOENT" && spec.fallback) {
-      startProcessStream(webContents, runID, spec.fallback);
-      return;
-    }
-    sendRunEvent(webContents, runID, {
-      type: "finished",
-      ok: false,
-      text: error.message || "Run failed."
-    });
-  });
-
-  child.once("close", (code, signal) => {
-    if (spawnFailed) {
-      return;
-    }
-    activeRuns.delete(runID);
-    const stopped = signal === "SIGINT" || signal === "SIGTERM";
-    sendRunEvent(webContents, runID, {
-      type: "finished",
-      ok: code === 0,
-      stopped,
-      text: stopped
-        ? "Stopped."
-        : code === 0
-          ? "Done."
-          : `Exited with code ${code}.`
-    });
-  });
+  void runDaemonJobStream(runID, jobRequest, argv);
 }
 
-function rememberSubmittedJobID(runID, text) {
+async function runDaemonJobStream(runID, jobRequest, argv) {
   const record = activeRuns.get(runID);
-  if (!record || record.jobID) {
+  if (!record) {
     return;
   }
-  const match = text.match(/Submitted\s+([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
-  if (!match) {
-    return;
+  try {
+    const submitted = await record.client.submitJob(
+      {
+        executable: argv[0],
+        arguments: argv.slice(1),
+        workingDirectory: runWorkingDirectory(jobRequest, record.deviceSelector),
+        deviceSelector: record.deviceSelector
+      },
+      { signal: record.abortController.signal }
+    );
+    if (!submitted?.id) {
+      throw new Error("ComputeHop daemon returned an empty job.");
+    }
+
+    record.jobID = submitted.id;
+    sendRunEvent(record.webContents, runID, {
+      type: "job",
+      jobID: submitted.id,
+      state: jobStateLabel(submitted)
+    });
+
+    let afterSequence = 0;
+    for (;;) {
+      if (record.stopped) {
+        throw stoppedError();
+      }
+      const page = await record.client.readJobLogs(submitted.id, {
+        afterSequence,
+        deviceSelector: record.deviceSelector,
+        limit: 32,
+        signal: record.abortController.signal
+      });
+      for (const item of page.records || []) {
+        const sequence = Number(item.sequence || 0);
+        if (sequence > afterSequence) {
+          afterSequence = sequence;
+        }
+        sendRunEvent(record.webContents, runID, {
+          type: "output",
+          stream: item.stream === "JOB_LOG_STREAM_STDERR" ? "stderr" : "stdout",
+          text: Buffer.from(item.data || []).toString("utf8")
+        });
+      }
+      if (page.job && jobTerminal(page.job)) {
+        sendRunEvent(record.webContents, runID, {
+          type: "finished",
+          ok: jobSucceeded(page.job),
+          text: `Job ${jobStateLabel(page.job)}.`
+        });
+        return;
+      }
+      if (page.hasMore) {
+        continue;
+      }
+      await delay(logPollMs, record.abortController.signal);
+    }
+  } catch (error) {
+    const current = activeRuns.get(runID);
+    const stopped = current?.stopped || error.code === "ABORTED";
+    sendRunEvent(record.webContents, runID, {
+      type: "finished",
+      ok: false,
+      stopped,
+      text: stopped ? "Stopped." : readableError(error)
+    });
+  } finally {
+    activeRuns.delete(runID);
   }
-  record.jobID = match[1];
-  sendRunEvent(record.webContents, runID, {
-    type: "job",
-    jobID: record.jobID
-  });
 }
 
 function sendRunEvent(webContents, runID, payload) {
@@ -282,6 +218,122 @@ function sendRunEvent(webContents, runID, payload) {
     return;
   }
   webContents.send("jobs:event", { runID, ...payload });
+}
+
+function mapDevices(result) {
+  const devices = [];
+  const seen = new Set();
+
+  for (const trusted of result.trustedDevices || []) {
+    const id = trusted.deviceId || trusted.pairId || trusted.name;
+    if (!id || seen.has(id)) {
+      continue;
+    }
+    seen.add(id);
+    devices.push({
+      name: trusted.name || "Computer",
+      id,
+      connection: trusted.trustState === "DEVICE_TRUST_STATE_PAIRED" ? connectionLabel(trusted) : "unpaired",
+      role: roleLabel(trusted.role),
+      availability: availabilityFromConnectivity(trusted.connectivityState),
+      path: trusted.connectivityPath || "",
+      address: "",
+      updated: timestampLabel(trusted.connectivityUpdatedAtUnixNano || trusted.updatedAtUnixNano)
+    });
+  }
+
+  for (const nearby of result.devices || []) {
+    const id = nearby.presenceId || nearby.instance || nearby.name;
+    if (!id || seen.has(id)) {
+      continue;
+    }
+    seen.add(id);
+    devices.push({
+      name: nearby.name || "Computer",
+      id,
+      connection: nearby.trustState === "DEVICE_TRUST_STATE_PAIRED" ? "paired" : "not connected",
+      role: roleLabel(nearby.role),
+      availability: nearby.endpointReady ? "nearby" : "offline",
+      path: "lan",
+      address: [nearby.addresses || [], nearby.port ? [String(nearby.port)] : []].flat().filter(Boolean).join(":"),
+      updated: timestampLabel(nearby.lastSeenAtUnixNano)
+    });
+  }
+
+  return devices;
+}
+
+function roleLabel(role) {
+  if (role === "DEVICE_ROLE_WORKER") {
+    return "worker";
+  }
+  if (role === "DEVICE_ROLE_ORCHESTRATOR") {
+    return "orchestrator";
+  }
+  return "device";
+}
+
+function connectionLabel(device) {
+  return device.connectivityState === "CONNECTIVITY_STATE_CONNECTED" ? "active" : "not connected";
+}
+
+function availabilityFromConnectivity(state) {
+  switch (state) {
+    case "CONNECTIVITY_STATE_CONNECTED":
+      return "remote";
+    case "CONNECTIVITY_STATE_CONNECTING":
+      return "connecting";
+    default:
+      return "offline";
+  }
+}
+
+function timestampLabel(value) {
+  if (!value) {
+    return "";
+  }
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return "";
+  }
+  return new Date(Math.floor(numeric / 1_000_000)).toISOString();
+}
+
+function readableError(error) {
+  return error?.message || "ComputeHop request failed.";
+}
+
+function runWorkingDirectory(jobRequest, deviceSelector) {
+  if (jobRequest.workingDirectory) {
+    return jobRequest.workingDirectory;
+  }
+  return deviceSelector ? "" : repoRoot;
+}
+
+function delay(ms, signal) {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(stoppedError());
+      return;
+    }
+    const timer = setTimeout(resolve, ms);
+    if (signal) {
+      signal.addEventListener(
+        "abort",
+        () => {
+          clearTimeout(timer);
+          reject(stoppedError());
+        },
+        { once: true }
+      );
+    }
+  });
+}
+
+function stoppedError() {
+  const error = new Error("Stopped.");
+  error.code = "ABORTED";
+  return error;
 }
 
 function normalizeJobRequest(request) {
