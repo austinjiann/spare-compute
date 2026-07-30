@@ -355,7 +355,7 @@ function looksLikeCommand(task) {
     value.includes("/") ||
     value.includes("./") ||
     value.includes("--") ||
-    /^[a-z0-9_.-]+(\s|$)/i.test(value) && !/^(run|build|test|check|lint|format|fmt|style|install|deps|dependencies|please|can|could|make|do)\b/i.test(value)
+    /^[a-z0-9_.-]+(\s|$)/i.test(value) && !/^(run|build|test|check|checks|ci|fix|verify|validate|preflight|lint|format|fmt|style|install|deps|dependencies|smoke|ping|connection|please|can|could|make|do)\b/i.test(value)
   );
 }
 

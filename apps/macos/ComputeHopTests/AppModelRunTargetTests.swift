@@ -429,6 +429,71 @@ func planRequestedTaskInfersProjectTestCommands() throws {
 
 @Test
 @MainActor
+func planRequestedTaskPrefersProjectCheckTargetForCI() throws {
+    let projectURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("computehop-plan-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: projectURL, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: projectURL) }
+    try "module example.test\n".write(
+        to: projectURL.appendingPathComponent("go.mod"),
+        atomically: true,
+        encoding: .utf8
+    )
+    try "pr-check:\n\tgo test ./...\n".write(
+        to: projectURL.appendingPathComponent("Makefile"),
+        atomically: true,
+        encoding: .utf8
+    )
+
+    let model = AppModel(client: RecordingDaemonClient())
+    model.workingDirectory = projectURL.path
+    model.taskRequestInput = "fix ci"
+
+    model.planRequestedTask()
+
+    #expect(model.plannedTask?.title == "Run project checks")
+    #expect(model.plannedTask?.commands == ["make pr-check"])
+    #expect(model.commandInput.contains("make pr-check"))
+    #expect(model.planningError == nil)
+}
+
+@Test
+@MainActor
+func planRequestedTaskUsesPackageManagerScripts() throws {
+    let projectURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("computehop-plan-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: projectURL, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: projectURL) }
+    try #"{"scripts":{"test":"vitest","build":"vite build","ci":"vitest run"}}"#.write(
+        to: projectURL.appendingPathComponent("package.json"),
+        atomically: true,
+        encoding: .utf8
+    )
+    try "".write(
+        to: projectURL.appendingPathComponent("pnpm-lock.yaml"),
+        atomically: true,
+        encoding: .utf8
+    )
+
+    let model = AppModel(client: RecordingDaemonClient())
+    model.workingDirectory = projectURL.path
+
+    model.taskRequestInput = "run ci"
+    model.planRequestedTask()
+    #expect(model.plannedTask?.commands == ["pnpm run ci"])
+
+    model.taskRequestInput = "run tests"
+    model.planRequestedTask()
+    #expect(model.plannedTask?.commands == ["pnpm run test"])
+
+    model.taskRequestInput = "build app"
+    model.planRequestedTask()
+    #expect(model.plannedTask?.commands == ["pnpm run build"])
+    #expect(model.planningError == nil)
+}
+
+@Test
+@MainActor
 func deviceCapabilitiesPersistThroughSettingsStore() {
     let store = RecordingSettingsStore()
     let model = AppModel(

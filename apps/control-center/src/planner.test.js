@@ -11,12 +11,15 @@ test("planTask prefers Makefile PR check for CI", async (t) => {
     Makefile: "pr-check:\n\tgo test ./...\n"
   });
 
-  const result = await planTask({ task: "check ci", projectRoot: project });
+  const result = await planTask({ task: "fix ci", projectRoot: project });
 
   assert.equal(result.ok, true);
   assert.equal(result.plan.command, "make pr-check");
   assert.equal(result.plan.requiresProject, true);
   assert.deepEqual(result.plan.detected.sort(), ["Go", "Makefile"].sort());
+  assert.equal(classifyIntent("fix ci"), "ci");
+  assert.equal(classifyIntent("validate project"), "ci");
+  assert.equal(classifyIntent("preflight"), "ci");
 });
 
 test("planTask uses detected package manager scripts", async (t) => {

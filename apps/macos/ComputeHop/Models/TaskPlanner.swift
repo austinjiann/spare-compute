@@ -66,14 +66,30 @@ struct LocalTaskPlanner: TaskPlanning {
 
         let project = ProjectSnapshot(path: trimmedProjectPath)
         let lowercasedRequest = trimmedRequest.lowercased()
-        let wantsCI = containsAny(lowercasedRequest, ["ci", "check", "verify"])
-        let wantsTests = wantsCI || containsAny(lowercasedRequest, ["test", "tests"])
-        let wantsBuild = wantsCI || containsAny(lowercasedRequest, ["build", "package", "release"])
+        let wantsCI = wantsProjectChecks(lowercasedRequest)
+        let wantsTests = !wantsCI && containsAny(lowercasedRequest, ["test", "tests"])
+        let wantsBuild = !wantsCI && containsAny(lowercasedRequest, ["build", "package", "release"])
         let wantsDocker = containsAny(lowercasedRequest, ["docker", "container", "image"])
 
         var commands: [String] = []
         var outputs: [String] = []
         var notes: [String] = []
+
+        if wantsCI {
+            if capabilities.contains(.tests) || capabilities.contains(.builds) {
+                commands.append(contentsOf: ciCommands(for: project))
+                if commands.isEmpty, capabilities.contains(.tests) {
+                    commands.append(contentsOf: testCommands(for: project))
+                }
+                if commands.isEmpty, capabilities.contains(.builds) {
+                    let build = buildCommands(for: project, request: lowercasedRequest)
+                    commands.append(contentsOf: build.commands)
+                    outputs.append(contentsOf: build.outputs)
+                }
+            } else {
+                notes.append("Project checks are disabled for this device.")
+            }
+        }
 
         if wantsTests {
             if capabilities.contains(.tests) {
@@ -124,6 +140,23 @@ struct LocalTaskPlanner: TaskPlanning {
         )
     }
 
+    private func wantsProjectChecks(_ request: String) -> Bool {
+        containsAny(request, ["ci", "check", "checks", "verify", "validate", "preflight"])
+    }
+
+    private func ciCommands(for project: ProjectSnapshot) -> [String] {
+        if project.makefileHasTarget("pr-check") {
+            return ["make pr-check"]
+        }
+        if project.makefileHasTarget("check") {
+            return ["make check"]
+        }
+        if project.packageJSONContainsScript("ci") {
+            return [project.packageScriptCommand("ci")]
+        }
+        return []
+    }
+
     private func testCommands(for project: ProjectSnapshot) -> [String] {
         var commands: [String] = []
         if project.has("go.mod") {
@@ -136,7 +169,7 @@ struct LocalTaskPlanner: TaskPlanning {
             commands.append("cargo test")
         }
         if project.packageJSONContainsScript("test") {
-            commands.append("npm test")
+            commands.append(project.packageScriptCommand("test"))
         }
         if project.has("pyproject.toml") || project.has("pytest.ini") {
             commands.append("python -m pytest")
@@ -171,7 +204,7 @@ struct LocalTaskPlanner: TaskPlanning {
             commands.append("cargo build")
         }
         if project.packageJSONContainsScript("build") {
-            commands.append("npm run build")
+            commands.append(project.packageScriptCommand("build"))
             outputs.append("dist")
         }
         if commands.isEmpty, project.makefileHasTarget("build") {
@@ -182,7 +215,7 @@ struct LocalTaskPlanner: TaskPlanning {
     }
 
     private func title(for request: String) -> String {
-        if containsAny(request, ["ci", "check", "verify"]) {
+        if wantsProjectChecks(request) {
             return "Run project checks"
         }
         if containsAny(request, ["test", "tests"]) {
@@ -246,7 +279,24 @@ private struct ProjectSnapshot {
         return scripts[script] != nil
     }
 
+    func packageScriptCommand(_ script: String) -> String {
+        "\(packageManager) run \(script)"
+    }
+
     private func url(_ relativePath: String) -> URL {
         URL(fileURLWithPath: path).appendingPathComponent(relativePath)
+    }
+
+    private var packageManager: String {
+        if has("pnpm-lock.yaml") {
+            return "pnpm"
+        }
+        if has("yarn.lock") {
+            return "yarn"
+        }
+        if has("bun.lock") || has("bun.lockb") {
+            return "bun"
+        }
+        return "npm"
     }
 }

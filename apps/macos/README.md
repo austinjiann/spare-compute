@@ -25,7 +25,9 @@ explicit command-input validation for unfinished quotes and escapes, explicit
 no-stdout/stderr placeholders for running and finished jobs, a copyable
 `computehop logs --follow <job-id>` handoff for terminal debugging,
 job-completion notifications for observed running jobs, cancellation, declared
-output paths, empty-jobs hints, a persisted notification setting, copyable
+output paths, plain-language task planning that maps CI/check requests to
+repository validation targets such as `make pr-check`, empty-jobs hints, a
+persisted notification setting, copyable
 diagnostic commands for setup/connect troubleshooting, configurable worker setup
 and VPS defaults for generated install commands, and
 conflict-safe artifact restoration through a native destination picker. Output

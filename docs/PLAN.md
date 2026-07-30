@@ -1441,7 +1441,9 @@ submission to the Mac or a paired available worker, local project folder
 selection for incremental remote transfer, reconnectable output, artifact
 restoration, and cancellation. Unit tests cover framing, ping identity mapping,
 Auto worker target submission, no-project Smoke Test submission, pairing
-confirmation guidance, revocation actions, setup guidance, invalid
+confirmation guidance, revocation actions, setup guidance, CI/check planning
+through repository validation targets such as `make pr-check`, package-manager
+script selection, invalid
 command-input guidance, empty-log placeholders, copyable CLI run/log handoffs,
 job-completion notifications and their persisted setting, diagnostic command
 copying, a menu-bar handoff button that opens the Electron Control Center when
@@ -1452,7 +1454,8 @@ Swift client has successfully pinged the Go daemon, submitted a durable native
 job, and read its output. A separate Electron Control Center now owns the
 heavier settings surface, connects to the daemon over local IPC, lists nearby
 and trusted devices, pairs, disables/re-enables, or forgets workers, plans plain-language tasks into
-previewed commands with package/Makefile/language/Docker fallbacks, can use an
+previewed commands with package/Makefile/language/Docker fallbacks, prefers repository
+validation targets for CI/check requests, can use an
 optional OpenAI planner fallback for tasks local rules cannot map, runs a projectless
 smoke test on the selected computer, suggests project-aware Check/Test/Build/Lint/Docker
 task chips after project selection, applies allowed-work checkboxes to suggested and
