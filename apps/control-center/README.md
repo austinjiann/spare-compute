@@ -57,6 +57,9 @@ Current scope:
 - can stage the bundled daemon binary used by packaged Control Center builds;
 - can package an unpacked current-platform app directory with that daemon
   copied into Electron's runtime resources;
+- is covered by the macOS package verifier so an embedded Control Center inside
+  `ComputeHop.app` must resolve background-service setup to the parent app's
+  daemon instead of its nested daemon;
 - reads trusted and nearby devices from the daemon;
 - starts nearby-device pairing from the Devices list;
 - shows active pairing verification codes and lets the user confirm or reject

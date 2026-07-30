@@ -72,4 +72,5 @@ codesign --verify --deep --strict "$app_bundle"
 "$cli_executable" version >/dev/null
 "$daemon_executable" --version >/dev/null
 "$control_center_daemon" --version >/dev/null
+node "$script_dir/verify-control-center-background.js" "$app_bundle" >/dev/null
 echo "Verified $app_bundle and launch agent template"

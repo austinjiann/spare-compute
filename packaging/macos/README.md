@@ -13,8 +13,11 @@ open dist/macos/ComputeHop.app
 ```
 
 The bundle verifier checks the Swift app, embedded Control Center, embedded CLI
-and daemon binaries, ad-hoc signature, version commands, and the launch-agent
-template that the installer rewrites for the selected role.
+and daemon binaries, ad-hoc signature, version commands, the launch-agent
+template that the installer rewrites for the selected role, and the embedded
+Control Center's background-service resolver. That resolver must prefer the
+parent `ComputeHop.app` daemon over the nested Control Center daemon before the
+package is accepted.
 
 Install it for the current user:
 

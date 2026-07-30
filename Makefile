@@ -73,6 +73,7 @@ macos-package-check:
 		packaging/macos/verify.sh; do \
 		sh -n "$$script"; \
 	done
+	node --check packaging/macos/verify-control-center-background.js
 	plutil -lint packaging/macos/Info.plist packaging/macos/com.computehop.daemon.plist
 
 install-macos:
