@@ -22,6 +22,17 @@ This writes the current platform's `computehopd` binary to
 `apps/control-center/resources/bin`, which is the same location the packaged
 Control Center launcher expects under Electron's resources directory.
 
+Build an unpacked app directory for the current Mac:
+
+```bash
+npm run package:dir
+```
+
+This runs `bundle-daemon` first, then writes the app bundle under
+`apps/control-center/out`. The packaged app includes the daemon at
+`Contents/Resources/bin/computehopd`, so the **Start** button can launch
+ComputeHop without a repository checkout.
+
 Current scope:
 
 - connects directly to the local ComputeHop daemon over the owner-only local IPC
@@ -31,6 +42,8 @@ Current scope:
 - defaults non-macOS computers to Worker because Control Mac is macOS-only;
 - labels the local computer from the daemon's actual identity and role;
 - can stage the bundled daemon binary used by packaged Control Center builds;
+- can package an unpacked current-platform app directory with that daemon
+  copied into Electron's runtime resources;
 - reads trusted and nearby devices from the daemon;
 - starts nearby-device pairing from the Devices list;
 - shows active pairing verification codes and lets the user confirm or reject
@@ -79,6 +92,7 @@ Validation:
 ```bash
 npm --prefix apps/control-center run lint
 npm --prefix apps/control-center test
+npm --prefix apps/control-center run package:dir
 ```
 
 Next step: add an optional LLM planner that can explain and compose more complex
