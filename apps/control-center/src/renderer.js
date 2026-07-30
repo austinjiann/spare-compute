@@ -34,7 +34,11 @@ let runInFlight = false;
 const pendingActions = new Set();
 const { addAutomaticWorkerTarget, concreteDeviceID } = window.computeHopDeviceTargets;
 const { disallowedWorkMessage, filterAllowedSuggestions } = window.computeHopWorkPolicy;
-const { jobOutputsForPlan, jobWorkingDirectoryForPlan } = window.computeHopRunRequest;
+const {
+  jobOutputsForPlan,
+  jobStartRequestForPlan,
+  runReadinessError
+} = window.computeHopRunRequest;
 
 function defaultLocalDevice() {
   return state.localDevice || {
@@ -915,18 +919,12 @@ async function startPlannedJob(planned, selected) {
   output.textContent = `Running ${planned.command} on ${selected.name}…`;
 
   try {
-    const workingDirectory = jobWorkingDirectoryForPlan({
-      projectRoot: state.settings.projectRoot,
+    const result = await window.computeHop.startJob(jobStartRequestForPlan({
       plan: planned,
+      device: selected,
+      projectRoot: state.settings.projectRoot,
       outputs
-    });
-    const result = await window.computeHop.startJob({
-      command: planned.command,
-      deviceID: selected.id,
-      deviceName: selected.name,
-      workingDirectory,
-      outputs
-    });
+    }));
     state.currentRunID = result.runID;
     button.disabled = false;
     renderRunControls();
@@ -939,20 +937,15 @@ async function startPlannedJob(planned, selected) {
 }
 
 function validateRunReadiness(selected, planned, outputs = []) {
-  if (!selected || !canRunOn(selected)) {
-    return "Choose This Mac or a connected worker first.";
-  }
-  if (selected.id !== "local" && planned.requiresProject && !state.settings.projectRoot) {
-    return `Choose a project before running this on ${selected.name}. ComputeHop needs the folder so it can copy the files to that computer.`;
-  }
-  if (selected.id !== "local" && outputs.length > 0 && !state.settings.projectRoot) {
-    return "Choose a project before bringing files back from another computer.";
-  }
   const policyError = disallowedWorkMessage(planned, capabilitiesForSelectedDevice());
-  if (policyError) {
-    return policyError;
-  }
-  return "";
+  return runReadinessError({
+    device: selected,
+    canRun: Boolean(selected && canRunOn(selected)),
+    plan: planned,
+    projectRoot: state.settings.projectRoot,
+    outputs,
+    policyError
+  });
 }
 
 function declaredOutputs() {

@@ -1,6 +1,12 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { jobOutputsForPlan, jobWorkingDirectoryForPlan, runWorkingDirectory } = require("./run-request");
+const {
+  jobOutputsForPlan,
+  jobStartRequestForPlan,
+  jobWorkingDirectoryForPlan,
+  runReadinessError,
+  runWorkingDirectory
+} = require("./run-request");
 
 test("runWorkingDirectory preserves an explicit project folder", () => {
   assert.equal(runWorkingDirectory({ workingDirectory: "/Users/austin/project" }), "/Users/austin/project");
@@ -78,5 +84,120 @@ test("jobOutputsForPlan drops outputs when the plan opts out", () => {
       outputs: ["dist"]
     }),
     []
+  );
+});
+
+test("jobStartRequestForPlan builds the daemon request for a remote project run", () => {
+  assert.deepEqual(
+    jobStartRequestForPlan({
+      plan: {
+        command: "go test ./...",
+        requiresProject: true
+      },
+      device: {
+        id: "auto",
+        name: "Auto worker"
+      },
+      projectRoot: "/Users/austin/project",
+      outputs: [" coverage.out ", "coverage.out", ""]
+    }),
+    {
+      command: "go test ./...",
+      deviceID: "auto",
+      deviceName: "Auto worker",
+      workingDirectory: "/Users/austin/project",
+      outputs: ["coverage.out"]
+    }
+  );
+});
+
+test("jobStartRequestForPlan keeps remote utility runs projectless", () => {
+  assert.deepEqual(
+    jobStartRequestForPlan({
+      plan: {
+        command: "hostname",
+        requiresProject: false
+      },
+      device: {
+        id: "worker-1",
+        name: "Gaming PC"
+      },
+      projectRoot: "/Users/austin/project",
+      outputs: []
+    }),
+    {
+      command: "hostname",
+      deviceID: "worker-1",
+      deviceName: "Gaming PC",
+      workingDirectory: "",
+      outputs: []
+    }
+  );
+});
+
+test("runReadinessError blocks missing or unusable run targets", () => {
+  assert.equal(
+    runReadinessError({
+      device: null,
+      canRun: false
+    }),
+    "Choose This Mac or a connected worker first."
+  );
+  assert.equal(
+    runReadinessError({
+      device: { id: "worker-1", name: "Offline Mac" },
+      canRun: false
+    }),
+    "Choose This Mac or a connected worker first."
+  );
+});
+
+test("runReadinessError requires a project before remote project work", () => {
+  assert.match(
+    runReadinessError({
+      device: { id: "worker-1", name: "Gaming PC" },
+      canRun: true,
+      plan: { command: "go test ./...", requiresProject: true },
+      projectRoot: ""
+    }),
+    /Choose a project before running this on Gaming PC/
+  );
+});
+
+test("runReadinessError requires a project before remote output restoration", () => {
+  assert.equal(
+    runReadinessError({
+      device: { id: "worker-1", name: "Gaming PC" },
+      canRun: true,
+      plan: { command: "hostname", requiresProject: false },
+      outputs: ["dist"],
+      projectRoot: ""
+    }),
+    "Choose a project before bringing files back from another computer."
+  );
+});
+
+test("runReadinessError allows remote utility runs without a project", () => {
+  assert.equal(
+    runReadinessError({
+      device: { id: "worker-1", name: "Gaming PC" },
+      canRun: true,
+      plan: { command: "hostname", requiresProject: false },
+      outputs: [],
+      projectRoot: ""
+    }),
+    ""
+  );
+});
+
+test("runReadinessError returns selected device policy failures last", () => {
+  assert.equal(
+    runReadinessError({
+      device: { id: "local", name: "This Mac" },
+      canRun: true,
+      plan: { command: "docker build .", requiresProject: false },
+      policyError: "Docker is turned off for this computer."
+    }),
+    "Docker is turned off for this computer."
   );
 });

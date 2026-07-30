@@ -82,6 +82,9 @@ Current scope:
   project folder;
 - requires a project folder before sending project-style commands such as tests,
   builds, package scripts, and Makefile targets to another computer;
+- covers remote run request construction so project commands upload a selected
+  folder, utility commands stay projectless, and Auto/explicit worker selectors
+  are preserved;
 - declares optional files/folders to bring back from completed jobs;
 - submits selected commands as durable native jobs;
 - polls daemon job logs and streams stdout/stderr into the window;
