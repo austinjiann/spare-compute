@@ -41,6 +41,9 @@ Current scope:
 - checks the local daemon's real status even when nearby-device discovery is
   disabled, so local run controls do not pretend ComputeHop is running when it
   is not;
+- shows whether the macOS background service is installed and loaded, using
+  plain-language labels such as **Starts at login**, **Installed but stopped**,
+  or **This session only**;
 - can start the local daemon from the app in development or from the bundled
   daemon in packaged builds, either as the Control Mac or as a Worker;
 - defaults non-macOS computers to Worker because Control Mac is macOS-only;

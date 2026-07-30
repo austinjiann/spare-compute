@@ -8,6 +8,7 @@ const {
   jobTerminal
 } = require("./local-daemon");
 const { startDaemon } = require("./daemon-launcher");
+const { launchAgentStatus } = require("./launch-agent-status");
 const { splitCommandLine } = require("./command-line");
 const {
   planControlCenterTask,
@@ -188,6 +189,10 @@ ipcMain.handle("daemon:start", async (_event, request) => {
   } catch (error) {
     return { ok: false, error: readableError(error), errorCode: error?.code || "" };
   }
+});
+
+ipcMain.handle("daemon:launchAgentStatus", async () => {
+  return { status: await launchAgentStatus() };
 });
 
 ipcMain.handle("devices:connect", async (_event, deviceID) => {

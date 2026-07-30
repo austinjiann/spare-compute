@@ -1479,7 +1479,9 @@ from the bundled daemon in packaged builds, package an unpacked current-platform
 app directory with the daemon copied into Electron's runtime resources, persist
 Control Center preferences under the app user-data directory, auto-start the
 daemon once after settings/runtime load when LAN discovery is enabled, keep
-local daemon health accurate when nearby discovery is disabled, offer an Auto
+local daemon health accurate when nearby discovery is disabled, show whether
+the macOS per-user background service is loaded, stopped, or session-only,
+offer an Auto
 worker target and default to it until the user makes an explicit device choice
 when exactly one connected worker is available, persist explicit run-target
 choices across app restarts without silently falling back to This Mac while a

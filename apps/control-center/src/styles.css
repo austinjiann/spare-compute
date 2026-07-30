@@ -130,6 +130,47 @@ small {
   font-weight: 720;
 }
 
+.background-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 10px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.065);
+}
+
+.background-card div {
+  display: grid;
+  gap: 3px;
+}
+
+.background-card strong {
+  font-size: 15px;
+  font-weight: 720;
+}
+
+.status-pill {
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.78);
+  background: rgba(255, 255, 255, 0.11);
+  font-size: 12px;
+  font-weight: 720;
+}
+
+.status-pill.on {
+  color: rgba(112, 225, 123, 0.95);
+  background: rgba(112, 225, 123, 0.12);
+}
+
+.status-pill.warning {
+  color: rgba(255, 196, 107, 0.95);
+  background: rgba(255, 196, 107, 0.13);
+}
+
 .section-title {
   display: flex;
   align-items: center;

@@ -37,6 +37,14 @@ const state = {
     encrypted: false,
     model: ""
   },
+  launchAgentStatus: {
+    supported: false,
+    status: "checking",
+    installed: false,
+    loaded: false,
+    role: "",
+    detail: ""
+  },
   settings: loadSettings()
 };
 let refreshInFlight = false;
@@ -115,15 +123,18 @@ renderTaskSuggestions();
 renderPlanPreview();
 renderRunControls();
 renderDaemonCard();
+renderBackgroundCard();
 renderJobs();
 renderAIPlannerStatus();
 applyStoredRunDeviceSelection();
 void hydrateSettings();
 void loadAppInfo();
+void refreshLaunchAgentStatus();
 void refreshAIPlannerStatus();
 void refreshTaskSuggestions();
 refreshDevices();
 setInterval(refreshDevices, 5000);
+setInterval(refreshLaunchAgentStatus, 30000);
 
 window.computeHop.onJobEvent(handleJobEvent);
 
@@ -198,6 +209,7 @@ async function startDaemon() {
     state.daemonError = "";
     error.classList.add("hidden");
     await refreshDevices();
+    void refreshLaunchAgentStatus();
   } catch (err) {
     state.daemonAvailable = false;
     state.daemonError = err.message || "Could not start ComputeHop.";
@@ -219,6 +231,65 @@ function renderDaemonCard() {
   button.disabled = state.startingDaemon;
   button.textContent = state.startingDaemon ? "Starting" : "Start";
   role.disabled = state.startingDaemon;
+}
+
+async function refreshLaunchAgentStatus() {
+  if (!window.computeHop.launchAgentStatus) {
+    renderBackgroundCard();
+    return;
+  }
+  try {
+    const response = await window.computeHop.launchAgentStatus();
+    state.launchAgentStatus = normalizeLaunchAgentStatus(response?.status);
+  } catch {
+    state.launchAgentStatus = normalizeLaunchAgentStatus({
+      supported: false,
+      status: "unsupported"
+    });
+  }
+  renderBackgroundCard();
+}
+
+function renderBackgroundCard() {
+  const card = document.getElementById("background-card");
+  const title = document.getElementById("background-title");
+  const detail = document.getElementById("background-detail");
+  const pill = document.getElementById("background-pill");
+  const status = normalizeLaunchAgentStatus(state.launchAgentStatus);
+
+  card.classList.toggle("hidden", !status.supported && status.status !== "checking");
+  pill.classList.remove("on", "warning");
+
+  if (status.loaded) {
+    title.textContent = "Starts at login";
+    detail.textContent = status.detail || "ComputeHop keeps running in the background.";
+    pill.textContent = "On";
+    pill.classList.add("on");
+    return;
+  }
+
+  if (status.installed) {
+    title.textContent = "Installed but stopped";
+    detail.textContent = status.detail || "ComputeHop is installed for login, but it is not running right now.";
+    pill.textContent = "Off";
+    pill.classList.add("warning");
+    return;
+  }
+
+  title.textContent = status.status === "checking" ? "Checking background" : "This session only";
+  detail.textContent = status.detail || "Use the macOS installer when you want ComputeHop to keep running after login.";
+  pill.textContent = status.status === "checking" ? "Checking" : "Manual";
+}
+
+function normalizeLaunchAgentStatus(status = {}) {
+  return {
+    supported: Boolean(status?.supported),
+    status: String(status?.status || "checking"),
+    installed: Boolean(status?.installed),
+    loaded: Boolean(status?.loaded),
+    role: String(status?.role || ""),
+    detail: String(status?.detail || "")
+  };
 }
 
 async function refreshDaemonStatusOnly({ button, error, status }) {
