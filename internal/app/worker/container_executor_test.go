@@ -21,6 +21,7 @@ import (
 func TestContainerExecutorStarterCreatesAttachedContainer(t *testing.T) {
 	engine := &fakeContainerEngine{
 		createID:     "container-1",
+		imageExists:  true,
 		inspectPID:   4242,
 		attachStream: multiplexContainerOutput(stdcopy.Stdout, "ok\n", stdcopy.Stderr, "warn\n"),
 		waitResponses: bufferedWaitResponses(mobycontainer.WaitResponse{
@@ -81,9 +82,63 @@ func TestContainerExecutorStarterCreatesAttachedContainer(t *testing.T) {
 	}
 }
 
+func TestContainerExecutorStarterPullsMissingImageBeforeCreate(t *testing.T) {
+	engine := &fakeContainerEngine{
+		createID:     "container-4",
+		imageExists:  false,
+		inspectPID:   99,
+		attachStream: multiplexContainerOutput(stdcopy.Stdout, "pulled\n"),
+		waitResponses: bufferedWaitResponses(mobycontainer.WaitResponse{
+			StatusCode: 0,
+		}),
+		waitErrors: make(chan error),
+	}
+	starter, err := NewContainerExecutorStarter(engine)
+	if err != nil {
+		t.Fatal(err)
+	}
+	process, err := starter.Start(job.Spec{
+		Executable: "printf", Executor: job.ExecutorContainer, ContainerImage: "alpine:latest",
+	}, io.Discard, io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exit := process.Wait(); exit.Code != 0 || exit.WaitErr != nil {
+		t.Fatalf("Wait() = %#v", exit)
+	}
+	if got, want := engine.pulledImages, []string{"alpine:latest"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("pulled images = %#v, want %#v", got, want)
+	}
+	if engine.createOptions.Config.Image != "alpine:latest" {
+		t.Fatalf("container image = %q, want alpine:latest", engine.createOptions.Config.Image)
+	}
+}
+
+func TestContainerExecutorStarterStopsBeforeCreateWhenImagePullFails(t *testing.T) {
+	engine := &fakeContainerEngine{
+		createID:    "container-5",
+		imageExists: false,
+		pullErr:     errors.New("registry unavailable"),
+	}
+	starter, err := NewContainerExecutorStarter(engine)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = starter.Start(job.Spec{
+		Executable: "echo", Executor: job.ExecutorContainer, ContainerImage: "missing:latest",
+	}, io.Discard, io.Discard)
+	if err == nil || !stringsContain(err.Error(), "pull container image") {
+		t.Fatalf("Start() error = %v", err)
+	}
+	if engine.createOptions.Config != nil {
+		t.Fatalf("container was created after failed pull: %#v", engine.createOptions)
+	}
+}
+
 func TestContainerExecutorStarterStopSignalsContainer(t *testing.T) {
 	engine := &fakeContainerEngine{
 		createID:       "container-2",
+		imageExists:    true,
 		inspectPID:     777,
 		waitResponses:  make(chan mobycontainer.WaitResponse),
 		waitErrors:     bufferedWaitErrors(errors.New("stopped by test")),
@@ -118,6 +173,7 @@ func TestContainerExecutorStarterStopSignalsContainer(t *testing.T) {
 func TestContainerExecutorStarterCleansUpWhenStartFails(t *testing.T) {
 	engine := &fakeContainerEngine{
 		createID:      "container-3",
+		imageExists:   true,
 		startErr:      errors.New("engine failed"),
 		waitResponses: make(chan mobycontainer.WaitResponse),
 		waitErrors:    make(chan error),
@@ -177,24 +233,39 @@ func stringsContain(value string, pattern string) bool {
 type fakeContainerEngine struct {
 	mutex sync.Mutex
 
-	createID      string
-	createOptions mobyclient.ContainerCreateOptions
-	attachStream  []byte
-	startedID     string
-	startErr      error
-	inspectPID    int
-	waitedID      string
-	waitResponses chan mobycontainer.WaitResponse
-	waitErrors    chan error
-	removedIDs    []string
-	removedForce  []bool
-	killSignals   []string
+	createID       string
+	createOptions  mobyclient.ContainerCreateOptions
+	imageExists    bool
+	imageExistsErr error
+	pulledImages   []string
+	pullErr        error
+	attachStream   []byte
+	startedID      string
+	startErr       error
+	inspectPID     int
+	waitedID       string
+	waitResponses  chan mobycontainer.WaitResponse
+	waitErrors     chan error
+	removedIDs     []string
+	removedForce   []bool
+	killSignals    []string
 
 	attachWaitDone chan struct{}
 }
 
 func (engine *fakeContainerEngine) Ping(context.Context, mobyclient.PingOptions) (mobyclient.PingResult, error) {
 	return mobyclient.PingResult{}, nil
+}
+
+func (engine *fakeContainerEngine) ImageExists(context.Context, string) (bool, error) {
+	return engine.imageExists, engine.imageExistsErr
+}
+
+func (engine *fakeContainerEngine) PullImage(_ context.Context, image string) error {
+	engine.mutex.Lock()
+	defer engine.mutex.Unlock()
+	engine.pulledImages = append(engine.pulledImages, image)
+	return engine.pullErr
 }
 
 func (engine *fakeContainerEngine) ContainerCreate(

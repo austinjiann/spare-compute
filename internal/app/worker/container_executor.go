@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/containerd/errdefs"
 	"github.com/moby/moby/api/pkg/stdcopy"
 	mobycontainer "github.com/moby/moby/api/types/container"
 	mobymount "github.com/moby/moby/api/types/mount"
@@ -21,12 +22,15 @@ import (
 const (
 	containerWorkspacePath        = "/workspace"
 	defaultEngineOperationTimeout = 5 * time.Second
+	defaultImagePullTimeout       = 30 * time.Minute
 )
 
 var ErrContainerEngineUnavailable = errors.New("container engine unavailable")
 
 type containerEngine interface {
 	Ping(context.Context, mobyclient.PingOptions) (mobyclient.PingResult, error)
+	ImageExists(context.Context, string) (bool, error)
+	PullImage(context.Context, string) error
 	ContainerCreate(context.Context, mobyclient.ContainerCreateOptions) (mobyclient.ContainerCreateResult, error)
 	ContainerAttach(context.Context, string, mobyclient.ContainerAttachOptions) (mobyclient.ContainerAttachResult, error)
 	ContainerStart(context.Context, string, mobyclient.ContainerStartOptions) (mobyclient.ContainerStartResult, error)
@@ -34,6 +38,30 @@ type containerEngine interface {
 	ContainerWait(context.Context, string, mobyclient.ContainerWaitOptions) mobyclient.ContainerWaitResult
 	ContainerKill(context.Context, string, mobyclient.ContainerKillOptions) (mobyclient.ContainerKillResult, error)
 	ContainerRemove(context.Context, string, mobyclient.ContainerRemoveOptions) (mobyclient.ContainerRemoveResult, error)
+}
+
+type mobyEngine struct {
+	*mobyclient.Client
+}
+
+func (engine *mobyEngine) ImageExists(ctx context.Context, image string) (bool, error) {
+	_, err := engine.Client.ImageInspect(ctx, image)
+	if err == nil {
+		return true, nil
+	}
+	if errdefs.IsNotFound(err) {
+		return false, nil
+	}
+	return false, err
+}
+
+func (engine *mobyEngine) PullImage(ctx context.Context, image string) error {
+	response, err := engine.Client.ImagePull(ctx, image, mobyclient.ImagePullOptions{})
+	if err != nil {
+		return err
+	}
+	defer response.Close()
+	return response.Wait(ctx)
 }
 
 // ContainerExecutorStarter starts jobs through a Docker/Podman-compatible
@@ -62,7 +90,8 @@ func NewContainerExecutorStarterFromEnv(ctx context.Context) (*ContainerExecutor
 	if err != nil {
 		return nil, fmt.Errorf("%w: configure Engine API client: %v", ErrContainerEngineUnavailable, err)
 	}
-	starter, err := NewContainerExecutorStarter(client)
+	engine := &mobyEngine{Client: client}
+	starter, err := NewContainerExecutorStarter(engine)
 	if err != nil {
 		_ = client.Close()
 		return nil, err
@@ -95,6 +124,9 @@ func (starter *ContainerExecutorStarter) Start(
 	}
 	if spec.Executor != job.ExecutorContainer {
 		return nil, fmt.Errorf("%w: executor %q", job.ErrInvalidSpec, spec.Executor)
+	}
+	if err := starter.ensureImage(spec.ContainerImage); err != nil {
+		return nil, err
 	}
 
 	createContext, cancelCreate := context.WithTimeout(context.Background(), starter.operationTimeout)
@@ -143,6 +175,24 @@ func (starter *ContainerExecutorStarter) Start(
 		attach:     attached,
 		wait:       wait,
 	}, nil
+}
+
+func (starter *ContainerExecutorStarter) ensureImage(image string) error {
+	inspectContext, cancelInspect := context.WithTimeout(context.Background(), starter.operationTimeout)
+	exists, err := starter.engine.ImageExists(inspectContext, image)
+	cancelInspect()
+	if err != nil {
+		return fmt.Errorf("inspect container image %q: %w", image, err)
+	}
+	if exists {
+		return nil
+	}
+	pullContext, cancelPull := context.WithTimeout(context.Background(), defaultImagePullTimeout)
+	defer cancelPull()
+	if err := starter.engine.PullImage(pullContext, image); err != nil {
+		return fmt.Errorf("pull container image %q: %w", image, err)
+	}
+	return nil
 }
 
 func (starter *ContainerExecutorStarter) attach(containerID string) (mobyclient.ContainerAttachResult, error) {
@@ -293,17 +343,27 @@ func (process *ContainerProcess) Kill() error {
 func (process *ContainerProcess) Wait() processes.Exit {
 	process.waitOnce.Do(func() {
 		process.waitResult = process.waitContainer()
-		process.attach.Close()
-		if process.outputDone != nil {
-			if err := <-process.outputDone; err != nil && process.waitResult.WaitErr == nil {
-				process.waitResult.WaitErr = fmt.Errorf("copy container output: %w", err)
-			}
+		if err := process.waitForOutput(); err != nil && process.waitResult.WaitErr == nil {
+			process.waitResult.WaitErr = fmt.Errorf("copy container output: %w", err)
 		}
 		if err := process.remove(); err != nil && process.waitResult.WaitErr == nil {
 			process.waitResult.WaitErr = err
 		}
 	})
 	return process.waitResult
+}
+
+func (process *ContainerProcess) waitForOutput() error {
+	if process.outputDone == nil {
+		return nil
+	}
+	select {
+	case err := <-process.outputDone:
+		return err
+	case <-time.After(defaultEngineOperationTimeout):
+		process.attach.Close()
+		return <-process.outputDone
+	}
 }
 
 func (process *ContainerProcess) waitContainer() processes.Exit {
