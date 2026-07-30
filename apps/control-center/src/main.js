@@ -1,8 +1,10 @@
 const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
-const { execFile } = require("node:child_process");
+const { execFile, spawn } = require("node:child_process");
+const { randomUUID } = require("node:crypto");
 const path = require("node:path");
 
 const repoRoot = path.resolve(__dirname, "..", "..", "..");
+const activeRuns = new Map();
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -72,7 +74,7 @@ ipcMain.handle("project:choose", async () => {
   return result.filePaths[0];
 });
 
-ipcMain.handle("jobs:run", async (_event, request) => {
+ipcMain.handle("jobs:start", async (event, request) => {
   const jobRequest = normalizeJobRequest(request);
   const argv = splitCommandLine(jobRequest.command);
   if (argv.length === 0) {
@@ -93,12 +95,38 @@ ipcMain.handle("jobs:run", async (_event, request) => {
   args.push("--follow", ...argv);
 
   const cwd = jobRequest.workingDirectory || repoRoot;
-  const result = await runComputeHop(args, { cwd, timeout: 30 * 60 * 1000 });
-  return {
-    ok: result.ok,
-    output: [result.stdout, result.stderr].filter(Boolean).join("\n").trim(),
-    error: result.error
-  };
+  const runID = randomUUID();
+  setImmediate(() => startComputeHopStream(event.sender, runID, args, {
+    cwd,
+    deviceSelector: jobRequest.deviceID === "local" ? "" : jobRequest.deviceID
+  }));
+  return { runID };
+});
+
+ipcMain.handle("jobs:stop", async (_event, runID) => {
+  const record = activeRuns.get(String(runID));
+  if (!record) {
+    return { stopped: false };
+  }
+
+  if (record.jobID) {
+    const args = ["cancel"];
+    if (record.deviceSelector) {
+      args.push("--on", record.deviceSelector);
+    }
+    args.push(record.jobID);
+    const result = await runComputeHop(args, { cwd: repoRoot, timeout: 10000 });
+    if (!result.ok) {
+      sendRunEvent(record.webContents, String(runID), {
+        type: "output",
+        stream: "stderr",
+        text: `\nCancel failed: ${result.error || "unknown error"}\n`
+      });
+    }
+  }
+
+  record.child.kill("SIGINT");
+  return { stopped: true, cancelled: Boolean(record.jobID) };
 });
 
 async function runComputeHop(args, options) {
@@ -138,6 +166,122 @@ function execCommand(command, args, cwd, timeout = 7000) {
       }
     );
   });
+}
+
+function startComputeHopStream(webContents, runID, args, options) {
+  startProcessStream(webContents, runID, {
+    command: "computehop",
+    args,
+    cwd: options.cwd,
+    deviceSelector: options.deviceSelector,
+    fallback: {
+      command: "go",
+      args: ["run", "./cmd/computehop", ...args],
+      cwd: repoRoot,
+      deviceSelector: options.deviceSelector
+    }
+  });
+}
+
+function startProcessStream(webContents, runID, spec) {
+  let child;
+  let spawnFailed = false;
+
+  try {
+    child = spawn(spec.command, spec.args, {
+      cwd: spec.cwd,
+      windowsHide: true
+    });
+  } catch (error) {
+    sendRunEvent(webContents, runID, {
+      type: "finished",
+      ok: false,
+      text: error.message || "Run failed."
+    });
+    return;
+  }
+
+  activeRuns.set(runID, {
+    child,
+    deviceSelector: spec.deviceSelector || "",
+    jobID: null,
+    webContents
+  });
+  sendRunEvent(webContents, runID, { type: "started" });
+
+  child.stdout.on("data", (chunk) => {
+    rememberSubmittedJobID(runID, chunk.toString());
+    sendRunEvent(webContents, runID, {
+      type: "output",
+      stream: "stdout",
+      text: chunk.toString()
+    });
+  });
+
+  child.stderr.on("data", (chunk) => {
+    rememberSubmittedJobID(runID, chunk.toString());
+    sendRunEvent(webContents, runID, {
+      type: "output",
+      stream: "stderr",
+      text: chunk.toString()
+    });
+  });
+
+  child.once("error", (error) => {
+    spawnFailed = true;
+    activeRuns.delete(runID);
+    if (error.code === "ENOENT" && spec.fallback) {
+      startProcessStream(webContents, runID, spec.fallback);
+      return;
+    }
+    sendRunEvent(webContents, runID, {
+      type: "finished",
+      ok: false,
+      text: error.message || "Run failed."
+    });
+  });
+
+  child.once("close", (code, signal) => {
+    if (spawnFailed) {
+      return;
+    }
+    activeRuns.delete(runID);
+    const stopped = signal === "SIGINT" || signal === "SIGTERM";
+    sendRunEvent(webContents, runID, {
+      type: "finished",
+      ok: code === 0,
+      stopped,
+      text: stopped
+        ? "Stopped."
+        : code === 0
+          ? "Done."
+          : `Exited with code ${code}.`
+    });
+  });
+}
+
+function rememberSubmittedJobID(runID, text) {
+  const record = activeRuns.get(runID);
+  if (!record || record.jobID) {
+    return;
+  }
+  const match = text.match(/Submitted\s+([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
+  if (!match) {
+    return;
+  }
+  record.jobID = match[1];
+  sendRunEvent(record.webContents, runID, {
+    type: "job",
+    jobID: record.jobID
+  });
+}
+
+function sendRunEvent(webContents, runID, payload) {
+  if (webContents.isDestroyed()) {
+    activeRuns.delete(runID);
+    return;
+  }
+  webContents.send("jobs:event", { runID, ...payload });
 }
 
 function normalizeJobRequest(request) {

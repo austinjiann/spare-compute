@@ -1,6 +1,7 @@
 const state = {
   devices: [],
   selectedDeviceID: "local",
+  currentRunID: null,
   settings: loadSettings()
 };
 let refreshInFlight = false;
@@ -44,6 +45,8 @@ renderCapabilities();
 renderRunControls();
 refreshDevices();
 setInterval(refreshDevices, 5000);
+
+window.computeHop.onJobEvent(handleJobEvent);
 
 async function refreshDevices() {
   if (refreshInFlight) {
@@ -155,6 +158,7 @@ async function chooseProject() {
 
 async function runSelectedJob() {
   if (runInFlight) {
+    await stopCurrentJob();
     return;
   }
 
@@ -173,25 +177,79 @@ async function runSelectedJob() {
   }
 
   runInFlight = true;
+  state.currentRunID = null;
   button.disabled = true;
-  button.textContent = "Running";
+  button.textContent = "Starting";
   output.classList.remove("hidden");
+  output.classList.remove("success", "failure");
   output.textContent = `Running on ${selected.name}…`;
 
   try {
-    const result = await window.computeHop.runJob({
+    const result = await window.computeHop.startJob({
       command,
       deviceID: selected.id,
       workingDirectory: state.settings.projectRoot || ""
     });
-    showJobOutput(result.output || result.error || "Done.", result.ok);
+    state.currentRunID = result.runID;
+    button.disabled = false;
+    renderRunControls();
   } catch (error) {
     showJobOutput(error.message || "Run failed.", false);
-  } finally {
     runInFlight = false;
-    button.disabled = false;
-    button.textContent = "Run";
+    state.currentRunID = null;
+    renderRunControls();
   }
+}
+
+async function stopCurrentJob() {
+  if (!state.currentRunID) {
+    return;
+  }
+  const button = document.getElementById("run-job");
+  button.disabled = true;
+  button.textContent = "Stopping";
+  await window.computeHop.stopJob(state.currentRunID);
+}
+
+function handleJobEvent(event) {
+  if (!event || event.runID !== state.currentRunID) {
+    return;
+  }
+
+  if (event.type === "started") {
+    appendJobOutput("\n");
+    renderRunControls();
+    return;
+  }
+
+  if (event.type === "output") {
+    appendJobOutput(event.text || "");
+    return;
+  }
+
+  if (event.type === "job") {
+    appendJobOutput(`\nJob ${event.jobID}\n`);
+    return;
+  }
+
+  if (event.type === "finished") {
+    if (event.text) {
+      appendJobOutput(`\n${event.text}`);
+    }
+    const output = document.getElementById("job-output");
+    output.classList.toggle("success", Boolean(event.ok));
+    output.classList.toggle("failure", !event.ok);
+    runInFlight = false;
+    state.currentRunID = null;
+    renderRunControls();
+  }
+}
+
+function appendJobOutput(text) {
+  const output = document.getElementById("job-output");
+  output.classList.remove("hidden");
+  output.textContent += text;
+  output.scrollTop = output.scrollHeight;
 }
 
 function showJobOutput(message, ok) {
@@ -211,7 +269,8 @@ function renderRunControls() {
   projectLabel.textContent = state.settings.projectRoot
     ? shortPath(state.settings.projectRoot)
     : "No project";
-  runButton.disabled = runInFlight || !selected || !canRunOn(selected);
+  runButton.textContent = runInFlight ? "Stop" : "Run";
+  runButton.disabled = !runInFlight && (!selected || !canRunOn(selected));
 }
 
 function renderCapabilities() {
