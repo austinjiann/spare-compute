@@ -29,7 +29,7 @@ npm run package:dir
 ```
 
 This runs `bundle-daemon` first, then writes the app bundle under
-`apps/control-center/out`. The packaged app includes the daemon at
+`apps/control-center/.out`. The packaged app includes the daemon at
 `Contents/Resources/bin/computehopd`, so the **Start** button can launch
 ComputeHop without a repository checkout.
 
@@ -66,6 +66,8 @@ Current scope:
 - targets This Mac by default, or a selected connected worker;
 - skips project sync for remote utility commands until a project folder is
   selected;
+- tells the user when a remote project run is snapshotting/uploading before the
+  job is submitted;
 - stores Control Center preferences in the app user-data directory, with
   browser local storage kept only as a migration/fallback path.
 

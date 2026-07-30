@@ -28,9 +28,21 @@ test("createPackageOptions builds an unpacked app bundle with daemon resources",
   assert.deepEqual(options.extraResource, [path.join(path.resolve(root), "resources", "bin")]);
 });
 
+test("createPackageOptions defaults to a hidden output directory ignored by Go tooling", () => {
+  const root = path.join("tmp", "control-center");
+  const options = createPackageOptions({
+    controlCenterRoot: root,
+    platform: "darwin",
+    arch: "arm64"
+  });
+
+  assert.equal(options.out, path.join(path.resolve(root), ".out"));
+});
+
 test("packageIgnorePatterns excludes generated outputs and copied daemon source", () => {
   const patterns = packageIgnorePatterns();
 
+  assert.equal(matchesAny(patterns, "/.out/ComputeHop-darwin-arm64"), true);
   assert.equal(matchesAny(patterns, "/out/ComputeHop-darwin-arm64"), true);
   assert.equal(matchesAny(patterns, "/dist/ComputeHop.dmg"), true);
   assert.equal(matchesAny(patterns, "/resources/bin/computehopd"), true);

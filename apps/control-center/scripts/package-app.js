@@ -20,7 +20,7 @@ async function packageApp(options = {}) {
 
 function createPackageOptions(options = {}) {
   const root = path.resolve(options.controlCenterRoot || controlCenterRoot);
-  const out = path.resolve(options.out || path.join(root, "out"));
+  const out = path.resolve(options.out || path.join(root, ".out"));
   const platform = options.platform || process.platform;
   const arch = options.arch || process.arch;
   const resourcesBin = path.join(root, "resources", "bin");
@@ -44,6 +44,7 @@ function createPackageOptions(options = {}) {
 
 function packageIgnorePatterns() {
   return [
+    /^\/\.out($|\/)/,
     /^\/out($|\/)/,
     /^\/dist($|\/)/,
     /^\/resources\/bin($|\/)/,

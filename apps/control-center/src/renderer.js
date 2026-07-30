@@ -793,6 +793,7 @@ async function startPlannedJob(planned, selected) {
     const result = await window.computeHop.startJob({
       command: planned.command,
       deviceID: selected.id,
+      deviceName: selected.name,
       workingDirectory: state.settings.projectRoot || "",
       outputs
     });

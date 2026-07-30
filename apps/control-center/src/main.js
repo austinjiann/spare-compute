@@ -10,6 +10,7 @@ const {
 const { startDaemon } = require("./daemon-launcher");
 const { planTask } = require("./planner");
 const { appRuntimeInfo, normalizeDaemonRole } = require("./runtime-info");
+const { remotePreparationMessage } = require("./run-feedback");
 const {
   loadSettings: loadControlCenterSettings,
   saveSettings: saveControlCenterSettings
@@ -287,11 +288,25 @@ async function runDaemonJobStream(runID, jobRequest, argv) {
     return;
   }
   try {
+    const workingDirectory = runWorkingDirectory(jobRequest, record.deviceSelector);
+    const preparationMessage = remotePreparationMessage({
+      deviceName: jobRequest.deviceName,
+      deviceSelector: record.deviceSelector,
+      workingDirectory
+    });
+    if (preparationMessage) {
+      sendRunEvent(record.webContents, runID, {
+        type: "output",
+        stream: "stderr",
+        text: `${preparationMessage}\n`
+      });
+    }
+
     const submitted = await record.client.submitJob(
       {
         executable: argv[0],
         arguments: argv.slice(1),
-        workingDirectory: runWorkingDirectory(jobRequest, record.deviceSelector),
+        workingDirectory,
         outputs: jobRequest.outputs,
         deviceSelector: record.deviceSelector
       },
@@ -649,6 +664,7 @@ function normalizeJobRequest(request) {
   return {
     command: String(request.command || "").trim(),
     deviceID: String(request.deviceID || "local").trim(),
+    deviceName: String(request.deviceName || "").trim(),
     workingDirectory: String(request.workingDirectory || "").trim(),
     outputs: Array.isArray(request.outputs)
       ? request.outputs.map((value) => String(value || "").trim()).filter(Boolean)

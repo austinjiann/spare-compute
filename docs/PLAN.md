@@ -1454,8 +1454,9 @@ from the bundled daemon in packaged builds, package an unpacked current-platform
 app directory with the daemon copied into Electron's runtime resources, persist
 Control Center preferences under the app user-data directory, list recent jobs
 for the selected computer, open persisted job logs, declare files/folders to
-bring back, restore succeeded job outputs, and cancel listed jobs. Durable
-daemon-backed cluster settings for that app remain. A host-architecture
+bring back, show remote snapshot/upload preparation feedback before long
+project submissions, restore succeeded job outputs, and cancel listed jobs.
+Durable daemon-backed cluster settings for that app remain. A host-architecture
 developer app bundle now includes the menu app, CLI, and daemon; a guarded
 per-user installer configures an
 unprivileged launch agent and preserves durable state on uninstall. Developer
