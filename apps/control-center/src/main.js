@@ -7,6 +7,7 @@ const {
   jobSucceeded,
   jobTerminal
 } = require("./local-daemon");
+const { planTask } = require("./planner");
 
 const repoRoot = path.resolve(__dirname, "..", "..", "..");
 const activeRuns = new Map();
@@ -103,6 +104,13 @@ ipcMain.handle("project:choose", async () => {
     return null;
   }
   return result.filePaths[0];
+});
+
+ipcMain.handle("planner:plan", async (_event, request) => {
+  return planTask({
+    task: request?.task,
+    projectRoot: request?.projectRoot || repoRoot
+  });
 });
 
 ipcMain.handle("jobs:start", async (event, request) => {

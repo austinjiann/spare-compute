@@ -338,6 +338,33 @@ select {
   gap: 10px;
 }
 
+.plan-preview {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(63, 130, 255, 0.12);
+}
+
+.plan-preview div {
+  display: grid;
+  gap: 3px;
+}
+
+.plan-preview code {
+  width: fit-content;
+  max-width: 100%;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.24);
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 13px;
+}
+
 .pill-button,
 .primary-button {
   -webkit-app-region: no-drag;

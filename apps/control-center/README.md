@@ -21,6 +21,10 @@ Current scope:
 - shows active pairing verification codes and lets the user confirm or reject
   them in-app;
 - forgets paired devices through daemon IPC;
+- plans plain-language tasks such as "run tests", "build the app", and
+  "check CI" into one safe command using local project rules;
+- previews the exact command before running when Preview before running is
+  enabled;
 - submits selected commands as durable native jobs;
 - polls daemon job logs and streams stdout/stderr into the window;
 - cancels running jobs through daemon IPC;
@@ -29,5 +33,6 @@ Current scope:
   selected;
 - stores UI-only settings in browser local storage for now.
 
-Next step: add a real planner that can turn plain-language tasks into a preview
-of safe commands before submission.
+Next step: add an optional LLM planner that can explain and compose more complex
+multi-step work while keeping the same explicit command preview before
+submission.

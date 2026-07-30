@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld("computeHop", {
   forgetDevice: (deviceID) => ipcRenderer.invoke("devices:forget", deviceID),
   confirmPairing: (pairingID) => ipcRenderer.invoke("pairings:confirm", pairingID),
   rejectPairing: (pairingID) => ipcRenderer.invoke("pairings:reject", pairingID),
+  planTask: (request) => ipcRenderer.invoke("planner:plan", request),
   startJob: (request) => ipcRenderer.invoke("jobs:start", request),
   stopJob: (runID) => ipcRenderer.invoke("jobs:stop", runID),
   onJobEvent: (handler) => {

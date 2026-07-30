@@ -3,6 +3,7 @@ const state = {
   pairings: [],
   selectedDeviceID: "local",
   currentRunID: null,
+  plannedTask: null,
   settings: loadSettings()
 };
 let refreshInFlight = false;
@@ -37,6 +38,11 @@ document.getElementById("command-input").addEventListener("keydown", (event) => 
     runSelectedJob();
   }
 });
+document.getElementById("command-input").addEventListener("input", () => {
+  state.plannedTask = null;
+  renderPlanPreview();
+  renderRunControls();
+});
 document.getElementById("choose-project").addEventListener("click", chooseProject);
 
 bindCheckbox("lanDiscovery", document.getElementById("lan-discovery"));
@@ -44,6 +50,7 @@ bindCheckbox("askBeforeRun", document.getElementById("ask-before-run"));
 bindSetting("aiProvider", document.getElementById("ai-provider"));
 
 renderCapabilities();
+renderPlanPreview();
 renderRunControls();
 refreshDevices();
 setInterval(refreshDevices, 5000);
@@ -292,7 +299,9 @@ async function chooseProject() {
     return;
   }
   state.settings.projectRoot = selected;
+  state.plannedTask = null;
   saveSettings();
+  renderPlanPreview();
   renderRunControls();
 }
 
@@ -303,16 +312,21 @@ async function runSelectedJob() {
   }
 
   const selected = selectedDevice();
-  const command = document.getElementById("command-input").value.trim();
+  const task = document.getElementById("command-input").value.trim();
   const output = document.getElementById("job-output");
   const button = document.getElementById("run-job");
 
-  if (!command) {
+  if (!task) {
     showJobOutput("Enter something to run.", false);
     return;
   }
   if (!selected || !canRunOn(selected)) {
     showJobOutput("Choose This Mac or a connected worker first.", false);
+    return;
+  }
+
+  const planned = await plannedCommandFor(task);
+  if (!planned) {
     return;
   }
 
@@ -322,11 +336,11 @@ async function runSelectedJob() {
   button.textContent = "Starting";
   output.classList.remove("hidden");
   output.classList.remove("success", "failure");
-  output.textContent = `Running on ${selected.name}…`;
+  output.textContent = `Running ${planned.command} on ${selected.name}…`;
 
   try {
     const result = await window.computeHop.startJob({
-      command,
+      command: planned.command,
       deviceID: selected.id,
       workingDirectory: state.settings.projectRoot || ""
     });
@@ -339,6 +353,80 @@ async function runSelectedJob() {
     state.currentRunID = null;
     renderRunControls();
   }
+}
+
+async function plannedCommandFor(task) {
+  if (state.settings.askBeforeRun) {
+    if (planMatchesInput(task)) {
+      return state.plannedTask;
+    }
+    await previewPlan(task);
+    return null;
+  }
+
+  const result = await createPlan(task);
+  if (!result) {
+    return null;
+  }
+  state.plannedTask = result;
+  renderPlanPreview();
+  return result;
+}
+
+async function previewPlan(task) {
+  const plan = await createPlan(task);
+  if (!plan) {
+    return;
+  }
+  state.plannedTask = plan;
+  renderPlanPreview();
+  renderRunControls();
+}
+
+async function createPlan(task) {
+  try {
+    const response = await window.computeHop.planTask({
+      task,
+      projectRoot: state.settings.projectRoot || ""
+    });
+    if (!response.ok) {
+      showJobOutput(response.error || "Could not plan that task.", false);
+      state.plannedTask = null;
+      renderPlanPreview();
+      renderRunControls();
+      return null;
+    }
+    return {
+      source: task,
+      ...response.plan,
+      projectRoot: state.settings.projectRoot || ""
+    };
+  } catch (error) {
+    showJobOutput(error.message || "Could not plan that task.", false);
+    state.plannedTask = null;
+    renderPlanPreview();
+    renderRunControls();
+    return null;
+  }
+}
+
+function renderPlanPreview() {
+  const preview = document.getElementById("plan-preview");
+  const title = document.getElementById("plan-title");
+  const detail = document.getElementById("plan-detail");
+  const command = document.getElementById("plan-command");
+  const plan = state.plannedTask;
+
+  preview.classList.toggle("hidden", !plan);
+  if (!plan) {
+    title.textContent = "Plan";
+    detail.textContent = "";
+    command.textContent = "";
+    return;
+  }
+  title.textContent = plan.title || "Planned command";
+  detail.textContent = plan.detail || "";
+  command.textContent = plan.command || "";
 }
 
 async function stopCurrentJob() {
@@ -404,13 +492,29 @@ function renderRunControls() {
   const target = document.getElementById("run-target");
   const projectLabel = document.getElementById("project-label");
   const runButton = document.getElementById("run-job");
+  const task = document.getElementById("command-input").value.trim();
 
   target.textContent = selected ? `on ${selected.name}` : "choose a device";
   projectLabel.textContent = state.settings.projectRoot
     ? shortPath(state.settings.projectRoot)
     : "No project";
-  runButton.textContent = runInFlight ? "Stop" : "Run";
+  if (runInFlight) {
+    runButton.textContent = "Stop";
+  } else if (state.settings.askBeforeRun && task && !planMatchesInput(task)) {
+    runButton.textContent = "Plan";
+  } else {
+    runButton.textContent = "Run";
+  }
   runButton.disabled = !runInFlight && (!selected || !canRunOn(selected));
+}
+
+function planMatchesInput(task) {
+  return (
+    state.plannedTask &&
+    state.plannedTask.source === task &&
+    state.plannedTask.projectRoot === (state.settings.projectRoot || "") &&
+    state.plannedTask.command
+  );
 }
 
 function renderCapabilities() {
@@ -452,6 +556,11 @@ function bindCheckbox(key, input) {
     saveSettings();
     if (key === "lanDiscovery") {
       refreshDevices();
+    }
+    if (key === "askBeforeRun") {
+      state.plannedTask = null;
+      renderPlanPreview();
+      renderRunControls();
     }
   });
 }
