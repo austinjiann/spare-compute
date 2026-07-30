@@ -58,6 +58,7 @@ const {
   compatibleWorkerForPlan,
   concreteDeviceID,
   singleConnectedWorkerTarget,
+  workerMatchesArchitecture,
   workerMatchesPlatform,
   workerRunTargetForAction
 } = window.computeHopDeviceTargets;
@@ -1399,6 +1400,7 @@ function compatibleWorkerForCurrentPlan(plan) {
 function workerCanRunPlan(device, plan) {
   return (
     workerMatchesPlatform(device, plan?.targetPlatform || plan?.requiredPlatform || "") &&
+    workerMatchesArchitecture(device, plan?.targetArchitecture || plan?.requiredArchitecture || plan?.targetArch || plan?.requiredArch || "") &&
     !disallowedWorkMessage(plan, capabilitiesForDevice(device))
   );
 }

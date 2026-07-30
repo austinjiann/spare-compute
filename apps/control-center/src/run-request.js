@@ -104,6 +104,10 @@
     if (platformBlocker.message) {
       return platformBlocker;
     }
+    const architectureBlocker = targetArchitectureBlocker(device, plan);
+    if (architectureBlocker.message) {
+      return architectureBlocker;
+    }
     if (plan.requiresProject && !cleanPath(request.projectRoot)) {
       if (deviceID !== "local") {
         return block(
@@ -179,6 +183,19 @@
     }
     const label = platformLabel(target);
     return block(`This task needs ${label}. Choose a ${label} computer first.`);
+  }
+
+  function targetArchitectureBlocker(device = {}, plan = {}) {
+    const target = normalizeTargetArchitecture(plan.targetArchitecture || plan.requiredArchitecture || plan.targetArch || plan.requiredArch);
+    if (!target) {
+      return block("");
+    }
+    const actual = normalizeTargetArchitecture(device.arch || device.architecture);
+    if (!actual || actual === target) {
+      return block("");
+    }
+    const label = architectureLabel(target);
+    return block(`This task needs ${label}. Choose ${architectureArticle(label)} ${label} computer first.`);
   }
 
   function offlineWorkerBlock(deviceName) {
@@ -271,6 +288,32 @@
       default:
         return "that OS";
     }
+  }
+
+  function normalizeTargetArchitecture(value) {
+    const architecture = cleanString(value).toLowerCase();
+    if (["arm64", "aarch64", "apple-silicon", "apple silicon"].includes(architecture)) {
+      return "arm64";
+    }
+    if (["amd64", "x64", "x86_64", "x86-64", "intel"].includes(architecture)) {
+      return "amd64";
+    }
+    return "";
+  }
+
+  function architectureLabel(architecture) {
+    switch (normalizeTargetArchitecture(architecture)) {
+      case "arm64":
+        return "arm64";
+      case "amd64":
+        return "x64";
+      default:
+        return "that architecture";
+    }
+  }
+
+  function architectureArticle(label) {
+    return /^[aeiou]/i.test(cleanString(label)) || cleanString(label).toLowerCase() === "x64" ? "an" : "a";
   }
 
   function fallbackValidatePortableOutputs(outputs) {

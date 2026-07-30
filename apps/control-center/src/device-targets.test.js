@@ -7,6 +7,7 @@ const {
   isSingleAutoCandidate,
   singleConnectedWorkerTarget,
   compatibleWorkerForPlan,
+  workerMatchesArchitecture,
   workerMatchesPlatform,
   workerRunTargetForAction
 } = require("./device-targets");
@@ -141,6 +142,19 @@ test("compatibleWorkerForPlan can select by allowed-work policy", () => {
     }),
     null
   );
+});
+
+test("compatibleWorkerForPlan selects one matching worker by architecture", () => {
+  const appleSilicon = { ...connectedWorker("M-series Mac", "worker-1"), platform: "darwin", arch: "arm64" };
+  const intel = { ...connectedWorker("Intel Mac", "worker-2"), platform: "darwin", arch: "amd64" };
+  const windows = { ...connectedWorker("Windows PC", "worker-3"), platform: "windows", arch: "x64" };
+
+  assert.equal(compatibleWorkerForPlan([localDevice(), appleSilicon, intel, windows], { targetArchitecture: "arm64" }).id, "worker-1");
+  assert.equal(compatibleWorkerForPlan([localDevice(), appleSilicon, intel, windows], { targetPlatform: "darwin", targetArchitecture: "x64" }).id, "worker-2");
+  assert.equal(compatibleWorkerForPlan([localDevice(), appleSilicon, intel, windows], { requiredArchitecture: "amd64" }), null);
+  assert.equal(workerMatchesArchitecture({ arch: "aarch64" }, "arm64"), true);
+  assert.equal(workerMatchesArchitecture({ arch: "x64" }, "amd64"), true);
+  assert.equal(workerMatchesArchitecture({ arch: "arm64" }, "amd64"), false);
 });
 
 test("concreteDeviceID resolves Auto worker to its backing worker", () => {

@@ -392,6 +392,52 @@ test("runReadinessBlocker prevents OS-targeted plans from running on the wrong p
   );
 });
 
+test("runReadinessBlocker prevents architecture-targeted plans from running on the wrong architecture", () => {
+  assert.equal(
+    runReadinessError({
+      device: { id: "local", name: "This Mac", platform: "darwin", arch: "arm64" },
+      canRun: true,
+      plan: { command: "hostname", requiresProject: false, targetArchitecture: "amd64" },
+      projectRoot: ""
+    }),
+    "This task needs x64. Choose an x64 computer first."
+  );
+  assert.equal(
+    runReadinessError({
+      device: {
+        id: "worker-1",
+        name: "M-series Mac",
+        role: "worker",
+        platform: "darwin",
+        arch: "aarch64",
+        connection: "active",
+        availability: "remote",
+        trustState: "paired"
+      },
+      canRun: true,
+      plan: { command: "hostname", requiresProject: false, targetArchitecture: "arm64" },
+      projectRoot: ""
+    }),
+    ""
+  );
+  assert.equal(
+    runReadinessError({
+      device: {
+        id: "worker-1",
+        name: "Unknown worker",
+        role: "worker",
+        connection: "active",
+        availability: "remote",
+        trustState: "paired"
+      },
+      canRun: true,
+      plan: { command: "hostname", requiresProject: false, targetArchitecture: "arm64" },
+      projectRoot: ""
+    }),
+    ""
+  );
+});
+
 test("runReadinessError requires a project before project work on any device", () => {
   assert.equal(
     runReadinessError({

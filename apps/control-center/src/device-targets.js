@@ -50,14 +50,16 @@
 
   function compatibleWorkerForPlan(devices = [], plan = {}, options = {}) {
     const platform = normalizeTargetPlatform(plan.targetPlatform || plan.requiredPlatform);
+    const architecture = normalizeTargetArchitecture(plan.targetArchitecture || plan.requiredArchitecture || plan.targetArch || plan.requiredArch);
     const allowed = typeof options.isWorkerAllowed === "function" ? options.isWorkerAllowed : () => true;
-    const shouldTry = platform || options.requireAllowedMatch;
+    const shouldTry = platform || architecture || options.requireAllowedMatch;
     if (!shouldTry) {
       return null;
     }
     const workers = devices.filter((device) => (
       isSingleAutoCandidate(device) &&
       workerMatchesPlatform(device, platform) &&
+      workerMatchesArchitecture(device, architecture) &&
       allowed(device)
     ));
     return workers.length === 1 ? workers[0] : null;
@@ -69,6 +71,14 @@
       return true;
     }
     return normalizeDevicePlatform(device.platform || device.os) === target;
+  }
+
+  function workerMatchesArchitecture(device = {}, targetArchitecture = "") {
+    const target = normalizeTargetArchitecture(targetArchitecture);
+    if (!target) {
+      return true;
+    }
+    return normalizeDeviceArchitecture(device.arch || device.architecture) === target;
   }
 
   function automaticWorkerTarget(worker) {
@@ -142,6 +152,7 @@
     concreteDeviceID,
     isSingleAutoCandidate,
     singleConnectedWorkerTarget,
+    workerMatchesArchitecture,
     workerMatchesPlatform,
     workerRunTargetForAction
   };
@@ -172,5 +183,20 @@
       return "linux";
     }
     return "";
+  }
+
+  function normalizeTargetArchitecture(value) {
+    const architecture = String(value || "").trim().toLowerCase();
+    if (["arm64", "aarch64", "apple-silicon", "apple silicon"].includes(architecture)) {
+      return "arm64";
+    }
+    if (["amd64", "x64", "x86_64", "x86-64", "intel"].includes(architecture)) {
+      return "amd64";
+    }
+    return "";
+  }
+
+  function normalizeDeviceArchitecture(value) {
+    return normalizeTargetArchitecture(value);
   }
 }));

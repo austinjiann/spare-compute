@@ -17,12 +17,14 @@ async function planTask(request) {
   const exact = exactCommand(task);
   const targetPreference = targetPreferenceForTask(task);
   const targetPlatform = targetPlatformForTask(task);
+  const targetArchitecture = targetArchitectureForTask(task);
   if (exact && intent === "exact") {
     return plan("Exact command", exact, "This looks like a command already.", profile, {
       exact: true,
       requiresProject: commandNeedsProject(exact),
       targetPreference,
-      targetPlatform
+      targetPlatform,
+      targetArchitecture
     });
   }
 
@@ -32,7 +34,8 @@ async function planTask(request) {
       requiresProject: planned.requiresProject,
       outputs: planned.outputs,
       targetPreference,
-      targetPlatform: targetPlatform || planned.targetPlatform
+      targetPlatform: targetPlatform || planned.targetPlatform,
+      targetArchitecture
     });
   }
 
@@ -51,7 +54,8 @@ async function planTask(request) {
       exact: true,
       requiresProject: commandNeedsProject(exact),
       targetPreference,
-      targetPlatform
+      targetPlatform,
+      targetArchitecture
     });
   }
 
@@ -99,6 +103,7 @@ async function suggestTasks(request) {
       requiresProject: Boolean(planned.requiresProject),
       outputs: normalizeOutputs(planned.outputs),
       targetPlatform: cleanTargetPlatform(planned.targetPlatform),
+      targetArchitecture: cleanTargetArchitecture(planned.targetArchitecture),
       projectRoot,
       detected: detectedLabels(profile)
     });
@@ -314,7 +319,8 @@ function script(profile, name, title, detail, options = {}) {
     detail,
     requiresProject: true,
     outputs: normalizeOutputs(options.outputs),
-    targetPlatform: cleanTargetPlatform(options.targetPlatform)
+    targetPlatform: cleanTargetPlatform(options.targetPlatform),
+    targetArchitecture: cleanTargetArchitecture(options.targetArchitecture)
   };
 }
 
@@ -328,7 +334,8 @@ function makeTarget(profile, name, title, detail, options = {}) {
     detail,
     requiresProject: true,
     outputs: normalizeOutputs(options.outputs),
-    targetPlatform: cleanTargetPlatform(options.targetPlatform)
+    targetPlatform: cleanTargetPlatform(options.targetPlatform),
+    targetArchitecture: cleanTargetArchitecture(options.targetArchitecture)
   };
 }
 
@@ -418,7 +425,18 @@ function targetPlatformForTask(task) {
   if (looksLikeCommand(task)) {
     return placementSuffixForCommand(task).targetPlatform;
   }
-  return targetPlatformMention(value.toLowerCase());
+  return targetPlatformMention(value.toLowerCase()) || platformForArchitectureMention(value.toLowerCase());
+}
+
+function targetArchitectureForTask(task) {
+  const value = String(task || "").trim();
+  if (!value) {
+    return "";
+  }
+  if (looksLikeCommand(task)) {
+    return placementSuffixForCommand(task).targetArchitecture;
+  }
+  return targetArchitectureMention(value.toLowerCase());
 }
 
 function exactCommand(task) {
@@ -446,7 +464,8 @@ function placementSuffixForCommand(task) {
     return {
       command: "",
       targetPreference: "",
-      targetPlatform: ""
+      targetPlatform: "",
+      targetArchitecture: ""
     };
   }
 
@@ -455,7 +474,8 @@ function placementSuffixForCommand(task) {
     return {
       command: local,
       targetPreference: "local",
-      targetPlatform: ""
+      targetPlatform: "",
+      targetArchitecture: ""
     };
   }
 
@@ -464,12 +484,18 @@ function placementSuffixForCommand(task) {
     return platform;
   }
 
+  const architecture = placementArchitectureSuffix(value);
+  if (architecture.command !== value) {
+    return architecture;
+  }
+
   const worker = value.replace(/\s+(?:on|using|with|to)\s+(?:the\s+)?(?:worker|remote|other\s+computer|another\s+computer|desktop|pc|gaming\s+pc|server|home\s+server)$/i, "").trim();
   if (worker !== value) {
     return {
       command: worker,
       targetPreference: "worker",
-      targetPlatform: ""
+      targetPlatform: "",
+      targetArchitecture: ""
     };
   }
 
@@ -478,14 +504,16 @@ function placementSuffixForCommand(task) {
     return {
       command: bareLocal,
       targetPreference: "local",
-      targetPlatform: ""
+      targetPlatform: "",
+      targetArchitecture: ""
     };
   }
 
   return {
     command: value,
     targetPreference: "",
-    targetPlatform: ""
+    targetPlatform: "",
+    targetArchitecture: ""
   };
 }
 
@@ -495,7 +523,8 @@ function placementPlatformSuffix(value) {
     return {
       command: value,
       targetPreference: "",
-      targetPlatform: ""
+      targetPlatform: "",
+      targetArchitecture: ""
     };
   }
   const command = value.slice(0, match.index).trim();
@@ -503,13 +532,42 @@ function placementPlatformSuffix(value) {
     return {
       command: value,
       targetPreference: "",
-      targetPlatform: ""
+      targetPlatform: "",
+      targetArchitecture: ""
     };
   }
   return {
     command,
     targetPreference: targetPlatformPreference(match[1]),
-    targetPlatform: targetPlatformFromPhrase(match[1])
+    targetPlatform: targetPlatformFromPhrase(match[1]),
+    targetArchitecture: ""
+  };
+}
+
+function placementArchitectureSuffix(value) {
+  const match = String(value || "").match(/\s+(?:on|using|with|to)\s+(?:a\s+|the\s+|my\s+)?(apple\s+silicon|arm64|aarch64|x64|amd64|x86_64|x86-64|intel(?:\s+mac)?|intel)$/i);
+  if (!match) {
+    return {
+      command: value,
+      targetPreference: "",
+      targetPlatform: "",
+      targetArchitecture: ""
+    };
+  }
+  const command = value.slice(0, match.index).trim();
+  if (!canStripPlacementFromCommand(command)) {
+    return {
+      command: value,
+      targetPreference: "",
+      targetPlatform: "",
+      targetArchitecture: ""
+    };
+  }
+  return {
+    command,
+    targetPreference: "",
+    targetPlatform: platformForArchitecturePhrase(match[1]),
+    targetArchitecture: targetArchitectureFromPhrase(match[1])
   };
 }
 
@@ -523,10 +581,41 @@ function targetPlatformMention(value) {
   return match ? targetPlatformFromPhrase(match[1]) : "";
 }
 
+function targetArchitectureMention(value) {
+  const text = String(value || "").trim().toLowerCase();
+  const match = text.match(/\b(?:on|using|with|to)\s+(?:a\s+|the\s+|my\s+)?(apple\s+silicon|arm64|aarch64|x64|amd64|x86_64|x86-64|intel(?:\s+mac)?|intel)\b/);
+  return match ? targetArchitectureFromPhrase(match[1]) : "";
+}
+
+function platformForArchitectureMention(value) {
+  const text = String(value || "").trim().toLowerCase();
+  const match = text.match(/\b(?:on|using|with|to)\s+(?:a\s+|the\s+|my\s+)?(apple\s+silicon|intel\s+mac)\b/);
+  return match ? platformForArchitecturePhrase(match[1]) : "";
+}
+
 function targetPlatformPreference(value) {
   const phrase = String(value || "").trim().toLowerCase();
   if (/windows|linux|mac\s+mini|mac\s+studio/.test(phrase)) {
     return "worker";
+  }
+  return "";
+}
+
+function platformForArchitecturePhrase(value) {
+  const phrase = String(value || "").trim().toLowerCase();
+  if (phrase === "apple silicon" || phrase === "intel mac") {
+    return "darwin";
+  }
+  return "";
+}
+
+function targetArchitectureFromPhrase(value) {
+  const phrase = String(value || "").trim().toLowerCase();
+  if (["apple silicon", "arm64", "aarch64"].includes(phrase)) {
+    return "arm64";
+  }
+  if (["x64", "amd64", "x86_64", "x86-64", "intel", "intel mac"].includes(phrase)) {
+    return "amd64";
   }
   return "";
 }
@@ -603,6 +692,7 @@ function plan(title, command, detail, profile, options = {}) {
       outputs: normalizeOutputs(options.outputs),
       targetPreference: cleanTargetPreference(options.targetPreference),
       targetPlatform: cleanTargetPlatform(options.targetPlatform),
+      targetArchitecture: cleanTargetArchitecture(options.targetArchitecture),
       projectRoot: profile.root || "",
       detected: detectedLabels(profile)
     }
@@ -624,6 +714,17 @@ function cleanTargetPlatform(value) {
   }
   if (target === "linux") {
     return "linux";
+  }
+  return "";
+}
+
+function cleanTargetArchitecture(value) {
+  const target = String(value || "").trim().toLowerCase();
+  if (["arm64", "aarch64", "apple-silicon", "apple silicon"].includes(target)) {
+    return "arm64";
+  }
+  if (["amd64", "x64", "x86_64", "x86-64", "intel"].includes(target)) {
+    return "amd64";
   }
   return "";
 }
@@ -669,6 +770,7 @@ module.exports = {
   planTask,
   stripPlacementSuffix,
   suggestTasks,
+  targetArchitectureForTask,
   targetPlatformForTask,
   targetPreferenceForTask
 };

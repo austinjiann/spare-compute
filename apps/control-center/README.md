@@ -87,6 +87,9 @@ Current scope:
 - preserves OS hints such as "on Windows", "on Linux", or "on macOS" in the
   plan, selects the single matching connected worker when that is unambiguous,
   and blocks submission when the selected computer advertises the wrong OS;
+- preserves architecture hints such as "on Apple Silicon", "on arm64", or
+  "on x64" using the daemon's advertised architecture, with the same
+  unambiguous-worker selection and pre-submit mismatch checks;
 - uses each device's Allow settings as an early scheduling hint, so if the
   selected computer has a work category turned off but exactly one connected
   worker allows it, the plan can move to that worker before submission;

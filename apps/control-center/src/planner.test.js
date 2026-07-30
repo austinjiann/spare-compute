@@ -9,6 +9,7 @@ const {
   planTask,
   stripPlacementSuffix,
   suggestTasks,
+  targetArchitectureForTask,
   targetPlatformForTask,
   targetPreferenceForTask
 } = require("./planner");
@@ -45,15 +46,22 @@ test("planTask carries remote placement hints from natural language", async (t) 
   assert.equal(local.plan.targetPreference, "local");
   const windows = await planTask({ task: "run tests on Windows", projectRoot: project });
   const mac = await planTask({ task: "run tests on macOS", projectRoot: project });
+  const appleSilicon = await planTask({ task: "run tests on Apple Silicon", projectRoot: project });
+  const arm = await planTask({ task: "run tests on arm64", projectRoot: project });
   assert.equal(windows.plan.targetPreference, "worker");
   assert.equal(windows.plan.targetPlatform, "windows");
   assert.equal(mac.plan.targetPreference, "");
   assert.equal(mac.plan.targetPlatform, "darwin");
+  assert.equal(appleSilicon.plan.targetPlatform, "darwin");
+  assert.equal(appleSilicon.plan.targetArchitecture, "arm64");
+  assert.equal(arm.plan.targetArchitecture, "arm64");
   assert.equal(targetPreferenceForTask("delegate the build to the gaming pc"), "worker");
   assert.equal(targetPreferenceForTask("run this on this Mac"), "local");
   assert.equal(targetPlatformForTask("delegate the build to Windows"), "windows");
   assert.equal(targetPlatformForTask("build on Linux"), "linux");
   assert.equal(targetPlatformForTask("run this on this Mac"), "darwin");
+  assert.equal(targetArchitectureForTask("run tests on Apple Silicon"), "arm64");
+  assert.equal(targetArchitectureForTask("build on x64"), "amd64");
 });
 
 test("planTask strips placement words from exact commands", async () => {
@@ -61,6 +69,7 @@ test("planTask strips placement words from exact commands", async () => {
   const remoteMake = await planTask({ task: "make pr-check on the other computer", projectRoot: "" });
   const remoteUtility = await planTask({ task: "hostname on the worker", projectRoot: "" });
   const remoteWindows = await planTask({ task: "hostname on Windows", projectRoot: "" });
+  const remoteArm = await planTask({ task: "hostname on arm64", projectRoot: "" });
   const localGo = await planTask({ task: "go test ./... here", projectRoot: "" });
   const localMake = await planTask({ task: "make pr-check locally", projectRoot: "" });
 
@@ -75,6 +84,8 @@ test("planTask strips placement words from exact commands", async () => {
   assert.equal(remoteWindows.plan.command, "hostname");
   assert.equal(remoteWindows.plan.targetPreference, "worker");
   assert.equal(remoteWindows.plan.targetPlatform, "windows");
+  assert.equal(remoteArm.plan.command, "hostname");
+  assert.equal(remoteArm.plan.targetArchitecture, "arm64");
   assert.equal(localGo.plan.command, "go test ./...");
   assert.equal(localGo.plan.targetPreference, "local");
   assert.equal(localMake.plan.command, "make pr-check");
@@ -88,6 +99,7 @@ test("planTask preserves literal local words in exact command arguments", async 
   const python = await planTask({ task: "python script.py --arg here", projectRoot: "" });
   const printf = await planTask({ task: "printf locally", projectRoot: "" });
   const echoWindows = await planTask({ task: "echo on Windows", projectRoot: "" });
+  const echoArm = await planTask({ task: "echo on arm64", projectRoot: "" });
 
   assert.equal(echo.ok, true);
   assert.equal(echo.plan.command, "echo here");
@@ -102,6 +114,8 @@ test("planTask preserves literal local words in exact command arguments", async 
   assert.equal(stripPlacementSuffix("echo here"), "echo here");
   assert.equal(echoWindows.plan.command, "echo on Windows");
   assert.equal(echoWindows.plan.targetPlatform, "");
+  assert.equal(echoArm.plan.command, "echo on arm64");
+  assert.equal(echoArm.plan.targetArchitecture, "");
   assert.equal(targetPreferenceForTask("echo here"), "");
 });
 

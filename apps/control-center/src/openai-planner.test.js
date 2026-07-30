@@ -161,6 +161,25 @@ test("normalizeOpenAIPlan preserves placement hints without leaving them in comm
   assert.equal(windows.plan.command, "hostname");
   assert.equal(windows.plan.targetPreference, "worker");
   assert.equal(windows.plan.targetPlatform, "windows");
+
+  const arm = normalizeOpenAIPlan({
+    output_text: JSON.stringify({
+      ok: true,
+      title: "Run smoke",
+      command: "hostname on arm64",
+      detail: "Print the arm64 worker hostname.",
+      requiresProject: false,
+      outputs: [],
+      capability: "commands"
+    })
+  }, {
+    task: "run a smoke check on arm64",
+    projectRoot: ""
+  });
+
+  assert.equal(arm.ok, true);
+  assert.equal(arm.plan.command, "hostname");
+  assert.equal(arm.plan.targetArchitecture, "arm64");
 });
 
 test("normalizeOpenAIPlan rejects unsafe or unusable plans", () => {

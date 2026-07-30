@@ -1,6 +1,7 @@
 const {
   commandNeedsProject,
   stripPlacementSuffix,
+  targetArchitectureForTask,
   targetPlatformForTask,
   targetPreferenceForTask
 } = require("./planner");
@@ -165,7 +166,8 @@ function normalizeOpenAIPlan(response, context = {}) {
 
   const targetPreference = targetPreferenceForTask(context.task);
   const targetPlatform = targetPlatformForTask(context.task);
-  const command = cleanString((targetPreference || targetPlatform) ? stripPlacementSuffix(parsed.command) : parsed.command);
+  const targetArchitecture = targetArchitectureForTask(context.task);
+  const command = cleanString((targetPreference || targetPlatform || targetArchitecture) ? stripPlacementSuffix(parsed.command) : parsed.command);
   if (!command) {
     return { ok: false, error: "AI planner returned an empty command." };
   }
@@ -206,6 +208,7 @@ function normalizeOpenAIPlan(response, context = {}) {
       outputs: outputValidation.outputs,
       targetPreference,
       targetPlatform,
+      targetArchitecture,
       projectRoot: cleanString(context.projectRoot),
       detected: detectedLabels(context.profile || []),
       planner: "openai"
