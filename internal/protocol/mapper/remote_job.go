@@ -40,6 +40,7 @@ var progressPhaseToRemoteProtocol = map[job.ProgressPhase]computehopv1.JobProgre
 	job.ProgressDownload: computehopv1.JobProgressPhase_JOB_PROGRESS_PHASE_DOWNLOAD,
 	job.ProgressRestore:  computehopv1.JobProgressPhase_JOB_PROGRESS_PHASE_RESTORE,
 	job.ProgressCollect:  computehopv1.JobProgressPhase_JOB_PROGRESS_PHASE_COLLECT,
+	job.ProgressPull:     computehopv1.JobProgressPhase_JOB_PROGRESS_PHASE_PULL,
 }
 
 var remoteProtocolToProgressPhase = func() map[computehopv1.JobProgressPhase]job.ProgressPhase {

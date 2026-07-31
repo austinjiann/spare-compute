@@ -35,17 +35,21 @@ func TestContainerExecutorStarterCreatesAttachedContainer(t *testing.T) {
 	}
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	process, err := starter.Start(job.Spec{
-		Executable:       "go",
-		Arguments:        []string{"test", "./..."},
-		WorkingDirectory: "/host/project",
-		Environment: map[string]string{
-			"ZED": "last",
-			"GO":  "1",
+	process, err := starter.Start(StartRequest{
+		Spec: job.Spec{
+			Executable:       "go",
+			Arguments:        []string{"test", "./..."},
+			WorkingDirectory: "/host/project",
+			Environment: map[string]string{
+				"ZED": "last",
+				"GO":  "1",
+			},
+			Executor:       job.ExecutorContainer,
+			ContainerImage: "golang:latest",
 		},
-		Executor:       job.ExecutorContainer,
-		ContainerImage: "golang:latest",
-	}, &stdout, &stderr)
+		Stdout: &stdout,
+		Stderr: &stderr,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,6 +90,7 @@ func TestContainerExecutorStarterPullsMissingImageBeforeCreate(t *testing.T) {
 	engine := &fakeContainerEngine{
 		createID:     "container-4",
 		imageExists:  false,
+		pullProgress: []pullProgressSample{{completedBytes: 1, totalBytes: 4}, {completedBytes: 4, totalBytes: 4}},
 		inspectPID:   99,
 		attachStream: multiplexContainerOutput(stdcopy.Stdout, "pulled\n"),
 		waitResponses: bufferedWaitResponses(mobycontainer.WaitResponse{
@@ -97,9 +102,17 @@ func TestContainerExecutorStarterPullsMissingImageBeforeCreate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	process, err := starter.Start(job.Spec{
-		Executable: "printf", Executor: job.ExecutorContainer, ContainerImage: "alpine:latest",
-	}, io.Discard, io.Discard)
+	progress := newFakeProgressRepository()
+	id := mustParseJobID(t, "11111111-1111-4111-8111-111111111111")
+	process, err := starter.Start(StartRequest{
+		JobID: id,
+		Spec: job.Spec{
+			Executable: "printf", Executor: job.ExecutorContainer, ContainerImage: "alpine:latest",
+		},
+		Stdout:   io.Discard,
+		Stderr:   io.Discard,
+		Progress: progress,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,6 +121,12 @@ func TestContainerExecutorStarterPullsMissingImageBeforeCreate(t *testing.T) {
 	}
 	if got, want := engine.pulledImages, []string{"alpine:latest"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("pulled images = %#v, want %#v", got, want)
+	}
+	if got, want := progress.values, []job.Progress{
+		{Phase: job.ProgressPull, CompletedBytes: 1, TotalBytes: 4},
+		{Phase: job.ProgressPull, CompletedBytes: 4, TotalBytes: 4},
+	}; !sameProgressWithoutTime(got, want) {
+		t.Fatalf("progress = %#v, want %#v", got, want)
 	}
 	if engine.createOptions.Config.Image != "alpine:latest" {
 		t.Fatalf("container image = %q, want alpine:latest", engine.createOptions.Config.Image)
@@ -124,9 +143,13 @@ func TestContainerExecutorStarterStopsBeforeCreateWhenImagePullFails(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = starter.Start(job.Spec{
-		Executable: "echo", Executor: job.ExecutorContainer, ContainerImage: "missing:latest",
-	}, io.Discard, io.Discard)
+	_, err = starter.Start(StartRequest{
+		Spec: job.Spec{
+			Executable: "echo", Executor: job.ExecutorContainer, ContainerImage: "missing:latest",
+		},
+		Stdout: io.Discard,
+		Stderr: io.Discard,
+	})
 	if err == nil || !stringsContain(err.Error(), "pull container image") {
 		t.Fatalf("Start() error = %v", err)
 	}
@@ -149,9 +172,13 @@ func TestContainerExecutorStarterStopSignalsContainer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	process, err := starter.Start(job.Spec{
-		Executable: "sleep", Arguments: []string{"60"}, Executor: job.ExecutorContainer, ContainerImage: "alpine:latest",
-	}, io.Discard, io.Discard)
+	process, err := starter.Start(StartRequest{
+		Spec: job.Spec{
+			Executable: "sleep", Arguments: []string{"60"}, Executor: job.ExecutorContainer, ContainerImage: "alpine:latest",
+		},
+		Stdout: io.Discard,
+		Stderr: io.Discard,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,9 +209,13 @@ func TestContainerExecutorStarterCleansUpWhenStartFails(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = starter.Start(job.Spec{
-		Executable: "echo", Executor: job.ExecutorContainer, ContainerImage: "alpine:latest",
-	}, io.Discard, io.Discard)
+	_, err = starter.Start(StartRequest{
+		Spec: job.Spec{
+			Executable: "echo", Executor: job.ExecutorContainer, ContainerImage: "alpine:latest",
+		},
+		Stdout: io.Discard,
+		Stderr: io.Discard,
+	})
 	if err == nil || !stringsContain(err.Error(), "start container container-3") {
 		t.Fatalf("Start() error = %v", err)
 	}
@@ -230,6 +261,62 @@ func stringsContain(value string, pattern string) bool {
 	return bytes.Contains([]byte(value), []byte(pattern))
 }
 
+func mustParseJobID(t *testing.T, value string) job.ID {
+	t.Helper()
+	id, err := job.ParseID(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
+func sameProgressWithoutTime(got []job.Progress, want []job.Progress) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	for index := range got {
+		if got[index].Phase != want[index].Phase ||
+			got[index].CompletedBytes != want[index].CompletedBytes ||
+			got[index].TotalBytes != want[index].TotalBytes ||
+			got[index].UpdatedAt.IsZero() {
+			return false
+		}
+	}
+	return true
+}
+
+type fakeProgressRepository struct {
+	values []job.Progress
+}
+
+func newFakeProgressRepository() *fakeProgressRepository {
+	return &fakeProgressRepository{}
+}
+
+func (repository *fakeProgressRepository) SetProgress(_ context.Context, id job.ID, progress job.Progress) error {
+	if !id.Valid() {
+		return job.ErrInvalidID
+	}
+	if err := progress.Validate(); err != nil {
+		return err
+	}
+	repository.values = append(repository.values, progress)
+	return nil
+}
+
+func (repository *fakeProgressRepository) GetProgress(context.Context, job.ID) (*job.Progress, error) {
+	return nil, nil
+}
+
+func (repository *fakeProgressRepository) ClearProgress(context.Context, job.ID) error {
+	return nil
+}
+
+type pullProgressSample struct {
+	completedBytes int64
+	totalBytes     int64
+}
+
 type fakeContainerEngine struct {
 	mutex sync.Mutex
 
@@ -238,6 +325,7 @@ type fakeContainerEngine struct {
 	imageExists    bool
 	imageExistsErr error
 	pulledImages   []string
+	pullProgress   []pullProgressSample
 	pullErr        error
 	attachStream   []byte
 	startedID      string
@@ -261,11 +349,21 @@ func (engine *fakeContainerEngine) ImageExists(context.Context, string) (bool, e
 	return engine.imageExists, engine.imageExistsErr
 }
 
-func (engine *fakeContainerEngine) PullImage(_ context.Context, image string) error {
+func (engine *fakeContainerEngine) PullImage(_ context.Context, image string, report pullProgressReporter) error {
 	engine.mutex.Lock()
-	defer engine.mutex.Unlock()
 	engine.pulledImages = append(engine.pulledImages, image)
-	return engine.pullErr
+	progress := append([]pullProgressSample(nil), engine.pullProgress...)
+	err := engine.pullErr
+	engine.mutex.Unlock()
+	for _, sample := range progress {
+		if report == nil {
+			continue
+		}
+		if reportErr := report(sample.completedBytes, sample.totalBytes); reportErr != nil {
+			return reportErr
+		}
+	}
+	return err
 }
 
 func (engine *fakeContainerEngine) ContainerCreate(

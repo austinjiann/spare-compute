@@ -102,6 +102,38 @@ func TestRunnerPersistsProcessStartFailure(t *testing.T) {
 	}
 }
 
+func TestRunnerCancelsWhileExecutorIsStarting(t *testing.T) {
+	harness := newRunnerHarness(t, job.Spec{
+		Executable: "echo", Arguments: []string{"hello"}, Executor: job.ExecutorNative,
+	})
+	starter := &blockingExecutorStarter{started: make(chan StartRequest, 1)}
+	harness.runner.startExecution = starter
+
+	result := make(chan error, 1)
+	go func() { result <- harness.runner.Run(context.Background(), harness.job.ID) }()
+	request := <-starter.started
+	if request.JobID != harness.job.ID || request.Progress == nil {
+		t.Fatalf("start request = %#v", request)
+	}
+
+	requested, err := harness.service.Cancel(context.Background(), harness.job.ID)
+	if err != nil {
+		t.Fatalf("Cancel() error = %v", err)
+	}
+	if requested.State != job.StateStarting {
+		t.Fatalf("cancellation request state = %s, want starting", requested.State)
+	}
+	select {
+	case err := <-result:
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("runner did not cancel starting executor")
+	}
+	waitForJobState(t, harness.database, harness.job.ID, job.StateCancelled)
+}
+
 func TestRunnerCollectsDeclaredOutputsBeforeSucceeding(t *testing.T) {
 	workspace := t.TempDir()
 	harness := newRunnerHarness(t, job.Spec{
@@ -179,6 +211,20 @@ func (collector *blockingArtifactCollector) Collect(
 	return artifact.Bundle{}, ctx.Err()
 }
 
+type blockingExecutorStarter struct {
+	started chan StartRequest
+}
+
+func (*blockingExecutorStarter) SupportedExecutors() []job.Executor {
+	return []job.Executor{job.ExecutorNative}
+}
+
+func (starter *blockingExecutorStarter) Start(request StartRequest) (ManagedProcess, error) {
+	starter.started <- request
+	<-request.Context.Done()
+	return nil, request.Context.Err()
+}
+
 type runnerHarness struct {
 	database  *sqlite.Database
 	logs      *joblogging.Store
@@ -231,6 +277,7 @@ func newRunnerHarness(t *testing.T, spec job.Spec) runnerHarness {
 		Jobs:       database.Jobs(),
 		Executions: database.Executions(),
 		Logs:       logs,
+		Progress:   database.Jobs(),
 		StartProcess: func(spec job.Spec, stdout, stderr io.Writer) (NativeProcess, error) {
 			return processes.Start(spec, stdout, stderr)
 		},

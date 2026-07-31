@@ -17,6 +17,7 @@ const (
 	ProgressDownload ProgressPhase = "download"
 	ProgressRestore  ProgressPhase = "restore"
 	ProgressCollect  ProgressPhase = "collect"
+	ProgressPull     ProgressPhase = "pull"
 )
 
 var validProgressPhases = map[ProgressPhase]struct{}{
@@ -25,6 +26,7 @@ var validProgressPhases = map[ProgressPhase]struct{}{
 	ProgressDownload: {},
 	ProgressRestore:  {},
 	ProgressCollect:  {},
+	ProgressPull:     {},
 }
 
 // Progress is the latest durable byte-level progress for one job operation.

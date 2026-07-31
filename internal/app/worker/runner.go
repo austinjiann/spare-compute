@@ -34,10 +34,20 @@ type NativeProcess = ManagedProcess
 // ProcessStarter starts a native process with separately tagged output streams.
 type ProcessStarter func(job.Spec, io.Writer, io.Writer) (ManagedProcess, error)
 
+// StartRequest describes one executor startup attempt.
+type StartRequest struct {
+	Context  context.Context
+	JobID    job.ID
+	Spec     job.Spec
+	Stdout   io.Writer
+	Stderr   io.Writer
+	Progress job.ProgressRepository
+}
+
 // ExecutorStarter starts one supported execution mode with separately tagged
 // output streams.
 type ExecutorStarter interface {
-	Start(job.Spec, io.Writer, io.Writer) (ManagedProcess, error)
+	Start(StartRequest) (ManagedProcess, error)
 	SupportedExecutors() []job.Executor
 }
 
@@ -52,6 +62,7 @@ type RunnerDependencies struct {
 	Jobs              job.Repository
 	Executions        execution.Repository
 	Logs              LogStore
+	Progress          job.ProgressRepository
 	StartExecution    ExecutorStarter
 	StartProcess      ProcessStarter
 	RunnerPID         func() int
@@ -71,6 +82,7 @@ type Runner struct {
 	jobs              job.Repository
 	executions        execution.Repository
 	logs              LogStore
+	progress          job.ProgressRepository
 	startExecution    ExecutorStarter
 	runnerPID         func() int
 	now               func() time.Time
@@ -109,6 +121,7 @@ func NewRunner(dependencies RunnerDependencies) (*Runner, error) {
 		jobs:              dependencies.Jobs,
 		executions:        dependencies.Executions,
 		logs:              dependencies.Logs,
+		progress:          dependencies.Progress,
 		startExecution:    starter,
 		runnerPID:         dependencies.RunnerPID,
 		now:               dependencies.Now,
@@ -230,19 +243,16 @@ func (runner *Runner) runClaimed(
 		return execution.Completion{At: runner.now().UTC(), Cancelled: true}, nil
 	}
 
-	process, err := runner.startExecution.Start(
-		current.Spec,
-		writer.Stream(context.Background(), joblogging.StreamStdout),
-		writer.Stream(context.Background(), joblogging.StreamStderr),
-	)
-	if err != nil {
-		return failedCompletion(runner.now(), "process_start", "start process", err, nil, ""), nil
+	process, completion, err := runner.startClaimedProcess(ctx, current, runnerPID, writer)
+	if process == nil {
+		return completion, err
 	}
 	if _, err := runner.executions.MarkRunning(ctx, current.ID, runnerPID, process.PID(), runner.now()); err != nil {
 		_ = process.Kill()
 		exit := process.Wait()
 		return failedCompletion(runner.now(), "mark_running", "record running process", err, intPointer(exit.Code), exit.Signal), err
 	}
+	runner.clearProgress(context.Background(), current.ID)
 
 	waited := make(chan processes.Exit, 1)
 	go func() { waited <- process.Wait() }()
@@ -275,6 +285,100 @@ func (runner *Runner) runClaimed(
 			return failedCompletion(runner.now(), "runner_stopped", "runner was stopped", ctx.Err(), intPointer(exit.Code), exit.Signal), ctx.Err()
 		}
 	}
+}
+
+type startResult struct {
+	process ManagedProcess
+	err     error
+}
+
+func (runner *Runner) startClaimedProcess(
+	ctx context.Context,
+	current job.Job,
+	runnerPID int,
+	writer *joblogging.Writer,
+) (ManagedProcess, execution.Completion, error) {
+	startContext, cancelStart := context.WithCancel(ctx)
+	defer cancelStart()
+
+	started := make(chan startResult, 1)
+	go func() {
+		process, err := runner.startExecution.Start(StartRequest{
+			Context:  startContext,
+			JobID:    current.ID,
+			Spec:     current.Spec,
+			Stdout:   writer.Stream(context.Background(), joblogging.StreamStdout),
+			Stderr:   writer.Stream(context.Background(), joblogging.StreamStderr),
+			Progress: runner.progress,
+		})
+		started <- startResult{process: process, err: err}
+	}()
+
+	ticker := time.NewTicker(runner.heartbeatInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case result := <-started:
+			if result.err != nil {
+				return nil, failedCompletion(runner.now(), "process_start", "start process", result.err, nil, ""), nil
+			}
+			return result.process, execution.Completion{}, nil
+		case <-ticker.C:
+			if err := runner.executions.Heartbeat(ctx, current.ID, runnerPID, runner.now()); err != nil {
+				cancelStart()
+				result := <-started
+				if result.process != nil {
+					_ = result.process.Kill()
+					_ = result.process.Wait()
+				}
+				return nil, failedCompletion(runner.now(), "heartbeat", "persist runner heartbeat", err, nil, ""), err
+			}
+			requested, err := runner.executions.CancellationRequested(ctx, current.ID, runnerPID)
+			if err != nil {
+				cancelStart()
+				result := <-started
+				if result.process != nil {
+					_ = result.process.Kill()
+					_ = result.process.Wait()
+				}
+				return nil, failedCompletion(runner.now(), "check_cancellation", "poll cancellation request", err, nil, ""), err
+			}
+			if requested {
+				cancelStart()
+				result := <-started
+				if result.process != nil {
+					exit := runner.stop(result.process, makeCompletedWait(result.process))
+					return nil, execution.Completion{
+						At:                runner.now().UTC(),
+						ExitCode:          intPointer(exit.Code),
+						TerminationSignal: exit.Signal,
+						Cancelled:         true,
+					}, result.err
+				}
+				return nil, execution.Completion{At: runner.now().UTC(), Cancelled: true}, nil
+			}
+		case <-ctx.Done():
+			cancelStart()
+			result := <-started
+			if result.process != nil {
+				exit := runner.stop(result.process, makeCompletedWait(result.process))
+				return nil, failedCompletion(runner.now(), "runner_stopped", "runner was stopped before process start", ctx.Err(), intPointer(exit.Code), exit.Signal), ctx.Err()
+			}
+			return nil, failedCompletion(runner.now(), "runner_stopped", "runner was stopped before process start", ctx.Err(), nil, ""), ctx.Err()
+		}
+	}
+}
+
+func (runner *Runner) clearProgress(ctx context.Context, id job.ID) {
+	if runner.progress != nil {
+		_ = runner.progress.ClearProgress(ctx, id)
+	}
+}
+
+func makeCompletedWait(process ManagedProcess) <-chan processes.Exit {
+	waited := make(chan processes.Exit, 1)
+	go func() { waited <- process.Wait() }()
+	return waited
 }
 
 func (runner *Runner) stopAfterFailure(

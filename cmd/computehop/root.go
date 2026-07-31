@@ -3057,6 +3057,8 @@ func progressPhaseLabel(phase job.ProgressPhase) string {
 		return "restore"
 	case job.ProgressCollect:
 		return "collect"
+	case job.ProgressPull:
+		return "pull"
 	default:
 		return string(phase)
 	}

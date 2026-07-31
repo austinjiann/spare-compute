@@ -213,6 +213,7 @@ const (
 	JobProgressPhase_JOB_PROGRESS_PHASE_DOWNLOAD    JobProgressPhase = 3
 	JobProgressPhase_JOB_PROGRESS_PHASE_RESTORE     JobProgressPhase = 4
 	JobProgressPhase_JOB_PROGRESS_PHASE_COLLECT     JobProgressPhase = 5
+	JobProgressPhase_JOB_PROGRESS_PHASE_PULL        JobProgressPhase = 6
 )
 
 // Enum value maps for JobProgressPhase.
@@ -224,6 +225,7 @@ var (
 		3: "JOB_PROGRESS_PHASE_DOWNLOAD",
 		4: "JOB_PROGRESS_PHASE_RESTORE",
 		5: "JOB_PROGRESS_PHASE_COLLECT",
+		6: "JOB_PROGRESS_PHASE_PULL",
 	}
 	JobProgressPhase_value = map[string]int32{
 		"JOB_PROGRESS_PHASE_UNSPECIFIED": 0,
@@ -232,6 +234,7 @@ var (
 		"JOB_PROGRESS_PHASE_DOWNLOAD":    3,
 		"JOB_PROGRESS_PHASE_RESTORE":     4,
 		"JOB_PROGRESS_PHASE_COLLECT":     5,
+		"JOB_PROGRESS_PHASE_PULL":        6,
 	}
 )
 
@@ -2853,14 +2856,15 @@ const file_computehop_v1_remote_proto_rawDesc = "" +
 	"\x10JOB_STATE_FAILED\x10\v\x12\x17\n" +
 	"\x13JOB_STATE_CANCELLED\x10\f\x12\x16\n" +
 	"\x12JOB_STATE_REJECTED\x10\r\x12\x12\n" +
-	"\x0eJOB_STATE_LOST\x10\x0e*\xd7\x01\n" +
+	"\x0eJOB_STATE_LOST\x10\x0e*\xf4\x01\n" +
 	"\x10JobProgressPhase\x12\"\n" +
 	"\x1eJOB_PROGRESS_PHASE_UNSPECIFIED\x10\x00\x12\x1f\n" +
 	"\x1bJOB_PROGRESS_PHASE_SNAPSHOT\x10\x01\x12\x1d\n" +
 	"\x19JOB_PROGRESS_PHASE_UPLOAD\x10\x02\x12\x1f\n" +
 	"\x1bJOB_PROGRESS_PHASE_DOWNLOAD\x10\x03\x12\x1e\n" +
 	"\x1aJOB_PROGRESS_PHASE_RESTORE\x10\x04\x12\x1e\n" +
-	"\x1aJOB_PROGRESS_PHASE_COLLECT\x10\x05*d\n" +
+	"\x1aJOB_PROGRESS_PHASE_COLLECT\x10\x05\x12\x1b\n" +
+	"\x17JOB_PROGRESS_PHASE_PULL\x10\x06*d\n" +
 	"\fJobLogStream\x12\x1e\n" +
 	"\x1aJOB_LOG_STREAM_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15JOB_LOG_STREAM_STDOUT\x10\x01\x12\x19\n" +

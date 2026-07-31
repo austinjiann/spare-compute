@@ -179,6 +179,7 @@ func runWithDependencies(
 			Jobs:           database.Jobs(),
 			Executions:     database.Executions(),
 			Logs:           logStore,
+			Progress:       database.Jobs(),
 			StartExecution: executorStarter,
 			RunnerPID:      os.Getpid,
 			Now:            time.Now,
