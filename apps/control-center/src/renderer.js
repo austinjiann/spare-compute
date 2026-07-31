@@ -33,6 +33,7 @@ const state = {
   settingsHydrated: false,
   autoStartAttempted: false,
   userSelectedDevice: false,
+  pendingRunAfterPairing: null,
   aiPlannerStatus: {
     configured: false,
     source: "",
@@ -85,9 +86,17 @@ const {
   shouldOfferOutputRestore
 } = window.computeHopOutputRestore;
 const {
+  pendingPairingRunMatchesTarget,
+  pendingPairingRunTarget,
+  pendingRunAfterPairing,
+  runControlCanRecover: canRecoverRunControl,
+  workerTargetActionRequest: recoveryWorkerTargetActionRequest
+} = window.computeHopRunRecovery;
+const {
   initialRunMessage,
   runSummaryLines
 } = window.computeHopRunSummary;
+const { planFromSuggestion } = window.computeHopSuggestionPlan;
 const { friendlyJobFailure } = window.computeHopJobFailure;
 
 function defaultLocalDevice() {
@@ -127,6 +136,7 @@ document.getElementById("command-input").addEventListener("keydown", (event) => 
 });
 document.getElementById("command-input").addEventListener("input", () => {
   state.plannedTask = null;
+  state.pendingRunAfterPairing = null;
   renderPlanPreview();
   renderRunControls();
 });
@@ -211,6 +221,7 @@ async function refreshDevices() {
       void refreshJobs();
     }
     maybeAutoStartDaemon();
+    void resumePendingRunAfterPairing();
   }
 }
 
@@ -1004,6 +1015,7 @@ function selectRunDevice(deviceID) {
   const device = typeof deviceID === "object" ? deviceID : state.devices.find((candidate) => candidate.id === deviceID);
   const id = typeof deviceID === "object" ? deviceID.id : deviceID;
   state.userSelectedDevice = true;
+  state.pendingRunAfterPairing = null;
   setRunDeviceSelection(id, device);
   state.selectedJobID = null;
   state.selectedJobLogText = "";
@@ -1179,7 +1191,7 @@ function renderPairings() {
 }
 
 async function connectDevice(device) {
-  await performDeviceAction(`device:${device.id}`, async () => {
+  return performDeviceAction(`device:${device.id}`, async () => {
     await window.computeHop.connectDevice(device.id);
     await refreshDevices();
   });
@@ -1239,17 +1251,19 @@ function recomputeDeviceTargets() {
 function selectWorkerAfterPairingConfirmation() {
   const target = workerTargetAfterPairingConfirmation(state.devices, state.selectedDeviceID);
   if (!target) {
-    return;
+    return null;
   }
   state.userSelectedDevice = false;
   selectPlannedRunDevice(target);
+  return target;
 }
 
 async function confirmPairing(pairing) {
   await performDeviceAction(`pairing:${pairing.id}`, async () => {
     await window.computeHop.confirmPairing(pairing.id);
     await refreshDevices();
-    selectWorkerAfterPairingConfirmation();
+    const target = selectWorkerAfterPairingConfirmation();
+    await resumePendingRunAfterPairing(target);
   });
 }
 
@@ -1269,9 +1283,11 @@ async function performDeviceAction(key, action) {
   try {
     await action();
     error.classList.add("hidden");
+    return true;
   } catch (err) {
     error.classList.remove("hidden");
     error.textContent = err.message || "Device action failed.";
+    return false;
   } finally {
     pendingActions.delete(key);
     renderDevices();
@@ -1385,12 +1401,50 @@ async function testSelectedDevice() {
   await startPlannedJob(planned, selected);
 }
 
+function rememberPendingRunAfterPairing(plan, worker) {
+  state.pendingRunAfterPairing = pendingRunAfterPairing(plan, worker);
+}
+
+async function resumePendingRunAfterPairing(target = null) {
+  const pending = state.pendingRunAfterPairing;
+  if (!pending || runInFlight) {
+    return;
+  }
+  const runTarget = pendingPairingRunMatchesTarget(pending, target)
+    ? target
+    : pendingPairingRunTarget(pending, state.devices, { isRunnable: canRunOn });
+  if (!runTarget || !canRunOn(runTarget)) {
+    return;
+  }
+  state.pendingRunAfterPairing = null;
+  if (runTarget.id !== state.selectedDeviceID) {
+    state.userSelectedDevice = false;
+    selectPlannedRunDevice(runTarget);
+  }
+  await startPlannedJob(pending.plan, runTarget, { promptedForConnection: true });
+}
+
 async function startPlannedJob(planned, selected, options = {}) {
   const output = document.getElementById("job-output");
   const button = document.getElementById("run-job");
   const outputs = jobOutputsForPlan({ plan: planned, outputs: declaredOutputs() });
   const blocker = validateRunReadiness(selected, planned, outputs);
   if (blocker.message) {
+    if (blocker.actionKind === "connect-device" && !options.promptedForConnection) {
+      const target = runStatusActionDevice(blocker);
+      if (target && isPairable(target)) {
+        const started = await connectDevice(target);
+        const name = target.name || target.workerName || "the worker";
+        if (started) {
+          rememberPendingRunAfterPairing(planned, target);
+          showJobOutput(`Started connecting to ${name}. Confirm the pairing code on both computers; this task will start when pairing finishes.`, true);
+        } else {
+          showJobOutput(`Could not start connecting to ${name}.`, false);
+        }
+        renderRunControls();
+        return;
+      }
+    }
     if (blocker.actionKind === "choose-project" && !options.promptedForProject) {
       const project = await chooseProject();
       if (project) {
@@ -1440,7 +1494,10 @@ function validateRunReadiness(selected, planned, outputs = []) {
     plan: planned,
     projectRoot: state.settings.projectRoot,
     outputs,
-    policyError
+    ...workerTargetActionRequest(planned),
+    policyError,
+    policyActionKind: policyError ? "advanced" : "",
+    policyActionLabel: policyError ? "Open Advanced" : ""
   });
 }
 
@@ -1668,18 +1725,9 @@ function renderTaskSuggestions() {
 
 function applyTaskSuggestion(suggestion) {
   const input = document.getElementById("command-input");
-  const source = suggestion.task || suggestion.title || "";
+  const source = suggestion.task || suggestion.title || suggestion.label || "";
   input.value = source;
-  state.plannedTask = {
-    source,
-    title: suggestion.title || suggestion.label || "Planned command",
-    command: suggestion.command || "",
-    detail: suggestion.detail || "",
-    requiresProject: Boolean(suggestion.requiresProject),
-    outputs: Array.isArray(suggestion.outputs) ? suggestion.outputs : [],
-    projectRoot: state.settings.projectRoot || "",
-    detected: suggestion.detected || []
-  };
+  state.plannedTask = planFromSuggestion(suggestion, state.settings.projectRoot || "");
   applyPlanTargetPreference(state.plannedTask);
   renderPlanPreview();
   renderRunControls();
@@ -1815,6 +1863,7 @@ function renderRunControls() {
   const task = document.getElementById("command-input").value.trim();
   const testTarget = smokeTestDevice(selected);
   const blocker = currentRunControlBlocker(selected);
+  const canRecoverRun = runControlCanRecover(blocker);
 
   target.textContent = runTargetLabel(selected);
   projectLabel.textContent = state.settings.projectRoot
@@ -1834,7 +1883,7 @@ function renderRunControls() {
   runButton.disabled = !runInFlight && (
     !state.daemonAvailable ||
     !selected ||
-    !canRunOn(selected) ||
+    (!canRunOn(selected) && !canRecoverRun) ||
     runControlBlockerDisablesRun(blocker)
   );
   status.classList.toggle("hidden", runInFlight || !blocker.message);
@@ -1842,6 +1891,7 @@ function renderRunControls() {
   statusAction.classList.toggle("hidden", !blocker.actionLabel);
   statusAction.textContent = blocker.actionLabel || "";
   statusAction.dataset.actionKind = blocker.actionKind || "";
+  statusAction.dataset.deviceId = blocker.deviceID || "";
   statusAction.disabled = runStatusActionDisabled(blocker);
 }
 
@@ -1856,12 +1906,25 @@ function currentRunControlBlocker(selected = selectedDevice()) {
       ignoreDeclaredOutputs: true
     },
     projectRoot: state.settings.projectRoot,
-    outputs: planned ? currentOutputDeclarations() : []
+    outputs: planned ? currentOutputDeclarations() : [],
+    ...workerTargetActionRequest(planned),
+    ...policyBlockerRequest(selected, planned)
   });
 }
 
+function workerTargetActionRequest(plan) {
+  return recoveryWorkerTargetActionRequest(plan, state.devices, { isPairable });
+}
+
 function runControlBlockerDisablesRun(blocker) {
-  return Boolean(blocker?.message && blocker.actionKind !== "choose-project");
+  return Boolean(blocker?.message && !runControlCanRecover(blocker));
+}
+
+function runControlCanRecover(blocker) {
+  return canRecoverRunControl(blocker, {
+    actionDevice: runStatusActionDevice(blocker),
+    isPairable
+  });
 }
 
 function runStatusActionDisabled(blocker) {
@@ -1874,16 +1937,30 @@ function runStatusActionDisabled(blocker) {
   if (blocker.actionKind === "refresh") {
     return refreshInFlight;
   }
-  const selected = selectedDevice();
-  if ((blocker.actionKind === "connect-device" || blocker.actionKind === "enable-device") && selected) {
-    return pendingActions.has(`device:${selected.id}`);
+  const target = runStatusActionDevice(blocker);
+  if (blocker.actionKind === "connect-device") {
+    return !target || !isPairable(target) || pendingActions.has(`device:${target.id}`);
+  }
+  if (blocker.actionKind === "enable-device") {
+    return !target || pendingActions.has(`device:${target.id}`);
+  }
+  if (blocker.actionKind === "advanced") {
+    return false;
   }
   return false;
 }
 
+function runStatusActionDevice(blocker) {
+  const deviceID = String(blocker?.deviceID || "").trim();
+  if (deviceID) {
+    return state.devices.find((candidate) => candidate.id === deviceID) || null;
+  }
+  return selectedDevice();
+}
+
 async function performRunStatusAction() {
   const blocker = currentRunControlBlocker();
-  const selected = selectedDevice();
+  const target = runStatusActionDevice(blocker);
   switch (blocker.actionKind) {
     case "start-daemon":
       await startDaemon();
@@ -1892,21 +1969,48 @@ async function performRunStatusAction() {
       await refreshDevices();
       return;
     case "connect-device":
-      if (selected && isPairable(selected)) {
-        await connectDevice(selected);
+      if (target && isPairable(target)) {
+        await connectDevice(target);
       }
       return;
     case "enable-device":
-      if (selected) {
-        setDeviceSync(selected, true);
+      if (target) {
+        setDeviceSync(target, true);
       }
       return;
     case "choose-project":
       await chooseProject();
       return;
+    case "advanced":
+      revealAdvancedSettings();
+      return;
     default:
       return;
   }
+}
+
+function policyBlockerRequest(selected, planned) {
+  if (!selected || !planned) {
+    return {};
+  }
+  const policyError = disallowedWorkMessage(planned, capabilitiesForDevice(selected));
+  if (!policyError) {
+    return {};
+  }
+  return {
+    policyError,
+    policyActionKind: "advanced",
+    policyActionLabel: "Open Advanced"
+  };
+}
+
+function revealAdvancedSettings() {
+  const advanced = document.getElementById("advanced-panel");
+  if (!advanced) {
+    return;
+  }
+  advanced.open = true;
+  advanced.scrollIntoView({ block: "nearest", behavior: "smooth" });
 }
 
 function smokeTestDevice(selected = selectedDevice()) {
@@ -2180,7 +2284,7 @@ function defaultSettings() {
     selectedDeviceID: "",
     selectedDeviceName: "",
     lanDiscovery: true,
-    askBeforeRun: true,
+    askBeforeRun: false,
     daemonRole: "orchestrator",
     syncedDevices: {},
     capabilities: defaultCapabilities(),

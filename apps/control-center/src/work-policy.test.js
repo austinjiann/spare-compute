@@ -44,6 +44,7 @@ test("disallowedWorkMessage explains blocked planned work", () => {
   assert.equal(isWorkAllowed(plan, { docker: true }), true);
   assert.equal(isWorkAllowed(plan, { docker: false }), false);
   assert.match(disallowedWorkMessage(plan, { docker: false }), /Docker is turned off/);
+  assert.match(disallowedWorkMessage(plan, { docker: false }), /Open Advanced/);
 });
 
 test("exact unknown commands require the exact command allowance", () => {
@@ -51,7 +52,8 @@ test("exact unknown commands require the exact command allowance", () => {
 
   assert.equal(isWorkAllowed(exactCommand, { commands: true }), true);
   assert.equal(isWorkAllowed(exactCommand, { commands: false }), false);
-  assert.match(disallowedWorkMessage(exactCommand, { commands: false }), /Exact commands is turned off/);
+  assert.match(disallowedWorkMessage(exactCommand, { commands: false }), /Exact commands are turned off/);
+  assert.match(disallowedWorkMessage(exactCommand, { commands: false }), /Allow on selected device/);
 });
 
 test("safe utility commands do not require the exact command allowance", () => {

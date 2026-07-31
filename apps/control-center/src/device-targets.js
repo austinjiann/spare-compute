@@ -65,10 +65,10 @@
       deviceHasRequiredTools(device, plan) &&
       allowed(device)
     ));
-    return bestWorkerFromCandidates(workers);
+    return bestWorkerFromCandidates(workers, plan);
   }
 
-  function bestWorkerFromCandidates(workers = []) {
+  function bestWorkerFromCandidates(workers = [], plan = {}) {
     if (workers.length === 0) {
       return null;
     }
@@ -78,9 +78,13 @@
     const ranked = workers
       .map((worker) => ({
         worker,
+        toolRank: workerToolReadinessRank(worker, plan),
         score: workerResourceScore(worker)
       }))
       .sort((left, right) => {
+        if (right.toolRank !== left.toolRank) {
+          return right.toolRank - left.toolRank;
+        }
         if (right.score !== left.score) {
           return right.score - left.score;
         }
@@ -176,6 +180,45 @@
     return missingToolIDsForPlan(device, plan).length === 0;
   }
 
+  function workerToolReadiness(device = {}, plan = {}) {
+    const required = requiredToolIDsForPlan(plan);
+    if (required.length === 0) {
+      return {
+        state: "not-required",
+        required,
+        missing: [],
+        reported: false
+      };
+    }
+    const reported = normalizeToolIDs(device.toolIDs || device.toolIds);
+    if (reported.length === 0) {
+      return {
+        state: "unknown",
+        required,
+        missing: [],
+        reported: false
+      };
+    }
+    const missing = missingToolIDsForPlan(device, plan);
+    return {
+      state: missing.length > 0 ? "missing" : "ready",
+      required,
+      missing,
+      reported: true
+    };
+  }
+
+  function workerToolReadinessRank(device = {}, plan = {}) {
+    switch (workerToolReadiness(device, plan).state) {
+      case "ready":
+        return 2;
+      case "unknown":
+        return 1;
+      default:
+        return 0;
+    }
+  }
+
   function missingToolIDsForPlan(device = {}, plan = {}) {
     const reported = normalizeToolIDs(device.toolIDs || device.toolIds);
     if (reported.length === 0) {
@@ -257,6 +300,7 @@
     isSingleAutoCandidate,
     singleConnectedWorkerTarget,
     workerResourceScore,
+    workerToolReadiness,
     workerMatchesArchitecture,
     workerMatchesPlatform,
     workerRunTargetForAction,

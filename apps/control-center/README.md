@@ -38,6 +38,13 @@ Current scope:
 
 - connects directly to the local ComputeHop daemon over the owner-only local IPC
   socket;
+- keeps the primary surface focused on nearby devices, task entry, project
+  selection, run progress, and recent jobs, while optional output declarations,
+  per-device work permissions, preview behavior, and AI planner configuration
+  stay behind disclosure controls;
+- starts the nearby-worker connect flow from the run path when a task asks for
+  another computer and exactly one unpaired worker is visible, then resumes the
+  user-initiated task after pairing finishes;
 - checks the local daemon's real status even when nearby-device discovery is
   disabled, so local run controls do not pretend ComputeHop is running when it
   is not;
@@ -114,6 +121,9 @@ Current scope:
   when OS, architecture, worker-target, or Allow hints leave more than one
   possible target, with a stable device-ID tie-break when capacity appears
   equal;
+- turns unambiguous worker-target blockers into a direct Connect recovery so the
+  user does not have to leave the task flow to start pairing or re-submit after
+  pairing completes;
 - uses deterministic local planning first, so no API key is required for normal
   Check/Test/Build/Lint/Docker planning;
 - can fall back to an optional OpenAI Responses API planner for tasks local
@@ -148,8 +158,8 @@ Current scope:
 - parses exact commands with quote/escape handling before submitting them to the
   daemon;
 - displays job-history commands with quoting for spaces and empty arguments;
-- previews the exact command before running when Preview before running is
-  enabled;
+- runs planned tasks directly by default, while the Advanced **Preview before
+  running** setting can require an explicit review click first;
 - summarizes the selected computer, copied project, and files to bring back
   before a planned run, so remote work is visible without exposing route
   internals;
@@ -222,12 +232,15 @@ Manual two-computer check:
    Center on the orchestrator Mac.
 2. On the second computer, open Control Center, choose **Worker**, and click
    **Start**.
-3. Open Control Center and connect the nearby worker from **Devices**.
-4. Confirm the same pairing code on both computers.
+3. On the orchestrator, enter `run hostname on the other computer` and click
+   **Run**. If exactly one nearby worker is visible, Control Center starts the
+   Connect flow without leaving the task.
+4. Confirm the same pairing code on both computers. After the worker becomes
+   runnable, the pending task resumes and prints the worker hostname.
 5. Select the worker and click **Test worker**. A successful check prints the
    worker's hostname in the job output and adds a succeeded recent job.
 6. Choose a project, enter `run tests` or an exact command such as
-   `go test ./...`, preview the plan, then run it on the selected worker.
+   `go test ./...`, then click **Run** on the selected worker.
 7. If outputs were declared or inferred before submission, Control Center asks
    where to save them after the job succeeds. The **Outputs** button remains
    available on the succeeded job row for later retrieval.

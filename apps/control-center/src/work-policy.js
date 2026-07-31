@@ -24,7 +24,8 @@
     if (!capability || capabilities[capability] !== false) {
       return "";
     }
-    return `${capabilityLabels[capability] || "This work"} is turned off for this computer. Enable it in Allow, or choose a different task.`;
+    const label = capabilityLabels[capability] || "This work";
+    return `${label} ${capabilityVerb(label)} turned off for this computer. Open Advanced, enable it in Allow on selected device, or choose a different task.`;
   }
 
   function isWorkAllowed(work, capabilities = {}) {
@@ -94,6 +95,10 @@
   function normalizeCapability(value) {
     const text = String(value || "").trim();
     return Object.prototype.hasOwnProperty.call(capabilityLabels, text) ? text : "";
+  }
+
+  function capabilityVerb(label) {
+    return String(label || "").endsWith("s") ? "are" : "is";
   }
 
   return {

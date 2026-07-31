@@ -73,14 +73,14 @@
 
         <section class="section">
           <div class="section-title">
-            <h2>Run</h2>
+            <h2>Task</h2>
             <span id="run-target" class="section-meta">on This Mac</span>
           </div>
           <div class="run-box">
-            <input id="command-input" placeholder="Run tests, build the app, check CI, or type a command" />
+            <input id="command-input" placeholder="What should ComputeHop do?" />
             <div id="task-suggestions" class="task-suggestions hidden" aria-label="Suggested tasks"></div>
             <div class="run-actions">
-              <button id="choose-project" class="pill-button">Project</button>
+              <button id="choose-project" class="pill-button">Choose folder</button>
               <span id="project-label" class="project-label">No project</span>
               <button id="clear-project" class="text-button hidden">Clear</button>
               <button id="test-device" class="pill-button">Test</button>
@@ -90,7 +90,10 @@
               <span id="run-status-text"></span>
               <button id="run-status-action" class="text-button hidden">Refresh</button>
             </div>
-            <input id="outputs-input" placeholder="Bring back files or folders, optional: dist, report.pdf" />
+            <details class="inline-disclosure">
+              <summary>Options</summary>
+              <input id="outputs-input" placeholder="Bring back files or folders, optional: dist, report.pdf" />
+            </details>
           </div>
           <div id="plan-preview" class="plan-preview hidden">
             <div>
@@ -116,35 +119,36 @@
 
         <div class="divider"></div>
 
-        <section class="section">
-          <h2>Allow on selected device</h2>
-          <div id="capability-grid" class="check-grid"></div>
-        </section>
+        <details id="advanced-panel" class="advanced-panel">
+          <summary>Advanced</summary>
+          <div class="advanced-content">
+            <section class="section">
+              <h2>Allow on selected device</h2>
+              <div id="capability-grid" class="check-grid"></div>
+            </section>
 
-        <div class="divider"></div>
+            <label class="setting-row">
+              <span><strong>Preview before running</strong><small>Show the plan first.</small></span>
+              <input id="ask-before-run" type="checkbox" checked />
+            </label>
 
-        <label class="setting-row">
-          <span><strong>Preview before running</strong><small>Show the plan first.</small></span>
-          <input id="ask-before-run" type="checkbox" checked />
-        </label>
-
-        <div class="divider"></div>
-
-        <section class="section">
-          <div class="section-title">
-            <h2>AI planner</h2>
-            <span id="ai-planner-status" class="section-meta">Off</span>
+            <section class="section">
+              <div class="section-title">
+                <h2>AI planner</h2>
+                <span id="ai-planner-status" class="section-meta">Off</span>
+              </div>
+              <div class="settings-box">
+                <input id="ai-api-key" type="password" placeholder="OpenAI API key, optional; blank keeps saved key" autocomplete="off" />
+                <input id="ai-model" placeholder="Model, default: gpt-5.6" />
+                <div class="settings-actions">
+                  <button id="save-ai-planner" class="pill-button">Save</button>
+                  <button id="clear-ai-planner" class="text-button">Clear</button>
+                </div>
+                <small id="ai-planner-detail">Local planning works without an API key.</small>
+              </div>
+            </section>
           </div>
-          <div class="settings-box">
-            <input id="ai-api-key" type="password" placeholder="OpenAI API key, optional; blank keeps saved key" autocomplete="off" />
-            <input id="ai-model" placeholder="Model, default: gpt-5.6" />
-            <div class="settings-actions">
-              <button id="save-ai-planner" class="pill-button">Save</button>
-              <button id="clear-ai-planner" class="text-button">Clear</button>
-            </div>
-            <small id="ai-planner-detail">Local planning works without an API key.</small>
-          </div>
-        </section>
+        </details>
 
       </section>
     </main>
@@ -154,7 +158,9 @@
     <script src="./work-policy.js"></script>
     <script src="./output-path.js"></script>
     <script src="./run-request.js"></script>
+    <script src="./run-recovery.js"></script>
     <script src="./run-summary.js"></script>
+    <script src="./suggestion-plan.js"></script>
     <script src="./job-list.js"></script>
     <script src="./job-failure.js"></script>
     <script src="./output-restore.js"></script>

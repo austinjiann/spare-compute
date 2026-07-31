@@ -14,7 +14,9 @@ const {
 test("loadSettings returns defaults when no app settings file exists", async (t) => {
   const root = await tempDirectory(t);
 
-  assert.deepEqual(await loadSettings({ userDataPath: root }), defaultSettings());
+  const defaults = defaultSettings();
+  assert.equal(defaults.askBeforeRun, false);
+  assert.deepEqual(await loadSettings({ userDataPath: root }), defaults);
 });
 
 test("saveSettings writes normalized settings to app user data", async (t) => {

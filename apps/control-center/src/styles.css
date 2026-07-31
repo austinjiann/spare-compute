@@ -545,6 +545,55 @@ select {
   gap: 10px;
 }
 
+.inline-disclosure,
+.advanced-panel {
+  border-radius: 16px;
+}
+
+.inline-disclosure > summary,
+.advanced-panel > summary {
+  -webkit-app-region: no-drag;
+  width: fit-content;
+  color: rgba(255, 255, 255, 0.74);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 700;
+  list-style: none;
+}
+
+.inline-disclosure > summary::-webkit-details-marker,
+.advanced-panel > summary::-webkit-details-marker {
+  display: none;
+}
+
+.inline-disclosure > summary::before,
+.advanced-panel > summary::before {
+  display: inline-block;
+  margin-right: 7px;
+  content: "›";
+  transform: rotate(0deg);
+  transition: transform 150ms ease;
+}
+
+.inline-disclosure[open] > summary::before,
+.advanced-panel[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.inline-disclosure[open] > input {
+  margin-top: 9px;
+}
+
+.advanced-panel {
+  padding: 2px 0;
+}
+
+.advanced-content {
+  display: grid;
+  gap: 18px;
+  margin-top: 14px;
+}
+
 .plan-preview {
   display: grid;
   gap: 8px;
