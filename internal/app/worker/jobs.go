@@ -377,12 +377,39 @@ func (service *JobService) submitWithID(ctx context.Context, id job.ID, spec job
 
 // Get returns the worker's authoritative durable view of a job.
 func (service *JobService) Get(ctx context.Context, id job.ID) (job.Job, error) {
-	return service.jobs.Get(ctx, id)
+	value, err := service.jobs.Get(ctx, id)
+	if err != nil {
+		return job.Job{}, err
+	}
+	return service.withProgress(ctx, value)
 }
 
 // List returns durable worker jobs matching options.
 func (service *JobService) List(ctx context.Context, options job.ListOptions) ([]job.Job, error) {
-	return service.jobs.List(ctx, options)
+	values, err := service.jobs.List(ctx, options)
+	if err != nil {
+		return nil, err
+	}
+	for index := range values {
+		values[index], err = service.withProgress(ctx, values[index])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return values, nil
+}
+
+func (service *JobService) withProgress(ctx context.Context, value job.Job) (job.Job, error) {
+	progress, ok := service.jobs.(job.ProgressRepository)
+	if !ok {
+		return value, nil
+	}
+	current, err := progress.GetProgress(ctx, value.ID)
+	if err != nil {
+		return job.Job{}, err
+	}
+	value.Progress = current
+	return value, nil
 }
 
 // ReadLogs returns a job, its optional attempt, and one resumable output page.

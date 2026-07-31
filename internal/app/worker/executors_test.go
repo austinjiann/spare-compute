@@ -37,9 +37,13 @@ func TestExecutorSetRoutesByRequestedExecutor(t *testing.T) {
 		t.Fatalf("SupportedExecutors() = %#v, want %#v", got, want)
 	}
 
-	started, err := set.Start(job.Spec{
-		Executable: "echo", Executor: job.ExecutorContainer, ContainerImage: "alpine:latest",
-	}, io.Discard, io.Discard)
+	started, err := set.Start(StartRequest{
+		Spec: job.Spec{
+			Executable: "echo", Executor: job.ExecutorContainer, ContainerImage: "alpine:latest",
+		},
+		Stdout: io.Discard,
+		Stderr: io.Discard,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,9 +61,13 @@ func TestExecutorSetRejectsUnavailableOrDuplicateExecutors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = set.Start(job.Spec{
-		Executable: "echo", Executor: job.ExecutorContainer, ContainerImage: "alpine:latest",
-	}, io.Discard, io.Discard)
+	_, err = set.Start(StartRequest{
+		Spec: job.Spec{
+			Executable: "echo", Executor: job.ExecutorContainer, ContainerImage: "alpine:latest",
+		},
+		Stdout: io.Discard,
+		Stderr: io.Discard,
+	})
 	if !errors.Is(err, job.ErrInvalidSpec) {
 		t.Fatalf("unavailable executor error = %v", err)
 	}
@@ -77,7 +85,9 @@ func TestNativeExecutorStarterReportsNativeAndDelegates(t *testing.T) {
 	if gotExecutors := starter.SupportedExecutors(); !reflect.DeepEqual(gotExecutors, []job.Executor{job.ExecutorNative}) {
 		t.Fatalf("SupportedExecutors() = %#v", gotExecutors)
 	}
-	started, err := starter.Start(job.Spec{Executable: "echo", Executor: job.ExecutorNative}, io.Discard, io.Discard)
+	started, err := starter.Start(StartRequest{
+		Spec: job.Spec{Executable: "echo", Executor: job.ExecutorNative}, Stdout: io.Discard, Stderr: io.Discard,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,13 +105,9 @@ func (starter *executorStarterStub) SupportedExecutors() []job.Executor {
 	return append([]job.Executor(nil), starter.executors...)
 }
 
-func (starter *executorStarterStub) Start(
-	spec job.Spec,
-	stdout io.Writer,
-	stderr io.Writer,
-) (ManagedProcess, error) {
+func (starter *executorStarterStub) Start(request StartRequest) (ManagedProcess, error) {
 	if starter.start != nil {
-		return starter.start(spec, stdout, stderr)
+		return starter.start(request.Spec, request.Stdout, request.Stderr)
 	}
 	return fakeManagedProcess{pid: 1}, nil
 }

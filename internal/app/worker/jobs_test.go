@@ -242,6 +242,39 @@ func TestGetAndListUseRepository(t *testing.T) {
 	}
 }
 
+func TestGetAndListOverlayProgress(t *testing.T) {
+	repository := newMemoryRepository()
+	service := newTestService(t, repository)
+	queued, err := service.Submit(context.Background(), validSpec())
+	if err != nil {
+		t.Fatalf("Submit() error = %v", err)
+	}
+	progress := job.Progress{
+		Phase: job.ProgressPull, CompletedBytes: 2, TotalBytes: 4,
+		UpdatedAt: queued.UpdatedAt.Add(time.Second),
+	}
+	if err := repository.SetProgress(context.Background(), queued.ID, progress); err != nil {
+		t.Fatalf("SetProgress() error = %v", err)
+	}
+
+	loaded, err := service.Get(context.Background(), queued.ID)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if loaded.Progress == nil || loaded.Progress.Phase != job.ProgressPull ||
+		loaded.Progress.CompletedBytes != 2 || loaded.Progress.TotalBytes != 4 {
+		t.Fatalf("Get().Progress = %#v", loaded.Progress)
+	}
+
+	listed, err := service.List(context.Background(), job.ListOptions{States: []job.State{job.StateQueued}})
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if len(listed) != 1 || listed[0].Progress == nil || listed[0].Progress.Phase != job.ProgressPull {
+		t.Fatalf("List() = %#v, want pull progress", listed)
+	}
+}
+
 func TestNewJobServiceRequiresDependencies(t *testing.T) {
 	valid := Dependencies{
 		Jobs:       newMemoryRepository(),
@@ -392,11 +425,12 @@ func transitionStates(transitions []job.Transition) []job.State {
 type memoryRepository struct {
 	mu          sync.Mutex
 	jobs        map[job.ID]job.Job
+	progress    map[job.ID]job.Progress
 	transitions []job.Transition
 }
 
 func newMemoryRepository() *memoryRepository {
-	return &memoryRepository{jobs: make(map[job.ID]job.Job)}
+	return &memoryRepository{jobs: make(map[job.ID]job.Job), progress: make(map[job.ID]job.Progress)}
 }
 
 func (repository *memoryRepository) Create(_ context.Context, value job.Job) error {
@@ -461,4 +495,34 @@ func (repository *memoryRepository) ApplyTransition(_ context.Context, transitio
 	repository.jobs[next.ID] = next
 	repository.transitions = append(repository.transitions, accepted)
 	return next, nil
+}
+
+func (repository *memoryRepository) SetProgress(_ context.Context, id job.ID, progress job.Progress) error {
+	repository.mu.Lock()
+	defer repository.mu.Unlock()
+	if !id.Valid() {
+		return job.ErrInvalidID
+	}
+	if err := progress.Validate(); err != nil {
+		return err
+	}
+	repository.progress[id] = progress
+	return nil
+}
+
+func (repository *memoryRepository) GetProgress(_ context.Context, id job.ID) (*job.Progress, error) {
+	repository.mu.Lock()
+	defer repository.mu.Unlock()
+	progress, exists := repository.progress[id]
+	if !exists {
+		return nil, nil
+	}
+	return &progress, nil
+}
+
+func (repository *memoryRepository) ClearProgress(_ context.Context, id job.ID) error {
+	repository.mu.Lock()
+	defer repository.mu.Unlock()
+	delete(repository.progress, id)
+	return nil
 }

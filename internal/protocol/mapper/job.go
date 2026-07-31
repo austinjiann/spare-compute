@@ -40,6 +40,7 @@ var progressPhaseToProtocol = map[job.ProgressPhase]localv1.JobProgressPhase{
 	job.ProgressDownload: localv1.JobProgressPhase_JOB_PROGRESS_PHASE_DOWNLOAD,
 	job.ProgressRestore:  localv1.JobProgressPhase_JOB_PROGRESS_PHASE_RESTORE,
 	job.ProgressCollect:  localv1.JobProgressPhase_JOB_PROGRESS_PHASE_COLLECT,
+	job.ProgressPull:     localv1.JobProgressPhase_JOB_PROGRESS_PHASE_PULL,
 }
 
 var protocolToProgressPhase = func() map[localv1.JobProgressPhase]job.ProgressPhase {

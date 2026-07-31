@@ -195,6 +195,7 @@ public nonisolated enum Computehop_V1_JobProgressPhase: SwiftProtobuf.Enum, Swif
   case download // = 3
   case restore // = 4
   case collect // = 5
+  case pull // = 6
   case UNRECOGNIZED(Int)
 
   public init() {
@@ -209,6 +210,7 @@ public nonisolated enum Computehop_V1_JobProgressPhase: SwiftProtobuf.Enum, Swif
     case 3: self = .download
     case 4: self = .restore
     case 5: self = .collect
+    case 6: self = .pull
     default: self = .UNRECOGNIZED(rawValue)
     }
   }
@@ -221,6 +223,7 @@ public nonisolated enum Computehop_V1_JobProgressPhase: SwiftProtobuf.Enum, Swif
     case .download: return 3
     case .restore: return 4
     case .collect: return 5
+    case .pull: return 6
     case .UNRECOGNIZED(let i): return i
     }
   }
@@ -233,6 +236,7 @@ public nonisolated enum Computehop_V1_JobProgressPhase: SwiftProtobuf.Enum, Swif
     .download,
     .restore,
     .collect,
+    .pull,
   ]
 
 }
@@ -1187,7 +1191,7 @@ nonisolated extension Computehop_V1_JobState: SwiftProtobuf._ProtoNameProviding 
 }
 
 nonisolated extension Computehop_V1_JobProgressPhase: SwiftProtobuf._ProtoNameProviding {
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0JOB_PROGRESS_PHASE_UNSPECIFIED\0\u{1}JOB_PROGRESS_PHASE_SNAPSHOT\0\u{1}JOB_PROGRESS_PHASE_UPLOAD\0\u{1}JOB_PROGRESS_PHASE_DOWNLOAD\0\u{1}JOB_PROGRESS_PHASE_RESTORE\0\u{1}JOB_PROGRESS_PHASE_COLLECT\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0JOB_PROGRESS_PHASE_UNSPECIFIED\0\u{1}JOB_PROGRESS_PHASE_SNAPSHOT\0\u{1}JOB_PROGRESS_PHASE_UPLOAD\0\u{1}JOB_PROGRESS_PHASE_DOWNLOAD\0\u{1}JOB_PROGRESS_PHASE_RESTORE\0\u{1}JOB_PROGRESS_PHASE_COLLECT\0\u{1}JOB_PROGRESS_PHASE_PULL\0")
 }
 
 nonisolated extension Computehop_V1_JobLogStream: SwiftProtobuf._ProtoNameProviding {

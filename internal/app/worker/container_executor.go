@@ -30,7 +30,7 @@ var ErrContainerEngineUnavailable = errors.New("container engine unavailable")
 type containerEngine interface {
 	Ping(context.Context, mobyclient.PingOptions) (mobyclient.PingResult, error)
 	ImageExists(context.Context, string) (bool, error)
-	PullImage(context.Context, string) error
+	PullImage(context.Context, string, pullProgressReporter) error
 	ContainerCreate(context.Context, mobyclient.ContainerCreateOptions) (mobyclient.ContainerCreateResult, error)
 	ContainerAttach(context.Context, string, mobyclient.ContainerAttachOptions) (mobyclient.ContainerAttachResult, error)
 	ContainerStart(context.Context, string, mobyclient.ContainerStartOptions) (mobyclient.ContainerStartResult, error)
@@ -39,6 +39,8 @@ type containerEngine interface {
 	ContainerKill(context.Context, string, mobyclient.ContainerKillOptions) (mobyclient.ContainerKillResult, error)
 	ContainerRemove(context.Context, string, mobyclient.ContainerRemoveOptions) (mobyclient.ContainerRemoveResult, error)
 }
+
+type pullProgressReporter func(completedBytes, totalBytes int64) error
 
 type mobyEngine struct {
 	*mobyclient.Client
@@ -55,13 +57,35 @@ func (engine *mobyEngine) ImageExists(ctx context.Context, image string) (bool, 
 	return false, err
 }
 
-func (engine *mobyEngine) PullImage(ctx context.Context, image string) error {
+func (engine *mobyEngine) PullImage(ctx context.Context, image string, report pullProgressReporter) error {
 	response, err := engine.Client.ImagePull(ctx, image, mobyclient.ImagePullOptions{})
 	if err != nil {
 		return err
 	}
 	defer response.Close()
-	return response.Wait(ctx)
+	aggregate := newPullProgressAggregate()
+	for message, err := range response.JSONMessages(ctx) {
+		if err != nil {
+			return err
+		}
+		if message.Error != nil {
+			return message.Error
+		}
+		if message.Progress == nil || report == nil {
+			continue
+		}
+		completedBytes, totalBytes, ok := aggregate.observe(
+			message.ID,
+			message.Progress.Current,
+			message.Progress.Total,
+		)
+		if ok {
+			if err := report(completedBytes, totalBytes); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // ContainerExecutorStarter starts jobs through a Docker/Podman-compatible
@@ -111,25 +135,26 @@ func (*ContainerExecutorStarter) SupportedExecutors() []job.Executor {
 }
 
 // Start creates, attaches, and starts a one-job container.
-func (starter *ContainerExecutorStarter) Start(
-	spec job.Spec,
-	stdout io.Writer,
-	stderr io.Writer,
-) (ManagedProcess, error) {
+func (starter *ContainerExecutorStarter) Start(request StartRequest) (ManagedProcess, error) {
 	if starter == nil || starter.engine == nil {
 		return nil, ErrMissingDependency
 	}
+	ctx := request.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	spec := request.Spec
 	if err := spec.Validate(); err != nil {
 		return nil, err
 	}
 	if spec.Executor != job.ExecutorContainer {
 		return nil, fmt.Errorf("%w: executor %q", job.ErrInvalidSpec, spec.Executor)
 	}
-	if err := starter.ensureImage(spec.ContainerImage); err != nil {
+	if err := starter.ensureImage(ctx, request, spec.ContainerImage); err != nil {
 		return nil, err
 	}
 
-	createContext, cancelCreate := context.WithTimeout(context.Background(), starter.operationTimeout)
+	createContext, cancelCreate := context.WithTimeout(ctx, starter.operationTimeout)
 	created, err := starter.engine.ContainerCreate(createContext, containerCreateOptions(spec))
 	cancelCreate()
 	if err != nil {
@@ -139,15 +164,15 @@ func (starter *ContainerExecutorStarter) Start(
 		return nil, fmt.Errorf("%w: Engine API returned an empty container ID", job.ErrInvalidSpec)
 	}
 
-	attached, err := starter.attach(created.ID)
+	attached, err := starter.attach(ctx, created.ID)
 	if err != nil {
 		starter.removeCreatedContainer(created.ID)
 		return nil, err
 	}
 	outputDone := make(chan error, 1)
-	go copyContainerOutput(attached, stdout, stderr, outputDone)
+	go copyContainerOutput(attached, request.Stdout, request.Stderr, outputDone)
 
-	startContext, cancelStart := context.WithTimeout(context.Background(), starter.operationTimeout)
+	startContext, cancelStart := context.WithTimeout(ctx, starter.operationTimeout)
 	if _, err := starter.engine.ContainerStart(startContext, created.ID, mobyclient.ContainerStartOptions{}); err != nil {
 		cancelStart()
 		attached.Close()
@@ -157,7 +182,7 @@ func (starter *ContainerExecutorStarter) Start(
 	}
 	cancelStart()
 
-	pid, err := starter.containerPID(created.ID)
+	pid, err := starter.containerPID(ctx, created.ID)
 	if err != nil {
 		attached.Close()
 		<-outputDone
@@ -177,8 +202,8 @@ func (starter *ContainerExecutorStarter) Start(
 	}, nil
 }
 
-func (starter *ContainerExecutorStarter) ensureImage(image string) error {
-	inspectContext, cancelInspect := context.WithTimeout(context.Background(), starter.operationTimeout)
+func (starter *ContainerExecutorStarter) ensureImage(ctx context.Context, request StartRequest, image string) error {
+	inspectContext, cancelInspect := context.WithTimeout(ctx, starter.operationTimeout)
 	exists, err := starter.engine.ImageExists(inspectContext, image)
 	cancelInspect()
 	if err != nil {
@@ -187,16 +212,72 @@ func (starter *ContainerExecutorStarter) ensureImage(image string) error {
 	if exists {
 		return nil
 	}
-	pullContext, cancelPull := context.WithTimeout(context.Background(), defaultImagePullTimeout)
+	pullContext, cancelPull := context.WithTimeout(ctx, defaultImagePullTimeout)
 	defer cancelPull()
-	if err := starter.engine.PullImage(pullContext, image); err != nil {
+	if err := starter.engine.PullImage(pullContext, image, func(completedBytes, totalBytes int64) error {
+		return reportPullProgress(pullContext, request, completedBytes, totalBytes)
+	}); err != nil {
 		return fmt.Errorf("pull container image %q: %w", image, err)
 	}
 	return nil
 }
 
-func (starter *ContainerExecutorStarter) attach(containerID string) (mobyclient.ContainerAttachResult, error) {
-	attachContext, cancelAttach := context.WithTimeout(context.Background(), starter.operationTimeout)
+func reportPullProgress(ctx context.Context, request StartRequest, completedBytes, totalBytes int64) error {
+	if request.Progress == nil || !request.JobID.Valid() || totalBytes <= 0 {
+		return nil
+	}
+	if completedBytes < 0 {
+		completedBytes = 0
+	}
+	if completedBytes > totalBytes {
+		completedBytes = totalBytes
+	}
+	return request.Progress.SetProgress(ctx, request.JobID, job.Progress{
+		Phase:          job.ProgressPull,
+		CompletedBytes: completedBytes,
+		TotalBytes:     totalBytes,
+		UpdatedAt:      time.Now(),
+	})
+}
+
+type pullProgressAggregate struct {
+	layers map[string]pullProgressLayer
+}
+
+type pullProgressLayer struct {
+	completedBytes int64
+	totalBytes     int64
+}
+
+func newPullProgressAggregate() *pullProgressAggregate {
+	return &pullProgressAggregate{layers: make(map[string]pullProgressLayer)}
+}
+
+func (aggregate *pullProgressAggregate) observe(id string, completedBytes, totalBytes int64) (int64, int64, bool) {
+	if aggregate == nil || totalBytes <= 0 {
+		return 0, 0, false
+	}
+	if id == "" {
+		id = "image"
+	}
+	if completedBytes < 0 {
+		completedBytes = 0
+	}
+	if completedBytes > totalBytes {
+		completedBytes = totalBytes
+	}
+	aggregate.layers[id] = pullProgressLayer{completedBytes: completedBytes, totalBytes: totalBytes}
+	var aggregateCompleted int64
+	var aggregateTotal int64
+	for _, layer := range aggregate.layers {
+		aggregateCompleted += layer.completedBytes
+		aggregateTotal += layer.totalBytes
+	}
+	return aggregateCompleted, aggregateTotal, aggregateTotal > 0
+}
+
+func (starter *ContainerExecutorStarter) attach(ctx context.Context, containerID string) (mobyclient.ContainerAttachResult, error) {
+	attachContext, cancelAttach := context.WithTimeout(ctx, starter.operationTimeout)
 	attached, err := starter.engine.ContainerAttach(attachContext, containerID, mobyclient.ContainerAttachOptions{
 		Stream: true,
 		Stdout: true,
@@ -209,8 +290,8 @@ func (starter *ContainerExecutorStarter) attach(containerID string) (mobyclient.
 	return attached, nil
 }
 
-func (starter *ContainerExecutorStarter) containerPID(containerID string) (int, error) {
-	inspectContext, cancelInspect := context.WithTimeout(context.Background(), starter.operationTimeout)
+func (starter *ContainerExecutorStarter) containerPID(ctx context.Context, containerID string) (int, error) {
+	inspectContext, cancelInspect := context.WithTimeout(ctx, starter.operationTimeout)
 	inspected, err := starter.engine.ContainerInspect(inspectContext, containerID, mobyclient.ContainerInspectOptions{})
 	cancelInspect()
 	if err != nil {

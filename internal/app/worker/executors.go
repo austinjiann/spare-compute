@@ -2,7 +2,6 @@ package worker
 
 import (
 	"fmt"
-	"io"
 	"sort"
 
 	"github.com/austinjiann/spare-compute/internal/job"
@@ -28,15 +27,11 @@ func (*NativeExecutorStarter) SupportedExecutors() []job.Executor {
 }
 
 // Start launches one native job process.
-func (starter *NativeExecutorStarter) Start(
-	spec job.Spec,
-	stdout io.Writer,
-	stderr io.Writer,
-) (ManagedProcess, error) {
+func (starter *NativeExecutorStarter) Start(request StartRequest) (ManagedProcess, error) {
 	if starter == nil || starter.start == nil {
 		return nil, ErrMissingDependency
 	}
-	return starter.start(spec, stdout, stderr)
+	return starter.start(request.Spec, request.Stdout, request.Stderr)
 }
 
 // ExecutorSet routes each job to the starter that owns its requested executor.
@@ -86,13 +81,13 @@ func (set *ExecutorSet) SupportedExecutors() []job.Executor {
 }
 
 // Start dispatches spec to the starter that supports spec.Executor.
-func (set *ExecutorSet) Start(spec job.Spec, stdout io.Writer, stderr io.Writer) (ManagedProcess, error) {
+func (set *ExecutorSet) Start(request StartRequest) (ManagedProcess, error) {
 	if set == nil {
 		return nil, ErrMissingDependency
 	}
-	starter := set.starters[spec.Executor]
+	starter := set.starters[request.Spec.Executor]
 	if starter == nil {
-		return nil, fmt.Errorf("%w: executor %q is not available on this worker", job.ErrInvalidSpec, spec.Executor)
+		return nil, fmt.Errorf("%w: executor %q is not available on this worker", job.ErrInvalidSpec, request.Spec.Executor)
 	}
-	return starter.Start(spec, stdout, stderr)
+	return starter.Start(request)
 }
