@@ -5,7 +5,10 @@ const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
 const protobuf = require("protobufjs");
+const { splitCommandLine } = require("./command-line");
 const { LocalDaemonClient } = require("./local-daemon");
+const { planControlCenterTask } = require("./planner-service");
+const { jobStartRequestForPlan } = require("./run-request");
 
 const protoPath = path.resolve(
   __dirname,
@@ -161,6 +164,114 @@ test("LocalDaemonClient sends pairing and unpair operations", async (t) => {
   assert.equal(received[4].unpairDevice.deviceSelector, "worker-1");
 });
 
+test("LocalDaemonClient sends job listing, logs, cancellation, and output fetch operations", async (t) => {
+  if (process.platform === "win32") {
+    t.skip("test uses Unix sockets");
+  }
+
+  const stateDirectory = await fs.mkdtemp(path.join(os.tmpdir(), "computehop-control-center-"));
+  await fs.chmod(stateDirectory, 0o700);
+  t.after(async () => {
+    await fs.rm(stateDirectory, { recursive: true, force: true });
+  });
+
+  const token = Buffer.alloc(32, 11);
+  await fs.writeFile(path.join(stateDirectory, "local-ipc.token"), token.toString("base64").replace(/=+$/, "") + "\n", {
+    mode: 0o600
+  });
+
+  const root = await protobuf.load(protoPath);
+  const Request = root.lookupType("computehop.local.v1.Request");
+  const Response = root.lookupType("computehop.local.v1.Response");
+  const socketPath = path.join(stateDirectory, "computehop.sock");
+  const received = [];
+
+  const server = net.createServer((socket) => {
+    let buffered = Buffer.alloc(0);
+    socket.on("data", (chunk) => {
+      buffered = Buffer.concat([buffered, chunk]);
+      if (buffered.length < 4) {
+        return;
+      }
+      const length = buffered.readUInt32BE(0);
+      if (buffered.length < length + 4) {
+        return;
+      }
+      const request = Request.decode(buffered.subarray(4, length + 4));
+      received.push(request);
+      const response = Response.encode(Response.create(jobResponse(request))).finish();
+      const header = Buffer.alloc(4);
+      header.writeUInt32BE(response.length, 0);
+      socket.end(Buffer.concat([header, response]));
+    });
+  });
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(socketPath, resolve);
+  });
+  t.after(() => {
+    server.close();
+  });
+
+  const client = new LocalDaemonClient({ stateDirectory });
+  const project = path.join(stateDirectory, "project");
+  await fs.mkdir(project);
+  await fs.writeFile(path.join(project, "Makefile"), "macos-package:\n\tpackaging/macos/build.sh\n");
+  const planned = await planControlCenterTask({
+    task: "package the app",
+    projectRoot: project
+  });
+  const jobRequest = jobStartRequestForPlan({
+    plan: planned.plan,
+    device: {
+      id: "worker-1",
+      name: "Gaming PC"
+    },
+    projectRoot: project,
+    outputs: []
+  });
+  const argv = splitCommandLine(jobRequest.command);
+
+  const submitted = await client.submitJob({
+    executable: argv[0],
+    arguments: argv.slice(1),
+    workingDirectory: jobRequest.workingDirectory,
+    outputs: jobRequest.outputs,
+    requiredToolIDs: ["make", "swift"],
+    deviceSelector: jobRequest.deviceID,
+    jobID: "019abcdf-0123-4567-89ab-000000000333"
+  });
+  const jobs = await client.listJobs({ deviceSelector: "worker-1", limit: 3 });
+  const progress = await client.getJobProgress("job-1", { deviceSelector: "worker-1" });
+  const logs = await client.readJobLogs("job-1", { deviceSelector: "worker-1", afterSequence: 4, limit: 5 });
+  const cancelled = await client.cancelJob("job-1", { deviceSelector: "worker-1" });
+  const outputs = await client.fetchArtifacts("job-1", { deviceSelector: "worker-1", destination: "/tmp/out" });
+
+  assert.equal(submitted.id, "job-1");
+  assert.equal(jobs[0].id, "job-1");
+  assert.equal(progress.phase, "JOB_PROGRESS_PHASE_UPLOAD");
+  assert.equal(progress.completedBytes, 512);
+  assert.equal(Buffer.from(logs.records[0].data).toString("utf8"), "hello\n");
+  assert.equal(cancelled.state, "JOB_STATE_CANCELLED");
+  assert.equal(outputs.destination, "/tmp/out");
+  assert.equal(outputs.restoredFileCount, 2);
+  assert.equal(received[0].submitJob.deviceSelector, "worker-1");
+  assert.equal(received[0].submitJob.jobId, "019abcdf-0123-4567-89ab-000000000333");
+  assert.equal(received[0].submitJob.spec.executable, "make");
+  assert.deepEqual(received[0].submitJob.spec.arguments, ["macos-package"]);
+  assert.equal(received[0].submitJob.spec.workingDirectory, project);
+  assert.deepEqual(received[0].submitJob.spec.outputs, ["dist/macos/ComputeHop.app"]);
+  assert.deepEqual(received[0].submitJob.spec.requiredToolIds, ["make", "swift"]);
+  assert.equal(received[1].listJobs.deviceSelector, "worker-1");
+  assert.equal(received[1].listJobs.limit, 3);
+  assert.equal(received[2].getJobProgress.jobId, "job-1");
+  assert.equal(received[2].getJobProgress.deviceSelector, "worker-1");
+  assert.equal(Number(received[3].readJobLogs.afterSequence), 4);
+  assert.equal(received[3].readJobLogs.limit, 5);
+  assert.equal(received[4].cancelJob.jobId, "job-1");
+  assert.equal(received[5].fetchArtifacts.destination, "/tmp/out");
+});
+
 function pairingResponse(request) {
   const envelope = {
     protocolVersion: 6,
@@ -201,6 +312,76 @@ function pairingResponse(request) {
           role: 1,
           trustState: 2
         }
+      }
+    };
+  }
+  return { ...envelope, error: { code: 1, message: "unexpected request" } };
+}
+
+function jobResponse(request) {
+  const envelope = {
+    protocolVersion: 6,
+    requestId: request.requestId
+  };
+  const job = {
+    id: "job-1",
+    spec: {
+      executable: "/bin/echo",
+      arguments: ["hello"],
+      executor: 1,
+      outputs: ["dist"]
+    },
+    state: 10,
+    createdAtUnixNano: 1,
+    updatedAtUnixNano: 2
+  };
+
+  if (request.listJobs) {
+    return { ...envelope, listJobs: { jobs: [job] } };
+  }
+  if (request.submitJob) {
+    return {
+      ...envelope,
+      submitJob: {
+        job: {
+          ...job,
+          spec: request.submitJob.spec
+        }
+      }
+    };
+  }
+  if (request.getJobProgress) {
+    return {
+      ...envelope,
+      getJobProgress: {
+        progress: {
+          phase: 2,
+          completedBytes: 512,
+          totalBytes: 1024,
+          updatedAtUnixNano: 3
+        }
+      }
+    };
+  }
+  if (request.readJobLogs) {
+    return {
+      ...envelope,
+      readJobLogs: {
+        job,
+        records: [{ sequence: 5, stream: 1, data: Buffer.from("hello\n") }]
+      }
+    };
+  }
+  if (request.cancelJob) {
+    return { ...envelope, cancelJob: { job: { ...job, state: 12 } } };
+  }
+  if (request.fetchArtifacts) {
+    return {
+      ...envelope,
+      fetchArtifacts: {
+        destination: request.fetchArtifacts.destination,
+        restoredFileCount: 2,
+        conflictFileCount: 1
       }
     };
   }

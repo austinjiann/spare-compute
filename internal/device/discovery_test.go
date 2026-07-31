@@ -3,6 +3,7 @@ package device
 import (
 	"errors"
 	"net/netip"
+	"strings"
 	"testing"
 	"time"
 )
@@ -41,6 +42,33 @@ func TestObservationValidationKeepsDiscoveryUntrusted(t *testing.T) {
 	}
 	if err := observation.Validate(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestAnnouncementRejectsMalformedPlatformHints(t *testing.T) {
+	presenceID, err := NewPresenceID(zeroReader{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	announcement := Announcement{
+		PresenceID: presenceID, Name: "Gaming PC", Role: RoleWorker,
+		ProtocolVersion: DiscoveryProtocolVersion, Port: 47823,
+		Platform: "windows", Architecture: "amd64",
+		LogicalCPUCount: 32, TotalMemoryBytes: 64 << 30,
+	}
+	if err := announcement.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	announcement.LogicalCPUCount = 4097
+	if err := announcement.Validate(); !errors.Is(err, ErrInvalidAnnouncement) {
+		t.Fatalf("Validate(cpu) error = %v", err)
+	}
+	announcement.LogicalCPUCount = 32
+	for _, value := range []string{"bad value", "bad=value", strings.Repeat("a", 33)} {
+		announcement.Platform = value
+		if err := announcement.Validate(); !errors.Is(err, ErrInvalidAnnouncement) {
+			t.Fatalf("Validate(%q) error = %v", value, err)
+		}
 	}
 }
 

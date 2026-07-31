@@ -306,6 +306,10 @@ func hasUnknownRequestFields(message *computehopv1.RemoteRequest) bool {
 		return operation.GetJobArtifacts == nil || hasUnknown(operation.GetJobArtifacts)
 	case *computehopv1.RemoteRequest_GetArtifactChunk:
 		return operation.GetArtifactChunk == nil || hasUnknown(operation.GetArtifactChunk)
+	case *computehopv1.RemoteRequest_AcknowledgeJobArtifacts:
+		return operation.AcknowledgeJobArtifacts == nil || hasUnknown(operation.AcknowledgeJobArtifacts)
+	case *computehopv1.RemoteRequest_GetWorkerStatus:
+		return operation.GetWorkerStatus == nil || hasUnknown(operation.GetWorkerStatus)
 	default:
 		return true
 	}
@@ -353,6 +357,10 @@ func hasUnknownResponseFields(message *computehopv1.RemoteResponse) bool {
 			hasUnknownSnapshot(result.GetJobArtifacts.GetArtifacts())
 	case *computehopv1.RemoteResponse_GetArtifactChunk:
 		return result.GetArtifactChunk == nil || hasUnknown(result.GetArtifactChunk)
+	case *computehopv1.RemoteResponse_AcknowledgeJobArtifacts:
+		return result.AcknowledgeJobArtifacts == nil || hasUnknown(result.AcknowledgeJobArtifacts)
+	case *computehopv1.RemoteResponse_GetWorkerStatus:
+		return result.GetWorkerStatus == nil || hasUnknown(result.GetWorkerStatus)
 	case nil:
 		return message.GetError() == nil
 	default:

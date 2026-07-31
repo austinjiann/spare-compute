@@ -50,6 +50,10 @@ func DiscoverySnapshotToProto(snapshot device.DiscoverySnapshot) (*localv1.ListD
 			LastSeenAtUnixNano:  nearby.SeenAt.UnixNano(),
 			ExpiresAtUnixNano:   nearby.ExpiresAt.UnixNano(),
 			TrustState:          localv1.DeviceTrustState_DEVICE_TRUST_STATE_UNPAIRED,
+			Platform:            nearby.Announcement.Platform,
+			Arch:                nearby.Announcement.Architecture,
+			LogicalCpuCount:     nearby.Announcement.LogicalCPUCount,
+			TotalMemoryBytes:    nearby.Announcement.TotalMemoryBytes,
 		}
 	}
 	return response, nil

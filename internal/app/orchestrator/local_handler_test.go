@@ -20,12 +20,14 @@ import (
 )
 
 type stubJobController struct {
-	submit  func(context.Context, job.Spec) (job.Job, error)
-	get     func(context.Context, job.ID) (job.Job, error)
-	list    func(context.Context, job.ListOptions) ([]job.Job, error)
-	cancel  func(context.Context, job.ID) (job.Job, error)
-	logs    func(context.Context, job.ID, uint64, int) (worker.JobLogs, error)
-	restore func(context.Context, job.ID, string) (artifact.RestoreResult, error)
+	submit       func(context.Context, job.Spec) (job.Job, error)
+	submitWithID func(context.Context, job.ID, job.Spec) (job.Job, error)
+	get          func(context.Context, job.ID) (job.Job, error)
+	list         func(context.Context, job.ListOptions) ([]job.Job, error)
+	cancel       func(context.Context, job.ID) (job.Job, error)
+	logs         func(context.Context, job.ID, uint64, int) (worker.JobLogs, error)
+	progress     func(context.Context, job.ID) (*job.Progress, error)
+	restore      func(context.Context, job.ID, string) (artifact.RestoreResult, error)
 }
 
 func (stub stubJobController) RestoreArtifacts(
@@ -41,6 +43,17 @@ func (stub stubJobController) RestoreArtifacts(
 
 func (stub stubJobController) Submit(ctx context.Context, spec job.Spec) (job.Job, error) {
 	return stub.submit(ctx, spec)
+}
+
+func (stub stubJobController) SubmitWithID(ctx context.Context, id job.ID, spec job.Spec) (job.Job, error) {
+	return stub.submitWithID(ctx, id, spec)
+}
+
+func (stub stubJobController) GetProgress(ctx context.Context, id job.ID) (*job.Progress, error) {
+	if stub.progress == nil {
+		return nil, nil
+	}
+	return stub.progress(ctx, id)
 }
 
 func (stub stubJobController) Get(ctx context.Context, id job.ID) (job.Job, error) {
@@ -85,7 +98,12 @@ func TestLocalHandlerPingIncludesLocalDevice(t *testing.T) {
 	handler, err := NewLocalHandlerWithLocalDevice(
 		stubJobController{}, stubPairedJobController{}, stubDeviceController{},
 		stubPairingController{},
-		LocalDeviceInfo{DeviceID: identity.ID(), Name: "Austin MacBook 1", Role: device.RoleOrchestrator},
+		LocalDeviceInfo{
+			DeviceID: identity.ID(), Name: "Austin MacBook 1", Role: device.RoleOrchestrator,
+			Platform: "darwin", Architecture: "arm64",
+			LogicalCPUCount: 12, TotalMemoryBytes: 32 << 30,
+			ToolIDs: []string{"go", "swift"},
+		},
 		"test-version",
 	)
 	if err != nil {
@@ -97,7 +115,13 @@ func TestLocalHandlerPingIncludesLocalDevice(t *testing.T) {
 	ping := response.GetPing()
 	if ping.GetDeviceId() != string(identity.ID()) ||
 		ping.GetDeviceName() != "Austin MacBook 1" ||
-		ping.GetRole() != localv1.DeviceRole_DEVICE_ROLE_ORCHESTRATOR {
+		ping.GetRole() != localv1.DeviceRole_DEVICE_ROLE_ORCHESTRATOR ||
+		ping.GetPlatform() != "darwin" ||
+		ping.GetArch() != "arm64" ||
+		ping.GetLogicalCpuCount() != 12 ||
+		ping.GetTotalMemoryBytes() != 32<<30 ||
+		len(ping.GetToolIds()) != 2 || ping.GetToolIds()[0] != "go" ||
+		ping.GetToolIds()[1] != "swift" {
 		t.Fatalf("ping = %#v", ping)
 	}
 }
@@ -119,6 +143,47 @@ func TestLocalHandlerListsDiscoveryHealth(t *testing.T) {
 	}
 	if got := response.GetListDevices().GetDiscoveryState(); got != localv1.DiscoveryState_DISCOVERY_STATE_AVAILABLE {
 		t.Fatalf("discovery state = %v", got)
+	}
+}
+
+func TestLocalHandlerRefreshesTrustedDeviceHints(t *testing.T) {
+	peer := activeWorkerPeer(t, 43, "Build PC")
+	observedAt := time.Unix(1_800_000_000, 0).UTC()
+	refreshed := peer.Clone()
+	refreshed.Platform = "linux"
+	refreshed.Architecture = "amd64"
+	refreshed.LogicalCPUCount = 32
+	refreshed.TotalMemoryBytes = 64 << 30
+	refreshed.ToolIDs = []string{"docker", "go"}
+	refreshed.HintsObservedAt = &observedAt
+	handler, err := NewLocalHandler(stubJobController{}, stubPairedJobController{}, stubDeviceController{
+		list: func(context.Context) (device.DiscoverySnapshot, error) {
+			return device.DiscoverySnapshot{
+				Available: true,
+				Devices:   []device.NearbyDevice{nearbyWorkerWithResources(t, "Build PC", 47823, 32, 64<<30)},
+			}, nil
+		},
+	}, stubPairingController{
+		refresh: func(_ context.Context, snapshot device.DiscoverySnapshot) ([]trust.Peer, error) {
+			if len(snapshot.Devices) != 1 {
+				t.Fatalf("snapshot = %#v", snapshot)
+			}
+			return []trust.Peer{refreshed}, nil
+		},
+	}, "test-version")
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := handler.Handle(context.Background(), &localv1.Request{
+		Operation: &localv1.Request_ListDevices{ListDevices: &localv1.ListDevicesRequest{}},
+	})
+	message := response.GetListDevices().GetTrustedDevices()[0]
+	if message.GetPlatform() != "linux" || message.GetArch() != "amd64" ||
+		message.GetLogicalCpuCount() != 32 || message.GetTotalMemoryBytes() != 64<<30 ||
+		len(message.GetToolIds()) != 2 || message.GetToolIds()[0] != "docker" ||
+		message.GetToolIds()[1] != "go" ||
+		message.GetHintsObservedAtUnixNano() != observedAt.UnixNano() {
+		t.Fatalf("trusted device = %#v", message)
 	}
 }
 
@@ -180,6 +245,31 @@ func TestLocalHandlerSubmit(t *testing.T) {
 	}
 }
 
+func TestLocalHandlerSubmitUsesClientJobID(t *testing.T) {
+	wantJob := queuedJobForTest()
+	controller := stubJobController{
+		submitWithID: func(_ context.Context, id job.ID, spec job.Spec) (job.Job, error) {
+			if id != wantJob.ID || spec.Executable != "echo" {
+				t.Fatalf("SubmitWithID(%s, %#v)", id, spec)
+			}
+			return wantJob, nil
+		},
+	}
+	handler := newHandlerForTest(t, controller)
+	response := handler.Handle(context.Background(), &localv1.Request{
+		Operation: &localv1.Request_SubmitJob{SubmitJob: &localv1.SubmitJobRequest{
+			JobId: string(wantJob.ID),
+			Spec: &localv1.JobSpec{
+				Executable: "echo",
+				Executor:   localv1.Executor_EXECUTOR_NATIVE,
+			},
+		}},
+	})
+	if response.GetError() != nil || response.GetSubmitJob().GetJob().GetId() != string(wantJob.ID) {
+		t.Fatalf("response = %#v", response)
+	}
+}
+
 func TestLocalHandlerRoutesExplicitDeviceSubmissionRemotely(t *testing.T) {
 	wantJob := queuedJobForTest()
 	remote := stubPairedJobController{submit: func(
@@ -207,6 +297,94 @@ func TestLocalHandlerRoutesExplicitDeviceSubmissionRemotely(t *testing.T) {
 		}},
 	})
 	if response.GetError() != nil || response.GetSubmitJob().GetJob().GetId() != string(wantJob.ID) {
+		t.Fatalf("response = %#v", response)
+	}
+}
+
+func TestLocalHandlerRoutesClientJobIDRemoteSubmission(t *testing.T) {
+	wantJob := queuedJobForTest()
+	remote := stubPairedJobController{submitWithID: func(
+		_ context.Context,
+		selector string,
+		id job.ID,
+		spec job.Spec,
+	) (job.Job, error) {
+		if selector != "Gaming PC" || id != wantJob.ID || spec.Executable != "echo" {
+			t.Fatalf("SubmitWithID(%q, %s, %#v)", selector, id, spec)
+		}
+		return wantJob, nil
+	}}
+	handler, err := NewLocalHandler(
+		stubJobController{}, remote, stubDeviceController{}, stubPairingController{}, "test-version",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := handler.Handle(context.Background(), &localv1.Request{
+		Operation: &localv1.Request_SubmitJob{SubmitJob: &localv1.SubmitJobRequest{
+			JobId: string(wantJob.ID),
+			Spec: &localv1.JobSpec{
+				Executable: "echo", Executor: localv1.Executor_EXECUTOR_NATIVE,
+			},
+			DeviceSelector: "Gaming PC",
+		}},
+	})
+	if response.GetError() != nil || response.GetSubmitJob().GetJob().GetId() != string(wantJob.ID) {
+		t.Fatalf("response = %#v", response)
+	}
+}
+
+func TestLocalHandlerReturnsLocalJobProgress(t *testing.T) {
+	want := queuedJobForTest()
+	progress := job.Progress{
+		Phase: job.ProgressUpload, CompletedBytes: 512, TotalBytes: 1024,
+		UpdatedAt: want.UpdatedAt.Add(time.Second),
+	}
+	controller := stubJobController{progress: func(_ context.Context, id job.ID) (*job.Progress, error) {
+		if id != want.ID {
+			t.Fatalf("GetProgress(%s)", id)
+		}
+		return &progress, nil
+	}}
+	handler := newHandlerForTest(t, controller)
+	response := handler.Handle(context.Background(), &localv1.Request{
+		Operation: &localv1.Request_GetJobProgress{GetJobProgress: &localv1.GetJobProgressRequest{
+			JobId: string(want.ID),
+		}},
+	})
+	got := response.GetGetJobProgress().GetProgress()
+	if response.GetError() != nil || got.GetPhase() != localv1.JobProgressPhase_JOB_PROGRESS_PHASE_UPLOAD ||
+		got.GetCompletedBytes() != 512 || got.GetTotalBytes() != 1024 {
+		t.Fatalf("response = %#v", response)
+	}
+}
+
+func TestLocalHandlerReturnsRemotePreparationProgress(t *testing.T) {
+	want := queuedJobForTest()
+	progress := job.Progress{
+		Phase: job.ProgressSnapshot, CompletedBytes: 4096, TotalBytes: 8192,
+		UpdatedAt: want.UpdatedAt.Add(time.Second),
+	}
+	remote := stubPairedJobController{progress: func(_ context.Context, selector string, id job.ID) (*job.Progress, error) {
+		if selector != "Gaming PC" || id != want.ID {
+			t.Fatalf("GetProgress(%q, %s)", selector, id)
+		}
+		return &progress, nil
+	}}
+	handler, err := NewLocalHandler(
+		stubJobController{}, remote, stubDeviceController{}, stubPairingController{}, "test-version",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := handler.Handle(context.Background(), &localv1.Request{
+		Operation: &localv1.Request_GetJobProgress{GetJobProgress: &localv1.GetJobProgressRequest{
+			JobId: string(want.ID), DeviceSelector: "Gaming PC",
+		}},
+	})
+	got := response.GetGetJobProgress().GetProgress()
+	if response.GetError() != nil || got.GetPhase() != localv1.JobProgressPhase_JOB_PROGRESS_PHASE_SNAPSHOT ||
+		got.GetCompletedBytes() != 4096 || got.GetTotalBytes() != 8192 {
 		t.Fatalf("response = %#v", response)
 	}
 }
@@ -409,6 +587,15 @@ func TestLocalHandlerMapsErrors(t *testing.T) {
 	if got := accepted.GetError().GetMessage(); !strings.Contains(got, "is running on Gaming PC") {
 		t.Fatalf("accepted remote job message = %q", got)
 	}
+
+	incompatible := errorResponse(fmt.Errorf(
+		"%w: Node PC does not report go",
+		ErrRemoteWorkerIncompatible,
+	))
+	if incompatible.GetError().GetCode() != localv1.ErrorCode_ERROR_CODE_CONFLICT ||
+		!strings.Contains(incompatible.GetError().GetMessage(), "does not report go") {
+		t.Fatalf("incompatible worker response = %#v", incompatible.GetError())
+	}
 }
 
 func TestLocalHandlerRejectsOversizedList(t *testing.T) {
@@ -433,11 +620,13 @@ func newHandlerForTest(t *testing.T, controller JobController) *LocalHandler {
 }
 
 type stubPairedJobController struct {
-	submit func(context.Context, string, job.Spec) (job.Job, error)
-	get    func(context.Context, string, job.ID) (job.Job, error)
-	cancel func(context.Context, string, job.ID) (job.Job, error)
-	logs   func(context.Context, string, job.ID, uint64, int) (worker.JobLogs, error)
-	fetch  func(context.Context, string, job.ID, string) (artifact.RestoreResult, error)
+	submit       func(context.Context, string, job.Spec) (job.Job, error)
+	submitWithID func(context.Context, string, job.ID, job.Spec) (job.Job, error)
+	get          func(context.Context, string, job.ID) (job.Job, error)
+	cancel       func(context.Context, string, job.ID) (job.Job, error)
+	logs         func(context.Context, string, job.ID, uint64, int) (worker.JobLogs, error)
+	progress     func(context.Context, string, job.ID) (*job.Progress, error)
+	fetch        func(context.Context, string, job.ID, string) (artifact.RestoreResult, error)
 }
 
 func (stub stubPairedJobController) FetchArtifacts(
@@ -461,6 +650,29 @@ func (stub stubPairedJobController) Submit(
 		return stub.submit(ctx, selector, spec)
 	}
 	return job.Job{}, errors.New("unexpected remote submit")
+}
+
+func (stub stubPairedJobController) SubmitWithID(
+	ctx context.Context,
+	selector string,
+	id job.ID,
+	spec job.Spec,
+) (job.Job, error) {
+	if stub.submitWithID != nil {
+		return stub.submitWithID(ctx, selector, id, spec)
+	}
+	return job.Job{}, errors.New("unexpected remote submit with ID")
+}
+
+func (stub stubPairedJobController) GetProgress(
+	ctx context.Context,
+	selector string,
+	id job.ID,
+) (*job.Progress, error) {
+	if stub.progress == nil {
+		return nil, nil
+	}
+	return stub.progress(ctx, selector, id)
 }
 
 func (stub stubPairedJobController) Get(
@@ -505,6 +717,7 @@ func (stub stubPairedJobController) ReadLogs(
 type stubPairingController struct {
 	begin   func(context.Context, string) (trust.Pairing, error)
 	trusted func(context.Context) ([]trust.Peer, error)
+	refresh func(context.Context, device.DiscoverySnapshot) ([]trust.Peer, error)
 }
 
 type stubConnectivityController struct {
@@ -536,6 +749,16 @@ func (stub stubPairingController) ListTrusted(ctx context.Context) ([]trust.Peer
 		return stub.trusted(ctx)
 	}
 	return nil, nil
+}
+
+func (stub stubPairingController) RefreshTrustedHints(
+	ctx context.Context,
+	snapshot device.DiscoverySnapshot,
+) ([]trust.Peer, error) {
+	if stub.refresh != nil {
+		return stub.refresh(ctx, snapshot)
+	}
+	return stub.ListTrusted(ctx)
 }
 
 func pairingForHandlerTest(t *testing.T) trust.Pairing {

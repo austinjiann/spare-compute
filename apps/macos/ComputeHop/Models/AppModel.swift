@@ -25,6 +25,63 @@ enum AppActionError: LocalizedError {
     }
 }
 
+private enum AppErrorFormatter {
+    static func message(for error: Error) -> String {
+        if case LocalDaemonError.remote(let code, let message) = error,
+           code == .deviceUnavailable
+        {
+            return unavailableWorkerMessage(message)
+        }
+        return error.localizedDescription
+    }
+
+    private static func unavailableWorkerMessage(_ message: String) -> String {
+        if looksLikeNoActiveWorker(message) {
+            return AppActionError.noRunnableWorker.localizedDescription
+        }
+        let worker = unavailableWorkerName(from: message)
+        let subject = worker.isEmpty ? "The worker is not reachable" : "\(worker) is not reachable"
+        return "\(subject). Start ComputeHop on that computer and keep both computers on the same network, then try again. Use Control Center for VPS setup if the computers are on different networks."
+    }
+
+    private static func looksLikeNoActiveWorker(_ message: String) -> Bool {
+        let lowercased = message.lowercased()
+        return lowercased.contains("no active paired worker") ||
+            lowercased.contains("no connected worker")
+    }
+
+    private static func unavailableWorkerName(from message: String) -> String {
+        let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        let prefix = "paired worker is unavailable:"
+        let withoutPrefix: String
+        if trimmed.lowercased().hasPrefix(prefix) {
+            withoutPrefix = String(trimmed.dropFirst(prefix.count))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        } else {
+            withoutPrefix = trimmed
+        }
+        if let range = withoutPrefix.range(of: " is not reachable", options: [.caseInsensitive]) {
+            return cleanWorkerName(String(withoutPrefix[..<range.lowerBound]))
+        }
+        if let range = withoutPrefix.range(
+            of: ": remote connectivity path is unavailable",
+            options: [.caseInsensitive]
+        ) {
+            return cleanWorkerName(String(withoutPrefix[..<range.lowerBound]))
+        }
+        return ""
+    }
+
+    private static func cleanWorkerName(_ value: String) -> String {
+        let name = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: ".。"))
+        guard !name.isEmpty, !looksLikeNoActiveWorker(name) else {
+            return ""
+        }
+        return name
+    }
+}
+
 @Observable
 @MainActor
 final class AppModel {
@@ -42,6 +99,7 @@ final class AppModel {
     private let notifier: JobCompletionNotifying
     private let settingsStore: AppSettingsStoring
     private let planner: TaskPlanning
+    private let controlCenterLauncher: ControlCenterLaunching
     private var trackedRemoteJobs: [String: String] = [:]
     private var observedJobStates: [String: String] = [:]
     private var nextLogSequence: UInt64 = 0
@@ -60,6 +118,7 @@ final class AppModel {
     var outputsInput = ""
     var runTargetID = ""
     var selectedDeviceID = AppModel.localDeviceID
+    var selectedDeviceName = "Here"
     var remoteRunWithoutProject = false
     var plannedTask: TaskPlan?
     var planningError: String?
@@ -98,12 +157,14 @@ final class AppModel {
         client: LocalDaemonClientProtocol = LocalDaemonClient(),
         notifier: JobCompletionNotifying = SystemJobCompletionNotifier(),
         settingsStore: AppSettingsStoring = UserDefaultsAppSettingsStore(),
-        planner: TaskPlanning = LocalTaskPlanner()
+        planner: TaskPlanning = LocalTaskPlanner(),
+        controlCenterLauncher: ControlCenterLaunching = SystemControlCenterLauncher()
     ) {
         self.client = client
         self.notifier = notifier
         self.settingsStore = settingsStore
         self.planner = planner
+        self.controlCenterLauncher = controlCenterLauncher
         jobCompletionNotificationsEnabled = settingsStore.jobCompletionNotificationsEnabled
         workerSetupDeviceName = settingsStore.workerSetupDeviceName
         workerSetupCacheSize = settingsStore.workerSetupCacheSize
@@ -139,7 +200,11 @@ final class AppModel {
         if selectedDeviceID == Self.localDeviceID {
             return "Here"
         }
-        return selectedDevice?.name ?? "No device selected"
+        if let selectedDevice {
+            return selectedDevice.name
+        }
+        let trimmedName = selectedDeviceName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmedName.isEmpty || trimmedName == "Here" ? "Selected worker" : trimmedName
     }
 
     var selectedDeviceCanRun: Bool {
@@ -154,8 +219,7 @@ final class AppModel {
     }
 
     var canPlanTask: Bool {
-        !taskRequestInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-            !workingDirectory.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !taskRequestInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     var canSubmitPlannedTask: Bool {
@@ -185,12 +249,12 @@ final class AppModel {
             return "Start ComputeHop to run jobs."
         }
         if runnableDevices.count == 1 {
-            return "Use Smoke Test to verify the worker, or run a command above."
+            return "Use Test to verify the worker, or run a task above."
         }
         if runnableDevices.count > 1 {
-            return "Choose a worker from Run on for Smoke Test, or run a command above."
+            return "Choose a worker from Run on, then use Test or run a task above."
         }
-        return "Run a command on This Mac, or connect a nearby worker to enable Smoke Test."
+        return "Run a task on This Mac, or connect a nearby worker to enable Test."
     }
 
     var selectedJobLogsPlaceholder: String {
@@ -209,6 +273,13 @@ final class AppModel {
     var selectedJobLogsCommand: String? {
         guard let selectedJobID else { return nil }
         return "computehop logs --follow \(selectedJobID)"
+    }
+
+    var menuTaskJob: JobSummary? {
+        if let selectedJobID, let selected = jobs.first(where: { $0.id == selectedJobID }) {
+            return selected
+        }
+        return jobs.first { !$0.terminal }
     }
 
     var canSubmitCommand: Bool { runDisabledReason == nil }
@@ -328,6 +399,15 @@ final class AppModel {
         clipboard.write(diagnosticsCommandBundle)
     }
 
+    func openControlCenter() {
+        do {
+            try controlCenterLauncher.openControlCenter()
+            lastError = nil
+        } catch {
+            lastError = AppErrorFormatter.message(for: error)
+        }
+    }
+
     func refreshLoop() async {
         await refresh()
         while !Task.isCancelled {
@@ -358,16 +438,12 @@ final class AppModel {
             jobs = refreshedJobs.sorted { $0.updatedAt > $1.updatedAt }
             await recordJobStateTransitions(jobs)
             pairings = snapshot.3
-            if selectedDeviceID != Self.localDeviceID &&
-                !devices.contains(where: { $0.id == selectedDeviceID })
+            if selectedDeviceID != Self.localDeviceID,
+               let selectedDevice = devices.first(where: { $0.id == selectedDeviceID })
             {
-                selectedDeviceID = Self.localDeviceID
+                selectedDeviceName = selectedDevice.name
             }
             if isAutomaticRunTargetSelected && !canRunAutomatically {
-                runTargetID = ""
-                remoteRunWithoutProject = false
-            } else if !isAutomaticRunTargetSelected && !runTargetID.isEmpty && !runnableDevices.contains(where: { $0.id == runTargetID }) {
-                runTargetID = ""
                 remoteRunWithoutProject = false
             }
             lastError = nil
@@ -376,7 +452,7 @@ final class AppModel {
             }
         } catch {
             daemon = nil
-            lastError = error.localizedDescription
+            lastError = AppErrorFormatter.message(for: error)
         }
     }
 
@@ -396,8 +472,11 @@ final class AppModel {
     }
 
     func confirm(_ pairing: PairingSummary) async {
-        await perform("confirm-\(pairing.id)") {
+        let succeeded = await perform("confirm-\(pairing.id)") {
             try await client.confirmPairing(id: pairing.id)
+        }
+        if succeeded {
+            selectOnlyRunnableWorkerIfStillLocal()
         }
     }
 
@@ -422,6 +501,7 @@ final class AppModel {
 
     func selectLocalDevice() {
         selectedDeviceID = Self.localDeviceID
+        selectedDeviceName = "Here"
         runTargetID = ""
         remoteRunWithoutProject = false
         plannedTask = nil
@@ -430,6 +510,7 @@ final class AppModel {
 
     func selectDevice(_ device: DeviceSummary) {
         selectedDeviceID = device.id
+        selectedDeviceName = device.name
         runTargetID = device.id
         remoteRunWithoutProject = false
         plannedTask = nil
@@ -484,7 +565,7 @@ final class AppModel {
         }
         commandInput = plan.commandLine
         outputsInput = plan.outputs.joined(separator: ", ")
-        remoteRunWithoutProject = false
+        remoteRunWithoutProject = !plan.requiresProject && isRemoteRunTargetSelected
         await submitCommand()
         if lastError == nil {
             taskRequestInput = ""
@@ -635,7 +716,7 @@ final class AppModel {
                 trimLogsIfNeeded()
             }
         } catch {
-            lastError = error.localizedDescription
+            lastError = AppErrorFormatter.message(for: error)
         }
     }
 
@@ -693,21 +774,34 @@ final class AppModel {
         return matchingNameCount == 1 ? device.name : device.id
     }
 
+    private func selectOnlyRunnableWorkerIfStillLocal() {
+        guard selectedDeviceID == Self.localDeviceID,
+              runTargetID.isEmpty,
+              runnableDevices.count == 1,
+              let device = runnableDevices.first
+        else { return }
+
+        selectDevice(device)
+    }
+
     private func declaredOutputs() -> [String] {
         outputsInput.split(separator: ",", omittingEmptySubsequences: true)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
     }
 
-    private func perform(_ action: String, operation: () async throws -> Void) async {
-        guard actionInProgress == nil else { return }
+    @discardableResult
+    private func perform(_ action: String, operation: () async throws -> Void) async -> Bool {
+        guard actionInProgress == nil else { return false }
         actionInProgress = action
         defer { actionInProgress = nil }
         do {
             try await operation()
             await refresh()
+            return true
         } catch {
-            lastError = error.localizedDescription
+            lastError = AppErrorFormatter.message(for: error)
+            return false
         }
     }
 }

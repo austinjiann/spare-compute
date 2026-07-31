@@ -31,12 +31,46 @@ type ignoreMatcher struct {
 	rules []ignoreRule
 }
 
+var defaultIgnoreRules = []ignoreRule{
+	{pattern: ".git", directory: true},
+	{pattern: ".computehop-results", directory: true},
+	{pattern: ".computehop-conflicts", directory: true},
+
+	// Common generated dependency, cache, and build-output folders. These are
+	// expensive to transfer and are normally recreated on the worker.
+	{pattern: "node_modules", directory: true},
+	{pattern: ".next", directory: true},
+	{pattern: ".turbo", directory: true},
+	{pattern: ".cache", directory: true},
+	{pattern: "target", directory: true},
+	{pattern: ".venv", directory: true},
+	{pattern: "venv", directory: true},
+	{pattern: "__pycache__", directory: true},
+	{pattern: ".pytest_cache", directory: true},
+	{pattern: ".mypy_cache", directory: true},
+	{pattern: ".ruff_cache", directory: true},
+
+	// Common local credential files. A project can deliberately opt specific
+	// non-secret examples back in with .computehopignore negations.
+	{pattern: ".env"},
+	{pattern: ".env.*"},
+	{pattern: ".npmrc"},
+	{pattern: ".pypirc"},
+	{pattern: ".netrc"},
+	{pattern: ".ssh", directory: true},
+	{pattern: ".aws", directory: true},
+	{pattern: ".azure", directory: true},
+	{pattern: ".gcloud", directory: true},
+	{pattern: ".gnupg", directory: true},
+	{pattern: ".kube", directory: true},
+	{pattern: "*.pem"},
+	{pattern: "*.key"},
+	{pattern: "*.p12"},
+	{pattern: "*.pfx"},
+}
+
 func loadIgnoreMatcher(root string) (ignoreMatcher, error) {
-	matcher := ignoreMatcher{rules: []ignoreRule{
-		{pattern: ".git", directory: true},
-		{pattern: ".computehop-results", directory: true},
-		{pattern: ".computehop-conflicts", directory: true},
-	}}
+	matcher := ignoreMatcher{rules: append([]ignoreRule(nil), defaultIgnoreRules...)}
 	ignoreFiles := 0
 	err := filepath.WalkDir(root, func(current string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
@@ -88,7 +122,7 @@ func loadIgnoreMatcher(root string) (ignoreMatcher, error) {
 			if closeErr != nil {
 				return fmt.Errorf("close %s: %w", relativeSource, closeErr)
 			}
-			if len(matcher.rules)+len(rules) > maximumIgnoreRules+2 {
+			if len(matcher.rules)+len(rules) > maximumIgnoreRules+len(defaultIgnoreRules) {
 				return errors.New("project contains too many ignore rules")
 			}
 			matcher.rules = append(matcher.rules, rules...)

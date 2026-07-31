@@ -203,6 +203,30 @@ func (repository *transportTrustRepository) Revoke(
 	return peer.Clone(), nil
 }
 
+func (repository *transportTrustRepository) UpdateHints(
+	_ context.Context,
+	id device.ID,
+	hints trust.PeerHints,
+) (trust.Peer, error) {
+	if err := hints.Validate(); err != nil {
+		return trust.Peer{}, err
+	}
+	repository.mu.Lock()
+	defer repository.mu.Unlock()
+	peer, ok := repository.peers[id]
+	if !ok {
+		return trust.Peer{}, trust.ErrNotFound
+	}
+	peer.Platform = hints.Platform
+	peer.Architecture = hints.Architecture
+	peer.LogicalCPUCount = hints.LogicalCPUCount
+	peer.TotalMemoryBytes = hints.TotalMemoryBytes
+	observedAt := hints.ObservedAt.UTC()
+	peer.HintsObservedAt = &observedAt
+	repository.peers[id] = peer
+	return peer.Clone(), nil
+}
+
 func FuzzPairingFrameDecoder(f *testing.F) {
 	valid := &computehopv1.PairingFrame{
 		ProtocolVersion: pairingProtocolVersion,

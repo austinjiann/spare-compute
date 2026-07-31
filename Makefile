@@ -1,10 +1,10 @@
-.PHONY: check deploy-check fmt install-macos macos-package macos-package-check pr-check proto proto-check proto-lint race test uninstall-macos vet
+.PHONY: check deploy-check fmt install-macos install-macos-check macos-archive macos-archive-smoke macos-package macos-package-check pr-check proto proto-check proto-lint race test uninstall-macos vet worker-archives worker-archives-check
 
 BUF_VERSION := v1.72.0
 
 check: fmt proto-check proto-lint vet test race
 
-pr-check: fmt proto-check proto-lint vet test deploy-check
+pr-check: fmt proto-check proto-lint vet test deploy-check worker-archives-check
 
 fmt:
 	@test -z "$$(gofmt -l .)" || (gofmt -d . && exit 1)
@@ -65,18 +65,43 @@ deploy-check:
 macos-package: macos-package-check
 	packaging/macos/build.sh
 
+macos-archive: macos-package-check
+	packaging/macos/archive.sh
+
+macos-archive-smoke: macos-package-check
+	packaging/macos/smoke.sh
+
 macos-package-check:
 	@for script in \
+		packaging/macos/archive.sh \
 		packaging/macos/build.sh \
 		packaging/macos/install.sh \
+		packaging/macos/smoke.sh \
 		packaging/macos/uninstall.sh \
 		packaging/macos/verify.sh; do \
 		sh -n "$$script"; \
 	done
+	node --check packaging/macos/verify-control-center-background.js
 	plutil -lint packaging/macos/Info.plist packaging/macos/com.computehop.daemon.plist
+
+worker-archives: worker-archives-check
+	packaging/workers/archive.sh
+	packaging/workers/verify.sh
+
+worker-archives-check:
+	@for script in \
+		packaging/workers/archive.sh \
+		packaging/workers/verify.sh \
+		packaging/workers/linux/run-worker.sh \
+		packaging/workers/linux/install-systemd-user.sh; do \
+		sh -n "$$script"; \
+	done
 
 install-macos:
 	packaging/macos/install.sh
+
+install-macos-check:
+	packaging/macos/install.sh --check
 
 uninstall-macos:
 	packaging/macos/uninstall.sh

@@ -17,6 +17,8 @@ func TestAnnouncementTextParsesResolvedEntry(t *testing.T) {
 	announcement := device.Announcement{
 		PresenceID: presenceID, Name: "Gaming PC", Role: device.RoleWorker,
 		ProtocolVersion: device.DiscoveryProtocolVersion, Port: DefaultPort,
+		Platform: "windows", Architecture: "amd64",
+		LogicalCPUCount: 32, TotalMemoryBytes: 64 << 30,
 	}
 	now := time.Date(2026, time.July, 19, 12, 0, 0, 0, time.UTC)
 	observation, err := parseEntry(rawEntry{
@@ -55,6 +57,8 @@ func TestParseEntryRejectsForgedOrMalformedText(t *testing.T) {
 		{"duplicate", append(append([]string(nil), valid...), "name=forged")},
 		{"malformed identity", malformedIdentity},
 		{"missing", valid[:5]},
+		{"bad cpu", append(append([]string(nil), valid...), "cpu=lots")},
+		{"bad memory", append(append([]string(nil), valid...), "mem=lots")},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			if _, err := parseEntry(rawEntry{
@@ -75,6 +79,8 @@ func TestServiceRunReportsReadyObservationAndShutdown(t *testing.T) {
 	announcement := device.Announcement{
 		PresenceID: presenceID, Name: "Worker", Role: device.RoleWorker,
 		ProtocolVersion: 1, Port: DefaultPort,
+		Platform: "linux", Architecture: "arm64",
+		LogicalCPUCount: 8, TotalMemoryBytes: 16 << 30,
 	}
 	registered := &fakeRegistration{}
 	ctx, cancel := context.WithCancel(context.Background())

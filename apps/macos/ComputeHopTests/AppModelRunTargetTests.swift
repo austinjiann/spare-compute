@@ -4,6 +4,12 @@ import Testing
 
 @testable import ComputeHopApp
 
+private enum TestLauncherError: LocalizedError {
+    case failed
+
+    var errorDescription: String? { "Launcher failed." }
+}
+
 @Test
 @MainActor
 func runDisabledReasonExplainsDaemonOfflineState() {
@@ -301,6 +307,75 @@ func refreshDoesNotNotifyWhenJobNotificationsAreDisabled() async {
 
 @Test
 @MainActor
+func refreshPreservesExplicitSelectedWorkerWhenUnavailable() async {
+    let worker = runTargetDevice(id: "worker-id", name: "Gaming PC")
+    let client = RecordingDaemonClient(devices: [])
+    let model = AppModel(client: client)
+    model.daemon = daemonSummary()
+    model.devices = [worker]
+    model.selectDevice(worker)
+    model.commandInput = "hostname"
+
+    await model.refresh()
+
+    #expect(model.selectedDeviceID == "worker-id")
+    #expect(model.runTargetID == "worker-id")
+    #expect(model.selectedTargetName == "Gaming PC")
+    #expect(!model.selectedDeviceCanRun)
+    #expect(model.runDisabledReason == "The selected worker is no longer reachable. Refresh and choose another run target.")
+}
+
+@Test
+@MainActor
+func refreshUpdatesRememberedSelectedWorkerNameWhenAvailable() async {
+    let worker = runTargetDevice(id: "worker-id", name: "Studio Mini")
+    let client = RecordingDaemonClient(devices: [worker])
+    let model = AppModel(client: client)
+    model.selectedDeviceID = "worker-id"
+    model.selectedDeviceName = "Old Name"
+    model.runTargetID = "worker-id"
+
+    await model.refresh()
+
+    #expect(model.selectedTargetName == "Studio Mini")
+    #expect(model.selectedDeviceName == "Studio Mini")
+    #expect(model.selectedDeviceCanRun)
+}
+
+@Test
+@MainActor
+func confirmSelectsOnlyRunnableWorkerWhenConnectionCompletes() async {
+    let worker = runTargetDevice(id: "worker-id", name: "Gaming PC")
+    let client = RecordingDaemonClient(devices: [worker])
+    let model = AppModel(client: client)
+
+    await model.confirm(pairingSummary(id: "pairing-id", peerName: "Gaming PC"))
+
+    #expect(model.selectedDeviceID == "worker-id")
+    #expect(model.selectedDeviceName == "Gaming PC")
+    #expect(model.runTargetID == "worker-id")
+    #expect(model.selectedDeviceCanRun)
+    #expect(model.lastError == nil)
+}
+
+@Test
+@MainActor
+func confirmKeepsLocalTargetWhenConnectionIsAmbiguous() async {
+    let firstWorker = runTargetDevice(id: "first-worker", name: "Gaming PC")
+    let secondWorker = runTargetDevice(id: "second-worker", name: "Studio Mini")
+    let client = RecordingDaemonClient(devices: [firstWorker, secondWorker])
+    let model = AppModel(client: client)
+
+    await model.confirm(pairingSummary(id: "pairing-id", peerName: "Gaming PC"))
+
+    #expect(model.selectedDeviceID == AppModel.localDeviceID)
+    #expect(model.selectedDeviceName == "Here")
+    #expect(model.runTargetID.isEmpty)
+    #expect(model.lastError == nil)
+}
+
+@Test
+@MainActor
 func notificationSettingLoadsAndPersistsThroughStore() {
     let store = RecordingSettingsStore(jobCompletionNotificationsEnabled: false)
     let model = AppModel(
@@ -386,6 +461,211 @@ func planRequestedTaskInfersProjectTestCommands() throws {
 
 @Test
 @MainActor
+func planRequestedTaskPrefersProjectCheckTargetForCI() throws {
+    let projectURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("computehop-plan-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: projectURL, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: projectURL) }
+    try "module example.test\n".write(
+        to: projectURL.appendingPathComponent("go.mod"),
+        atomically: true,
+        encoding: .utf8
+    )
+    try "pr-check:\n\tgo test ./...\n".write(
+        to: projectURL.appendingPathComponent("Makefile"),
+        atomically: true,
+        encoding: .utf8
+    )
+
+    let model = AppModel(client: RecordingDaemonClient())
+    model.workingDirectory = projectURL.path
+    model.taskRequestInput = "fix ci"
+
+    model.planRequestedTask()
+
+    #expect(model.plannedTask?.title == "Run project checks")
+    #expect(model.plannedTask?.commands == ["make pr-check"])
+    #expect(model.commandInput.contains("make pr-check"))
+    #expect(model.planningError == nil)
+}
+
+@Test
+@MainActor
+func submitPlannedProjectCheckUsesSelectedWorkerAndProject() async throws {
+    let projectURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("computehop-plan-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: projectURL, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: projectURL) }
+    try "pr-check:\n\tgo test ./...\n".write(
+        to: projectURL.appendingPathComponent("Makefile"),
+        atomically: true,
+        encoding: .utf8
+    )
+
+    let worker = runTargetDevice(id: "worker-id", name: "Gaming PC")
+    let client = RecordingDaemonClient(devices: [worker])
+    let model = AppModel(client: client)
+    model.daemon = daemonSummary()
+    model.devices = [worker]
+    model.selectDevice(worker)
+    model.workingDirectory = projectURL.path
+    model.taskRequestInput = "run project checks"
+
+    await model.submitPlannedTask()
+
+    #expect(await client.lastSubmittedSelector() == "worker-id")
+    #expect(await client.lastSubmittedWorkingDirectory() == projectURL.path)
+    #expect(await client.lastSubmittedExecutable() == "sh")
+    #expect(await client.lastSubmittedArguments() == ["-lc", "set -e\nmake pr-check"])
+    #expect(model.jobs.first?.target == "Gaming PC")
+    #expect(model.lastError == nil)
+}
+
+@Test
+@MainActor
+func submitPlannedPackageUsesSelectedWorkerProjectAndInferredOutput() async throws {
+    let projectURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("computehop-plan-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: projectURL, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: projectURL) }
+    try "macos-archive:\n\tpackaging/macos/archive.sh\nmacos-package:\n\tpackaging/macos/build.sh\n".write(
+        to: projectURL.appendingPathComponent("Makefile"),
+        atomically: true,
+        encoding: .utf8
+    )
+
+    let worker = runTargetDevice(id: "worker-id", name: "Gaming PC")
+    let client = RecordingDaemonClient(devices: [worker])
+    let model = AppModel(client: client)
+    model.daemon = daemonSummary()
+    model.devices = [worker]
+    model.selectDevice(worker)
+    model.workingDirectory = projectURL.path
+    model.taskRequestInput = "package the app"
+
+    model.planRequestedTask()
+
+    #expect(model.plannedTask?.title == "Package project")
+    #expect(model.plannedTask?.commands == ["make macos-archive"])
+    #expect(model.plannedTask?.outputs == [
+        "dist/macos/ComputeHop-macos.zip",
+        "dist/macos/ComputeHop-macos.zip.sha256",
+    ])
+    #expect(model.outputsInput == "dist/macos/ComputeHop-macos.zip, dist/macos/ComputeHop-macos.zip.sha256")
+
+    await model.submitPlannedTask()
+
+    #expect(await client.lastSubmittedSelector() == "worker-id")
+    #expect(await client.lastSubmittedWorkingDirectory() == projectURL.path)
+    #expect(await client.lastSubmittedExecutable() == "sh")
+    #expect(await client.lastSubmittedArguments() == ["-lc", "set -e\nmake macos-archive"])
+    #expect(await client.lastSubmittedOutputs() == [
+        "dist/macos/ComputeHop-macos.zip",
+        "dist/macos/ComputeHop-macos.zip.sha256",
+    ])
+    #expect(model.jobs.first?.target == "Gaming PC")
+    #expect(model.lastError == nil)
+}
+
+@Test
+@MainActor
+func submitPlannedUtilityRunsOnSelectedWorkerWithoutProject() async throws {
+    let worker = runTargetDevice(id: "worker-id", name: "Gaming PC")
+    let client = RecordingDaemonClient(devices: [worker])
+    let model = AppModel(client: client)
+    model.daemon = daemonSummary()
+    model.devices = [worker]
+    model.selectDevice(worker)
+    model.taskRequestInput = "run hostname"
+
+    #expect(model.canPlanTask)
+
+    model.planRequestedTask()
+
+    #expect(model.plannedTask?.requiresProject == false)
+    #expect(model.plannedTask?.commands == ["hostname"])
+    #expect(model.commandInput == "hostname")
+    #expect(model.planningError == nil)
+
+    await model.submitPlannedTask()
+
+    #expect(await client.lastSubmittedSelector() == "worker-id")
+    #expect(await client.lastSubmittedWorkingDirectory() == "")
+    #expect(await client.lastSubmittedExecutable() == "hostname")
+    #expect(await client.lastSubmittedArguments() == [])
+    #expect(model.jobs.first?.target == "Gaming PC")
+    #expect(model.lastError == nil)
+}
+
+@Test
+@MainActor
+func planRequestedConnectionTestMapsToWorkerHostnameWithoutProject() {
+    let worker = runTargetDevice(id: "worker-id", name: "Gaming PC")
+    let model = AppModel(client: RecordingDaemonClient(devices: [worker]))
+    model.daemon = daemonSummary()
+    model.devices = [worker]
+    model.selectDevice(worker)
+    model.taskRequestInput = "test connection"
+
+    model.planRequestedTask()
+
+    #expect(model.plannedTask?.requiresProject == false)
+    #expect(model.plannedTask?.commands == ["hostname"])
+    #expect(model.commandInput == "hostname")
+    #expect(model.planningError == nil)
+}
+
+@Test
+@MainActor
+func planRequestedProjectTaskStillRequiresProjectFolder() {
+    let model = AppModel(client: RecordingDaemonClient())
+    model.taskRequestInput = "run ci"
+
+    #expect(model.canPlanTask)
+
+    model.planRequestedTask()
+
+    #expect(model.plannedTask == nil)
+    #expect(model.planningError == "Choose a project first.")
+}
+
+@Test
+@MainActor
+func planRequestedTaskUsesPackageManagerScripts() throws {
+    let projectURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("computehop-plan-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: projectURL, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: projectURL) }
+    try #"{"scripts":{"test":"vitest","build":"vite build","ci":"vitest run"}}"#.write(
+        to: projectURL.appendingPathComponent("package.json"),
+        atomically: true,
+        encoding: .utf8
+    )
+    try "".write(
+        to: projectURL.appendingPathComponent("pnpm-lock.yaml"),
+        atomically: true,
+        encoding: .utf8
+    )
+
+    let model = AppModel(client: RecordingDaemonClient())
+    model.workingDirectory = projectURL.path
+
+    model.taskRequestInput = "run ci"
+    model.planRequestedTask()
+    #expect(model.plannedTask?.commands == ["pnpm run ci"])
+
+    model.taskRequestInput = "run tests"
+    model.planRequestedTask()
+    #expect(model.plannedTask?.commands == ["pnpm run test"])
+
+    model.taskRequestInput = "build app"
+    model.planRequestedTask()
+    #expect(model.plannedTask?.commands == ["pnpm run build"])
+    #expect(model.planningError == nil)
+}
+
+@Test
+@MainActor
 func deviceCapabilitiesPersistThroughSettingsStore() {
     let store = RecordingSettingsStore()
     let model = AppModel(
@@ -453,7 +733,7 @@ func emptyJobsHelpPointsAtSmokeTestWhenOneWorkerIsRunnable() {
     model.daemon = daemonSummary()
     model.devices = [worker]
 
-    #expect(model.emptyJobsHelpText == "Use Smoke Test to verify the worker, or run a command above.")
+    #expect(model.emptyJobsHelpText == "Use Test to verify the worker, or run a task above.")
 }
 
 @Test
@@ -462,7 +742,7 @@ func emptyJobsHelpPointsAtConnectWhenNoWorkerIsRunnable() {
     let model = AppModel(client: RecordingDaemonClient(devices: []))
     model.daemon = daemonSummary()
 
-    #expect(model.emptyJobsHelpText == "Run a command on This Mac, or connect a nearby worker to enable Smoke Test.")
+    #expect(model.emptyJobsHelpText == "Run a task on This Mac, or connect a nearby worker to enable Test.")
 }
 
 @Test
@@ -505,6 +785,61 @@ func selectedJobLogsCommandFollowsSelectedJob() {
     model.selectedJobID = "7a338fa3-7ba4-4c54-bf59-da1161f6b76f"
 
     #expect(model.selectedJobLogsCommand == "computehop logs --follow 7a338fa3-7ba4-4c54-bf59-da1161f6b76f")
+}
+
+@Test
+@MainActor
+func menuTaskJobStaysHiddenForUnselectedTerminalHistory() {
+    let model = AppModel(client: RecordingDaemonClient())
+    model.jobs = [
+        jobSummary(
+            id: "7a338fa3-7ba4-4c54-bf59-da1161f6b76f",
+            target: "Gaming PC",
+            state: .succeeded
+        )
+    ]
+
+    #expect(model.menuTaskJob == nil)
+}
+
+@Test
+@MainActor
+func menuTaskJobShowsActiveJobWithoutShowingPastHistory() {
+    let model = AppModel(client: RecordingDaemonClient())
+    let finished = jobSummary(
+        id: "7a338fa3-7ba4-4c54-bf59-da1161f6b76f",
+        target: "Gaming PC",
+        state: .succeeded
+    )
+    let running = jobSummary(
+        id: "a4b19e19-5de6-479a-868b-1c66abc6d7f9",
+        executable: "sleep",
+        arguments: ["3600"],
+        target: "Gaming PC",
+        state: .running
+    )
+    model.jobs = [finished, running]
+
+    #expect(model.menuTaskJob?.id == running.id)
+}
+
+@Test
+@MainActor
+func menuTaskJobShowsSelectedTerminalJobUntilClosed() {
+    let model = AppModel(client: RecordingDaemonClient())
+    let finished = jobSummary(
+        id: "7a338fa3-7ba4-4c54-bf59-da1161f6b76f",
+        target: "Gaming PC",
+        state: .succeeded
+    )
+    model.jobs = [finished]
+    model.selectedJobID = finished.id
+
+    #expect(model.menuTaskJob?.id == finished.id)
+
+    model.closeLogs()
+
+    #expect(model.menuTaskJob == nil)
 }
 
 @Test
@@ -585,6 +920,52 @@ func submitCommandExplainsWhenSelectedWorkerDisappears() async {
 
 @Test
 @MainActor
+func submitCommandExplainsDaemonOfflineWorkerError() async {
+    let worker = runTargetDevice(id: "worker-id", name: "Gaming PC")
+    let client = RecordingDaemonClient(
+        devices: [worker],
+        submitError: LocalDaemonError.remote(
+            .deviceUnavailable,
+            "paired worker is unavailable: Gaming PC: remote connectivity path is unavailable"
+        )
+    )
+    let model = AppModel(client: client)
+    model.daemon = daemonSummary()
+    model.devices = [worker]
+    model.runTargetID = AppModel.automaticWorkerTargetID
+    model.remoteRunWithoutProject = true
+    model.commandInput = "hostname"
+
+    await model.submitCommand()
+
+    #expect(await client.lastSubmittedExecutable() == "hostname")
+    #expect(model.lastError == "Gaming PC is not reachable. Start ComputeHop on that computer and keep both computers on the same network, then try again. Use Control Center for VPS setup if the computers are on different networks.")
+}
+
+@Test
+@MainActor
+func submitSmokeTestExplainsNewDaemonOfflineWorkerErrorWithoutCLICommands() async {
+    let worker = runTargetDevice(id: "worker-id", name: "Mini PC")
+    let message = "paired worker is unavailable: Mini PC is not reachable. " +
+        "Start ComputeHop on that worker, put both devices on the same LAN, then run 'computehop smoke'. " +
+        "For cross-network workers, run 'computehop setup vps'. Last error: remote connectivity path is unavailable"
+    let client = RecordingDaemonClient(
+        devices: [worker],
+        submitError: LocalDaemonError.remote(.deviceUnavailable, message)
+    )
+    let model = AppModel(client: client)
+    model.daemon = daemonSummary()
+    model.devices = [worker]
+
+    await model.submitSmokeTest()
+
+    #expect(await client.lastSubmittedExecutable() == "hostname")
+    #expect(model.lastError == "Mini PC is not reachable. Start ComputeHop on that computer and keep both computers on the same network, then try again. Use Control Center for VPS setup if the computers are on different networks.")
+    #expect(model.lastError?.contains("computehop") == false)
+}
+
+@Test
+@MainActor
 func connectUsesPresenceIDInsteadOfDisplayName() async {
     let nearby = DeviceSummary(
         id: "ephemeral-presence-id",
@@ -637,6 +1018,49 @@ func connectNearbyWorkerRefusesAmbiguousNearbyWorkers() async {
 
     #expect(await client.lastPairingSelector() == nil)
     #expect(model.lastError == "Connect Nearby Worker works only when exactly one nearby worker is available. Refresh and choose one from Devices.")
+}
+
+@Test
+@MainActor
+func openControlCenterUsesConfiguredLauncher() {
+    let launcher = RecordingControlCenterLauncher()
+    let model = AppModel(client: RecordingDaemonClient(), controlCenterLauncher: launcher)
+    model.lastError = "previous"
+
+    model.openControlCenter()
+
+    #expect(launcher.openCount == 1)
+    #expect(model.lastError == nil)
+}
+
+@Test
+@MainActor
+func openControlCenterReportsLauncherFailures() {
+    let launcher = RecordingControlCenterLauncher(error: TestLauncherError.failed)
+    let model = AppModel(client: RecordingDaemonClient(), controlCenterLauncher: launcher)
+
+    model.openControlCenter()
+
+    #expect(launcher.openCount == 1)
+    #expect(model.lastError == "Launcher failed.")
+}
+
+@Test
+@MainActor
+func controlCenterLauncherChecksBundledControlCenterFirst() {
+    let bundleURL = URL(fileURLWithPath: "/Users/austin/Applications/ComputeHop.app")
+    let home = URL(fileURLWithPath: "/Users/austin")
+    let currentDirectory = URL(fileURLWithPath: "/Users/austin/spare-compute")
+
+    let candidates = SystemControlCenterLauncher.candidateAppURLs(
+        home: home,
+        currentDirectory: currentDirectory,
+        bundleURL: bundleURL
+    )
+
+    #expect(candidates.first?.path == "/Users/austin/Applications/ComputeHop.app/Contents/Resources/ComputeHop Control Center.app")
+    #expect(candidates.contains(URL(fileURLWithPath: "/Users/austin/Applications/ComputeHop Control Center.app")))
+    #expect(candidates.contains(URL(fileURLWithPath: "/Users/austin/spare-compute/apps/control-center/.out/ComputeHop Control Center-darwin-arm64/ComputeHop Control Center.app")))
 }
 
 @Test
@@ -734,6 +1158,23 @@ private struct NotificationRecord: Equatable {
 }
 
 @MainActor
+private final class RecordingControlCenterLauncher: ControlCenterLaunching {
+    var openCount = 0
+    private let error: Error?
+
+    init(error: Error? = nil) {
+        self.error = error
+    }
+
+    func openControlCenter() throws {
+        openCount += 1
+        if let error {
+            throw error
+        }
+    }
+}
+
+@MainActor
 private final class RecordingJobCompletionNotifier: JobCompletionNotifying {
     var notifications: [NotificationRecord] = []
 
@@ -807,6 +1248,7 @@ private final class RecordingSettingsStore: AppSettingsStoring {
 private actor RecordingDaemonClient: LocalDaemonClientProtocol {
     private let devices: [DeviceSummary]
     private var jobs: [JobSummary]
+    private let submitError: Error?
     private var submittedExecutable: String?
     private var submittedArguments: [String]?
     private var submittedSelector: String?
@@ -816,9 +1258,10 @@ private actor RecordingDaemonClient: LocalDaemonClientProtocol {
     private var unpairedSelector: String?
     private let submittedID = "7a338fa3-7ba4-4c54-bf59-da1161f6b76f"
 
-    init(devices: [DeviceSummary] = [], jobs: [JobSummary] = []) {
+    init(devices: [DeviceSummary] = [], jobs: [JobSummary] = [], submitError: Error? = nil) {
         self.devices = devices
         self.jobs = jobs
+        self.submitError = submitError
     }
 
     func lastSubmittedExecutable() -> String? { submittedExecutable }
@@ -864,6 +1307,9 @@ private actor RecordingDaemonClient: LocalDaemonClientProtocol {
         submittedSelector = deviceSelector
         submittedWorkingDirectory = workingDirectory
         submittedOutputs = outputs
+        if let submitError {
+            throw submitError
+        }
         return jobSummary(
             id: submittedID,
             executable: executable,
@@ -951,6 +1397,15 @@ private func pairableDevice(id: String, name: String) -> DeviceSummary {
         address: "192.0.2.20:47823",
         canPair: true
     )
+}
+
+private func pairingSummary(id: String, peerName: String) -> PairingSummary {
+    var value = Computehop_Local_V1_Pairing()
+    value.id = id
+    value.peerName = peerName
+    value.verificationCode = "0123-4567-89AB-CDEF"
+    value.state = .waiting
+    return PairingSummary(value)
 }
 
 private func jobSummary(

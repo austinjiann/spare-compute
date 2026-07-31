@@ -25,6 +25,7 @@ import (
 
 const (
 	remoteDialTimeout      = 12 * time.Second
+	remoteStatusTimeout    = 2 * time.Second
 	snapshotPreflightBatch = 4_096
 	automaticWorker        = "auto"
 	bestWorker             = "best"
@@ -33,6 +34,7 @@ const (
 var (
 	ErrMissingRemoteDependency    = errors.New("remote job service dependency is required")
 	ErrRemoteWorkerUnavailable    = errors.New("paired worker is unavailable")
+	ErrRemoteWorkerIncompatible   = errors.New("paired worker is incompatible")
 	ErrRemotePlacementPersistence = errors.New("remote job was accepted but its placement could not be saved")
 	ErrRemoteSnapshotUnavailable  = errors.New("remote project snapshot is unavailable")
 )
@@ -246,19 +248,46 @@ func (service *RemoteJobService) Submit(
 	selector string,
 	spec job.Spec,
 ) (job.Job, error) {
-	peer, err := service.resolveTrustedWorker(ctx, selector)
+	return service.submit(ctx, selector, "", spec)
+}
+
+// SubmitWithID submits a remote job using a caller-provided UUID when the
+// selected worker supports it. This lets UI clients attach preparation and
+// upload progress to a stable job ID before final worker acceptance.
+func (service *RemoteJobService) SubmitWithID(
+	ctx context.Context,
+	selector string,
+	id job.ID,
+	spec job.Spec,
+) (job.Job, error) {
+	if !id.Valid() {
+		return job.Job{}, job.ErrInvalidID
+	}
+	return service.submit(ctx, selector, id, spec)
+}
+
+func (service *RemoteJobService) submit(
+	ctx context.Context,
+	selector string,
+	requestedID job.ID,
+	spec job.Spec,
+) (job.Job, error) {
+	peer, err := service.resolveSubmitWorker(ctx, selector, spec)
 	if err != nil {
 		return job.Job{}, err
 	}
 	if service.snapshots != nil && strings.TrimSpace(spec.WorkingDirectory) != "" {
-		return service.submitSnapshot(ctx, peer, spec)
+		return service.submitSnapshot(ctx, peer, requestedID, spec)
 	}
 	message, err := mapper.SpecToRemoteProto(spec)
 	if err != nil {
 		return job.Job{}, err
 	}
 	response, err := service.call(ctx, peer, &computehopv1.RemoteRequest{
-		Operation: &computehopv1.RemoteRequest_SubmitJob{SubmitJob: &computehopv1.SubmitJobRequest{Spec: message}},
+		Operation: &computehopv1.RemoteRequest_SubmitJob{SubmitJob: &computehopv1.SubmitJobRequest{
+			Spec:  message,
+			JobId: string(requestedID),
+		}},
 	})
 	if err != nil {
 		return job.Job{}, err
@@ -266,9 +295,47 @@ func (service *RemoteJobService) Submit(
 	return service.acceptSubmitted(ctx, peer, response)
 }
 
+func (service *RemoteJobService) resolveSubmitWorker(
+	ctx context.Context,
+	selector string,
+	spec job.Spec,
+) (trust.Peer, error) {
+	selector = strings.TrimSpace(selector)
+	if selector == "" {
+		return trust.Peer{}, trust.ErrNotFound
+	}
+	peers, err := service.trust.List(ctx)
+	if err != nil {
+		return trust.Peer{}, err
+	}
+	if isAutomaticWorkerSelector(selector) {
+		return service.resolveAutomaticWorkerForSpec(ctx, peers, spec)
+	}
+	matches := make([]trust.Peer, 0, 1)
+	for _, peer := range peers {
+		id := string(peer.DeviceID)
+		if peer.State == trust.StateActive && peer.Role == device.RoleWorker &&
+			(peer.Name == selector || id == selector || strings.HasPrefix(id, selector)) {
+			matches = append(matches, peer)
+		}
+	}
+	switch len(matches) {
+	case 0:
+		return trust.Peer{}, fmt.Errorf("%w: active worker %s", trust.ErrNotFound, selector)
+	case 1:
+		if err := service.preflightWorkerTools(ctx, matches[0], spec); err != nil {
+			return trust.Peer{}, err
+		}
+		return matches[0], nil
+	default:
+		return trust.Peer{}, fmt.Errorf("%w: %s matches %d active workers", trust.ErrConflict, selector, len(matches))
+	}
+}
+
 func (service *RemoteJobService) submitSnapshot(
 	ctx context.Context,
 	peer trust.Peer,
+	requestedID job.ID,
 	spec job.Spec,
 ) (job.Job, error) {
 	if strings.TrimSpace(spec.WorkingDirectory) == "" {
@@ -277,11 +344,26 @@ func (service *RemoteJobService) submitSnapshot(
 			ErrRemoteSnapshotUnavailable,
 		)
 	}
+	submissionID := requestedID
+	if !submissionID.Valid() {
+		var err error
+		submissionID, err = job.NewID()
+		if err != nil {
+			return job.Job{}, err
+		}
+	}
+	defer func() {
+		_ = service.clearProgress(context.WithoutCancel(ctx), submissionID)
+	}()
 	release := beginCacheUse(service.content)
 	defer release()
 	project, err := service.snapshots.Build(ctx, spec.WorkingDirectory)
 	if err != nil {
 		return job.Job{}, fmt.Errorf("create project snapshot: %w", err)
+	}
+	snapshotBytes := max(project.Manifest.TotalBytes, 1)
+	if err := service.setProgress(ctx, submissionID, job.ProgressSnapshot, snapshotBytes, snapshotBytes); err != nil {
+		return job.Job{}, err
 	}
 	manifestMessage, err := mapper.ManifestToRemoteProto(project.Manifest)
 	if err != nil {
@@ -300,6 +382,13 @@ func (service *RemoteJobService) submitSnapshot(
 	if err != nil {
 		return job.Job{}, err
 	}
+	uploadBytes := digestBytes(project.Manifest, missing)
+	if uploadBytes > 0 {
+		if err := service.setProgress(ctx, submissionID, job.ProgressUpload, 0, uploadBytes); err != nil {
+			return job.Job{}, err
+		}
+	}
+	completedUploadBytes := int64(0)
 	for _, digest := range missing {
 		contents, err := service.content.Read(ctx, digest)
 		if err != nil {
@@ -325,6 +414,12 @@ func (service *RemoteJobService) submitSnapshot(
 		if response.GetPutChunk() == nil || response.GetPutChunk().GetDigest() != string(digest) {
 			return job.Job{}, remoteprotocol.ErrInvalidMessage
 		}
+		if uploadBytes > 0 {
+			completedUploadBytes += digestBytes(project.Manifest, []snapshot.Digest{digest})
+			if err := service.setProgress(ctx, submissionID, job.ProgressUpload, completedUploadBytes, uploadBytes); err != nil {
+				return job.Job{}, err
+			}
+		}
 	}
 	remoteSpec := spec.Clone()
 	remoteSpec.WorkingDirectory = ""
@@ -336,6 +431,7 @@ func (service *RemoteJobService) submitSnapshot(
 		Operation: &computehopv1.RemoteRequest_SubmitJob{SubmitJob: &computehopv1.SubmitJobRequest{
 			Spec: specMessage, Snapshot: manifestMessage,
 			WorkingSubdirectory: project.WorkingSubdirectory,
+			JobId:               string(submissionID),
 		}},
 	})
 	if err != nil {
@@ -527,6 +623,16 @@ func (service *RemoteJobService) Cancel(
 	return service.withLocalProgress(ctx, value)
 }
 
+// GetProgress returns local orchestrator-owned transfer/preparation progress
+// for a worker-owned job ID, including progress recorded before the worker
+// accepts the final remote submission.
+func (service *RemoteJobService) GetProgress(ctx context.Context, _ string, id job.ID) (*job.Progress, error) {
+	if service.progress == nil {
+		return nil, nil
+	}
+	return service.progress.GetProgress(ctx, id)
+}
+
 func (service *RemoteJobService) ReadLogs(
 	ctx context.Context,
 	selector string,
@@ -587,6 +693,13 @@ func (service *RemoteJobService) setProgress(
 		Phase: phase, CompletedBytes: completedBytes, TotalBytes: totalBytes,
 		UpdatedAt: time.Now().UTC(),
 	})
+}
+
+func (service *RemoteJobService) clearProgress(ctx context.Context, id job.ID) error {
+	if service.progress == nil || !id.Valid() {
+		return nil
+	}
+	return service.progress.ClearProgress(ctx, id)
 }
 
 func (service *RemoteJobService) withLocalProgress(ctx context.Context, value job.Job) (job.Job, error) {
@@ -650,10 +763,11 @@ func (service *RemoteJobService) call(
 		return nil, err
 	}
 	response, callErr := caller.Call(ctx, request)
-	closeErr := caller.Close()
 	if callErr != nil {
+		closeErr := caller.Close()
 		return nil, errors.Join(callErr, closeErr)
 	}
+	closeErr := caller.Close()
 	if closeErr != nil {
 		return nil, closeErr
 	}
@@ -691,7 +805,24 @@ func (service *RemoteJobService) open(
 			return caller, nil
 		}
 	}
-	return nil, fmt.Errorf("%w: %s: %v", ErrRemoteWorkerUnavailable, peer.Name, errors.Join(failures...))
+	return nil, workerUnreachableError(peer, failures)
+}
+
+func workerUnreachableError(peer trust.Peer, failures []error) error {
+	cause := errors.Join(failures...)
+	if cause == nil {
+		return fmt.Errorf(
+			"%w: %s is not reachable. Start ComputeHop on that worker, put both devices on the same LAN, then run 'computehop smoke'. For cross-network workers, run 'computehop setup vps'",
+			ErrRemoteWorkerUnavailable,
+			peer.Name,
+		)
+	}
+	return fmt.Errorf(
+		"%w: %s is not reachable. Start ComputeHop on that worker, put both devices on the same LAN, then run 'computehop smoke'. For cross-network workers, run 'computehop setup vps'. Last error: %w",
+		ErrRemoteWorkerUnavailable,
+		peer.Name,
+		cause,
+	)
 }
 
 func (service *RemoteJobService) resolveJobWorker(
@@ -738,7 +869,7 @@ func (service *RemoteJobService) resolveTrustedWorker(ctx context.Context, selec
 		return trust.Peer{}, err
 	}
 	if isAutomaticWorkerSelector(selector) {
-		return resolveAutomaticWorker(peers)
+		return service.resolveAutomaticWorker(ctx, peers)
 	}
 	matches := make([]trust.Peer, 0, 1)
 	for _, peer := range peers {
@@ -767,27 +898,247 @@ func isAutomaticWorkerSelector(selector string) bool {
 	}
 }
 
-func resolveAutomaticWorker(peers []trust.Peer) (trust.Peer, error) {
-	candidates := make([]trust.Peer, 0, 1)
+func (service *RemoteJobService) resolveAutomaticWorker(ctx context.Context, peers []trust.Peer) (trust.Peer, error) {
+	candidates := make([]rankedAutomaticWorker, 0, 1)
+	scores := service.workerResourceScores(ctx, peers)
 	for _, peer := range peers {
 		if peer.State == trust.StateActive && peer.Role == device.RoleWorker {
-			candidates = append(candidates, peer)
+			candidates = append(candidates, rankedAutomaticWorker{
+				peer:  peer,
+				score: scores[peer.DeviceID],
+			})
 		}
 	}
-	switch len(candidates) {
-	case 0:
+	if len(candidates) == 0 {
 		return trust.Peer{}, fmt.Errorf(
 			"%w: no active paired worker is available for --on auto; run 'computehop connect nearby' when one nearby worker is visible, or run 'computehop devices' to choose a worker",
 			ErrRemoteWorkerUnavailable,
 		)
-	case 1:
-		return candidates[0], nil
-	default:
+	}
+	sort.Slice(candidates, func(left, right int) bool {
+		if candidates[left].score != candidates[right].score {
+			return candidates[left].score > candidates[right].score
+		}
+		return string(candidates[left].peer.DeviceID) < string(candidates[right].peer.DeviceID)
+	})
+	return candidates[0].peer, nil
+}
+
+func (service *RemoteJobService) resolveAutomaticWorkerForSpec(
+	ctx context.Context,
+	peers []trust.Peer,
+	spec job.Spec,
+) (trust.Peer, error) {
+	candidates := make([]rankedAutomaticWorker, 0, 1)
+	scores := service.workerResourceScores(ctx, peers)
+	incompatible := 0
+	for _, peer := range peers {
+		if peer.State != trust.StateActive || peer.Role != device.RoleWorker {
+			continue
+		}
+		if err := service.preflightWorkerTools(ctx, peer, spec); err != nil {
+			if errors.Is(err, ErrRemoteWorkerIncompatible) {
+				incompatible++
+				continue
+			}
+			return trust.Peer{}, err
+		}
+		candidates = append(candidates, rankedAutomaticWorker{
+			peer:  peer,
+			score: scores[peer.DeviceID],
+		})
+	}
+	if len(candidates) == 0 {
+		required := requiredToolIDs(spec)
+		if incompatible > 0 && len(required) > 0 {
+			return trust.Peer{}, fmt.Errorf(
+				"%w: no active paired worker reports %s; choose another worker or install %s on a worker",
+				ErrRemoteWorkerIncompatible,
+				toolList(required),
+				toolList(required),
+			)
+		}
 		return trust.Peer{}, fmt.Errorf(
-			"%w: more than one active paired worker is available for --on auto; run 'computehop devices', then choose one with 'computehop run --on <device> ...'",
-			trust.ErrConflict,
+			"%w: no active paired worker is available for --on auto; run 'computehop connect nearby' when one nearby worker is visible, or run 'computehop devices' to choose a worker",
+			ErrRemoteWorkerUnavailable,
 		)
 	}
+	sort.Slice(candidates, func(left, right int) bool {
+		if candidates[left].score != candidates[right].score {
+			return candidates[left].score > candidates[right].score
+		}
+		return string(candidates[left].peer.DeviceID) < string(candidates[right].peer.DeviceID)
+	})
+	return candidates[0].peer, nil
+}
+
+type rankedAutomaticWorker struct {
+	peer  trust.Peer
+	score uint64
+}
+
+func (service *RemoteJobService) workerResourceScores(ctx context.Context, peers []trust.Peer) map[device.ID]uint64 {
+	scores := make(map[device.ID]uint64)
+	for _, peer := range peers {
+		if peer.State == trust.StateActive && peer.Role == device.RoleWorker {
+			scores[peer.DeviceID] = resourceScore(peer.LogicalCPUCount, peer.TotalMemoryBytes)
+		}
+	}
+	snapshot, err := service.nearby.ListNearby(ctx)
+	if err == nil {
+		for id, hints := range trust.MatchNearbyHints(peers, snapshot.Devices) {
+			score := resourceScore(hints.LogicalCPUCount, hints.TotalMemoryBytes)
+			if score > scores[id] {
+				scores[id] = score
+			}
+			if _, err := service.trust.UpdateHints(ctx, id, hints); err != nil {
+				continue
+			}
+		}
+	}
+	for _, peer := range peers {
+		if score, ok := service.authenticatedWorkerResourceScore(ctx, peer); ok && score > scores[peer.DeviceID] {
+			scores[peer.DeviceID] = score
+		}
+	}
+	return scores
+}
+
+func resourceScore(logicalCPUCount uint32, totalMemoryBytes uint64) uint64 {
+	return uint64(logicalCPUCount)*1_000 + totalMemoryBytes/(1<<30)
+}
+
+func (service *RemoteJobService) authenticatedWorkerResourceScore(ctx context.Context, peer trust.Peer) (uint64, bool) {
+	hints, ok := service.authenticatedWorkerHints(ctx, peer)
+	if !ok {
+		return 0, false
+	}
+	return resourceScore(hints.LogicalCPUCount, hints.TotalMemoryBytes), true
+}
+
+func (service *RemoteJobService) authenticatedWorkerHints(ctx context.Context, peer trust.Peer) (trust.PeerHints, bool) {
+	if peer.State != trust.StateActive || peer.Role != device.RoleWorker {
+		return trust.PeerHints{}, false
+	}
+	statusContext := ctx
+	var cancel context.CancelFunc
+	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
+		statusContext, cancel = context.WithTimeout(ctx, remoteStatusTimeout)
+		defer cancel()
+	}
+	response, err := service.call(statusContext, peer, &computehopv1.RemoteRequest{
+		Operation: &computehopv1.RemoteRequest_GetWorkerStatus{
+			GetWorkerStatus: &computehopv1.GetWorkerStatusRequest{},
+		},
+	})
+	if err != nil {
+		return trust.PeerHints{}, false
+	}
+	return service.updateHintsFromWorkerStatus(ctx, peer, response.GetGetWorkerStatus())
+}
+
+func (service *RemoteJobService) updateHintsFromWorkerStatus(
+	ctx context.Context,
+	peer trust.Peer,
+	status *computehopv1.GetWorkerStatusResponse,
+) (trust.PeerHints, bool) {
+	if status == nil {
+		return trust.PeerHints{}, false
+	}
+	hints := trust.PeerHints{
+		Platform:         status.GetPlatform(),
+		Architecture:     status.GetArch(),
+		LogicalCPUCount:  status.GetLogicalCpuCount(),
+		TotalMemoryBytes: status.GetTotalMemoryBytes(),
+		ToolIDs:          append([]string(nil), status.GetToolIds()...),
+		ObservedAt:       time.Now().UTC(),
+	}
+	if hints.Validate() != nil {
+		return trust.PeerHints{}, false
+	}
+	_, _ = service.trust.UpdateHints(ctx, peer.DeviceID, hints)
+	return hints, true
+}
+
+func (service *RemoteJobService) preflightWorkerTools(ctx context.Context, peer trust.Peer, spec job.Spec) error {
+	required := requiredToolIDs(spec)
+	if len(required) == 0 {
+		return nil
+	}
+	if hints, ok := service.authenticatedWorkerHints(ctx, peer); ok && len(hints.ToolIDs) > 0 {
+		if missing := missingToolIDs(hints.ToolIDs, required); len(missing) > 0 {
+			return missingWorkerToolError(peer, missing)
+		}
+		return nil
+	}
+	if len(peer.ToolIDs) > 0 {
+		if missing := missingToolIDs(peer.ToolIDs, required); len(missing) > 0 {
+			return missingWorkerToolError(peer, missing)
+		}
+	}
+	return nil
+}
+
+func missingWorkerToolError(peer trust.Peer, toolIDs []string) error {
+	label := toolList(toolIDs)
+	return fmt.Errorf(
+		"%w: %s does not report %s; choose another worker or install %s on that worker",
+		ErrRemoteWorkerIncompatible,
+		peer.Name,
+		label,
+		label,
+	)
+}
+
+func missingToolIDs(values []string, required []string) []string {
+	missing := make([]string, 0)
+	for _, toolID := range required {
+		if !toolIDSetContains(values, toolID) {
+			missing = append(missing, toolID)
+		}
+	}
+	return missing
+}
+
+func toolIDSetContains(values []string, required string) bool {
+	for _, value := range values {
+		if value == required {
+			return true
+		}
+	}
+	return false
+}
+
+func requiredToolIDs(spec job.Spec) []string {
+	values := append([]string(nil), spec.RequiredToolIDs...)
+	if executable := requiredToolID(spec.Executable); executable != "" {
+		values = append(values, executable)
+	}
+	slices.Sort(values)
+	return slices.Compact(values)
+}
+
+func requiredToolID(executable string) string {
+	value := strings.TrimSpace(executable)
+	if value == "" || strings.HasPrefix(value, "./") || strings.HasPrefix(value, "../") {
+		return ""
+	}
+	value = strings.ReplaceAll(value, "\\", "/")
+	if index := strings.LastIndex(value, "/"); index >= 0 {
+		value = value[index+1:]
+	}
+	value = strings.ToLower(strings.TrimSpace(value))
+	for _, suffix := range []string{".exe", ".cmd", ".bat"} {
+		value = strings.TrimSuffix(value, suffix)
+	}
+	return value
+}
+
+func toolList(values []string) string {
+	if len(values) == 0 {
+		return "the needed tools"
+	}
+	return strings.Join(values, ", ")
 }
 
 func (service *RemoteJobService) nearbyCandidates(ctx context.Context, peer trust.Peer) ([]device.NearbyDevice, error) {

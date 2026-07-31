@@ -21,6 +21,42 @@
           <input id="lan-discovery" type="checkbox" checked aria-label="Find nearby devices" />
         </header>
 
+        <section id="daemon-card" class="daemon-card hidden">
+          <div>
+            <strong>ComputeHop is off</strong>
+            <small>Start this computer as the controller or as a worker.</small>
+          </div>
+          <div class="daemon-actions">
+            <select id="daemon-role" aria-label="ComputeHop role">
+              <option value="orchestrator">Control Mac</option>
+              <option value="worker">Worker</option>
+            </select>
+            <button id="start-daemon" class="primary-button">Start</button>
+          </div>
+        </section>
+
+        <section id="background-card" class="background-card hidden">
+          <div>
+            <strong id="background-title">This session only</strong>
+            <small id="background-detail">Checking background service…</small>
+          </div>
+          <span class="background-actions">
+            <span id="background-pill" class="status-pill">Checking</span>
+            <button id="background-action" class="pill-button hidden">Set up</button>
+          </span>
+        </section>
+
+        <div class="divider"></div>
+
+        <section id="worker-readiness-card" class="readiness-card">
+          <span id="worker-readiness-dot" class="readiness-dot"></span>
+          <div class="readiness-copy">
+            <strong id="worker-readiness-title">Checking workers</strong>
+            <small id="worker-readiness-detail">Looking for computers that can run tasks.</small>
+          </div>
+          <button id="worker-readiness-action" class="pill-button hidden">Refresh</button>
+        </section>
+
         <div class="divider"></div>
 
         <section class="section">
@@ -42,11 +78,19 @@
           </div>
           <div class="run-box">
             <input id="command-input" placeholder="Run tests, build the app, check CI, or type a command" />
+            <div id="task-suggestions" class="task-suggestions hidden" aria-label="Suggested tasks"></div>
             <div class="run-actions">
               <button id="choose-project" class="pill-button">Project</button>
               <span id="project-label" class="project-label">No project</span>
+              <button id="clear-project" class="text-button hidden">Clear</button>
+              <button id="test-device" class="pill-button">Test</button>
               <button id="run-job" class="primary-button">Run</button>
             </div>
+            <div id="run-status" class="run-status hidden">
+              <span id="run-status-text"></span>
+              <button id="run-status-action" class="text-button hidden">Refresh</button>
+            </div>
+            <input id="outputs-input" placeholder="Bring back files or folders, optional: dist, report.pdf" />
           </div>
           <div id="plan-preview" class="plan-preview hidden">
             <div>
@@ -61,7 +105,19 @@
         <div class="divider"></div>
 
         <section class="section">
-          <h2>Allow</h2>
+          <div class="section-title">
+            <h2>Recent jobs</h2>
+            <button id="refresh-jobs" class="text-button">Refresh</button>
+          </div>
+          <div id="job-list" class="job-list"></div>
+          <pre id="job-log" class="output hidden"></pre>
+          <p id="job-error" class="error hidden"></p>
+        </section>
+
+        <div class="divider"></div>
+
+        <section class="section">
+          <h2>Allow on selected device</h2>
           <div id="capability-grid" class="check-grid"></div>
         </section>
 
@@ -72,17 +128,37 @@
           <input id="ask-before-run" type="checkbox" checked />
         </label>
 
-        <label class="field hidden">
-          <span>Planner</span>
-          <select id="ai-provider">
-            <option value="off">Local rules for now</option>
-            <option value="openai">OpenAI later</option>
-            <option value="local">Local model later</option>
-          </select>
-        </label>
+        <div class="divider"></div>
+
+        <section class="section">
+          <div class="section-title">
+            <h2>AI planner</h2>
+            <span id="ai-planner-status" class="section-meta">Off</span>
+          </div>
+          <div class="settings-box">
+            <input id="ai-api-key" type="password" placeholder="OpenAI API key, optional; blank keeps saved key" autocomplete="off" />
+            <input id="ai-model" placeholder="Model, default: gpt-5.6" />
+            <div class="settings-actions">
+              <button id="save-ai-planner" class="pill-button">Save</button>
+              <button id="clear-ai-planner" class="text-button">Clear</button>
+            </div>
+            <small id="ai-planner-detail">Local planning works without an API key.</small>
+          </div>
+        </section>
+
       </section>
     </main>
 
+    <script src="./device-targets.js"></script>
+    <script src="./device-status.js"></script>
+    <script src="./work-policy.js"></script>
+    <script src="./output-path.js"></script>
+    <script src="./run-request.js"></script>
+    <script src="./run-summary.js"></script>
+    <script src="./job-list.js"></script>
+    <script src="./job-failure.js"></script>
+    <script src="./output-restore.js"></script>
+    <script src="./daemon-autostart.js"></script>
     <script src="./renderer.js"></script>
   </body>
 </html>

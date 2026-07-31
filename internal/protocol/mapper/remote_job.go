@@ -63,7 +63,8 @@ func SpecToRemoteProto(spec job.Spec) (*computehopv1.JobSpec, error) {
 		Executable: spec.Executable, Arguments: append([]string(nil), spec.Arguments...),
 		WorkingDirectory: spec.WorkingDirectory, Environment: cloneMap(spec.Environment),
 		Executor: executor, ContainerImage: spec.ContainerImage,
-		Outputs: append([]string(nil), spec.Outputs...),
+		Outputs:         append([]string(nil), spec.Outputs...),
+		RequiredToolIds: append([]string(nil), spec.RequiredToolIDs...),
 	}, nil
 }
 
@@ -80,7 +81,8 @@ func SpecFromRemoteProto(message *computehopv1.JobSpec) (job.Spec, error) {
 		Executable: message.GetExecutable(), Arguments: append([]string(nil), message.GetArguments()...),
 		WorkingDirectory: message.GetWorkingDirectory(), Environment: cloneMap(message.GetEnvironment()),
 		Executor: executor, ContainerImage: message.GetContainerImage(),
-		Outputs: append([]string(nil), message.GetOutputs()...),
+		Outputs:         append([]string(nil), message.GetOutputs()...),
+		RequiredToolIDs: append([]string(nil), message.GetRequiredToolIds()...),
 	}
 	if err := spec.Validate(); err != nil {
 		return job.Spec{}, err

@@ -72,18 +72,24 @@ func (id PresenceID) Short() string {
 
 // Announcement contains only untrusted LAN presentation and routing hints.
 type Announcement struct {
-	PresenceID      PresenceID
-	Name            string
-	Role            Role
-	ProtocolVersion uint32
-	Port            uint16
-	EndpointReady   bool
+	PresenceID       PresenceID
+	Name             string
+	Role             Role
+	ProtocolVersion  uint32
+	Port             uint16
+	EndpointReady    bool
+	Platform         string
+	Architecture     string
+	LogicalCPUCount  uint32
+	TotalMemoryBytes uint64
 }
 
 func (announcement Announcement) Validate() error {
 	if !announcement.PresenceID.Valid() || validateName(announcement.Name) != nil ||
 		(announcement.Role != RoleWorker && announcement.Role != RoleOrchestrator) ||
-		announcement.ProtocolVersion == 0 || announcement.Port == 0 {
+		announcement.ProtocolVersion == 0 || announcement.Port == 0 ||
+		validateHint(announcement.Platform) != nil || validateHint(announcement.Architecture) != nil ||
+		announcement.LogicalCPUCount > 4096 {
 		return ErrInvalidAnnouncement
 	}
 	return nil
@@ -157,4 +163,19 @@ func validateName(name string) error {
 // ValidateName checks a user-visible device name at every trust boundary.
 func ValidateName(name string) error {
 	return validateName(name)
+}
+
+func validateHint(value string) error {
+	if value == "" {
+		return nil
+	}
+	if strings.TrimSpace(value) != value || len(value) > 32 || !utf8.ValidString(value) {
+		return ErrInvalidAnnouncement
+	}
+	for _, character := range value {
+		if unicode.IsControl(character) || unicode.IsSpace(character) || character == '=' {
+			return ErrInvalidAnnouncement
+		}
+	}
+	return nil
 }

@@ -108,6 +108,20 @@ class LocalDaemonClient {
     return response.unpairDevice?.device || null;
   }
 
+  async listJobs(options = {}) {
+    const response = await this.call(
+      {
+        listJobs: {
+          states: options.states || [],
+          limit: options.limit || 20,
+          deviceSelector: options.deviceSelector || ""
+        }
+      },
+      options
+    );
+    return response.listJobs?.jobs || [];
+  }
+
   async submitJob(jobRequest, options = {}) {
     const response = await this.call(
       {
@@ -118,14 +132,29 @@ class LocalDaemonClient {
             workingDirectory: jobRequest.workingDirectory || "",
             environment: {},
             executor: enumValues.executorNative,
-            outputs: jobRequest.outputs || []
+            outputs: jobRequest.outputs || [],
+            requiredToolIds: jobRequest.requiredToolIDs || jobRequest.requiredToolIds || []
           },
-          deviceSelector: jobRequest.deviceSelector || ""
+          deviceSelector: jobRequest.deviceSelector || "",
+          jobId: jobRequest.jobID || ""
         }
       },
       { timeoutMs: SUBMIT_TIMEOUT_MS, ...options }
     );
     return response.submitJob?.job || null;
+  }
+
+  async getJobProgress(jobID, options = {}) {
+    const response = await this.call(
+      {
+        getJobProgress: {
+          jobId: jobID,
+          deviceSelector: options.deviceSelector || ""
+        }
+      },
+      options
+    );
+    return response.getJobProgress?.progress || null;
   }
 
   async readJobLogs(jobID, options = {}) {
@@ -154,6 +183,20 @@ class LocalDaemonClient {
       options
     );
     return response.cancelJob?.job || null;
+  }
+
+  async fetchArtifacts(jobID, options = {}) {
+    const response = await this.call(
+      {
+        fetchArtifacts: {
+          jobId: jobID,
+          deviceSelector: options.deviceSelector || "",
+          destination: options.destination || ""
+        }
+      },
+      { timeoutMs: SUBMIT_TIMEOUT_MS, ...options }
+    );
+    return response.fetchArtifacts || {};
   }
 
   async call(operation, options = {}) {

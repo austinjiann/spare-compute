@@ -45,6 +45,52 @@ func TestCallAndServeCorrelateOneOperation(t *testing.T) {
 	<-served
 }
 
+func TestCallAndServeAcceptStatusAndArtifactAcknowledgementOperations(t *testing.T) {
+	client, server := net.Pipe()
+	defer client.Close()
+	defer server.Close()
+	go Serve(context.Background(), server, HandlerFunc(func(
+		_ context.Context,
+		request *computehopv1.RemoteRequest,
+	) *computehopv1.RemoteResponse {
+		switch request.GetOperation().(type) {
+		case *computehopv1.RemoteRequest_GetWorkerStatus:
+			return &computehopv1.RemoteResponse{Result: &computehopv1.RemoteResponse_GetWorkerStatus{
+				GetWorkerStatus: &computehopv1.GetWorkerStatusResponse{
+					Platform: "linux", Arch: "amd64", LogicalCpuCount: 32, TotalMemoryBytes: 64 << 30,
+				},
+			}}
+		default:
+			t.Fatalf("request = %#v", request)
+			return nil
+		}
+	}))
+	response, err := Call(context.Background(), client, &computehopv1.RemoteRequest{
+		Operation: &computehopv1.RemoteRequest_GetWorkerStatus{
+			GetWorkerStatus: &computehopv1.GetWorkerStatusRequest{},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.GetGetWorkerStatus().GetLogicalCpuCount() != 32 {
+		t.Fatalf("status response = %#v", response)
+	}
+
+	ack := &computehopv1.RemoteRequest{Operation: &computehopv1.RemoteRequest_AcknowledgeJobArtifacts{
+		AcknowledgeJobArtifacts: &computehopv1.AcknowledgeJobArtifactsRequest{JobId: "job-id"},
+	}}
+	if hasUnknownRequestFields(ack) {
+		t.Fatal("known artifact acknowledgement request was rejected")
+	}
+	ackResponse := &computehopv1.RemoteResponse{Result: &computehopv1.RemoteResponse_AcknowledgeJobArtifacts{
+		AcknowledgeJobArtifacts: &computehopv1.AcknowledgeJobArtifactsResponse{JobId: "job-id"},
+	}}
+	if hasUnknownResponseFields(ackResponse) {
+		t.Fatal("known artifact acknowledgement response was rejected")
+	}
+}
+
 func validRemoteTestJob(id string) *computehopv1.Job {
 	return &computehopv1.Job{
 		Id: id,

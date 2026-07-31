@@ -40,6 +40,18 @@ type JobController interface {
 	ReadLogs(context.Context, job.ID, uint64, int) (worker.JobLogs, error)
 }
 
+// JobIDController is implemented by local job services that can accept a
+// client-provided durable job ID.
+type JobIDController interface {
+	SubmitWithID(context.Context, job.ID, job.Spec) (job.Job, error)
+}
+
+// JobProgressController exposes progress records that may exist before or
+// independent of a durable local job row.
+type JobProgressController interface {
+	GetProgress(context.Context, job.ID) (*job.Progress, error)
+}
+
 // PairedJobController routes explicit operations to one trusted LAN worker.
 type PairedJobController interface {
 	Submit(context.Context, string, job.Spec) (job.Job, error)
@@ -47,6 +59,18 @@ type PairedJobController interface {
 	List(context.Context, string, job.ListOptions) ([]job.Job, error)
 	Cancel(context.Context, string, job.ID) (job.Job, error)
 	ReadLogs(context.Context, string, job.ID, uint64, int) (worker.JobLogs, error)
+}
+
+// PairedJobIDController is implemented by remote job services that can forward
+// a client-provided durable job ID to compatible workers.
+type PairedJobIDController interface {
+	SubmitWithID(context.Context, string, job.ID, job.Spec) (job.Job, error)
+}
+
+// PairedJobProgressController exposes orchestrator-owned transfer/preparation
+// progress for worker-owned jobs.
+type PairedJobProgressController interface {
+	GetProgress(context.Context, string, job.ID) (*job.Progress, error)
 }
 
 // LocalArtifactController restores outputs owned by this daemon.
@@ -74,6 +98,10 @@ type PairingController interface {
 	Unpair(context.Context, string) (trust.Peer, error)
 }
 
+type TrustedHintRefresher interface {
+	RefreshTrustedHints(context.Context, device.DiscoverySnapshot) ([]trust.Peer, error)
+}
+
 // ConnectivityController exposes secret-free reachability state for local UI.
 type ConnectivityController interface {
 	States() []remoteconn.State
@@ -81,14 +109,20 @@ type ConnectivityController interface {
 
 // LocalDeviceInfo is the secret-free local daemon identity exposed to local UI.
 type LocalDeviceInfo struct {
-	DeviceID device.ID
-	Name     string
-	Role     device.Role
+	DeviceID         device.ID
+	Name             string
+	Role             device.Role
+	Platform         string
+	Architecture     string
+	LogicalCPUCount  uint32
+	TotalMemoryBytes uint64
+	ToolIDs          []string
 }
 
 func (info LocalDeviceInfo) Validate() error {
 	if !info.DeviceID.Valid() || device.ValidateName(info.Name) != nil ||
-		(info.Role != device.RoleWorker && info.Role != device.RoleOrchestrator) {
+		(info.Role != device.RoleWorker && info.Role != device.RoleOrchestrator) ||
+		info.LogicalCPUCount > 4096 {
 		return ErrInvalidLocalDevice
 	}
 	return nil
@@ -181,6 +215,11 @@ func (handler *LocalHandler) Handle(ctx context.Context, request *localv1.Reques
 			ping.DeviceId = string(handler.local.DeviceID)
 			ping.DeviceName = handler.local.Name
 			ping.Role = localDeviceRoleToProto(handler.local.Role)
+			ping.Platform = handler.local.Platform
+			ping.Arch = handler.local.Architecture
+			ping.LogicalCpuCount = handler.local.LogicalCPUCount
+			ping.TotalMemoryBytes = handler.local.TotalMemoryBytes
+			ping.ToolIds = append([]string(nil), handler.local.ToolIDs...)
 		}
 		return &localv1.Response{Result: &localv1.Response_Ping{Ping: ping}}
 	case *localv1.Request_SubmitJob:
@@ -209,6 +248,8 @@ func (handler *LocalHandler) Handle(ctx context.Context, request *localv1.Reques
 		return handler.unpairDevice(ctx, operation.UnpairDevice)
 	case *localv1.Request_FetchArtifacts:
 		return handler.fetchArtifacts(ctx, operation.FetchArtifacts)
+	case *localv1.Request_GetJobProgress:
+		return handler.getJobProgress(ctx, operation.GetJobProgress)
 	default:
 		return failureResponse(localv1.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "unsupported local operation")
 	}
@@ -287,7 +328,7 @@ func (handler *LocalHandler) listDevices(
 	if err != nil {
 		return errorResponse(err)
 	}
-	trusted, err := handler.pairings.ListTrusted(ctx)
+	trusted, err := handler.listTrustedWithHints(ctx, snapshot)
 	if err != nil {
 		return errorResponse(err)
 	}
@@ -296,6 +337,16 @@ func (handler *LocalHandler) listDevices(
 		return errorResponse(err)
 	}
 	return &localv1.Response{Result: &localv1.Response_ListDevices{ListDevices: message}}
+}
+
+func (handler *LocalHandler) listTrustedWithHints(
+	ctx context.Context,
+	snapshot device.DiscoverySnapshot,
+) ([]trust.Peer, error) {
+	if refresher, ok := handler.pairings.(TrustedHintRefresher); ok {
+		return refresher.RefreshTrustedHints(ctx, snapshot)
+	}
+	return handler.pairings.ListTrusted(ctx)
 }
 
 func (handler *LocalHandler) beginPairing(ctx context.Context, request *localv1.BeginPairingRequest) *localv1.Response {
@@ -516,11 +567,40 @@ func (handler *LocalHandler) submit(
 	if err != nil {
 		return errorResponse(err)
 	}
+	var requestedID job.ID
+	if request.GetJobId() != "" {
+		requestedID, err = job.ParseID(request.GetJobId())
+		if err != nil {
+			return errorResponse(err)
+		}
+	}
 	var value job.Job
 	if request.GetDeviceSelector() == "" {
-		value, err = handler.jobs.Submit(ctx, spec)
+		if requestedID.Valid() {
+			controller, ok := handler.jobs.(JobIDController)
+			if !ok {
+				return failureResponse(
+					localv1.ErrorCode_ERROR_CODE_UNSUPPORTED_VERSION,
+					"local daemon does not support client-provided job IDs",
+				)
+			}
+			value, err = controller.SubmitWithID(ctx, requestedID, spec)
+		} else {
+			value, err = handler.jobs.Submit(ctx, spec)
+		}
 	} else {
-		value, err = handler.remote.Submit(ctx, request.GetDeviceSelector(), spec)
+		if requestedID.Valid() {
+			controller, ok := handler.remote.(PairedJobIDController)
+			if !ok {
+				return failureResponse(
+					localv1.ErrorCode_ERROR_CODE_UNSUPPORTED_VERSION,
+					"remote job controller does not support client-provided job IDs",
+				)
+			}
+			value, err = controller.SubmitWithID(ctx, request.GetDeviceSelector(), requestedID, spec)
+		} else {
+			value, err = handler.remote.Submit(ctx, request.GetDeviceSelector(), spec)
+		}
 	}
 	if err != nil {
 		return errorResponse(err)
@@ -562,6 +642,43 @@ func (handler *LocalHandler) get(ctx context.Context, request *localv1.GetJobReq
 	return &localv1.Response{Result: &localv1.Response_GetJob{GetJob: &localv1.GetJobResponse{
 		Job: message,
 	}}}
+}
+
+func (handler *LocalHandler) getJobProgress(
+	ctx context.Context,
+	request *localv1.GetJobProgressRequest,
+) *localv1.Response {
+	if request == nil {
+		return failureResponse(localv1.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "progress request is required")
+	}
+	id, err := job.ParseID(request.GetJobId())
+	if err != nil {
+		return errorResponse(err)
+	}
+	var progress *job.Progress
+	if request.GetDeviceSelector() == "" {
+		controller, ok := handler.jobs.(JobProgressController)
+		if ok {
+			progress, err = controller.GetProgress(ctx, id)
+		}
+	} else {
+		controller, ok := handler.remote.(PairedJobProgressController)
+		if ok {
+			progress, err = controller.GetProgress(ctx, request.GetDeviceSelector(), id)
+		}
+	}
+	if err != nil {
+		return errorResponse(err)
+	}
+	response := &localv1.GetJobProgressResponse{}
+	if progress != nil {
+		message, err := mapper.ProgressToProto(*progress)
+		if err != nil {
+			return errorResponse(err)
+		}
+		response.Progress = message
+	}
+	return &localv1.Response{Result: &localv1.Response_GetJobProgress{GetJobProgress: response}}
 }
 
 func (handler *LocalHandler) list(ctx context.Context, request *localv1.ListJobsRequest) *localv1.Response {
@@ -694,7 +811,7 @@ func errorResponse(err error) *localv1.Response {
 		message = err.Error()
 	case errors.Is(err, job.ErrConflict), errors.Is(err, trust.ErrConflict), errors.Is(err, artifact.ErrConflict),
 		errors.Is(err, ErrNearbyDeviceAmbiguous), errors.Is(err, contentcache.ErrQuotaExceeded),
-		errors.Is(err, contentcache.ErrReservationLimit):
+		errors.Is(err, contentcache.ErrReservationLimit), errors.Is(err, ErrRemoteWorkerIncompatible):
 		code = localv1.ErrorCode_ERROR_CODE_CONFLICT
 		message = err.Error()
 	case errors.Is(err, worker.ErrJobTerminal):

@@ -685,6 +685,14 @@ public nonisolated struct Computehop_Local_V1_Request: Sendable {
     set {operation = .fetchArtifacts(newValue)}
   }
 
+  public var getJobProgress: Computehop_Local_V1_GetJobProgressRequest {
+    get {
+      if case .getJobProgress(let v)? = operation {return v}
+      return Computehop_Local_V1_GetJobProgressRequest()
+    }
+    set {operation = .getJobProgress(newValue)}
+  }
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public nonisolated enum OneOf_Operation: Equatable, Sendable {
@@ -702,6 +710,7 @@ public nonisolated struct Computehop_Local_V1_Request: Sendable {
     case listTrustedDevices(Computehop_Local_V1_ListTrustedDevicesRequest)
     case unpairDevice(Computehop_Local_V1_UnpairDeviceRequest)
     case fetchArtifacts(Computehop_Local_V1_FetchArtifactsRequest)
+    case getJobProgress(Computehop_Local_V1_GetJobProgressRequest)
 
   }
 
@@ -850,6 +859,14 @@ public nonisolated struct Computehop_Local_V1_Response: @unchecked Sendable {
     set {_uniqueStorage()._result = .fetchArtifacts(newValue)}
   }
 
+  public var getJobProgress: Computehop_Local_V1_GetJobProgressResponse {
+    get {
+      if case .getJobProgress(let v)? = _storage._result {return v}
+      return Computehop_Local_V1_GetJobProgressResponse()
+    }
+    set {_uniqueStorage()._result = .getJobProgress(newValue)}
+  }
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public nonisolated enum OneOf_Result: Equatable, Sendable {
@@ -867,6 +884,7 @@ public nonisolated struct Computehop_Local_V1_Response: @unchecked Sendable {
     case listTrustedDevices(Computehop_Local_V1_ListTrustedDevicesResponse)
     case unpairDevice(Computehop_Local_V1_UnpairDeviceResponse)
     case fetchArtifacts(Computehop_Local_V1_FetchArtifactsResponse)
+    case getJobProgress(Computehop_Local_V1_GetJobProgressResponse)
 
   }
 
@@ -898,6 +916,16 @@ public nonisolated struct Computehop_Local_V1_PingResponse: Sendable {
 
   public var role: Computehop_Local_V1_DeviceRole = .unspecified
 
+  public var platform: String = String()
+
+  public var arch: String = String()
+
+  public var logicalCpuCount: UInt32 = 0
+
+  public var totalMemoryBytes: UInt64 = 0
+
+  public var toolIds: [String] = []
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
@@ -918,6 +946,10 @@ public nonisolated struct Computehop_Local_V1_SubmitJobRequest: Sendable {
   public mutating func clearSpec() {self._spec = nil}
 
   public var deviceSelector: String = String()
+
+  /// Optional client-generated UUID. It lets UI clients know the job ID before
+  /// remote snapshot preparation/upload has finished.
+  public var jobID: String = String()
 
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -1344,6 +1376,41 @@ public nonisolated struct Computehop_Local_V1_FetchArtifactsResponse: Sendable {
   public init() {}
 }
 
+public nonisolated struct Computehop_Local_V1_GetJobProgressRequest: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  public var jobID: String = String()
+
+  public var deviceSelector: String = String()
+
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  public init() {}
+}
+
+public nonisolated struct Computehop_Local_V1_GetJobProgressResponse: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  public var progress: Computehop_Local_V1_JobProgress {
+    get {_progress ?? Computehop_Local_V1_JobProgress()}
+    set {_progress = newValue}
+  }
+  /// Returns true if `progress` has been explicitly set.
+  public var hasProgress: Bool {self._progress != nil}
+  /// Clears the value of `progress`. Subsequent reads from it will return its default value.
+  public mutating func clearProgress() {self._progress = nil}
+
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  public init() {}
+
+  fileprivate var _progress: Computehop_Local_V1_JobProgress? = nil
+}
+
 public nonisolated struct Computehop_Local_V1_Pairing: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
@@ -1380,76 +1447,208 @@ public nonisolated struct Computehop_Local_V1_Pairing: Sendable {
   public init() {}
 }
 
-public nonisolated struct Computehop_Local_V1_TrustedDevice: Sendable {
+public nonisolated struct Computehop_Local_V1_TrustedDevice: @unchecked Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
 
-  public var pairID: String = String()
+  public var pairID: String {
+    get {_storage._pairID}
+    set {_uniqueStorage()._pairID = newValue}
+  }
 
-  public var deviceID: String = String()
+  public var deviceID: String {
+    get {_storage._deviceID}
+    set {_uniqueStorage()._deviceID = newValue}
+  }
 
-  public var publicKey: Data = Data()
+  public var publicKey: Data {
+    get {_storage._publicKey}
+    set {_uniqueStorage()._publicKey = newValue}
+  }
 
-  public var name: String = String()
+  public var name: String {
+    get {_storage._name}
+    set {_uniqueStorage()._name = newValue}
+  }
 
-  public var role: Computehop_Local_V1_DeviceRole = .unspecified
+  public var role: Computehop_Local_V1_DeviceRole {
+    get {_storage._role}
+    set {_uniqueStorage()._role = newValue}
+  }
 
-  public var trustState: Computehop_Local_V1_DeviceTrustState = .unspecified
+  public var trustState: Computehop_Local_V1_DeviceTrustState {
+    get {_storage._trustState}
+    set {_uniqueStorage()._trustState = newValue}
+  }
 
-  public var pairedAtUnixNano: Int64 = 0
+  public var pairedAtUnixNano: Int64 {
+    get {_storage._pairedAtUnixNano}
+    set {_uniqueStorage()._pairedAtUnixNano = newValue}
+  }
 
-  public var updatedAtUnixNano: Int64 = 0
+  public var updatedAtUnixNano: Int64 {
+    get {_storage._updatedAtUnixNano}
+    set {_uniqueStorage()._updatedAtUnixNano = newValue}
+  }
 
-  public var revokedAtUnixNano: Int64 = 0
+  public var revokedAtUnixNano: Int64 {
+    get {_storage._revokedAtUnixNano}
+    set {_uniqueStorage()._revokedAtUnixNano = newValue}
+  }
 
-  public var connectivityState: Computehop_Local_V1_ConnectivityState = .unspecified
+  public var connectivityState: Computehop_Local_V1_ConnectivityState {
+    get {_storage._connectivityState}
+    set {_uniqueStorage()._connectivityState = newValue}
+  }
 
-  public var connectivityPath: String = String()
+  public var connectivityPath: String {
+    get {_storage._connectivityPath}
+    set {_uniqueStorage()._connectivityPath = newValue}
+  }
 
-  public var connectivityError: String = String()
+  public var connectivityError: String {
+    get {_storage._connectivityError}
+    set {_uniqueStorage()._connectivityError = newValue}
+  }
 
-  public var connectivityUpdatedAtUnixNano: Int64 = 0
+  public var connectivityUpdatedAtUnixNano: Int64 {
+    get {_storage._connectivityUpdatedAtUnixNano}
+    set {_uniqueStorage()._connectivityUpdatedAtUnixNano = newValue}
+  }
+
+  public var platform: String {
+    get {_storage._platform}
+    set {_uniqueStorage()._platform = newValue}
+  }
+
+  public var arch: String {
+    get {_storage._arch}
+    set {_uniqueStorage()._arch = newValue}
+  }
+
+  public var logicalCpuCount: UInt32 {
+    get {_storage._logicalCpuCount}
+    set {_uniqueStorage()._logicalCpuCount = newValue}
+  }
+
+  public var totalMemoryBytes: UInt64 {
+    get {_storage._totalMemoryBytes}
+    set {_uniqueStorage()._totalMemoryBytes = newValue}
+  }
+
+  public var hintsObservedAtUnixNano: Int64 {
+    get {_storage._hintsObservedAtUnixNano}
+    set {_uniqueStorage()._hintsObservedAtUnixNano = newValue}
+  }
+
+  public var toolIds: [String] {
+    get {_storage._toolIds}
+    set {_uniqueStorage()._toolIds = newValue}
+  }
 
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
+
+  fileprivate var _storage = _StorageClass.defaultInstance
 }
 
-public nonisolated struct Computehop_Local_V1_NearbyDevice: Sendable {
+public nonisolated struct Computehop_Local_V1_NearbyDevice: @unchecked Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
 
-  public var presenceID: String = String()
+  public var presenceID: String {
+    get {_storage._presenceID}
+    set {_uniqueStorage()._presenceID = newValue}
+  }
 
-  public var name: String = String()
+  public var name: String {
+    get {_storage._name}
+    set {_uniqueStorage()._name = newValue}
+  }
 
-  public var role: Computehop_Local_V1_DeviceRole = .unspecified
+  public var role: Computehop_Local_V1_DeviceRole {
+    get {_storage._role}
+    set {_uniqueStorage()._role = newValue}
+  }
 
-  public var protocolVersion: UInt32 = 0
+  public var protocolVersion: UInt32 {
+    get {_storage._protocolVersion}
+    set {_uniqueStorage()._protocolVersion = newValue}
+  }
 
-  public var instance: String = String()
+  public var instance: String {
+    get {_storage._instance}
+    set {_uniqueStorage()._instance = newValue}
+  }
 
-  public var hostName: String = String()
+  public var hostName: String {
+    get {_storage._hostName}
+    set {_uniqueStorage()._hostName = newValue}
+  }
 
-  public var addresses: [String] = []
+  public var addresses: [String] {
+    get {_storage._addresses}
+    set {_uniqueStorage()._addresses = newValue}
+  }
 
-  public var port: UInt32 = 0
+  public var port: UInt32 {
+    get {_storage._port}
+    set {_uniqueStorage()._port = newValue}
+  }
 
-  public var endpointReady: Bool = false
+  public var endpointReady: Bool {
+    get {_storage._endpointReady}
+    set {_uniqueStorage()._endpointReady = newValue}
+  }
 
-  public var firstSeenAtUnixNano: Int64 = 0
+  public var firstSeenAtUnixNano: Int64 {
+    get {_storage._firstSeenAtUnixNano}
+    set {_uniqueStorage()._firstSeenAtUnixNano = newValue}
+  }
 
-  public var lastSeenAtUnixNano: Int64 = 0
+  public var lastSeenAtUnixNano: Int64 {
+    get {_storage._lastSeenAtUnixNano}
+    set {_uniqueStorage()._lastSeenAtUnixNano = newValue}
+  }
 
-  public var expiresAtUnixNano: Int64 = 0
+  public var expiresAtUnixNano: Int64 {
+    get {_storage._expiresAtUnixNano}
+    set {_uniqueStorage()._expiresAtUnixNano = newValue}
+  }
 
-  public var trustState: Computehop_Local_V1_DeviceTrustState = .unspecified
+  public var trustState: Computehop_Local_V1_DeviceTrustState {
+    get {_storage._trustState}
+    set {_uniqueStorage()._trustState = newValue}
+  }
+
+  public var platform: String {
+    get {_storage._platform}
+    set {_uniqueStorage()._platform = newValue}
+  }
+
+  public var arch: String {
+    get {_storage._arch}
+    set {_uniqueStorage()._arch = newValue}
+  }
+
+  public var logicalCpuCount: UInt32 {
+    get {_storage._logicalCpuCount}
+    set {_uniqueStorage()._logicalCpuCount = newValue}
+  }
+
+  public var totalMemoryBytes: UInt64 {
+    get {_storage._totalMemoryBytes}
+    set {_uniqueStorage()._totalMemoryBytes = newValue}
+  }
 
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
+
+  fileprivate var _storage = _StorageClass.defaultInstance
 }
 
 public nonisolated struct Computehop_Local_V1_JobSpec: Sendable {
@@ -1470,6 +1669,8 @@ public nonisolated struct Computehop_Local_V1_JobSpec: Sendable {
   public var containerImage: String = String()
 
   public var outputs: [String] = []
+
+  public var requiredToolIds: [String] = []
 
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -1633,7 +1834,7 @@ nonisolated extension Computehop_Local_V1_ConnectivityState: SwiftProtobuf._Prot
 
 nonisolated extension Computehop_Local_V1_Request: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".Request"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}protocol_version\0\u{3}request_id\0\u{3}capability_token\0\u{2}\u{7}ping\0\u{3}submit_job\0\u{3}get_job\0\u{3}list_jobs\0\u{3}cancel_job\0\u{3}read_job_logs\0\u{3}list_devices\0\u{3}begin_pairing\0\u{3}list_pairings\0\u{3}confirm_pairing\0\u{3}reject_pairing\0\u{3}list_trusted_devices\0\u{3}unpair_device\0\u{3}fetch_artifacts\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}protocol_version\0\u{3}request_id\0\u{3}capability_token\0\u{2}\u{7}ping\0\u{3}submit_job\0\u{3}get_job\0\u{3}list_jobs\0\u{3}cancel_job\0\u{3}read_job_logs\0\u{3}list_devices\0\u{3}begin_pairing\0\u{3}list_pairings\0\u{3}confirm_pairing\0\u{3}reject_pairing\0\u{3}list_trusted_devices\0\u{3}unpair_device\0\u{3}fetch_artifacts\0\u{3}get_job_progress\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -1826,6 +2027,19 @@ nonisolated extension Computehop_Local_V1_Request: SwiftProtobuf.Message, SwiftP
           self.operation = .fetchArtifacts(v)
         }
       }()
+      case 24: try {
+        var v: Computehop_Local_V1_GetJobProgressRequest?
+        var hadOneofValue = false
+        if let current = self.operation {
+          hadOneofValue = true
+          if case .getJobProgress(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.operation = .getJobProgress(v)
+        }
+      }()
       default: break
       }
     }
@@ -1902,6 +2116,10 @@ nonisolated extension Computehop_Local_V1_Request: SwiftProtobuf.Message, SwiftP
       guard case .fetchArtifacts(let v)? = self.operation else { preconditionFailure() }
       try visitor.visitSingularMessageField(value: v, fieldNumber: 23)
     }()
+    case .getJobProgress?: try {
+      guard case .getJobProgress(let v)? = self.operation else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 24)
+    }()
     case nil: break
     }
     try unknownFields.traverse(visitor: &visitor)
@@ -1919,7 +2137,7 @@ nonisolated extension Computehop_Local_V1_Request: SwiftProtobuf.Message, SwiftP
 
 nonisolated extension Computehop_Local_V1_Response: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".Response"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}protocol_version\0\u{3}request_id\0\u{1}error\0\u{2}\u{7}ping\0\u{3}submit_job\0\u{3}get_job\0\u{3}list_jobs\0\u{3}cancel_job\0\u{3}read_job_logs\0\u{3}list_devices\0\u{3}begin_pairing\0\u{3}list_pairings\0\u{3}confirm_pairing\0\u{3}reject_pairing\0\u{3}list_trusted_devices\0\u{3}unpair_device\0\u{3}fetch_artifacts\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}protocol_version\0\u{3}request_id\0\u{1}error\0\u{2}\u{7}ping\0\u{3}submit_job\0\u{3}get_job\0\u{3}list_jobs\0\u{3}cancel_job\0\u{3}read_job_logs\0\u{3}list_devices\0\u{3}begin_pairing\0\u{3}list_pairings\0\u{3}confirm_pairing\0\u{3}reject_pairing\0\u{3}list_trusted_devices\0\u{3}unpair_device\0\u{3}fetch_artifacts\0\u{3}get_job_progress\0")
 
   fileprivate class _StorageClass {
     var _protocolVersion: UInt32 = 0
@@ -2143,6 +2361,19 @@ nonisolated extension Computehop_Local_V1_Response: SwiftProtobuf.Message, Swift
             _storage._result = .fetchArtifacts(v)
           }
         }()
+        case 24: try {
+          var v: Computehop_Local_V1_GetJobProgressResponse?
+          var hadOneofValue = false
+          if let current = _storage._result {
+            hadOneofValue = true
+            if case .getJobProgress(let m) = current {v = m}
+          }
+          try decoder.decodeSingularMessageField(value: &v)
+          if let v = v {
+            if hadOneofValue {try decoder.handleConflictingOneOf()}
+            _storage._result = .getJobProgress(v)
+          }
+        }()
         default: break
         }
       }
@@ -2221,6 +2452,10 @@ nonisolated extension Computehop_Local_V1_Response: SwiftProtobuf.Message, Swift
         guard case .fetchArtifacts(let v)? = _storage._result else { preconditionFailure() }
         try visitor.visitSingularMessageField(value: v, fieldNumber: 23)
       }()
+      case .getJobProgress?: try {
+        guard case .getJobProgress(let v)? = _storage._result else { preconditionFailure() }
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 24)
+      }()
       case nil: break
       }
     }
@@ -2266,7 +2501,7 @@ nonisolated extension Computehop_Local_V1_PingRequest: SwiftProtobuf.Message, Sw
 
 nonisolated extension Computehop_Local_V1_PingResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".PingResponse"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}daemon_version\0\u{3}device_id\0\u{3}device_name\0\u{1}role\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}daemon_version\0\u{3}device_id\0\u{3}device_name\0\u{1}role\0\u{1}platform\0\u{1}arch\0\u{3}logical_cpu_count\0\u{3}total_memory_bytes\0\u{3}tool_ids\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -2278,6 +2513,11 @@ nonisolated extension Computehop_Local_V1_PingResponse: SwiftProtobuf.Message, S
       case 2: try { try decoder.decodeSingularStringField(value: &self.deviceID) }()
       case 3: try { try decoder.decodeSingularStringField(value: &self.deviceName) }()
       case 4: try { try decoder.decodeSingularEnumField(value: &self.role) }()
+      case 5: try { try decoder.decodeSingularStringField(value: &self.platform) }()
+      case 6: try { try decoder.decodeSingularStringField(value: &self.arch) }()
+      case 7: try { try decoder.decodeSingularUInt32Field(value: &self.logicalCpuCount) }()
+      case 8: try { try decoder.decodeSingularUInt64Field(value: &self.totalMemoryBytes) }()
+      case 9: try { try decoder.decodeRepeatedStringField(value: &self.toolIds) }()
       default: break
       }
     }
@@ -2296,6 +2536,21 @@ nonisolated extension Computehop_Local_V1_PingResponse: SwiftProtobuf.Message, S
     if self.role != .unspecified {
       try visitor.visitSingularEnumField(value: self.role, fieldNumber: 4)
     }
+    if !self.platform.isEmpty {
+      try visitor.visitSingularStringField(value: self.platform, fieldNumber: 5)
+    }
+    if !self.arch.isEmpty {
+      try visitor.visitSingularStringField(value: self.arch, fieldNumber: 6)
+    }
+    if self.logicalCpuCount != 0 {
+      try visitor.visitSingularUInt32Field(value: self.logicalCpuCount, fieldNumber: 7)
+    }
+    if self.totalMemoryBytes != 0 {
+      try visitor.visitSingularUInt64Field(value: self.totalMemoryBytes, fieldNumber: 8)
+    }
+    if !self.toolIds.isEmpty {
+      try visitor.visitRepeatedStringField(value: self.toolIds, fieldNumber: 9)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -2304,6 +2559,11 @@ nonisolated extension Computehop_Local_V1_PingResponse: SwiftProtobuf.Message, S
     if lhs.deviceID != rhs.deviceID {return false}
     if lhs.deviceName != rhs.deviceName {return false}
     if lhs.role != rhs.role {return false}
+    if lhs.platform != rhs.platform {return false}
+    if lhs.arch != rhs.arch {return false}
+    if lhs.logicalCpuCount != rhs.logicalCpuCount {return false}
+    if lhs.totalMemoryBytes != rhs.totalMemoryBytes {return false}
+    if lhs.toolIds != rhs.toolIds {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -2311,7 +2571,7 @@ nonisolated extension Computehop_Local_V1_PingResponse: SwiftProtobuf.Message, S
 
 nonisolated extension Computehop_Local_V1_SubmitJobRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".SubmitJobRequest"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}spec\0\u{3}device_selector\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}spec\0\u{3}device_selector\0\u{3}job_id\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -2321,6 +2581,7 @@ nonisolated extension Computehop_Local_V1_SubmitJobRequest: SwiftProtobuf.Messag
       switch fieldNumber {
       case 1: try { try decoder.decodeSingularMessageField(value: &self._spec) }()
       case 2: try { try decoder.decodeSingularStringField(value: &self.deviceSelector) }()
+      case 3: try { try decoder.decodeSingularStringField(value: &self.jobID) }()
       default: break
       }
     }
@@ -2337,12 +2598,16 @@ nonisolated extension Computehop_Local_V1_SubmitJobRequest: SwiftProtobuf.Messag
     if !self.deviceSelector.isEmpty {
       try visitor.visitSingularStringField(value: self.deviceSelector, fieldNumber: 2)
     }
+    if !self.jobID.isEmpty {
+      try visitor.visitSingularStringField(value: self.jobID, fieldNumber: 3)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
   public static func ==(lhs: Computehop_Local_V1_SubmitJobRequest, rhs: Computehop_Local_V1_SubmitJobRequest) -> Bool {
     if lhs._spec != rhs._spec {return false}
     if lhs.deviceSelector != rhs.deviceSelector {return false}
+    if lhs.jobID != rhs.jobID {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -3227,6 +3492,75 @@ nonisolated extension Computehop_Local_V1_FetchArtifactsResponse: SwiftProtobuf.
   }
 }
 
+nonisolated extension Computehop_Local_V1_GetJobProgressRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = _protobuf_package + ".GetJobProgressRequest"
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}job_id\0\u{3}device_selector\0")
+
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.jobID) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.deviceSelector) }()
+      default: break
+      }
+    }
+  }
+
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.jobID.isEmpty {
+      try visitor.visitSingularStringField(value: self.jobID, fieldNumber: 1)
+    }
+    if !self.deviceSelector.isEmpty {
+      try visitor.visitSingularStringField(value: self.deviceSelector, fieldNumber: 2)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  public static func ==(lhs: Computehop_Local_V1_GetJobProgressRequest, rhs: Computehop_Local_V1_GetJobProgressRequest) -> Bool {
+    if lhs.jobID != rhs.jobID {return false}
+    if lhs.deviceSelector != rhs.deviceSelector {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Computehop_Local_V1_GetJobProgressResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = _protobuf_package + ".GetJobProgressResponse"
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}progress\0")
+
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularMessageField(value: &self._progress) }()
+      default: break
+      }
+    }
+  }
+
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    // The use of inline closures is to circumvent an issue where the compiler
+    // allocates stack space for every if/case branch local when no optimizations
+    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+    // https://github.com/apple/swift-protobuf/issues/1182
+    try { if let v = self._progress {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 1)
+    } }()
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  public static func ==(lhs: Computehop_Local_V1_GetJobProgressResponse, rhs: Computehop_Local_V1_GetJobProgressResponse) -> Bool {
+    if lhs._progress != rhs._progress {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
 nonisolated extension Computehop_Local_V1_Pairing: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".Pairing"
   public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{3}peer_device_id\0\u{3}peer_public_key\0\u{3}peer_name\0\u{3}peer_role\0\u{3}verification_code\0\u{1}direction\0\u{1}state\0\u{3}local_confirmed\0\u{3}remote_confirmed\0\u{3}started_at_unix_nano\0\u{3}expires_at_unix_nano\0\u{1}failure\0")
@@ -3319,89 +3653,191 @@ nonisolated extension Computehop_Local_V1_Pairing: SwiftProtobuf.Message, SwiftP
 
 nonisolated extension Computehop_Local_V1_TrustedDevice: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".TrustedDevice"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}pair_id\0\u{3}device_id\0\u{3}public_key\0\u{1}name\0\u{1}role\0\u{3}trust_state\0\u{3}paired_at_unix_nano\0\u{3}updated_at_unix_nano\0\u{3}revoked_at_unix_nano\0\u{3}connectivity_state\0\u{3}connectivity_path\0\u{3}connectivity_error\0\u{3}connectivity_updated_at_unix_nano\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}pair_id\0\u{3}device_id\0\u{3}public_key\0\u{1}name\0\u{1}role\0\u{3}trust_state\0\u{3}paired_at_unix_nano\0\u{3}updated_at_unix_nano\0\u{3}revoked_at_unix_nano\0\u{3}connectivity_state\0\u{3}connectivity_path\0\u{3}connectivity_error\0\u{3}connectivity_updated_at_unix_nano\0\u{1}platform\0\u{1}arch\0\u{3}logical_cpu_count\0\u{3}total_memory_bytes\0\u{3}hints_observed_at_unix_nano\0\u{3}tool_ids\0")
+
+  fileprivate class _StorageClass {
+    var _pairID: String = String()
+    var _deviceID: String = String()
+    var _publicKey: Data = Data()
+    var _name: String = String()
+    var _role: Computehop_Local_V1_DeviceRole = .unspecified
+    var _trustState: Computehop_Local_V1_DeviceTrustState = .unspecified
+    var _pairedAtUnixNano: Int64 = 0
+    var _updatedAtUnixNano: Int64 = 0
+    var _revokedAtUnixNano: Int64 = 0
+    var _connectivityState: Computehop_Local_V1_ConnectivityState = .unspecified
+    var _connectivityPath: String = String()
+    var _connectivityError: String = String()
+    var _connectivityUpdatedAtUnixNano: Int64 = 0
+    var _platform: String = String()
+    var _arch: String = String()
+    var _logicalCpuCount: UInt32 = 0
+    var _totalMemoryBytes: UInt64 = 0
+    var _hintsObservedAtUnixNano: Int64 = 0
+    var _toolIds: [String] = []
+
+      // This property is used as the initial default value for new instances of the type.
+      // The type itself is protecting the reference to its storage via CoW semantics.
+      // This will force a copy to be made of this reference when the first mutation occurs;
+      // hence, it is safe to mark this as `nonisolated(unsafe)`.
+      static nonisolated(unsafe) let defaultInstance = _StorageClass()
+
+    private init() {}
+
+    init(copying source: _StorageClass) {
+      _pairID = source._pairID
+      _deviceID = source._deviceID
+      _publicKey = source._publicKey
+      _name = source._name
+      _role = source._role
+      _trustState = source._trustState
+      _pairedAtUnixNano = source._pairedAtUnixNano
+      _updatedAtUnixNano = source._updatedAtUnixNano
+      _revokedAtUnixNano = source._revokedAtUnixNano
+      _connectivityState = source._connectivityState
+      _connectivityPath = source._connectivityPath
+      _connectivityError = source._connectivityError
+      _connectivityUpdatedAtUnixNano = source._connectivityUpdatedAtUnixNano
+      _platform = source._platform
+      _arch = source._arch
+      _logicalCpuCount = source._logicalCpuCount
+      _totalMemoryBytes = source._totalMemoryBytes
+      _hintsObservedAtUnixNano = source._hintsObservedAtUnixNano
+      _toolIds = source._toolIds
+    }
+  }
+
+  fileprivate mutating func _uniqueStorage() -> _StorageClass {
+    if !isKnownUniquelyReferenced(&_storage) {
+      _storage = _StorageClass(copying: _storage)
+    }
+    return _storage
+  }
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
-    while let fieldNumber = try decoder.nextFieldNumber() {
-      // The use of inline closures is to circumvent an issue where the compiler
-      // allocates stack space for every case branch when no optimizations are
-      // enabled. https://github.com/apple/swift-protobuf/issues/1034
-      switch fieldNumber {
-      case 1: try { try decoder.decodeSingularStringField(value: &self.pairID) }()
-      case 2: try { try decoder.decodeSingularStringField(value: &self.deviceID) }()
-      case 3: try { try decoder.decodeSingularBytesField(value: &self.publicKey) }()
-      case 4: try { try decoder.decodeSingularStringField(value: &self.name) }()
-      case 5: try { try decoder.decodeSingularEnumField(value: &self.role) }()
-      case 6: try { try decoder.decodeSingularEnumField(value: &self.trustState) }()
-      case 7: try { try decoder.decodeSingularInt64Field(value: &self.pairedAtUnixNano) }()
-      case 8: try { try decoder.decodeSingularInt64Field(value: &self.updatedAtUnixNano) }()
-      case 9: try { try decoder.decodeSingularInt64Field(value: &self.revokedAtUnixNano) }()
-      case 10: try { try decoder.decodeSingularEnumField(value: &self.connectivityState) }()
-      case 11: try { try decoder.decodeSingularStringField(value: &self.connectivityPath) }()
-      case 12: try { try decoder.decodeSingularStringField(value: &self.connectivityError) }()
-      case 13: try { try decoder.decodeSingularInt64Field(value: &self.connectivityUpdatedAtUnixNano) }()
-      default: break
+    _ = _uniqueStorage()
+    try withExtendedLifetime(_storage) { (_storage: _StorageClass) in
+      while let fieldNumber = try decoder.nextFieldNumber() {
+        // The use of inline closures is to circumvent an issue where the compiler
+        // allocates stack space for every case branch when no optimizations are
+        // enabled. https://github.com/apple/swift-protobuf/issues/1034
+        switch fieldNumber {
+        case 1: try { try decoder.decodeSingularStringField(value: &_storage._pairID) }()
+        case 2: try { try decoder.decodeSingularStringField(value: &_storage._deviceID) }()
+        case 3: try { try decoder.decodeSingularBytesField(value: &_storage._publicKey) }()
+        case 4: try { try decoder.decodeSingularStringField(value: &_storage._name) }()
+        case 5: try { try decoder.decodeSingularEnumField(value: &_storage._role) }()
+        case 6: try { try decoder.decodeSingularEnumField(value: &_storage._trustState) }()
+        case 7: try { try decoder.decodeSingularInt64Field(value: &_storage._pairedAtUnixNano) }()
+        case 8: try { try decoder.decodeSingularInt64Field(value: &_storage._updatedAtUnixNano) }()
+        case 9: try { try decoder.decodeSingularInt64Field(value: &_storage._revokedAtUnixNano) }()
+        case 10: try { try decoder.decodeSingularEnumField(value: &_storage._connectivityState) }()
+        case 11: try { try decoder.decodeSingularStringField(value: &_storage._connectivityPath) }()
+        case 12: try { try decoder.decodeSingularStringField(value: &_storage._connectivityError) }()
+        case 13: try { try decoder.decodeSingularInt64Field(value: &_storage._connectivityUpdatedAtUnixNano) }()
+        case 14: try { try decoder.decodeSingularStringField(value: &_storage._platform) }()
+        case 15: try { try decoder.decodeSingularStringField(value: &_storage._arch) }()
+        case 16: try { try decoder.decodeSingularUInt32Field(value: &_storage._logicalCpuCount) }()
+        case 17: try { try decoder.decodeSingularUInt64Field(value: &_storage._totalMemoryBytes) }()
+        case 18: try { try decoder.decodeSingularInt64Field(value: &_storage._hintsObservedAtUnixNano) }()
+        case 19: try { try decoder.decodeRepeatedStringField(value: &_storage._toolIds) }()
+        default: break
+        }
       }
     }
   }
 
   public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
-    if !self.pairID.isEmpty {
-      try visitor.visitSingularStringField(value: self.pairID, fieldNumber: 1)
-    }
-    if !self.deviceID.isEmpty {
-      try visitor.visitSingularStringField(value: self.deviceID, fieldNumber: 2)
-    }
-    if !self.publicKey.isEmpty {
-      try visitor.visitSingularBytesField(value: self.publicKey, fieldNumber: 3)
-    }
-    if !self.name.isEmpty {
-      try visitor.visitSingularStringField(value: self.name, fieldNumber: 4)
-    }
-    if self.role != .unspecified {
-      try visitor.visitSingularEnumField(value: self.role, fieldNumber: 5)
-    }
-    if self.trustState != .unspecified {
-      try visitor.visitSingularEnumField(value: self.trustState, fieldNumber: 6)
-    }
-    if self.pairedAtUnixNano != 0 {
-      try visitor.visitSingularInt64Field(value: self.pairedAtUnixNano, fieldNumber: 7)
-    }
-    if self.updatedAtUnixNano != 0 {
-      try visitor.visitSingularInt64Field(value: self.updatedAtUnixNano, fieldNumber: 8)
-    }
-    if self.revokedAtUnixNano != 0 {
-      try visitor.visitSingularInt64Field(value: self.revokedAtUnixNano, fieldNumber: 9)
-    }
-    if self.connectivityState != .unspecified {
-      try visitor.visitSingularEnumField(value: self.connectivityState, fieldNumber: 10)
-    }
-    if !self.connectivityPath.isEmpty {
-      try visitor.visitSingularStringField(value: self.connectivityPath, fieldNumber: 11)
-    }
-    if !self.connectivityError.isEmpty {
-      try visitor.visitSingularStringField(value: self.connectivityError, fieldNumber: 12)
-    }
-    if self.connectivityUpdatedAtUnixNano != 0 {
-      try visitor.visitSingularInt64Field(value: self.connectivityUpdatedAtUnixNano, fieldNumber: 13)
+    try withExtendedLifetime(_storage) { (_storage: _StorageClass) in
+      if !_storage._pairID.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._pairID, fieldNumber: 1)
+      }
+      if !_storage._deviceID.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._deviceID, fieldNumber: 2)
+      }
+      if !_storage._publicKey.isEmpty {
+        try visitor.visitSingularBytesField(value: _storage._publicKey, fieldNumber: 3)
+      }
+      if !_storage._name.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._name, fieldNumber: 4)
+      }
+      if _storage._role != .unspecified {
+        try visitor.visitSingularEnumField(value: _storage._role, fieldNumber: 5)
+      }
+      if _storage._trustState != .unspecified {
+        try visitor.visitSingularEnumField(value: _storage._trustState, fieldNumber: 6)
+      }
+      if _storage._pairedAtUnixNano != 0 {
+        try visitor.visitSingularInt64Field(value: _storage._pairedAtUnixNano, fieldNumber: 7)
+      }
+      if _storage._updatedAtUnixNano != 0 {
+        try visitor.visitSingularInt64Field(value: _storage._updatedAtUnixNano, fieldNumber: 8)
+      }
+      if _storage._revokedAtUnixNano != 0 {
+        try visitor.visitSingularInt64Field(value: _storage._revokedAtUnixNano, fieldNumber: 9)
+      }
+      if _storage._connectivityState != .unspecified {
+        try visitor.visitSingularEnumField(value: _storage._connectivityState, fieldNumber: 10)
+      }
+      if !_storage._connectivityPath.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._connectivityPath, fieldNumber: 11)
+      }
+      if !_storage._connectivityError.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._connectivityError, fieldNumber: 12)
+      }
+      if _storage._connectivityUpdatedAtUnixNano != 0 {
+        try visitor.visitSingularInt64Field(value: _storage._connectivityUpdatedAtUnixNano, fieldNumber: 13)
+      }
+      if !_storage._platform.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._platform, fieldNumber: 14)
+      }
+      if !_storage._arch.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._arch, fieldNumber: 15)
+      }
+      if _storage._logicalCpuCount != 0 {
+        try visitor.visitSingularUInt32Field(value: _storage._logicalCpuCount, fieldNumber: 16)
+      }
+      if _storage._totalMemoryBytes != 0 {
+        try visitor.visitSingularUInt64Field(value: _storage._totalMemoryBytes, fieldNumber: 17)
+      }
+      if _storage._hintsObservedAtUnixNano != 0 {
+        try visitor.visitSingularInt64Field(value: _storage._hintsObservedAtUnixNano, fieldNumber: 18)
+      }
+      if !_storage._toolIds.isEmpty {
+        try visitor.visitRepeatedStringField(value: _storage._toolIds, fieldNumber: 19)
+      }
     }
     try unknownFields.traverse(visitor: &visitor)
   }
 
   public static func ==(lhs: Computehop_Local_V1_TrustedDevice, rhs: Computehop_Local_V1_TrustedDevice) -> Bool {
-    if lhs.pairID != rhs.pairID {return false}
-    if lhs.deviceID != rhs.deviceID {return false}
-    if lhs.publicKey != rhs.publicKey {return false}
-    if lhs.name != rhs.name {return false}
-    if lhs.role != rhs.role {return false}
-    if lhs.trustState != rhs.trustState {return false}
-    if lhs.pairedAtUnixNano != rhs.pairedAtUnixNano {return false}
-    if lhs.updatedAtUnixNano != rhs.updatedAtUnixNano {return false}
-    if lhs.revokedAtUnixNano != rhs.revokedAtUnixNano {return false}
-    if lhs.connectivityState != rhs.connectivityState {return false}
-    if lhs.connectivityPath != rhs.connectivityPath {return false}
-    if lhs.connectivityError != rhs.connectivityError {return false}
-    if lhs.connectivityUpdatedAtUnixNano != rhs.connectivityUpdatedAtUnixNano {return false}
+    if lhs._storage !== rhs._storage {
+      let storagesAreEqual: Bool = withExtendedLifetime((lhs._storage, rhs._storage)) { (_args: (_StorageClass, _StorageClass)) in
+        let _storage = _args.0
+        let rhs_storage = _args.1
+        if _storage._pairID != rhs_storage._pairID {return false}
+        if _storage._deviceID != rhs_storage._deviceID {return false}
+        if _storage._publicKey != rhs_storage._publicKey {return false}
+        if _storage._name != rhs_storage._name {return false}
+        if _storage._role != rhs_storage._role {return false}
+        if _storage._trustState != rhs_storage._trustState {return false}
+        if _storage._pairedAtUnixNano != rhs_storage._pairedAtUnixNano {return false}
+        if _storage._updatedAtUnixNano != rhs_storage._updatedAtUnixNano {return false}
+        if _storage._revokedAtUnixNano != rhs_storage._revokedAtUnixNano {return false}
+        if _storage._connectivityState != rhs_storage._connectivityState {return false}
+        if _storage._connectivityPath != rhs_storage._connectivityPath {return false}
+        if _storage._connectivityError != rhs_storage._connectivityError {return false}
+        if _storage._connectivityUpdatedAtUnixNano != rhs_storage._connectivityUpdatedAtUnixNano {return false}
+        if _storage._platform != rhs_storage._platform {return false}
+        if _storage._arch != rhs_storage._arch {return false}
+        if _storage._logicalCpuCount != rhs_storage._logicalCpuCount {return false}
+        if _storage._totalMemoryBytes != rhs_storage._totalMemoryBytes {return false}
+        if _storage._hintsObservedAtUnixNano != rhs_storage._hintsObservedAtUnixNano {return false}
+        if _storage._toolIds != rhs_storage._toolIds {return false}
+        return true
+      }
+      if !storagesAreEqual {return false}
+    }
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -3409,89 +3845,177 @@ nonisolated extension Computehop_Local_V1_TrustedDevice: SwiftProtobuf.Message, 
 
 nonisolated extension Computehop_Local_V1_NearbyDevice: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".NearbyDevice"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}presence_id\0\u{1}name\0\u{1}role\0\u{3}protocol_version\0\u{1}instance\0\u{3}host_name\0\u{1}addresses\0\u{1}port\0\u{3}endpoint_ready\0\u{3}first_seen_at_unix_nano\0\u{3}last_seen_at_unix_nano\0\u{3}expires_at_unix_nano\0\u{3}trust_state\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}presence_id\0\u{1}name\0\u{1}role\0\u{3}protocol_version\0\u{1}instance\0\u{3}host_name\0\u{1}addresses\0\u{1}port\0\u{3}endpoint_ready\0\u{3}first_seen_at_unix_nano\0\u{3}last_seen_at_unix_nano\0\u{3}expires_at_unix_nano\0\u{3}trust_state\0\u{1}platform\0\u{1}arch\0\u{3}logical_cpu_count\0\u{3}total_memory_bytes\0")
+
+  fileprivate class _StorageClass {
+    var _presenceID: String = String()
+    var _name: String = String()
+    var _role: Computehop_Local_V1_DeviceRole = .unspecified
+    var _protocolVersion: UInt32 = 0
+    var _instance: String = String()
+    var _hostName: String = String()
+    var _addresses: [String] = []
+    var _port: UInt32 = 0
+    var _endpointReady: Bool = false
+    var _firstSeenAtUnixNano: Int64 = 0
+    var _lastSeenAtUnixNano: Int64 = 0
+    var _expiresAtUnixNano: Int64 = 0
+    var _trustState: Computehop_Local_V1_DeviceTrustState = .unspecified
+    var _platform: String = String()
+    var _arch: String = String()
+    var _logicalCpuCount: UInt32 = 0
+    var _totalMemoryBytes: UInt64 = 0
+
+      // This property is used as the initial default value for new instances of the type.
+      // The type itself is protecting the reference to its storage via CoW semantics.
+      // This will force a copy to be made of this reference when the first mutation occurs;
+      // hence, it is safe to mark this as `nonisolated(unsafe)`.
+      static nonisolated(unsafe) let defaultInstance = _StorageClass()
+
+    private init() {}
+
+    init(copying source: _StorageClass) {
+      _presenceID = source._presenceID
+      _name = source._name
+      _role = source._role
+      _protocolVersion = source._protocolVersion
+      _instance = source._instance
+      _hostName = source._hostName
+      _addresses = source._addresses
+      _port = source._port
+      _endpointReady = source._endpointReady
+      _firstSeenAtUnixNano = source._firstSeenAtUnixNano
+      _lastSeenAtUnixNano = source._lastSeenAtUnixNano
+      _expiresAtUnixNano = source._expiresAtUnixNano
+      _trustState = source._trustState
+      _platform = source._platform
+      _arch = source._arch
+      _logicalCpuCount = source._logicalCpuCount
+      _totalMemoryBytes = source._totalMemoryBytes
+    }
+  }
+
+  fileprivate mutating func _uniqueStorage() -> _StorageClass {
+    if !isKnownUniquelyReferenced(&_storage) {
+      _storage = _StorageClass(copying: _storage)
+    }
+    return _storage
+  }
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
-    while let fieldNumber = try decoder.nextFieldNumber() {
-      // The use of inline closures is to circumvent an issue where the compiler
-      // allocates stack space for every case branch when no optimizations are
-      // enabled. https://github.com/apple/swift-protobuf/issues/1034
-      switch fieldNumber {
-      case 1: try { try decoder.decodeSingularStringField(value: &self.presenceID) }()
-      case 2: try { try decoder.decodeSingularStringField(value: &self.name) }()
-      case 3: try { try decoder.decodeSingularEnumField(value: &self.role) }()
-      case 4: try { try decoder.decodeSingularUInt32Field(value: &self.protocolVersion) }()
-      case 5: try { try decoder.decodeSingularStringField(value: &self.instance) }()
-      case 6: try { try decoder.decodeSingularStringField(value: &self.hostName) }()
-      case 7: try { try decoder.decodeRepeatedStringField(value: &self.addresses) }()
-      case 8: try { try decoder.decodeSingularUInt32Field(value: &self.port) }()
-      case 9: try { try decoder.decodeSingularBoolField(value: &self.endpointReady) }()
-      case 10: try { try decoder.decodeSingularInt64Field(value: &self.firstSeenAtUnixNano) }()
-      case 11: try { try decoder.decodeSingularInt64Field(value: &self.lastSeenAtUnixNano) }()
-      case 12: try { try decoder.decodeSingularInt64Field(value: &self.expiresAtUnixNano) }()
-      case 13: try { try decoder.decodeSingularEnumField(value: &self.trustState) }()
-      default: break
+    _ = _uniqueStorage()
+    try withExtendedLifetime(_storage) { (_storage: _StorageClass) in
+      while let fieldNumber = try decoder.nextFieldNumber() {
+        // The use of inline closures is to circumvent an issue where the compiler
+        // allocates stack space for every case branch when no optimizations are
+        // enabled. https://github.com/apple/swift-protobuf/issues/1034
+        switch fieldNumber {
+        case 1: try { try decoder.decodeSingularStringField(value: &_storage._presenceID) }()
+        case 2: try { try decoder.decodeSingularStringField(value: &_storage._name) }()
+        case 3: try { try decoder.decodeSingularEnumField(value: &_storage._role) }()
+        case 4: try { try decoder.decodeSingularUInt32Field(value: &_storage._protocolVersion) }()
+        case 5: try { try decoder.decodeSingularStringField(value: &_storage._instance) }()
+        case 6: try { try decoder.decodeSingularStringField(value: &_storage._hostName) }()
+        case 7: try { try decoder.decodeRepeatedStringField(value: &_storage._addresses) }()
+        case 8: try { try decoder.decodeSingularUInt32Field(value: &_storage._port) }()
+        case 9: try { try decoder.decodeSingularBoolField(value: &_storage._endpointReady) }()
+        case 10: try { try decoder.decodeSingularInt64Field(value: &_storage._firstSeenAtUnixNano) }()
+        case 11: try { try decoder.decodeSingularInt64Field(value: &_storage._lastSeenAtUnixNano) }()
+        case 12: try { try decoder.decodeSingularInt64Field(value: &_storage._expiresAtUnixNano) }()
+        case 13: try { try decoder.decodeSingularEnumField(value: &_storage._trustState) }()
+        case 14: try { try decoder.decodeSingularStringField(value: &_storage._platform) }()
+        case 15: try { try decoder.decodeSingularStringField(value: &_storage._arch) }()
+        case 16: try { try decoder.decodeSingularUInt32Field(value: &_storage._logicalCpuCount) }()
+        case 17: try { try decoder.decodeSingularUInt64Field(value: &_storage._totalMemoryBytes) }()
+        default: break
+        }
       }
     }
   }
 
   public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
-    if !self.presenceID.isEmpty {
-      try visitor.visitSingularStringField(value: self.presenceID, fieldNumber: 1)
-    }
-    if !self.name.isEmpty {
-      try visitor.visitSingularStringField(value: self.name, fieldNumber: 2)
-    }
-    if self.role != .unspecified {
-      try visitor.visitSingularEnumField(value: self.role, fieldNumber: 3)
-    }
-    if self.protocolVersion != 0 {
-      try visitor.visitSingularUInt32Field(value: self.protocolVersion, fieldNumber: 4)
-    }
-    if !self.instance.isEmpty {
-      try visitor.visitSingularStringField(value: self.instance, fieldNumber: 5)
-    }
-    if !self.hostName.isEmpty {
-      try visitor.visitSingularStringField(value: self.hostName, fieldNumber: 6)
-    }
-    if !self.addresses.isEmpty {
-      try visitor.visitRepeatedStringField(value: self.addresses, fieldNumber: 7)
-    }
-    if self.port != 0 {
-      try visitor.visitSingularUInt32Field(value: self.port, fieldNumber: 8)
-    }
-    if self.endpointReady != false {
-      try visitor.visitSingularBoolField(value: self.endpointReady, fieldNumber: 9)
-    }
-    if self.firstSeenAtUnixNano != 0 {
-      try visitor.visitSingularInt64Field(value: self.firstSeenAtUnixNano, fieldNumber: 10)
-    }
-    if self.lastSeenAtUnixNano != 0 {
-      try visitor.visitSingularInt64Field(value: self.lastSeenAtUnixNano, fieldNumber: 11)
-    }
-    if self.expiresAtUnixNano != 0 {
-      try visitor.visitSingularInt64Field(value: self.expiresAtUnixNano, fieldNumber: 12)
-    }
-    if self.trustState != .unspecified {
-      try visitor.visitSingularEnumField(value: self.trustState, fieldNumber: 13)
+    try withExtendedLifetime(_storage) { (_storage: _StorageClass) in
+      if !_storage._presenceID.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._presenceID, fieldNumber: 1)
+      }
+      if !_storage._name.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._name, fieldNumber: 2)
+      }
+      if _storage._role != .unspecified {
+        try visitor.visitSingularEnumField(value: _storage._role, fieldNumber: 3)
+      }
+      if _storage._protocolVersion != 0 {
+        try visitor.visitSingularUInt32Field(value: _storage._protocolVersion, fieldNumber: 4)
+      }
+      if !_storage._instance.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._instance, fieldNumber: 5)
+      }
+      if !_storage._hostName.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._hostName, fieldNumber: 6)
+      }
+      if !_storage._addresses.isEmpty {
+        try visitor.visitRepeatedStringField(value: _storage._addresses, fieldNumber: 7)
+      }
+      if _storage._port != 0 {
+        try visitor.visitSingularUInt32Field(value: _storage._port, fieldNumber: 8)
+      }
+      if _storage._endpointReady != false {
+        try visitor.visitSingularBoolField(value: _storage._endpointReady, fieldNumber: 9)
+      }
+      if _storage._firstSeenAtUnixNano != 0 {
+        try visitor.visitSingularInt64Field(value: _storage._firstSeenAtUnixNano, fieldNumber: 10)
+      }
+      if _storage._lastSeenAtUnixNano != 0 {
+        try visitor.visitSingularInt64Field(value: _storage._lastSeenAtUnixNano, fieldNumber: 11)
+      }
+      if _storage._expiresAtUnixNano != 0 {
+        try visitor.visitSingularInt64Field(value: _storage._expiresAtUnixNano, fieldNumber: 12)
+      }
+      if _storage._trustState != .unspecified {
+        try visitor.visitSingularEnumField(value: _storage._trustState, fieldNumber: 13)
+      }
+      if !_storage._platform.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._platform, fieldNumber: 14)
+      }
+      if !_storage._arch.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._arch, fieldNumber: 15)
+      }
+      if _storage._logicalCpuCount != 0 {
+        try visitor.visitSingularUInt32Field(value: _storage._logicalCpuCount, fieldNumber: 16)
+      }
+      if _storage._totalMemoryBytes != 0 {
+        try visitor.visitSingularUInt64Field(value: _storage._totalMemoryBytes, fieldNumber: 17)
+      }
     }
     try unknownFields.traverse(visitor: &visitor)
   }
 
   public static func ==(lhs: Computehop_Local_V1_NearbyDevice, rhs: Computehop_Local_V1_NearbyDevice) -> Bool {
-    if lhs.presenceID != rhs.presenceID {return false}
-    if lhs.name != rhs.name {return false}
-    if lhs.role != rhs.role {return false}
-    if lhs.protocolVersion != rhs.protocolVersion {return false}
-    if lhs.instance != rhs.instance {return false}
-    if lhs.hostName != rhs.hostName {return false}
-    if lhs.addresses != rhs.addresses {return false}
-    if lhs.port != rhs.port {return false}
-    if lhs.endpointReady != rhs.endpointReady {return false}
-    if lhs.firstSeenAtUnixNano != rhs.firstSeenAtUnixNano {return false}
-    if lhs.lastSeenAtUnixNano != rhs.lastSeenAtUnixNano {return false}
-    if lhs.expiresAtUnixNano != rhs.expiresAtUnixNano {return false}
-    if lhs.trustState != rhs.trustState {return false}
+    if lhs._storage !== rhs._storage {
+      let storagesAreEqual: Bool = withExtendedLifetime((lhs._storage, rhs._storage)) { (_args: (_StorageClass, _StorageClass)) in
+        let _storage = _args.0
+        let rhs_storage = _args.1
+        if _storage._presenceID != rhs_storage._presenceID {return false}
+        if _storage._name != rhs_storage._name {return false}
+        if _storage._role != rhs_storage._role {return false}
+        if _storage._protocolVersion != rhs_storage._protocolVersion {return false}
+        if _storage._instance != rhs_storage._instance {return false}
+        if _storage._hostName != rhs_storage._hostName {return false}
+        if _storage._addresses != rhs_storage._addresses {return false}
+        if _storage._port != rhs_storage._port {return false}
+        if _storage._endpointReady != rhs_storage._endpointReady {return false}
+        if _storage._firstSeenAtUnixNano != rhs_storage._firstSeenAtUnixNano {return false}
+        if _storage._lastSeenAtUnixNano != rhs_storage._lastSeenAtUnixNano {return false}
+        if _storage._expiresAtUnixNano != rhs_storage._expiresAtUnixNano {return false}
+        if _storage._trustState != rhs_storage._trustState {return false}
+        if _storage._platform != rhs_storage._platform {return false}
+        if _storage._arch != rhs_storage._arch {return false}
+        if _storage._logicalCpuCount != rhs_storage._logicalCpuCount {return false}
+        if _storage._totalMemoryBytes != rhs_storage._totalMemoryBytes {return false}
+        return true
+      }
+      if !storagesAreEqual {return false}
+    }
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -3499,7 +4023,7 @@ nonisolated extension Computehop_Local_V1_NearbyDevice: SwiftProtobuf.Message, S
 
 nonisolated extension Computehop_Local_V1_JobSpec: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".JobSpec"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}executable\0\u{1}arguments\0\u{3}working_directory\0\u{1}environment\0\u{1}executor\0\u{3}container_image\0\u{1}outputs\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}executable\0\u{1}arguments\0\u{3}working_directory\0\u{1}environment\0\u{1}executor\0\u{3}container_image\0\u{1}outputs\0\u{3}required_tool_ids\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -3514,6 +4038,7 @@ nonisolated extension Computehop_Local_V1_JobSpec: SwiftProtobuf.Message, SwiftP
       case 5: try { try decoder.decodeSingularEnumField(value: &self.executor) }()
       case 6: try { try decoder.decodeSingularStringField(value: &self.containerImage) }()
       case 7: try { try decoder.decodeRepeatedStringField(value: &self.outputs) }()
+      case 8: try { try decoder.decodeRepeatedStringField(value: &self.requiredToolIds) }()
       default: break
       }
     }
@@ -3541,6 +4066,9 @@ nonisolated extension Computehop_Local_V1_JobSpec: SwiftProtobuf.Message, SwiftP
     if !self.outputs.isEmpty {
       try visitor.visitRepeatedStringField(value: self.outputs, fieldNumber: 7)
     }
+    if !self.requiredToolIds.isEmpty {
+      try visitor.visitRepeatedStringField(value: self.requiredToolIds, fieldNumber: 8)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -3552,6 +4080,7 @@ nonisolated extension Computehop_Local_V1_JobSpec: SwiftProtobuf.Message, SwiftP
     if lhs.executor != rhs.executor {return false}
     if lhs.containerImage != rhs.containerImage {return false}
     if lhs.outputs != rhs.outputs {return false}
+    if lhs.requiredToolIds != rhs.requiredToolIds {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

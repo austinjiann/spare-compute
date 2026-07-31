@@ -5,12 +5,15 @@
   "description": "ComputeHop Control Center for device sync and configuration.",
   "main": "src/main.js",
   "scripts": {
+    "bundle-daemon": "node scripts/bundle-daemon.js",
     "dev": "electron .",
+    "package:dir": "node scripts/package-app.js",
     "start": "electron .",
-    "lint": "node --check src/main.js && node --check src/preload.js && node --check src/renderer.js && node --check src/local-daemon.js && node --check src/planner.js",
-    "test": "node --test src/*.test.js"
+    "lint": "node --check src/main.js && node --check src/preload.js && node --check src/renderer.js && node --check src/command-line.js && node --check src/device-mapping.js && node --check src/device-targets.js && node --check src/device-status.js && node --check src/launch-agent-status.js && node --check src/launch-agent-service.js && node --check src/work-policy.js && node --check src/job-routing.js && node --check src/job-summary.js && node --check src/job-list.js && node --check src/job-failure.js && node --check src/output-path.js && node --check src/output-restore.js && node --check src/local-daemon.js && node --check src/daemon-launcher.js && node --check src/daemon-autostart.js && node --check src/planner.js && node --check src/planner-service.js && node --check src/openai-planner.js && node --check src/ai-credentials.js && node --check src/runtime-info.js && node --check src/run-feedback.js && node --check src/run-request.js && node --check src/run-summary.js && node --check src/run-progress.js && node --check src/run-lifecycle.js && node --check src/settings-store.js && node --check scripts/bundle-daemon.js && node --check scripts/package-app.js && node --check ../../packaging/macos/verify-control-center-background.js",
+    "test": "node --test src/*.test.js scripts/*.test.js"
   },
   "devDependencies": {
+    "@electron/packager": "^20.0.4",
     "electron": "^43.2.0"
   },
   "dependencies": {

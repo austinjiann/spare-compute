@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -20,6 +21,12 @@ const trustColumns = `
 	name,
 	role,
 	state,
+	platform,
+	arch,
+	logical_cpu_count,
+	total_memory_bytes,
+	tool_ids_json,
+	hints_observed_at_ns,
 	paired_at_ns,
 	updated_at_ns,
 	revoked_at_ns,
@@ -205,6 +212,66 @@ func (repository *TrustRepository) Revoke(ctx context.Context, id device.ID, at 
 	return peer, nil
 }
 
+// UpdateHints records the newest non-authoritative compatibility/resource
+// hints observed for an active trusted peer. Older observations are ignored.
+func (repository *TrustRepository) UpdateHints(
+	ctx context.Context,
+	id device.ID,
+	hints trust.PeerHints,
+) (trust.Peer, error) {
+	if !id.Valid() {
+		return trust.Peer{}, device.ErrInvalidID
+	}
+	if err := hints.Validate(); err != nil {
+		return trust.Peer{}, err
+	}
+	hints.ObservedAt = hints.ObservedAt.UTC()
+	transaction, err := repository.database.BeginTx(ctx, nil)
+	if err != nil {
+		return trust.Peer{}, fmt.Errorf("begin trust hint update: %w", err)
+	}
+	defer func() { _ = transaction.Rollback() }()
+	peer, err := queryTrustedPeer(ctx, transaction, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return trust.Peer{}, fmt.Errorf("%w: %s", trust.ErrNotFound, id)
+	}
+	if err != nil {
+		return trust.Peer{}, fmt.Errorf("load trust for hint update: %w", err)
+	}
+	if peer.State != trust.StateActive {
+		return peer, nil
+	}
+	if peer.HintsObservedAt != nil && hints.ObservedAt.Before(*peer.HintsObservedAt) {
+		return peer, nil
+	}
+	result, err := transaction.ExecContext(ctx, `
+		UPDATE trusted_devices
+		SET platform = ?, arch = ?, logical_cpu_count = ?,
+			total_memory_bytes = ?, tool_ids_json = ?, hints_observed_at_ns = ?
+		WHERE device_id = ? AND state = 'active'
+	`, hints.Platform, hints.Architecture, hints.LogicalCPUCount,
+		int64(hints.TotalMemoryBytes), toolIDsJSON(hints.ToolIDs),
+		hints.ObservedAt.UnixNano(), id)
+	if err != nil {
+		return trust.Peer{}, fmt.Errorf("update trusted peer hints: %w", err)
+	}
+	changed, err := result.RowsAffected()
+	if err != nil {
+		return trust.Peer{}, fmt.Errorf("count trusted peer hint updates: %w", err)
+	}
+	if changed != 1 {
+		return trust.Peer{}, fmt.Errorf("%w: trusted peer changed concurrently", trust.ErrConflict)
+	}
+	peer, err = queryTrustedPeer(ctx, transaction, id)
+	if err != nil {
+		return trust.Peer{}, fmt.Errorf("load updated trusted peer hints: %w", err)
+	}
+	if err := transaction.Commit(); err != nil {
+		return trust.Peer{}, fmt.Errorf("commit trusted peer hint update: %w", err)
+	}
+	return peer, nil
+}
+
 type trustRowScanner interface {
 	Scan(...any) error
 }
@@ -222,12 +289,17 @@ func queryTrustedPeer(ctx context.Context, queryer trustRowQueryer, id device.ID
 func scanTrustedPeer(scanner trustRowScanner) (trust.Peer, error) {
 	var (
 		deviceID, pairID, name, role, state string
+		platform, architecture              string
 		publicKey, connectivitySecret       []byte
+		toolIDsJSONValue                    string
 		pairedAtNS, updatedAtNS             int64
-		revokedAtNS                         sql.NullInt64
+		logicalCPUCount                     int64
+		totalMemoryBytes                    int64
+		revokedAtNS, hintsObservedAtNS      sql.NullInt64
 	)
 	if err := scanner.Scan(
 		&deviceID, &pairID, &publicKey, &name, &role, &state,
+		&platform, &architecture, &logicalCPUCount, &totalMemoryBytes, &toolIDsJSONValue, &hintsObservedAtNS,
 		&pairedAtNS, &updatedAtNS, &revokedAtNS, &connectivitySecret,
 	); err != nil {
 		return trust.Peer{}, err
@@ -240,12 +312,26 @@ func scanTrustedPeer(scanner trustRowScanner) (trust.Peer, error) {
 	if err != nil {
 		return trust.Peer{}, err
 	}
+	toolIDs, err := parseToolIDsJSON(toolIDsJSONValue)
+	if err != nil {
+		return trust.Peer{}, trust.ErrInvalidPeer
+	}
 	peer := trust.Peer{
 		PairID: parsedPairID, DeviceID: parsedDeviceID,
 		PublicKey:          ed25519.PublicKey(append([]byte(nil), publicKey...)),
 		ConnectivitySecret: append(trust.ConnectivitySecret(nil), connectivitySecret...),
 		Name:               name, Role: device.Role(role), State: trust.State(state),
+		Platform: platform, Architecture: architecture,
+		LogicalCPUCount: uint32(logicalCPUCount), TotalMemoryBytes: uint64(totalMemoryBytes),
+		ToolIDs:  toolIDs,
 		PairedAt: time.Unix(0, pairedAtNS).UTC(), UpdatedAt: time.Unix(0, updatedAtNS).UTC(),
+	}
+	if logicalCPUCount < 0 || totalMemoryBytes < 0 {
+		return trust.Peer{}, trust.ErrInvalidPeer
+	}
+	if hintsObservedAtNS.Valid {
+		observedAt := time.Unix(0, hintsObservedAtNS.Int64).UTC()
+		peer.HintsObservedAt = &observedAt
 	}
 	if revokedAtNS.Valid {
 		revokedAt := time.Unix(0, revokedAtNS.Int64).UTC()
@@ -262,4 +348,29 @@ func nullableSecret(secret trust.ConnectivitySecret) any {
 		return nil
 	}
 	return []byte(secret)
+}
+
+func toolIDsJSON(values []string) string {
+	if len(values) == 0 {
+		return "[]"
+	}
+	encoded, err := json.Marshal(values)
+	if err != nil {
+		return "[]"
+	}
+	return string(encoded)
+}
+
+func parseToolIDsJSON(value string) ([]string, error) {
+	if value == "" {
+		value = "[]"
+	}
+	var decoded []string
+	if err := json.Unmarshal([]byte(value), &decoded); err != nil {
+		return nil, err
+	}
+	if decoded == nil {
+		return []string{}, nil
+	}
+	return decoded, nil
 }

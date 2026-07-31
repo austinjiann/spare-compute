@@ -25,6 +25,7 @@ message Request {
     ListTrustedDevicesRequest list_trusted_devices = 21;
     UnpairDeviceRequest unpair_device = 22;
     FetchArtifactsRequest fetch_artifacts = 23;
+    GetJobProgressRequest get_job_progress = 24;
   }
 }
 
@@ -49,6 +50,7 @@ message Response {
     ListTrustedDevicesResponse list_trusted_devices = 21;
     UnpairDeviceResponse unpair_device = 22;
     FetchArtifactsResponse fetch_artifacts = 23;
+    GetJobProgressResponse get_job_progress = 24;
   }
 }
 
@@ -59,11 +61,19 @@ message PingResponse {
   string device_id = 2;
   string device_name = 3;
   DeviceRole role = 4;
+  string platform = 5;
+  string arch = 6;
+  uint32 logical_cpu_count = 7;
+  uint64 total_memory_bytes = 8;
+  repeated string tool_ids = 9;
 }
 
 message SubmitJobRequest {
   JobSpec spec = 1;
   string device_selector = 2;
+  // Optional client-generated UUID. It lets UI clients know the job ID before
+  // remote snapshot preparation/upload has finished.
+  string job_id = 3;
 }
 
 message SubmitJobResponse {
@@ -184,6 +194,15 @@ message FetchArtifactsResponse {
   uint32 conflict_file_count = 3;
 }
 
+message GetJobProgressRequest {
+  string job_id = 1;
+  string device_selector = 2;
+}
+
+message GetJobProgressResponse {
+  JobProgress progress = 1;
+}
+
 message Pairing {
   string id = 1;
   string peer_device_id = 2;
@@ -214,6 +233,12 @@ message TrustedDevice {
   string connectivity_path = 11;
   string connectivity_error = 12;
   int64 connectivity_updated_at_unix_nano = 13;
+  string platform = 14;
+  string arch = 15;
+  uint32 logical_cpu_count = 16;
+  uint64 total_memory_bytes = 17;
+  int64 hints_observed_at_unix_nano = 18;
+  repeated string tool_ids = 19;
 }
 
 message NearbyDevice {
@@ -230,6 +255,10 @@ message NearbyDevice {
   int64 last_seen_at_unix_nano = 11;
   int64 expires_at_unix_nano = 12;
   DeviceTrustState trust_state = 13;
+  string platform = 14;
+  string arch = 15;
+  uint32 logical_cpu_count = 16;
+  uint64 total_memory_bytes = 17;
 }
 
 message JobSpec {
@@ -240,6 +269,7 @@ message JobSpec {
   Executor executor = 5;
   string container_image = 6;
   repeated string outputs = 7;
+  repeated string required_tool_ids = 8;
 }
 
 message Job {

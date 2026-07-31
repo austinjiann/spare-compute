@@ -4,12 +4,16 @@ struct TaskPlan: Identifiable, Equatable, Sendable {
     let id = UUID()
     let title: String
     let projectPath: String
+    let requiresProject: Bool
     let commands: [String]
     let outputs: [String]
     let notes: [String]
 
     var commandLine: String {
-        CommandInput.shellCommand(["sh", "-lc", shellScript])
+        if !requiresProject, commands.count == 1 {
+            return commands[0]
+        }
+        return CommandInput.shellCommand(["sh", "-lc", shellScript])
     }
 
     private var shellScript: String {
@@ -28,7 +32,7 @@ enum TaskPlannerError: LocalizedError, Equatable {
         case .emptyRequest:
             return "Ask what to do first."
         case .missingProject:
-            return "Drop a project first."
+            return "Choose a project first."
         case .noAllowedCapabilities:
             return "Enable at least one allowed task for this device."
         case .noPlan(let detail):
@@ -56,24 +60,56 @@ struct LocalTaskPlanner: TaskPlanning {
             throw TaskPlannerError.emptyRequest
         }
 
-        let trimmedProjectPath = projectPath.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedProjectPath.isEmpty else {
-            throw TaskPlannerError.missingProject
-        }
         guard !capabilities.isEmpty else {
             throw TaskPlannerError.noAllowedCapabilities
         }
 
-        let project = ProjectSnapshot(path: trimmedProjectPath)
+        let trimmedProjectPath = projectPath.trimmingCharacters(in: .whitespacesAndNewlines)
         let lowercasedRequest = trimmedRequest.lowercased()
-        let wantsCI = containsAny(lowercasedRequest, ["ci", "check", "verify"])
-        let wantsTests = wantsCI || containsAny(lowercasedRequest, ["test", "tests"])
-        let wantsBuild = wantsCI || containsAny(lowercasedRequest, ["build", "package", "release"])
+        let exactCommand = exactCommand(from: trimmedRequest)
+        let wantsCI = wantsProjectChecks(lowercasedRequest)
+        let wantsTests = !wantsCI && containsAny(lowercasedRequest, ["test", "tests"])
+        let wantsBuild = !wantsCI && containsAny(lowercasedRequest, ["build", "package", "release"])
         let wantsDocker = containsAny(lowercasedRequest, ["docker", "container", "image"])
+        let wantsProject = wantsCI || wantsTests || wantsBuild || wantsDocker
+        let wantsUtility = exactCommand != nil && (!wantsProject || isConnectionTest(lowercasedRequest))
 
         var commands: [String] = []
         var outputs: [String] = []
         var notes: [String] = []
+
+        if wantsUtility, let exactCommand, capabilities.contains(.shell) {
+            return TaskPlan(
+                title: title(for: lowercasedRequest),
+                projectPath: "",
+                requiresProject: false,
+                commands: [exactCommand],
+                outputs: [],
+                notes: ["Runs without uploading a project."]
+            )
+        }
+
+        guard !trimmedProjectPath.isEmpty else {
+            throw TaskPlannerError.missingProject
+        }
+
+        let project = ProjectSnapshot(path: trimmedProjectPath)
+
+        if wantsCI {
+            if capabilities.contains(.tests) || capabilities.contains(.builds) {
+                commands.append(contentsOf: ciCommands(for: project))
+                if commands.isEmpty, capabilities.contains(.tests) {
+                    commands.append(contentsOf: testCommands(for: project))
+                }
+                if commands.isEmpty, capabilities.contains(.builds) {
+                    let build = buildCommands(for: project, request: lowercasedRequest)
+                    commands.append(contentsOf: build.commands)
+                    outputs.append(contentsOf: build.outputs)
+                }
+            } else {
+                notes.append("Project checks are disabled for this device.")
+            }
+        }
 
         if wantsTests {
             if capabilities.contains(.tests) {
@@ -101,8 +137,8 @@ struct LocalTaskPlanner: TaskPlanning {
             }
         }
 
-        if commands.isEmpty, capabilities.contains(.shell), looksLikeExactCommand(trimmedRequest) {
-            commands.append(trimmedRequest)
+        if commands.isEmpty, capabilities.contains(.shell), let exactCommand {
+            commands.append(exactCommand)
             notes.append("Using the request as an exact command.")
         }
 
@@ -118,10 +154,28 @@ struct LocalTaskPlanner: TaskPlanning {
         return TaskPlan(
             title: title(for: lowercasedRequest),
             projectPath: trimmedProjectPath,
+            requiresProject: true,
             commands: commands,
             outputs: outputs,
             notes: notes
         )
+    }
+
+    private func wantsProjectChecks(_ request: String) -> Bool {
+        containsAny(request, ["ci", "check", "checks", "verify", "validate", "preflight"])
+    }
+
+    private func ciCommands(for project: ProjectSnapshot) -> [String] {
+        if project.makefileHasTarget("pr-check") {
+            return ["make pr-check"]
+        }
+        if project.makefileHasTarget("check") {
+            return ["make check"]
+        }
+        if project.packageJSONContainsScript("ci") {
+            return [project.packageScriptCommand("ci")]
+        }
+        return []
     }
 
     private func testCommands(for project: ProjectSnapshot) -> [String] {
@@ -136,7 +190,7 @@ struct LocalTaskPlanner: TaskPlanning {
             commands.append("cargo test")
         }
         if project.packageJSONContainsScript("test") {
-            commands.append("npm test")
+            commands.append(project.packageScriptCommand("test"))
         }
         if project.has("pyproject.toml") || project.has("pytest.ini") {
             commands.append("python -m pytest")
@@ -155,6 +209,13 @@ struct LocalTaskPlanner: TaskPlanning {
         var outputs: [String] = []
         let wantsPackage = containsAny(request, ["package", "release", "app"])
 
+        if wantsPackage, project.makefileHasTarget("macos-archive") {
+            commands.append("make macos-archive")
+            outputs.append("dist/macos/ComputeHop-macos.zip")
+            outputs.append("dist/macos/ComputeHop-macos.zip.sha256")
+            return (commands, outputs)
+        }
+
         if wantsPackage, project.makefileHasTarget("macos-package") {
             commands.append("make macos-package")
             outputs.append("dist/macos/ComputeHop.app")
@@ -171,7 +232,7 @@ struct LocalTaskPlanner: TaskPlanning {
             commands.append("cargo build")
         }
         if project.packageJSONContainsScript("build") {
-            commands.append("npm run build")
+            commands.append(project.packageScriptCommand("build"))
             outputs.append("dist")
         }
         if commands.isEmpty, project.makefileHasTarget("build") {
@@ -182,7 +243,7 @@ struct LocalTaskPlanner: TaskPlanning {
     }
 
     private func title(for request: String) -> String {
-        if containsAny(request, ["ci", "check", "verify"]) {
+        if wantsProjectChecks(request) {
             return "Run project checks"
         }
         if containsAny(request, ["test", "tests"]) {
@@ -201,19 +262,48 @@ struct LocalTaskPlanner: TaskPlanning {
         needles.contains { value.contains($0) }
     }
 
-    private func looksLikeExactCommand(_ request: String) -> Bool {
-        let firstToken = request.split(separator: " ").first.map(String.init) ?? ""
+    private func isConnectionTest(_ request: String) -> Bool {
+        request == "test connection" || request == "check connection"
+    }
+
+    private func exactCommand(from request: String) -> String? {
+        let trimmed = request.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let command: String
+        let lowercased = trimmed.lowercased()
+        if isConnectionTest(lowercased) {
+            command = "hostname"
+        } else if lowercased.hasPrefix("run ") {
+            command = String(trimmed.dropFirst(4)).trimmingCharacters(in: .whitespacesAndNewlines)
+        } else if lowercased.hasPrefix("execute ") {
+            command = String(trimmed.dropFirst(8)).trimmingCharacters(in: .whitespacesAndNewlines)
+        } else {
+            command = trimmed
+        }
+        guard looksLikeExactCommand(command) else { return nil }
+        return command
+    }
+
+    private func looksLikeExactCommand(_ command: String) -> Bool {
+        let firstToken = command.split(separator: " ").first.map(String.init) ?? ""
         return [
+            "bun",
             "cargo",
+            "date",
             "docker",
             "ffmpeg",
             "go",
+            "hostname",
             "make",
+            "node",
             "npm",
             "pnpm",
             "python",
             "sh",
             "swift",
+            "uname",
+            "uptime",
+            "whoami",
             "yarn",
         ].contains(firstToken)
     }
@@ -246,7 +336,24 @@ private struct ProjectSnapshot {
         return scripts[script] != nil
     }
 
+    func packageScriptCommand(_ script: String) -> String {
+        "\(packageManager) run \(script)"
+    }
+
     private func url(_ relativePath: String) -> URL {
         URL(fileURLWithPath: path).appendingPathComponent(relativePath)
+    }
+
+    private var packageManager: String {
+        if has("pnpm-lock.yaml") {
+            return "pnpm"
+        }
+        if has("yarn.lock") {
+            return "yarn"
+        }
+        if has("bun.lock") || has("bun.lockb") {
+            return "bun"
+        }
+        return "npm"
     }
 }

@@ -15,17 +15,21 @@ next-step guidance that points at `computehop setup worker --device-name
 for setup commands, a one-click Connect Nearby Worker action when exactly one
 unpaired worker is visible, nearby and connected devices, LAN-only status for
 paired workers whose remote connectivity is disabled, two-sided connect
-confirmation with explicit local/other-device status, stale restart duplicate
-suppression for trusted nearby devices,
+confirmation with visible code-comparison instructions and explicit
+local/other-device status, stale restart duplicate suppression for trusted
+nearby devices,
 native job submission to this Mac, Auto worker when exactly one
-worker is runnable, or a paired available worker, a Smoke Test button that runs
-`hostname` remotely without uploading a project, recent jobs, reconnectable
-output, copyable equivalent `computehop run ...` commands from the run form,
+worker is runnable, or a paired available worker, a Test button that runs
+`hostname` remotely without uploading a project, a compact active/selected task
+panel with reconnectable output, copyable equivalent `computehop run ...`
+commands from the run form,
 explicit command-input validation for unfinished quotes and escapes, explicit
 no-stdout/stderr placeholders for running and finished jobs, a copyable
 `computehop logs --follow <job-id>` handoff for terminal debugging,
 job-completion notifications for observed running jobs, cancellation, declared
-output paths, empty-jobs hints, a persisted notification setting, copyable
+output paths, plain-language task planning that maps CI/check requests to
+repository validation targets such as `make pr-check`, empty-jobs hints, a
+persisted notification setting, copyable
 diagnostic commands for setup/connect troubleshooting, configurable worker setup
 and VPS defaults for generated install commands, and
 conflict-safe artifact restoration through a native destination picker. Output
@@ -54,8 +58,9 @@ socket under `~/Library/Application Support/ComputeHop`. Protocol Buffer models
 come from `gen/swift`; regenerate them with `make proto` after schema changes.
 
 `swift run` remains the fastest source-development path. A real ad-hoc-signed
-app bundle with both Go binaries and a per-user launchd installer is available
-under [`../../packaging/macos`](../../packaging/macos). Developer ID
+app bundle with the embedded Control Center, both Go binaries, and a per-user
+launchd installer is available under
+[`../../packaging/macos`](../../packaging/macos). Developer ID
 signing, notarization, universal release binaries, and clean-machine upgrade
 testing remain release work. The optional live IPC test can validate submission
 and logs against a running daemon:

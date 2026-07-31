@@ -205,6 +205,24 @@ func (service *Service) ListTrusted(ctx context.Context) ([]trust.Peer, error) {
 	return service.repository.List(ctx)
 }
 
+// RefreshTrustedHints stores current LAN compatibility/resource hints for
+// unambiguously matched active trusted workers, then returns the refreshed list.
+func (service *Service) RefreshTrustedHints(
+	ctx context.Context,
+	snapshot device.DiscoverySnapshot,
+) ([]trust.Peer, error) {
+	peers, err := service.repository.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for id, hints := range trust.MatchNearbyHints(peers, snapshot.Devices) {
+		if _, err := service.repository.UpdateHints(ctx, id, hints); err != nil {
+			return nil, err
+		}
+	}
+	return service.repository.List(ctx)
+}
+
 // Unpair revokes exactly one active peer selected by ID prefix or exact name.
 func (service *Service) Unpair(ctx context.Context, selector string) (trust.Peer, error) {
 	peers, err := service.repository.List(ctx)

@@ -13,6 +13,7 @@ func pairingSummaryExplainsBothDevicesStillNeedConfirmation() {
     let summary = PairingSummary(value)
     #expect(summary.needsLocalConfirmation)
     #expect(summary.confirmationStatusText == "This device: not yet · Other device: not yet")
+    #expect(summary.confirmActionTitle == "Codes Match")
     #expect(summary.instructionText == "Confirm only if this exact code appears on both devices.")
 }
 

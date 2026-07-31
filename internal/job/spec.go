@@ -3,6 +3,7 @@ package job
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/austinjiann/spare-compute/internal/portablepath"
@@ -28,9 +29,13 @@ type Spec struct {
 	Executor         Executor
 	ContainerImage   string
 	Outputs          []string
+	RequiredToolIDs  []string
 }
 
-const MaximumOutputs = 64
+const (
+	MaximumOutputs         = 64
+	MaximumRequiredToolIDs = 128
+)
 
 // Validate checks the technology-independent parts of a job specification.
 func (spec Spec) Validate() error {
@@ -77,6 +82,23 @@ func (spec Spec) Validate() error {
 		outputs[key] = struct{}{}
 	}
 
+	if len(spec.RequiredToolIDs) > MaximumRequiredToolIDs {
+		return fmt.Errorf("%w: required tools cannot exceed %d", ErrInvalidSpec, MaximumRequiredToolIDs)
+	}
+	if !slices.IsSorted(spec.RequiredToolIDs) {
+		return fmt.Errorf("%w: required tools must be sorted", ErrInvalidSpec)
+	}
+	previousToolID := ""
+	for index, toolID := range spec.RequiredToolIDs {
+		if invalidToolID(toolID) {
+			return fmt.Errorf("%w: invalid required tool %d", ErrInvalidSpec, index)
+		}
+		if toolID == previousToolID {
+			return fmt.Errorf("%w: duplicate required tool %q", ErrInvalidSpec, toolID)
+		}
+		previousToolID = toolID
+	}
+
 	switch spec.Executor {
 	case ExecutorNative:
 		if spec.ContainerImage != "" {
@@ -101,6 +123,7 @@ func (spec Spec) Clone() Spec {
 	clone := spec
 	clone.Arguments = append([]string(nil), spec.Arguments...)
 	clone.Outputs = append([]string(nil), spec.Outputs...)
+	clone.RequiredToolIDs = append([]string(nil), spec.RequiredToolIDs...)
 	if spec.Environment != nil {
 		clone.Environment = make(map[string]string, len(spec.Environment))
 		for name, value := range spec.Environment {
@@ -108,6 +131,18 @@ func (spec Spec) Clone() Spec {
 		}
 	}
 	return clone
+}
+
+func invalidToolID(value string) bool {
+	if value == "" || strings.TrimSpace(value) != value || strings.ToLower(value) != value {
+		return true
+	}
+	for _, character := range value {
+		if character <= 0x20 || character == 0x7f || character == '=' {
+			return true
+		}
+	}
+	return false
 }
 
 func reservedOutputPath(value string) bool {

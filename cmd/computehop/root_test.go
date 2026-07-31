@@ -174,6 +174,64 @@ func TestRunCommandAutoSelectorErrorExplainsConnectNearby(t *testing.T) {
 	}
 }
 
+func TestRunCommandUnavailableWorkerErrorAddsRecoverySteps(t *testing.T) {
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout,
+		stderr: &bytes.Buffer{},
+		getwd:  func() (string, error) { return "/project", nil },
+		newClient: func(string) (caller, error) {
+			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+				if got := request.GetSubmitJob().GetDeviceSelector(); got != "auto" {
+					t.Fatalf("device selector = %q", got)
+				}
+				return nil, &localipc.RemoteError{
+					Code:    localv1.ErrorCode_ERROR_CODE_DEVICE_UNAVAILABLE,
+					Message: "paired worker is unavailable: Austin MacBook 2: remote connectivity path is unavailable",
+				}
+			}}, nil
+		},
+	})
+	command.SetArgs([]string{"run", "--on", "auto", "hostname"})
+	err := command.Execute()
+	if err == nil {
+		t.Fatal("Execute() error = nil")
+	}
+	for _, want := range []string{
+		"Austin MacBook 2",
+		"remote connectivity path is unavailable",
+		"Next:",
+		"Start ComputeHop on the worker",
+		"computehop devices",
+		"computehop smoke",
+		"computehop setup vps",
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("error = %q; missing %q", err, want)
+		}
+	}
+	if got := stdout.String(); got != "" {
+		t.Fatalf("stdout = %q", got)
+	}
+}
+
+func TestRunCommandUnavailableWorkerErrorDoesNotDuplicateDaemonGuidance(t *testing.T) {
+	message := "paired worker is unavailable: Austin MacBook 2 is not reachable. " +
+		"Start ComputeHop on that worker, put both devices on the same LAN, then run 'computehop smoke'. " +
+		"For cross-network workers, run 'computehop setup vps'. Last error: remote connectivity path is unavailable"
+	got := runSubmitError("auto", &localipc.RemoteError{
+		Code:    localv1.ErrorCode_ERROR_CODE_DEVICE_UNAVAILABLE,
+		Message: message,
+	})
+	if !strings.Contains(got.Error(), "computehop devices") {
+		t.Fatalf("error = %q; missing devices guidance", got)
+	}
+	if strings.Count(got.Error(), "computehop smoke") != 1 ||
+		strings.Count(got.Error(), "computehop setup vps") != 1 {
+		t.Fatalf("error duplicated daemon guidance: %q", got)
+	}
+}
+
 func TestRunCommandAutoSelectorErrorExplainsExplicitChoice(t *testing.T) {
 	var stdout bytes.Buffer
 	command := newRootCommand(dependencies{
@@ -1734,6 +1792,7 @@ func TestDoctorCommandPrintsStartAdviceWhenDaemonIsNotRunning(t *testing.T) {
 		"Daemon: not running",
 		"open -a ComputeHop",
 		"computehop setup orchestrator",
+		"make install-macos-check",
 		"go run ./cmd/computehopd --role orchestrator --device-name \"This Mac\"",
 		"computehop doctor",
 	} {
@@ -1796,6 +1855,7 @@ func TestDoctorCommandPrintsRestartAdviceWhenDaemonProtocolMismatches(t *testing
 	}
 	for _, want := range []string{
 		"Daemon: running, but not compatible with this CLI",
+		"make install-macos-check",
 		"make install-macos",
 		"make uninstall-macos",
 		"go run ./cmd/computehopd --role orchestrator",
@@ -1825,6 +1885,7 @@ func TestSetupCommandPrintsFirstRunChecklistWithoutDaemon(t *testing.T) {
 		"Happy path",
 		"computehop setup orchestrator",
 		"computehop setup worker --device-name \"Gaming PC\"",
+		"make worker-archives",
 		"computehop doctor",
 		"Development-only daemon",
 		"go run ./cmd/computehopd --role worker",
@@ -1856,10 +1917,14 @@ func TestSetupHelpShowsRoleAliasesMacAndVPS(t *testing.T) {
 		"Print first-run commands without requiring the ComputeHop daemon",
 		"computehop setup worker --device-name \"Gaming PC\"",
 		"computehop setup worker --device-name \"Gaming PC\" --lan-only",
+		"computehop setup workers",
+		"computehop setup smoke",
 		"computehop setup vps --connectivity-domain connect.example.com",
 		"orchestrator",
 		"worker",
 		"mac",
+		"workers",
+		"smoke",
 		"vps",
 	} {
 		if !strings.Contains(stdout.String(), want) {
@@ -1904,12 +1969,31 @@ func TestSetupSubcommandHelpShowsExamplesWithoutDaemon(t *testing.T) {
 			},
 		},
 		{
+			name: "workers",
+			args: []string{"setup", "workers", "--help"},
+			want: []string{
+				"Linux and Windows worker package commands",
+				"package and pairing checklist",
+				"computehop setup workers --target linux --device-name \"Home Server\"",
+				"computehop setup workers --target windows --device-name \"Gaming PC\"",
+			},
+		},
+		{
 			name: "vps",
 			args: []string{"setup", "vps", "--help"},
 			want: []string{
 				"provider-neutral one-VPS checklist",
 				"does not buy or mutate a server",
 				"computehop setup vps --connectivity-domain connect.example.com",
+			},
+		},
+		{
+			name: "smoke",
+			args: []string{"setup", "smoke", "--help"},
+			want: []string{
+				"two-Mac package smoke checklist",
+				"without requiring the daemon",
+				"computehop setup smoke",
 			},
 		},
 	}
@@ -1936,6 +2020,274 @@ func TestSetupSubcommandHelpShowsExamplesWithoutDaemon(t *testing.T) {
 	}
 }
 
+func TestSetupWorkersCommandPrintsLinuxAndWindowsPackageChecklistWithoutDaemon(t *testing.T) {
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			t.Fatal("setup workers should not require a daemon client")
+			return nil, nil
+		},
+	})
+	command.SetArgs([]string{"setup", "workers", "--device-name", "Austin Gaming PC"})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	for _, want := range []string{
+		"ComputeHop Linux/Windows worker setup",
+		"make worker-archives",
+		"ComputeHop-worker-linux-amd64.tar.gz.sha256",
+		"COMPUTEHOP_DEVICE_NAME='Austin Gaming PC' ./run-worker.sh --lan-only",
+		"COMPUTEHOP_DEVICE_NAME='Austin Gaming PC' ./install-systemd-user.sh --lan-only",
+		"ComputeHop-worker-windows-amd64.zip",
+		".\\run-worker.ps1 -DeviceName 'Austin Gaming PC' -LanOnly",
+		".\\install-scheduled-task.ps1 -DeviceName 'Austin Gaming PC' -LanOnly",
+		"computehop connect nearby",
+		"./bin/computehop connect confirm",
+		".\\bin\\computehop.exe connect confirm",
+		"computehop smoke",
+		"computehop run --on auto --no-project --follow hostname",
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
+		}
+	}
+}
+
+func TestSetupWorkersCommandCanPrintTargetSpecificChecklist(t *testing.T) {
+	tests := []struct {
+		name   string
+		target string
+		want   []string
+		omit   []string
+	}{
+		{
+			name:   "linux",
+			target: "linux",
+			want: []string{
+				"Linux worker:",
+				"COMPUTEHOP_DEVICE_NAME=HomeServer ./run-worker.sh --lan-only",
+				"Confirm the same code on the Linux worker:",
+			},
+			omit: []string{
+				"Windows worker:",
+				".\\run-worker.ps1",
+			},
+		},
+		{
+			name:   "windows",
+			target: "windows",
+			want: []string{
+				"Windows worker:",
+				".\\run-worker.ps1 -DeviceName 'HomeServer' -LanOnly",
+				"Confirm the same code on the Windows worker:",
+			},
+			omit: []string{
+				"Linux worker:",
+				"./run-worker.sh",
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var stdout bytes.Buffer
+			command := newRootCommand(dependencies{
+				stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+				newClient: func(string) (caller, error) {
+					t.Fatal("setup workers should not require a daemon client")
+					return nil, nil
+				},
+			})
+			command.SetArgs([]string{"setup", "workers", "--target", test.target, "--device-name", "HomeServer"})
+			if err := command.Execute(); err != nil {
+				t.Fatalf("Execute() error = %v", err)
+			}
+			for _, want := range test.want {
+				if !strings.Contains(stdout.String(), want) {
+					t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
+				}
+			}
+			for _, omit := range test.omit {
+				if strings.Contains(stdout.String(), omit) {
+					t.Fatalf("stdout %q unexpectedly contains %q", stdout.String(), omit)
+				}
+			}
+		})
+	}
+}
+
+func TestSetupWorkersCommandPrintsRemoteConnectivityArguments(t *testing.T) {
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			t.Fatal("setup workers should not require a daemon client")
+			return nil, nil
+		},
+	})
+	command.SetArgs([]string{
+		"setup", "workers",
+		"--target", "linux",
+		"--device-name", "Home Server",
+		"--connectivity-domain", "connect.example.com",
+		"--turn-domain", "turn.example.com",
+	})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	for _, want := range []string{
+		"VPS rendezvous and STUN",
+		"COMPUTEHOP_DEVICE_NAME='Home Server' ./run-worker.sh --connectivity-url https://connect.example.com --stun-server stun:turn.example.com:3478",
+		"COMPUTEHOP_DEVICE_NAME='Home Server' ./install-systemd-user.sh --connectivity-url https://connect.example.com --stun-server stun:turn.example.com:3478",
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
+		}
+	}
+	if strings.Contains(stdout.String(), "--lan-only") {
+		t.Fatalf("remote worker setup should not include --lan-only: %q", stdout.String())
+	}
+}
+
+func TestSetupWorkersCommandPrintsTurnRelayArguments(t *testing.T) {
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			t.Fatal("setup workers should not require a daemon client")
+			return nil, nil
+		},
+	})
+	command.SetArgs([]string{
+		"setup", "workers",
+		"--target", "windows",
+		"--device-name", "Gaming PC",
+		"--connectivity-domain", "connect.example.com",
+		"--turn-server", "turn:turn.example.com:3478?transport=udp",
+		"--turn-username", "1800000000:computehop",
+		"--turn-password", "relay secret",
+	})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	for _, want := range []string{
+		"VPS rendezvous, STUN, and authenticated TURN relay",
+		".\\run-worker.ps1 -DeviceName 'Gaming PC' -ConnectivityUrl 'https://connect.example.com' -TurnServer 'turn:turn.example.com:3478?transport=udp' -TurnUsername '1800000000:computehop' -TurnPassword 'relay secret'",
+		".\\install-scheduled-task.ps1 -DeviceName 'Gaming PC' -ConnectivityUrl 'https://connect.example.com' -TurnServer 'turn:turn.example.com:3478?transport=udp' -TurnUsername '1800000000:computehop' -TurnPassword 'relay secret'",
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
+		}
+	}
+	if strings.Contains(stdout.String(), "--lan-only") {
+		t.Fatalf("TURN worker setup should not include --lan-only: %q", stdout.String())
+	}
+}
+
+func TestSetupWorkersCommandRejectsInvalidTargetWithoutDaemon(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &stderr, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			t.Fatal("setup workers validation should not require a daemon client")
+			return nil, nil
+		},
+	})
+	command.SetArgs([]string{"setup", "workers", "--target", "solaris"})
+	err := command.Execute()
+	if err == nil {
+		t.Fatal("Execute() error = nil, want invalid target")
+	}
+	if !strings.Contains(err.Error(), "--target must be all, linux, or windows") {
+		t.Fatalf("error %q does not explain invalid target", err)
+	}
+}
+
+func TestSetupWorkersCommandRejectsInvalidConnectivityWithoutDaemon(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{
+			name: "lan only with remote flags",
+			args: []string{"setup", "workers", "--lan-only", "--connectivity-domain", "connect.example.com", "--turn-domain", "turn.example.com"},
+			want: "--lan-only cannot be combined",
+		},
+		{
+			name: "turn domain without connectivity",
+			args: []string{"setup", "workers", "--turn-domain", "turn.example.com"},
+			want: "--connectivity-domain is required",
+		},
+		{
+			name: "connectivity without route",
+			args: []string{"setup", "workers", "--connectivity-domain", "connect.example.com"},
+			want: "--connectivity-domain requires --turn-domain or --turn-server",
+		},
+		{
+			name: "turn without credentials",
+			args: []string{"setup", "workers", "--connectivity-domain", "connect.example.com", "--turn-server", "turn:turn.example.com:3478"},
+			want: "--turn-server requires --turn-username and --turn-password",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			command := newRootCommand(dependencies{
+				stdout: &stdout, stderr: &stderr, getwd: func() (string, error) { return "", nil },
+				newClient: func(string) (caller, error) {
+					t.Fatal("setup workers validation should not require a daemon client")
+					return nil, nil
+				},
+			})
+			command.SetArgs(test.args)
+			err := command.Execute()
+			if err == nil {
+				t.Fatal("Execute() error = nil, want validation error")
+			}
+			if !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("error %q does not contain %q", err, test.want)
+			}
+		})
+	}
+}
+
+func TestSetupSmokeCommandPrintsPackageChecklistWithoutDaemon(t *testing.T) {
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			t.Fatal("setup smoke should not require a daemon client")
+			return nil, nil
+		},
+	})
+	command.SetArgs([]string{"setup", "smoke"})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	for _, want := range []string{
+		"ComputeHop two-Mac package smoke",
+		"make macos-archive",
+		"dist/macos/ComputeHop-macos.zip",
+		"shasum -a 256 -c ComputeHop-macos.zip.sha256",
+		"ditto -x -k ComputeHop-macos.zip .",
+		"cd ComputeHop-macos",
+		"make install-macos-check",
+		"./packaging/macos/install.sh --check --role worker --device-name 'Gaming PC' --lan-only",
+		"./packaging/macos/install.sh --app /path/to/ComputeHop.app --check --role worker --device-name 'Gaming PC' --lan-only",
+		"computehop connect nearby",
+		"computehop smoke",
+		"computehop run --on auto --no-project --follow hostname",
+		"computehop cancel <job-id>",
+		"computehop run --on auto -C /path/to/project -o smoke-output.txt --follow --get /bin/sh -c 'printf ok > smoke-output.txt'",
+		"tail -n 100 ~/Library/Logs/ComputeHop/daemon.log",
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
+		}
+	}
+}
+
 func TestSetupMacCommandPrintsDefaultOrchestratorInstallWithoutDaemon(t *testing.T) {
 	var stdout bytes.Buffer
 	command := newRootCommand(dependencies{
@@ -1952,6 +2304,7 @@ func TestSetupMacCommandPrintsDefaultOrchestratorInstallWithoutDaemon(t *testing
 	for _, want := range []string{
 		"ComputeHop macOS setup",
 		"computehop setup mac --role orchestrator",
+		"make install-macos-check",
 		"make install-macos",
 		"computehop doctor",
 		"computehop connect nearby",
@@ -1980,6 +2333,7 @@ func TestSetupMacCommandPrintsWorkerInstallWithoutDaemon(t *testing.T) {
 	}
 	for _, want := range []string{
 		"computehop setup mac --role worker --device-name 'Austin Gaming PC' --cache-size 40GiB",
+		"./packaging/macos/install.sh --check --role worker --device-name 'Austin Gaming PC' --cache-size 40GiB",
 		"./packaging/macos/install.sh --role worker --device-name 'Austin Gaming PC' --cache-size 40GiB",
 		"Connect from your orchestrator Mac",
 		"Confirm on this worker",
@@ -2005,6 +2359,7 @@ func TestSetupRoleAliasesPrintInstallWithoutDaemon(t *testing.T) {
 			},
 			want: []string{
 				"computehop setup orchestrator --connectivity-domain connect.computehop.dev --turn-domain turn.computehop.dev",
+				"./packaging/macos/install.sh --check --role orchestrator --connectivity-url https://connect.computehop.dev --stun-server stun:turn.computehop.dev:3478",
 				"./packaging/macos/install.sh --role orchestrator --connectivity-url https://connect.computehop.dev --stun-server stun:turn.computehop.dev:3478",
 				"computehop smoke",
 			},
@@ -2014,6 +2369,7 @@ func TestSetupRoleAliasesPrintInstallWithoutDaemon(t *testing.T) {
 			args: []string{"setup", "worker", "--device-name", "Austin Gaming PC", "--cache-size", "40GiB"},
 			want: []string{
 				"computehop setup worker --device-name 'Austin Gaming PC' --cache-size 40GiB",
+				"./packaging/macos/install.sh --check --role worker --device-name 'Austin Gaming PC' --cache-size 40GiB",
 				"./packaging/macos/install.sh --role worker --device-name 'Austin Gaming PC' --cache-size 40GiB",
 				"Confirm on this worker",
 				"Same-LAN first",
@@ -2025,6 +2381,7 @@ func TestSetupRoleAliasesPrintInstallWithoutDaemon(t *testing.T) {
 			args: []string{"setup", "orchestrator", "--lan-only"},
 			want: []string{
 				"computehop setup orchestrator --lan-only",
+				"./packaging/macos/install.sh --check --role orchestrator --lan-only",
 				"./packaging/macos/install.sh --role orchestrator --lan-only",
 				"LAN-only",
 				"computehop setup vps",
@@ -2073,6 +2430,7 @@ func TestSetupMacCommandInterpolatesVPSConnectivityWithoutDaemon(t *testing.T) {
 		t.Fatalf("Execute() error = %v", err)
 	}
 	for _, want := range []string{
+		"./packaging/macos/install.sh --check --role orchestrator --connectivity-url https://connect.computehop.dev --stun-server stun:turn.computehop.dev:3478",
 		"./packaging/macos/install.sh --role orchestrator --connectivity-url https://connect.computehop.dev --stun-server stun:turn.computehop.dev:3478",
 		"computehop setup mac --role orchestrator --connectivity-domain connect.computehop.dev --turn-domain turn.computehop.dev",
 	} {
@@ -2109,6 +2467,7 @@ func TestSetupMacCommandInterpolatesTURNRelayWithoutDaemon(t *testing.T) {
 	}
 	for _, want := range []string{
 		"computehop setup mac --role worker --device-name 'Gaming PC' --connectivity-domain connect.computehop.dev --turn-domain turn.computehop.dev --turn-server 'turn:turn.computehop.dev:3478?transport=udp' --turn-username 1800000000:computehop --turn-password 'relay secret'",
+		"./packaging/macos/install.sh --check --role worker --device-name 'Gaming PC' --connectivity-url https://connect.computehop.dev --stun-server stun:turn.computehop.dev:3478 --turn-server 'turn:turn.computehop.dev:3478?transport=udp' --turn-username 1800000000:computehop --turn-password 'relay secret'",
 		"./packaging/macos/install.sh --role worker --device-name 'Gaming PC' --connectivity-url https://connect.computehop.dev --stun-server stun:turn.computehop.dev:3478 --turn-server 'turn:turn.computehop.dev:3478?transport=udp' --turn-username 1800000000:computehop --turn-password 'relay secret'",
 	} {
 		if !strings.Contains(stdout.String(), want) {
@@ -2169,6 +2528,7 @@ func TestSetupMacCommandInterpolatesLANOnlyWithoutDaemon(t *testing.T) {
 	}
 	for _, want := range []string{
 		"computehop setup mac --role worker --device-name 'Gaming PC' --lan-only",
+		"./packaging/macos/install.sh --check --role worker --device-name 'Gaming PC' --lan-only",
 		"./packaging/macos/install.sh --role worker --device-name 'Gaming PC' --lan-only",
 		"LAN-only",
 		"computehop setup vps",
@@ -2399,7 +2759,7 @@ func TestCoreCommandHelpShowsFriendlyExamplesWithoutDaemon(t *testing.T) {
 				"run [--on auto|device]",
 				"computehop run --on auto cargo build --release",
 				"computehop run --on auto --no-project hostname",
-				"single active paired worker",
+				"best active paired worker",
 				"--on string",
 			},
 		},

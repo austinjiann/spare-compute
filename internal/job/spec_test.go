@@ -13,6 +13,7 @@ func TestSpecValidate(t *testing.T) {
 		Environment:      map[string]string{"CARGO_TERM_COLOR": "always"},
 		Executor:         ExecutorNative,
 		Outputs:          []string{"target/release/app"},
+		RequiredToolIDs:  []string{"cargo", "rustc"},
 	}
 	if err := valid.Validate(); err != nil {
 		t.Fatalf("Validate() error = %v", err)
@@ -60,6 +61,18 @@ func TestSpecValidateRejectsInvalidValues(t *testing.T) {
 			name: "reserved result output",
 			spec: Spec{Executable: "echo", Executor: ExecutorNative, Outputs: []string{".computehop-results/file"}},
 		},
+		{
+			name: "unsorted required tools",
+			spec: Spec{Executable: "echo", Executor: ExecutorNative, RequiredToolIDs: []string{"go", "docker"}},
+		},
+		{
+			name: "duplicate required tools",
+			spec: Spec{Executable: "echo", Executor: ExecutorNative, RequiredToolIDs: []string{"go", "go"}},
+		},
+		{
+			name: "invalid required tool",
+			spec: Spec{Executable: "echo", Executor: ExecutorNative, RequiredToolIDs: []string{"Go"}},
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			err := test.spec.Validate()
@@ -72,16 +85,18 @@ func TestSpecValidateRejectsInvalidValues(t *testing.T) {
 
 func TestSpecCloneDoesNotShareMutableFields(t *testing.T) {
 	original := Spec{
-		Executable:  "echo",
-		Arguments:   []string{"hello"},
-		Environment: map[string]string{"NAME": "original"},
-		Executor:    ExecutorNative,
-		Outputs:     []string{"result.txt"},
+		Executable:      "echo",
+		Arguments:       []string{"hello"},
+		Environment:     map[string]string{"NAME": "original"},
+		Executor:        ExecutorNative,
+		Outputs:         []string{"result.txt"},
+		RequiredToolIDs: []string{"echo"},
 	}
 	clone := original.Clone()
 	clone.Arguments[0] = "changed"
 	clone.Environment["NAME"] = "changed"
 	clone.Outputs[0] = "changed.txt"
+	clone.RequiredToolIDs[0] = "changed"
 
 	if original.Arguments[0] != "hello" {
 		t.Fatalf("Clone() shared argument storage")
@@ -91,5 +106,8 @@ func TestSpecCloneDoesNotShareMutableFields(t *testing.T) {
 	}
 	if original.Outputs[0] != "result.txt" {
 		t.Fatalf("Clone() shared output storage")
+	}
+	if original.RequiredToolIDs[0] != "echo" {
+		t.Fatalf("Clone() shared required tool storage")
 	}
 }

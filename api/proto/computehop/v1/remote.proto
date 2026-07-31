@@ -21,6 +21,7 @@ message RemoteRequest {
     GetJobArtifactsRequest get_job_artifacts = 17;
     GetArtifactChunkRequest get_artifact_chunk = 18;
     AcknowledgeJobArtifactsRequest acknowledge_job_artifacts = 19;
+    GetWorkerStatusRequest get_worker_status = 20;
   }
 }
 
@@ -41,6 +42,7 @@ message RemoteResponse {
     GetJobArtifactsResponse get_job_artifacts = 17;
     GetArtifactChunkResponse get_artifact_chunk = 18;
     AcknowledgeJobArtifactsResponse acknowledge_job_artifacts = 19;
+    GetWorkerStatusResponse get_worker_status = 20;
   }
 }
 
@@ -48,6 +50,9 @@ message SubmitJobRequest {
   JobSpec spec = 1;
   SnapshotManifest snapshot = 2;
   string working_subdirectory = 3;
+  // Optional orchestrator-generated UUID. New workers use it as the durable job
+  // ID so the control side can track preparation/upload before final submit.
+  string job_id = 4;
 }
 
 message CheckSnapshotRequest {
@@ -100,6 +105,16 @@ message AcknowledgeJobArtifactsRequest {
 
 message AcknowledgeJobArtifactsResponse {
   string job_id = 1;
+}
+
+message GetWorkerStatusRequest {}
+
+message GetWorkerStatusResponse {
+  string platform = 1;
+  string arch = 2;
+  uint32 logical_cpu_count = 3;
+  uint64 total_memory_bytes = 4;
+  repeated string tool_ids = 5;
 }
 
 enum ChunkEncoding {
@@ -183,6 +198,7 @@ message JobSpec {
   Executor executor = 5;
   string container_image = 6;
   repeated string outputs = 7;
+  repeated string required_tool_ids = 8;
 }
 
 message Job {

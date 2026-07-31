@@ -10,7 +10,7 @@ model, delivery milestones, and acceptance criteria.
 
 ### Implementation snapshot
 
-Last updated: 2026-07-22.
+Last updated: 2026-07-30.
 
 | Slice | Status | Delivered behavior |
 | --- | --- | --- |
@@ -25,9 +25,9 @@ Last updated: 2026-07-22.
 | Direct ICE path and signaling foundation | Complete | Gather bounded UDP candidates with Pion ICE, exchange versioned descriptions through pair-encrypted rendezvous presence, select orchestrator/worker paths, report routing without secrets, and carry QUIC over the selected packet connection. |
 | Supervised direct internet control | In progress | Daemons reconcile active pair records, retry encrypted rendezvous/ICE negotiation, run the identity-pinned control protocol over selected paths, prefer LAN for jobs, expose path state to CLI/Swift, and support explicit LAN-only daemon/install setup controls. Automated end-to-end and race coverage pass; physical unrelated-network and network-change validation remain. |
 | One-VPS staging deployment | In progress | Provider-neutral Compose stack, Caddy HTTPS edge, authenticated coturn relay, bounded ports/quotas, generated local env/secrets, operator-provisioned short-lived TURN credentials for single-owner relay testing, Ubuntu-only firewall/bootstrap preflights with DNS/init/Compose/verify next steps, cwd-independent verification/credential helpers with actionable preflight and running-service failures, health checks, rollback runbook, and daemon-free, root-oriented, flag-customizable `computehop setup vps` checklist with initial cost, SSH, DNS, firewall, bootstrap, and smoke-test guidance are ready; buying the VPS and forced-relay validation remain. |
-| CLI and physical Mac validation | In progress | Friendlier `--on`, `--on auto` for the single active worker, safe `connect nearby` for the single nearby unpaired worker with `connect auto` compatibility, and no-`--` command syntax, daemon-free `setup`, role shortcuts `setup orchestrator`/`setup worker`, role-aware `setup mac`, setup-helper support for short-lived TURN relay credentials, and `setup vps`, installer-first worker setup guidance, one-command `smoke`, remote `--no-project` utility runs, pre-submit remote project preparation feedback, actionable auto and explicit worker-selection errors that consistently point at `connect nearby`, example-rich help for `setup`/`status`/`devices`/`connect`/`disconnect`/`jobs`/`run`/`logs`/`cancel`/`outputs`/`smoke`, `devices`, empty `jobs` next-step guidance for setup/connect/smoke/offline states, explicit empty-log guidance, and friendly output-retrieval errors, `run --follow/--wait/--get`, `connect` as the guided pairing entry point that surfaces waiting verification requests before generic device guidance, `disconnect` as the friendly trust-revocation entry point with `unpair` compatibility, inferred and actionable pairing confirmation, first-run `doctor` guidance that points at the exact orchestrator/worker setup commands, duplicate-daemon and incompatible-daemon restart guidance, local daemon identity in status output, hidden legacy `pair` help, merged trusted/nearby presentation with friendly trust labels, LAN-only path visibility for disabled remote connectivity, and stale duplicate LAN-presence suppression are implemented; physical macOS-to-macOS discovery, pairing, execution, restart recovery, logs, and cancellation passed. Windows/Linux remain. |
-| macOS menu-bar and Control Center foundation | In progress | SwiftUI `MenuBarExtra`, generated SwiftProtobuf models, authenticated Unix-socket IPC, local daemon identity, first-run next-step guidance, one-click safe nearby-worker connection, compact device selection, AI-style task planning, native job submission with This Mac or selected workers, project folder selection, output declarations and retrieval, reconnectable logs, cancellation, notifications, and diagnostics build and pass Swift/package checks. Heavier device sync, allowed work, project sync, relay, and future AI planner settings are being moved into a separate Electron Control Center so the menu bar remains a fast status/task surface; an initial Control Center scaffold is present. An ad-hoc app bundle, launch-agent template verification, rewritten launch-agent install validation, incompatible manual-daemon install guard, and per-user launchd installer are ready for development. |
-| Project snapshots, incremental transfer, and declared artifacts | In progress | Remote runs resolve a local project root, create bounded content-defined snapshots, upload only missing verified chunks, and execute in isolated workspaces. Workers durably collect exact declared files/directories before success; orchestrators fetch only missing verified chunks and restore without overwrites or symlink traversal. Transfer peers negotiate bounded identity/zstd chunk encoding while preserving decoded-content hashes. The persistent verified content cache is SQLite-indexed, LRU-evicted, quota-bound, and protects active jobs plus unacknowledged artifact chunks. Artifact download/restore progress is durable and visible in CLI/Swift job summaries, and `run --get` restores to the submitted working directory by default. Automated LAN/supervised-path reuse, ignore behavior, and artifact coverage pass; secrets, upload progress, byte-range resume, and physical cross-platform validation remain. |
+| CLI and physical Mac validation | In progress | Friendlier `--on`, resource-scored `--on auto` with authenticated worker status plus durable cached trusted-worker resource hints as fallback, daemon-side tool preflight that skips or rejects workers that explicitly report missing planned required tools or a missing command executable before project snapshot/upload, safe `connect nearby` for the single nearby unpaired worker with `connect auto` compatibility, and no-`--` command syntax, daemon-free `setup`, role shortcuts `setup orchestrator`/`setup worker`, role-aware `setup mac`, setup-helper support for short-lived TURN relay credentials, non-mutating installer check commands in setup and doctor guidance, daemon-free two-Mac package smoke checklist through `setup smoke`, and `setup vps`, installer-first worker setup guidance, one-command `smoke`, remote `--no-project` utility runs, pre-submit remote project preparation feedback, actionable auto and explicit worker-selection errors that consistently point at `connect nearby`, unreachable paired-worker submission errors that explain how to restart the worker, check `computehop devices`, retry `computehop smoke`, or begin `computehop setup vps`, example-rich help for `setup`/`status`/`devices`/`connect`/`disconnect`/`jobs`/`run`/`logs`/`cancel`/`outputs`/`smoke`, `devices`, empty `jobs` next-step guidance for setup/connect/smoke/offline states, explicit empty-log guidance, and friendly output-retrieval errors, `run --follow/--wait/--get`, `connect` as the guided pairing entry point that surfaces waiting verification requests before generic device guidance, `disconnect` as the friendly trust-revocation entry point with `unpair` compatibility, inferred and actionable pairing confirmation, first-run `doctor` guidance that points at the exact orchestrator/worker setup commands, duplicate-daemon and incompatible-daemon restart guidance, local daemon identity in status output, hidden legacy `pair` help, merged trusted/nearby presentation with friendly trust labels, LAN-only path visibility for disabled remote connectivity, and stale duplicate LAN-presence suppression are implemented; physical macOS-to-macOS discovery, pairing, execution, restart recovery, logs, and cancellation passed. Windows/Linux remain. |
+| macOS menu-bar and Control Center foundation | In progress | SwiftUI `MenuBarExtra`, generated SwiftProtobuf models, authenticated Unix-socket IPC, local daemon identity, first-run next-step guidance, one-click safe nearby-worker connection, two-sided pairing with visible code-comparison instructions, compact device selection, worker readiness summary with direct discovery re-enable and paused-worker re-enable, one-click resource-scored worker testing from the Device section, native job submission with This Mac or selected workers, safe no-project utility asks such as connection tests and `hostname`/version checks on a selected worker, a compact active/selected task panel that avoids showing old terminal history by default while still exposing status, logs, cancellation, and output restore for the current task, project folder selection, output declarations and retrieval, unreachable-worker recovery guidance, reconnectable logs, cancellation, notifications, and diagnostics build and pass Swift/package checks. The Electron Control Center now covers daemon startup for Control Mac/Worker roles, packaged daemon staging, nearby pairing, device enable/disable, per-device allowed work, deterministic local task planning with optional OpenAI planner fallback and app-managed key storage, project-aware task suggestions, OS-target, architecture-target, worker-target, allowed-work, static CPU/memory hints, durable cached trusted-worker platform/architecture/CPU/RAM hints when a LAN row disappears, authenticated worker status refresh over the paired remote protocol so auto placement can score reachable paired workers from verified status before falling back to cache, authenticated common-tool hints for This Mac and paired workers, planner-declared required tool metadata for CI/package/script plans, daemon-enforced pre-submit tool-mismatch guidance when a selected computer reports it lacks any planned required tool, project clearing, remote run summaries that show target/project/outputs without route jargon, user-facing native-runner and unreachable-worker recovery guidance, remote preparation feedback, logs, cancellation, and output restoration so the menu bar can stay a fast status/task surface. Ad-hoc app bundle, copyable macOS developer archive with installer resources and SHA-256 checksum, verified copyable LAN-only or VPS-enabled Linux/Windows worker developer archives, Control Center and installer launch-agent validation, incompatible manual-daemon install guards, per-user launchd installer setup, and non-mutating macOS archive smoke coverage are implemented. Versioned adapter-level capability checks, provider-neutral credential abstraction if more planners ship, and physical clean-machine packaging validation remain ready for development. |
+| Project snapshots, incremental transfer, and declared artifacts | In progress | Remote runs resolve a local project root, create bounded content-defined snapshots, upload only missing verified chunks, and execute in isolated workspaces. Workers durably collect exact declared files/directories before success; orchestrators fetch only missing verified chunks and restore without overwrites or symlink traversal. Transfer peers negotiate bounded identity/zstd chunk encoding while preserving decoded-content hashes. The persistent verified content cache is SQLite-indexed, LRU-evicted, quota-bound, and protects active jobs plus unacknowledged artifact chunks. Artifact download/restore progress is durable and visible in CLI/Swift job summaries, and `run --get` restores to the submitted working directory by default. Control Center remote submissions now pre-assign a client job ID, compatible workers preserve it, the daemon records transient snapshot/upload byte progress during remote preparation, and the app polls that progress while submit is pending. Automated LAN/supervised-path reuse, ignore behavior, default secret/generated-path exclusions, pre-assigned job IDs, UI preparation polling, and artifact coverage pass; byte-range resume and physical cross-platform validation remain. |
 | Later launch slices | In progress | Direct internet control still needs physical unrelated-network and reconnect validation, and public TURN relay issuance requires a hosted entitlement boundary. Full compatibility/resource scheduling, adapters, production packaging, and release operations follow. |
 
 “Complete” here means implemented with automated coverage and merged to `main`.
@@ -232,9 +232,10 @@ networking, scheduling, or job execution itself.
 #### ComputeHop Control Center
 
 An Electron desktop application for heavier configuration: synced devices,
-allowed work by device, project sync defaults, relay settings, and future AI
-planner configuration. It should use the same local daemon API as the CLI and
-menu bar once those settings are durable.
+allowed work by device, project sync defaults, relay settings, and eventually
+an explicit external/LLM planner configuration if that becomes a real feature.
+It uses the same local daemon API as the CLI and menu bar for device, pairing,
+job, log, cancellation, and artifact operations.
 
 #### ComputeHop Connectivity Service
 
@@ -271,8 +272,9 @@ for the native macOS application.
 - **Runtime language:** a supported stable Go release, pinned by the `go` and
   `toolchain` directives in `go.mod`.
 - **macOS menu-bar application:** Swift 6 and SwiftUI.
-- **Desktop Control Center:** Electron with a small local UI layer; durable
-  settings still belong in the Go daemon, not in renderer-only state.
+- **Desktop Control Center:** Electron with a small local UI layer; local
+  preferences live in the app user-data directory, while cluster-affecting
+  settings still belong in the Go daemon.
 - **Build system:** the Go toolchain and Xcode/Swift Package Manager for macOS.
 - **Dependency locking:** commit `go.mod`, `go.sum`, `Package.resolved`, and
   package lockfiles for JavaScript apps.
@@ -1041,7 +1043,8 @@ The Control Center owns the heavier setup and management flows:
 - default project sync and artifact behavior;
 - cache quotas;
 - logs/history views;
-- future AI planner provider and permission settings.
+- future external/LLM planner provider and permission settings, only after that
+  planner exists.
 
 #### Notifications
 
@@ -1244,7 +1247,7 @@ flag-customizable one-VPS `setup vps`, first-run `doctor` with daemon-not-runnin
 duplicate-daemon startup guidance for local socket or ComputeHop port conflicts,
 local daemon identity in status output, `connect` as the guided pairing entry point,
 safe `connect nearby` for the single nearby unpaired worker, actionable `connect confirm`
-messages, friendly `disconnect` with legacy `unpair` compatibility, actionable `--on auto` and explicit worker-selection failure guidance, `--on auto` for the single active worker, explicit `run`,
+messages, friendly `disconnect` with legacy `unpair` compatibility, actionable `--on auto` and explicit worker-selection failure guidance, resource-scored `--on auto`, explicit `run`,
 remote `run --no-project` for utility commands that need no local files, one-command `smoke`,
 pre-submit remote project preparation feedback before snapshot/upload,
 `run --follow/--wait/--get`, `jobs`, `logs`, and `cancel` routing through
@@ -1263,7 +1266,7 @@ Windows and Linux workers pass the same physical flow.
   reconnect, revocation, and re-pairing.
 - Establish mutually authenticated QUIC sessions pinned to paired identities.
 - Run the existing durable job slice on an explicitly selected worker, then add
-  a safe `--on auto` path before full compatibility scheduling.
+  a safe resource-scored `--on auto` path before full compatibility scheduling.
 - Persist remote job placement on the orchestrator so later job-specific
   operations reconnect to the correct worker by ID after daemon restarts.
 - Validate macOS-to-macOS, macOS-to-Windows, and macOS-to-Linux behavior on
@@ -1273,8 +1276,10 @@ Windows and Linux workers pass the same physical flow.
 request and exact confirm/reject next steps, while `computehop connect nearby`
 starts trust setup only when one nearby unpaired worker is visible.
 `computehop smoke` runs a cheap hostname check against the selected worker.
-`computehop run --on auto <command>` selects the only active worker and explains
-how to connect or choose explicitly when it cannot select safely, while
+`computehop run --on auto <command>` selects the best active paired worker using
+authenticated worker CPU/memory status when reachable, current unambiguous LAN
+CPU/memory hints when available, the last durable cached trusted-worker hints as
+a fallback, and a stable device-ID tie-break otherwise, while
 `computehop run --on <name> <command>` discovers a specific worker without an
 address, pairs it once, reconnects without prompting, streams logs, and explains
 how to list, connect, or disambiguate workers when the requested name or short
@@ -1370,13 +1375,17 @@ reservations, active-use pins, and conservative protection while jobs are
 running or collecting artifacts. CLI aliases and the macOS menu expose retrieval
 after restart by durable job placement. Artifact download and local restore
 progress is persisted independently of job ownership, so the orchestrator can
-show progress for worker-owned jobs in CLI and Swift job summaries. Immediate
+show progress for worker-owned jobs in CLI and Swift job summaries. Control
+Center remote submissions also pre-assign a client job ID; new workers preserve
+that ID for plain and snapshot jobs, the orchestrator records transient
+snapshot/upload byte progress against it while preparing the remote submission,
+and Control Center polls that progress while submit is pending. Immediate
 `run --get` restores declared outputs to the submitted working directory by
 default while the standalone `artifacts` command keeps its isolated
 `.computehop-results/<job-id>` default for later/manual retrieval. Symlinks and
-special files are safely rejected for now rather than preserved. Upload progress,
-byte-range resume, secret delivery, and physical Windows/Linux validation remain,
-so the Step 4 checkpoint is not complete.
+special files are safely rejected for now rather than preserved. Byte-range
+resume, secret delivery, and physical Windows/Linux validation remain, so the
+Step 4 checkpoint is not complete.
 
 - Add project-root resolution, ignore semantics, immutable manifests,
   content-defined chunks, negotiated compression, and a bounded content cache.
@@ -1437,18 +1446,96 @@ next-step guidance, compact device selection, task planning, native job
 submission to the Mac or a paired available worker, local project folder
 selection for incremental remote transfer, reconnectable output, artifact
 restoration, and cancellation. Unit tests cover framing, ping identity mapping,
-Auto worker target submission, no-project Smoke Test submission, pairing
-confirmation guidance, revocation actions, setup guidance, invalid
+Auto worker target submission, no-project worker test submission, pairing
+confirmation guidance, revocation actions, setup guidance, CI/check planning
+through repository validation targets such as `make pr-check`, package-manager
+script selection, invalid
 command-input guidance, empty-log placeholders, copyable CLI run/log handoffs,
 job-completion notifications and their persisted setting, diagnostic command
-copying, configurable setup/VPS defaults, and safe command parsing; a real
+copying, a menu-bar handoff button that opens the Electron Control Center when
+installed or packaged in the development checkout, named pending-worker state
+instead of silently falling back to This Mac when a selected worker disappears,
+configurable setup/VPS defaults, and safe command parsing; a real
 Swift client has successfully pinged the Go daemon, submitted a durable native
-job, and read its output. A separate Electron Control Center scaffold now owns
-the direction for heavier settings. Durable daemon-backed settings for that app
-remain. A host-architecture
-developer app bundle now includes the menu app, CLI, and daemon; a guarded
+job, and read its output. A separate Electron Control Center now owns the
+heavier settings surface, connects to the daemon over local IPC, lists nearby
+and trusted devices with plain-language connection health, merges unambiguous
+paired LAN sightings into one selectable worker row, uses advertised
+platform/architecture hints for friendlier Mac/Windows/Linux device labels,
+keeps the last unambiguous paired-worker platform/architecture/CPU/RAM hints in
+the daemon database for offline or remote rows, pairs,
+disables/re-enables, or forgets workers, plans plain-language tasks into
+previewed commands with package/Makefile/language/Docker fallbacks, recognizes
+plain-language placement hints such as running work on another computer or here,
+strips those placement words from exact commands before execution, auto-selects
+the best compatible connected worker when safe, and blocks mismatched local or
+remote placement before submission, prefers repository
+validation targets for CI/check requests, recognizes package/release targets such
+as `make macos-archive` or `make macos-package`, includes conservative inferred
+outputs for known package targets such as the copyable macOS zip/checksum or
+`dist/macos/ComputeHop.app`, can use an
+optional OpenAI planner fallback for tasks local rules cannot map, runs a projectless
+smoke test on the selected computer, suggests project-aware Check/Test/Build/Lint/Docker
+task chips after project selection, applies allowed-work checkboxes to suggested and
+planned work, keeps unknown exact commands behind an explicit allowance, avoids
+substituting the development checkout when no project is selected, keeps projectless
+utility jobs from snapshotting selected projects, and opens the project picker
+then retries planning/running once when project-style work or declared outputs
+need a folder. AI-planned commands may include portable relative
+outputs to bring back, use the same output-path validation as manual output
+declarations, and are still previewed, mapped through the same per-device
+allowed-work policy, and rejected
+before preview when they contain shell operators, multiline commands, shell
+wrappers, obvious interactive commands, privilege escalation, or destructive
+removal, and share the same placement-hint preservation and command-suffix
+cleanup as deterministic plans. The optional OpenAI key can be saved from
+the app using Electron `safeStorage` encryption where available, with
+environment variables retained as a fallback. It can also start the local daemon
+from the app in development and
+from the bundled daemon in packaged builds, package an unpacked current-platform
+app directory with the daemon copied into Electron's runtime resources, persist
+Control Center preferences under the app user-data directory, auto-start the
+daemon once after settings/runtime load when LAN discovery is enabled, keep
+local daemon health accurate when nearby discovery is disabled, show whether
+the macOS per-user background service is loaded, stopped, or session-only,
+set up or start that background service from the app when a bundled daemon is
+available without replacing unrelated LaunchAgent files or killing a session
+daemon, preserve the selected role, device name, and LAN-only flag in the
+generated LaunchAgent, and report older login-service daemon paths as needing an
+update,
+verify during macOS packaging that the embedded Control Center resolves
+background-service setup to the parent app daemon rather than its nested copy,
+offer an Auto
+worker target and default to it until the user makes an explicit device choice
+when exactly one connected worker is available, persist explicit run-target
+choices across app restarts without silently falling back to This Mac while a
+remote target is temporarily unavailable, show a named waiting state for the
+selected worker while it reconnects, keep run and job-history actions disabled
+with a worker-specific explanation until that worker is available, explain
+offline, paused, nearby-but-unconnected, and reconnecting selected workers before
+submission, in the run card with minimal safe Start/Refresh/Connect/Enable
+actions, and in the empty job-history state without exposing CLI commands, display the
+resolved backing worker name for Auto-worker submissions, route Auto-worker job follow-ups through remembered
+job placement, list recent jobs for the
+selected computer, open persisted job logs, declare files/folders to bring back,
+show remote snapshot/upload preparation feedback before long project
+submissions, update recent-job progress while a UI-submitted run is still
+streaming, preserve active UI-submitted job rows across refreshes until daemon
+history catches up or the job ends, detach live Control Center streams without cancelling daemon jobs
+when the window closes, restore succeeded job outputs to the job's submitted
+project folder by default, prompt for output restore after successful
+UI-submitted jobs with declared or inferred outputs, and cancel listed jobs.
+Durable daemon-backed cluster settings for that app remain. A host-architecture
+developer app bundle now includes the menu app, embedded Control Center, CLI,
+and daemon; a guarded
 per-user installer configures an
-unprivileged launch agent and preserves durable state on uninstall. Developer
+unprivileged launch agent, preserves durable state on uninstall, and supports a
+non-mutating install check that validates the app bundle, install targets,
+selected role/device name/connectivity flags, and rewritten LaunchAgent before touching the
+user account; an archive smoke verifier checks copied zip checksums, extracted
+apps, embedded CLI/daemon version commands, and isolated Control Mac/Worker
+installer dry-runs; copied app bundles can be installed with `install.sh --app`
+without rebuilding from the checkout. Developer
 ID signing, notarization, universal release binaries, upgrade handling, and
 clean-machine tests remain.
 

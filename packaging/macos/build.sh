@@ -6,7 +6,7 @@ if [ "$(uname -s)" != "Darwin" ]; then
     exit 1
 fi
 
-for tool in go swift plutil codesign; do
+for tool in go node npm swift plutil codesign; do
     if ! command -v "$tool" >/dev/null 2>&1; then
         echo "Required tool is missing: $tool" >&2
         exit 1
@@ -41,6 +41,17 @@ mkdir -p "$app_bundle/Contents/MacOS" "$app_bundle/Contents/Resources/bin"
 swift build --package-path "$repository_dir" -c release --product ComputeHop
 swift_bin_dir=$(swift build --package-path "$repository_dir" -c release --show-bin-path)
 cp "$swift_bin_dir/ComputeHop" "$app_bundle/Contents/MacOS/ComputeHop"
+
+control_center_dir="$repository_dir/apps/control-center"
+node_arch=$(node -p 'process.arch')
+control_center_package_dir="$control_center_dir/.out/ComputeHop Control Center-darwin-$node_arch"
+control_center_app="$control_center_package_dir/ComputeHop Control Center.app"
+npm --prefix "$control_center_dir" run package:dir
+if [ ! -d "$control_center_app" ]; then
+    echo "Control Center package was not created at $control_center_app" >&2
+    exit 1
+fi
+cp -R "$control_center_app" "$app_bundle/Contents/Resources/ComputeHop Control Center.app"
 
 (
     cd "$repository_dir"

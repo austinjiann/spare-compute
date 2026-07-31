@@ -42,6 +42,73 @@ func TestRemoteHandlerSubmitsValidatedJob(t *testing.T) {
 	}
 }
 
+func TestRemoteHandlerSubmitsWithRequestedJobID(t *testing.T) {
+	want := remoteHandlerJob(t)
+	requestedID := mustJobID(t, 77)
+	want.ID = requestedID
+	controller := remoteControllerStub{submitWithID: func(_ context.Context, id job.ID, spec job.Spec) (job.Job, error) {
+		if id != requestedID || spec.Executable != "echo" {
+			t.Fatalf("submit with id = %s, spec = %#v", id, spec)
+		}
+		return want, nil
+	}}
+	handler, err := NewRemoteHandler(controller)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := handler.Handle(context.Background(), &computehopv1.RemoteRequest{
+		Operation: &computehopv1.RemoteRequest_SubmitJob{SubmitJob: &computehopv1.SubmitJobRequest{
+			JobId: string(requestedID),
+			Spec: &computehopv1.JobSpec{
+				Executable: "echo", Arguments: []string{"hello"},
+				Executor: computehopv1.Executor_EXECUTOR_NATIVE,
+			},
+		}},
+	})
+	if response.GetError() != nil || response.GetSubmitJob().GetJob().GetId() != string(requestedID) {
+		t.Fatalf("response = %#v", response)
+	}
+}
+
+func TestRemoteHandlerReturnsWorkerStatus(t *testing.T) {
+	handler, err := NewRemoteHandler(remoteControllerStub{}, WithStatus(Status{
+		Platform: "linux", Architecture: "amd64",
+		LogicalCPUCount: 32, TotalMemoryBytes: 64 << 30,
+		ToolIDs: []string{"docker", "go"},
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := handler.Handle(context.Background(), &computehopv1.RemoteRequest{
+		Operation: &computehopv1.RemoteRequest_GetWorkerStatus{
+			GetWorkerStatus: &computehopv1.GetWorkerStatusRequest{},
+		},
+	})
+	status := response.GetGetWorkerStatus()
+	if response.GetError() != nil || status.GetPlatform() != "linux" ||
+		status.GetArch() != "amd64" || status.GetLogicalCpuCount() != 32 ||
+		status.GetTotalMemoryBytes() != 64<<30 ||
+		len(status.GetToolIds()) != 2 || status.GetToolIds()[0] != "docker" ||
+		status.GetToolIds()[1] != "go" {
+		t.Fatalf("status response = %#v", response)
+	}
+}
+
+func TestRemoteHandlerRejectsUnavailableWorkerStatus(t *testing.T) {
+	handler, err := NewRemoteHandler(remoteControllerStub{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := handler.Handle(context.Background(), &computehopv1.RemoteRequest{
+		Operation: &computehopv1.RemoteRequest_GetWorkerStatus{
+			GetWorkerStatus: &computehopv1.GetWorkerStatusRequest{},
+		},
+	})
+	if response.GetError().GetCode() != computehopv1.RemoteErrorCode_REMOTE_ERROR_CODE_CONFLICT {
+		t.Fatalf("response = %#v", response)
+	}
+}
+
 func TestRemoteHandlerReturnsReconnectableLogs(t *testing.T) {
 	want := remoteHandlerJob(t)
 	controller := remoteControllerStub{logs: func(
@@ -91,6 +158,8 @@ func TestRemoteHandlerPreflightsUploadsAndSubmitsSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := remoteHandlerJob(t)
+	requestedID := mustJobID(t, 78)
+	want.ID = requestedID
 	reserved := false
 	released := false
 	controller := &remoteSnapshotControllerStub{
@@ -107,16 +176,17 @@ func TestRemoteHandlerPreflightsUploadsAndSubmitsSnapshot(t *testing.T) {
 			}
 			return nil
 		},
-		submitSnapshot: func(
+		submitSnapshotWithID: func(
 			_ context.Context,
+			id job.ID,
 			spec job.Spec,
 			got snapshot.Manifest,
 			subdirectory string,
 		) (job.Job, error) {
 			gotID, _ := got.ID()
 			wantID, _ := manifest.ID()
-			if gotID != wantID || subdirectory != "src" || spec.Executable != "go" {
-				t.Fatalf("SubmitSnapshot() = %#v, %s, %q", spec, gotID, subdirectory)
+			if id != requestedID || gotID != wantID || subdirectory != "src" || spec.Executable != "go" {
+				t.Fatalf("SubmitSnapshotWithID() = %s, %#v, %s, %q", id, spec, gotID, subdirectory)
 			}
 			return want, nil
 		},
@@ -162,6 +232,7 @@ func TestRemoteHandlerPreflightsUploadsAndSubmitsSnapshot(t *testing.T) {
 	}
 	response = handler.Handle(context.Background(), &computehopv1.RemoteRequest{
 		Operation: &computehopv1.RemoteRequest_SubmitJob{SubmitJob: &computehopv1.SubmitJobRequest{
+			JobId:    string(requestedID),
 			Spec:     &computehopv1.JobSpec{Executable: "go", Executor: computehopv1.Executor_EXECUTOR_NATIVE},
 			Snapshot: manifestMessage, WorkingSubdirectory: "src",
 		}},
@@ -311,20 +382,22 @@ func TestRemoteHandlerDoesNotLeakInternalErrors(t *testing.T) {
 }
 
 type remoteControllerStub struct {
-	submit func(context.Context, job.Spec) (job.Job, error)
-	get    func(context.Context, job.ID) (job.Job, error)
-	list   func(context.Context, job.ListOptions) ([]job.Job, error)
-	cancel func(context.Context, job.ID) (job.Job, error)
-	logs   func(context.Context, job.ID, uint64, int) (JobLogs, error)
+	submit       func(context.Context, job.Spec) (job.Job, error)
+	submitWithID func(context.Context, job.ID, job.Spec) (job.Job, error)
+	get          func(context.Context, job.ID) (job.Job, error)
+	list         func(context.Context, job.ListOptions) ([]job.Job, error)
+	cancel       func(context.Context, job.ID) (job.Job, error)
+	logs         func(context.Context, job.ID, uint64, int) (JobLogs, error)
 }
 
 type remoteSnapshotControllerStub struct {
 	remoteControllerStub
-	missing        func(context.Context, []snapshot.Digest) ([]snapshot.Digest, error)
-	put            func(context.Context, snapshot.Digest, []byte) error
-	submitSnapshot func(context.Context, job.Spec, snapshot.Manifest, string) (job.Job, error)
-	reserve        func(context.Context, snapshot.Digest, []snapshot.Digest) error
-	release        func(snapshot.Digest)
+	missing              func(context.Context, []snapshot.Digest) ([]snapshot.Digest, error)
+	put                  func(context.Context, snapshot.Digest, []byte) error
+	submitSnapshot       func(context.Context, job.Spec, snapshot.Manifest, string) (job.Job, error)
+	submitSnapshotWithID func(context.Context, job.ID, job.Spec, snapshot.Manifest, string) (job.Job, error)
+	reserve              func(context.Context, snapshot.Digest, []snapshot.Digest) error
+	release              func(snapshot.Digest)
 }
 
 func (stub *remoteSnapshotControllerStub) ReserveSnapshot(
@@ -400,8 +473,22 @@ func (stub *remoteSnapshotControllerStub) SubmitSnapshot(
 	return stub.submitSnapshot(ctx, spec, manifest, workingSubdirectory)
 }
 
+func (stub *remoteSnapshotControllerStub) SubmitSnapshotWithID(
+	ctx context.Context,
+	id job.ID,
+	spec job.Spec,
+	manifest snapshot.Manifest,
+	workingSubdirectory string,
+) (job.Job, error) {
+	return stub.submitSnapshotWithID(ctx, id, spec, manifest, workingSubdirectory)
+}
+
 func (stub remoteControllerStub) Submit(ctx context.Context, spec job.Spec) (job.Job, error) {
 	return stub.submit(ctx, spec)
+}
+
+func (stub remoteControllerStub) SubmitWithID(ctx context.Context, id job.ID, spec job.Spec) (job.Job, error) {
+	return stub.submitWithID(ctx, id, spec)
 }
 
 func (stub remoteControllerStub) Get(ctx context.Context, id job.ID) (job.Job, error) {

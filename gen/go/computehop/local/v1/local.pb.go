@@ -669,6 +669,7 @@ type Request struct {
 	//	*Request_ListTrustedDevices
 	//	*Request_UnpairDevice
 	//	*Request_FetchArtifacts
+	//	*Request_GetJobProgress
 	Operation     isRequest_Operation `protobuf_oneof:"operation"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -858,6 +859,15 @@ func (x *Request) GetFetchArtifacts() *FetchArtifactsRequest {
 	return nil
 }
 
+func (x *Request) GetGetJobProgress() *GetJobProgressRequest {
+	if x != nil {
+		if x, ok := x.Operation.(*Request_GetJobProgress); ok {
+			return x.GetJobProgress
+		}
+	}
+	return nil
+}
+
 type isRequest_Operation interface {
 	isRequest_Operation()
 }
@@ -918,6 +928,10 @@ type Request_FetchArtifacts struct {
 	FetchArtifacts *FetchArtifactsRequest `protobuf:"bytes,23,opt,name=fetch_artifacts,json=fetchArtifacts,proto3,oneof"`
 }
 
+type Request_GetJobProgress struct {
+	GetJobProgress *GetJobProgressRequest `protobuf:"bytes,24,opt,name=get_job_progress,json=getJobProgress,proto3,oneof"`
+}
+
 func (*Request_Ping) isRequest_Operation() {}
 
 func (*Request_SubmitJob) isRequest_Operation() {}
@@ -946,6 +960,8 @@ func (*Request_UnpairDevice) isRequest_Operation() {}
 
 func (*Request_FetchArtifacts) isRequest_Operation() {}
 
+func (*Request_GetJobProgress) isRequest_Operation() {}
+
 // Response is the result corresponding to one request.
 type Response struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
@@ -968,6 +984,7 @@ type Response struct {
 	//	*Response_ListTrustedDevices
 	//	*Response_UnpairDevice
 	//	*Response_FetchArtifacts
+	//	*Response_GetJobProgress
 	Result        isResponse_Result `protobuf_oneof:"result"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1157,6 +1174,15 @@ func (x *Response) GetFetchArtifacts() *FetchArtifactsResponse {
 	return nil
 }
 
+func (x *Response) GetGetJobProgress() *GetJobProgressResponse {
+	if x != nil {
+		if x, ok := x.Result.(*Response_GetJobProgress); ok {
+			return x.GetJobProgress
+		}
+	}
+	return nil
+}
+
 type isResponse_Result interface {
 	isResponse_Result()
 }
@@ -1217,6 +1243,10 @@ type Response_FetchArtifacts struct {
 	FetchArtifacts *FetchArtifactsResponse `protobuf:"bytes,23,opt,name=fetch_artifacts,json=fetchArtifacts,proto3,oneof"`
 }
 
+type Response_GetJobProgress struct {
+	GetJobProgress *GetJobProgressResponse `protobuf:"bytes,24,opt,name=get_job_progress,json=getJobProgress,proto3,oneof"`
+}
+
 func (*Response_Ping) isResponse_Result() {}
 
 func (*Response_SubmitJob) isResponse_Result() {}
@@ -1244,6 +1274,8 @@ func (*Response_ListTrustedDevices) isResponse_Result() {}
 func (*Response_UnpairDevice) isResponse_Result() {}
 
 func (*Response_FetchArtifacts) isResponse_Result() {}
+
+func (*Response_GetJobProgress) isResponse_Result() {}
 
 type PingRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -1282,13 +1314,18 @@ func (*PingRequest) Descriptor() ([]byte, []int) {
 }
 
 type PingResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	DaemonVersion string                 `protobuf:"bytes,1,opt,name=daemon_version,json=daemonVersion,proto3" json:"daemon_version,omitempty"`
-	DeviceId      string                 `protobuf:"bytes,2,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
-	DeviceName    string                 `protobuf:"bytes,3,opt,name=device_name,json=deviceName,proto3" json:"device_name,omitempty"`
-	Role          DeviceRole             `protobuf:"varint,4,opt,name=role,proto3,enum=computehop.local.v1.DeviceRole" json:"role,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	DaemonVersion    string                 `protobuf:"bytes,1,opt,name=daemon_version,json=daemonVersion,proto3" json:"daemon_version,omitempty"`
+	DeviceId         string                 `protobuf:"bytes,2,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
+	DeviceName       string                 `protobuf:"bytes,3,opt,name=device_name,json=deviceName,proto3" json:"device_name,omitempty"`
+	Role             DeviceRole             `protobuf:"varint,4,opt,name=role,proto3,enum=computehop.local.v1.DeviceRole" json:"role,omitempty"`
+	Platform         string                 `protobuf:"bytes,5,opt,name=platform,proto3" json:"platform,omitempty"`
+	Arch             string                 `protobuf:"bytes,6,opt,name=arch,proto3" json:"arch,omitempty"`
+	LogicalCpuCount  uint32                 `protobuf:"varint,7,opt,name=logical_cpu_count,json=logicalCpuCount,proto3" json:"logical_cpu_count,omitempty"`
+	TotalMemoryBytes uint64                 `protobuf:"varint,8,opt,name=total_memory_bytes,json=totalMemoryBytes,proto3" json:"total_memory_bytes,omitempty"`
+	ToolIds          []string               `protobuf:"bytes,9,rep,name=tool_ids,json=toolIds,proto3" json:"tool_ids,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *PingResponse) Reset() {
@@ -1349,12 +1386,50 @@ func (x *PingResponse) GetRole() DeviceRole {
 	return DeviceRole_DEVICE_ROLE_UNSPECIFIED
 }
 
+func (x *PingResponse) GetPlatform() string {
+	if x != nil {
+		return x.Platform
+	}
+	return ""
+}
+
+func (x *PingResponse) GetArch() string {
+	if x != nil {
+		return x.Arch
+	}
+	return ""
+}
+
+func (x *PingResponse) GetLogicalCpuCount() uint32 {
+	if x != nil {
+		return x.LogicalCpuCount
+	}
+	return 0
+}
+
+func (x *PingResponse) GetTotalMemoryBytes() uint64 {
+	if x != nil {
+		return x.TotalMemoryBytes
+	}
+	return 0
+}
+
+func (x *PingResponse) GetToolIds() []string {
+	if x != nil {
+		return x.ToolIds
+	}
+	return nil
+}
+
 type SubmitJobRequest struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	Spec           *JobSpec               `protobuf:"bytes,1,opt,name=spec,proto3" json:"spec,omitempty"`
 	DeviceSelector string                 `protobuf:"bytes,2,opt,name=device_selector,json=deviceSelector,proto3" json:"device_selector,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Optional client-generated UUID. It lets UI clients know the job ID before
+	// remote snapshot preparation/upload has finished.
+	JobId         string `protobuf:"bytes,3,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SubmitJobRequest) Reset() {
@@ -1397,6 +1472,13 @@ func (x *SubmitJobRequest) GetSpec() *JobSpec {
 func (x *SubmitJobRequest) GetDeviceSelector() string {
 	if x != nil {
 		return x.DeviceSelector
+	}
+	return ""
+}
+
+func (x *SubmitJobRequest) GetJobId() string {
+	if x != nil {
+		return x.JobId
 	}
 	return ""
 }
@@ -2681,6 +2763,102 @@ func (x *FetchArtifactsResponse) GetConflictFileCount() uint32 {
 	return 0
 }
 
+type GetJobProgressRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	JobId          string                 `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	DeviceSelector string                 `protobuf:"bytes,2,opt,name=device_selector,json=deviceSelector,proto3" json:"device_selector,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *GetJobProgressRequest) Reset() {
+	*x = GetJobProgressRequest{}
+	mi := &file_computehop_local_v1_local_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetJobProgressRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetJobProgressRequest) ProtoMessage() {}
+
+func (x *GetJobProgressRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_computehop_local_v1_local_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetJobProgressRequest.ProtoReflect.Descriptor instead.
+func (*GetJobProgressRequest) Descriptor() ([]byte, []int) {
+	return file_computehop_local_v1_local_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *GetJobProgressRequest) GetJobId() string {
+	if x != nil {
+		return x.JobId
+	}
+	return ""
+}
+
+func (x *GetJobProgressRequest) GetDeviceSelector() string {
+	if x != nil {
+		return x.DeviceSelector
+	}
+	return ""
+}
+
+type GetJobProgressResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Progress      *JobProgress           `protobuf:"bytes,1,opt,name=progress,proto3" json:"progress,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetJobProgressResponse) Reset() {
+	*x = GetJobProgressResponse{}
+	mi := &file_computehop_local_v1_local_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetJobProgressResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetJobProgressResponse) ProtoMessage() {}
+
+func (x *GetJobProgressResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_computehop_local_v1_local_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetJobProgressResponse.ProtoReflect.Descriptor instead.
+func (*GetJobProgressResponse) Descriptor() ([]byte, []int) {
+	return file_computehop_local_v1_local_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *GetJobProgressResponse) GetProgress() *JobProgress {
+	if x != nil {
+		return x.Progress
+	}
+	return nil
+}
+
 type Pairing struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
 	Id                string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -2702,7 +2880,7 @@ type Pairing struct {
 
 func (x *Pairing) Reset() {
 	*x = Pairing{}
-	mi := &file_computehop_local_v1_local_proto_msgTypes[31]
+	mi := &file_computehop_local_v1_local_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2714,7 +2892,7 @@ func (x *Pairing) String() string {
 func (*Pairing) ProtoMessage() {}
 
 func (x *Pairing) ProtoReflect() protoreflect.Message {
-	mi := &file_computehop_local_v1_local_proto_msgTypes[31]
+	mi := &file_computehop_local_v1_local_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2727,7 +2905,7 @@ func (x *Pairing) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Pairing.ProtoReflect.Descriptor instead.
 func (*Pairing) Descriptor() ([]byte, []int) {
-	return file_computehop_local_v1_local_proto_rawDescGZIP(), []int{31}
+	return file_computehop_local_v1_local_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *Pairing) GetId() string {
@@ -2836,13 +3014,19 @@ type TrustedDevice struct {
 	ConnectivityPath              string                 `protobuf:"bytes,11,opt,name=connectivity_path,json=connectivityPath,proto3" json:"connectivity_path,omitempty"`
 	ConnectivityError             string                 `protobuf:"bytes,12,opt,name=connectivity_error,json=connectivityError,proto3" json:"connectivity_error,omitempty"`
 	ConnectivityUpdatedAtUnixNano int64                  `protobuf:"varint,13,opt,name=connectivity_updated_at_unix_nano,json=connectivityUpdatedAtUnixNano,proto3" json:"connectivity_updated_at_unix_nano,omitempty"`
+	Platform                      string                 `protobuf:"bytes,14,opt,name=platform,proto3" json:"platform,omitempty"`
+	Arch                          string                 `protobuf:"bytes,15,opt,name=arch,proto3" json:"arch,omitempty"`
+	LogicalCpuCount               uint32                 `protobuf:"varint,16,opt,name=logical_cpu_count,json=logicalCpuCount,proto3" json:"logical_cpu_count,omitempty"`
+	TotalMemoryBytes              uint64                 `protobuf:"varint,17,opt,name=total_memory_bytes,json=totalMemoryBytes,proto3" json:"total_memory_bytes,omitempty"`
+	HintsObservedAtUnixNano       int64                  `protobuf:"varint,18,opt,name=hints_observed_at_unix_nano,json=hintsObservedAtUnixNano,proto3" json:"hints_observed_at_unix_nano,omitempty"`
+	ToolIds                       []string               `protobuf:"bytes,19,rep,name=tool_ids,json=toolIds,proto3" json:"tool_ids,omitempty"`
 	unknownFields                 protoimpl.UnknownFields
 	sizeCache                     protoimpl.SizeCache
 }
 
 func (x *TrustedDevice) Reset() {
 	*x = TrustedDevice{}
-	mi := &file_computehop_local_v1_local_proto_msgTypes[32]
+	mi := &file_computehop_local_v1_local_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2854,7 +3038,7 @@ func (x *TrustedDevice) String() string {
 func (*TrustedDevice) ProtoMessage() {}
 
 func (x *TrustedDevice) ProtoReflect() protoreflect.Message {
-	mi := &file_computehop_local_v1_local_proto_msgTypes[32]
+	mi := &file_computehop_local_v1_local_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2867,7 +3051,7 @@ func (x *TrustedDevice) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TrustedDevice.ProtoReflect.Descriptor instead.
 func (*TrustedDevice) Descriptor() ([]byte, []int) {
-	return file_computehop_local_v1_local_proto_rawDescGZIP(), []int{32}
+	return file_computehop_local_v1_local_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *TrustedDevice) GetPairId() string {
@@ -2961,6 +3145,48 @@ func (x *TrustedDevice) GetConnectivityUpdatedAtUnixNano() int64 {
 	return 0
 }
 
+func (x *TrustedDevice) GetPlatform() string {
+	if x != nil {
+		return x.Platform
+	}
+	return ""
+}
+
+func (x *TrustedDevice) GetArch() string {
+	if x != nil {
+		return x.Arch
+	}
+	return ""
+}
+
+func (x *TrustedDevice) GetLogicalCpuCount() uint32 {
+	if x != nil {
+		return x.LogicalCpuCount
+	}
+	return 0
+}
+
+func (x *TrustedDevice) GetTotalMemoryBytes() uint64 {
+	if x != nil {
+		return x.TotalMemoryBytes
+	}
+	return 0
+}
+
+func (x *TrustedDevice) GetHintsObservedAtUnixNano() int64 {
+	if x != nil {
+		return x.HintsObservedAtUnixNano
+	}
+	return 0
+}
+
+func (x *TrustedDevice) GetToolIds() []string {
+	if x != nil {
+		return x.ToolIds
+	}
+	return nil
+}
+
 type NearbyDevice struct {
 	state               protoimpl.MessageState `protogen:"open.v1"`
 	PresenceId          string                 `protobuf:"bytes,1,opt,name=presence_id,json=presenceId,proto3" json:"presence_id,omitempty"`
@@ -2976,13 +3202,17 @@ type NearbyDevice struct {
 	LastSeenAtUnixNano  int64                  `protobuf:"varint,11,opt,name=last_seen_at_unix_nano,json=lastSeenAtUnixNano,proto3" json:"last_seen_at_unix_nano,omitempty"`
 	ExpiresAtUnixNano   int64                  `protobuf:"varint,12,opt,name=expires_at_unix_nano,json=expiresAtUnixNano,proto3" json:"expires_at_unix_nano,omitempty"`
 	TrustState          DeviceTrustState       `protobuf:"varint,13,opt,name=trust_state,json=trustState,proto3,enum=computehop.local.v1.DeviceTrustState" json:"trust_state,omitempty"`
+	Platform            string                 `protobuf:"bytes,14,opt,name=platform,proto3" json:"platform,omitempty"`
+	Arch                string                 `protobuf:"bytes,15,opt,name=arch,proto3" json:"arch,omitempty"`
+	LogicalCpuCount     uint32                 `protobuf:"varint,16,opt,name=logical_cpu_count,json=logicalCpuCount,proto3" json:"logical_cpu_count,omitempty"`
+	TotalMemoryBytes    uint64                 `protobuf:"varint,17,opt,name=total_memory_bytes,json=totalMemoryBytes,proto3" json:"total_memory_bytes,omitempty"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
 }
 
 func (x *NearbyDevice) Reset() {
 	*x = NearbyDevice{}
-	mi := &file_computehop_local_v1_local_proto_msgTypes[33]
+	mi := &file_computehop_local_v1_local_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2994,7 +3224,7 @@ func (x *NearbyDevice) String() string {
 func (*NearbyDevice) ProtoMessage() {}
 
 func (x *NearbyDevice) ProtoReflect() protoreflect.Message {
-	mi := &file_computehop_local_v1_local_proto_msgTypes[33]
+	mi := &file_computehop_local_v1_local_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3007,7 +3237,7 @@ func (x *NearbyDevice) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NearbyDevice.ProtoReflect.Descriptor instead.
 func (*NearbyDevice) Descriptor() ([]byte, []int) {
-	return file_computehop_local_v1_local_proto_rawDescGZIP(), []int{33}
+	return file_computehop_local_v1_local_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *NearbyDevice) GetPresenceId() string {
@@ -3101,6 +3331,34 @@ func (x *NearbyDevice) GetTrustState() DeviceTrustState {
 	return DeviceTrustState_DEVICE_TRUST_STATE_UNSPECIFIED
 }
 
+func (x *NearbyDevice) GetPlatform() string {
+	if x != nil {
+		return x.Platform
+	}
+	return ""
+}
+
+func (x *NearbyDevice) GetArch() string {
+	if x != nil {
+		return x.Arch
+	}
+	return ""
+}
+
+func (x *NearbyDevice) GetLogicalCpuCount() uint32 {
+	if x != nil {
+		return x.LogicalCpuCount
+	}
+	return 0
+}
+
+func (x *NearbyDevice) GetTotalMemoryBytes() uint64 {
+	if x != nil {
+		return x.TotalMemoryBytes
+	}
+	return 0
+}
+
 type JobSpec struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	Executable       string                 `protobuf:"bytes,1,opt,name=executable,proto3" json:"executable,omitempty"`
@@ -3110,13 +3368,14 @@ type JobSpec struct {
 	Executor         Executor               `protobuf:"varint,5,opt,name=executor,proto3,enum=computehop.local.v1.Executor" json:"executor,omitempty"`
 	ContainerImage   string                 `protobuf:"bytes,6,opt,name=container_image,json=containerImage,proto3" json:"container_image,omitempty"`
 	Outputs          []string               `protobuf:"bytes,7,rep,name=outputs,proto3" json:"outputs,omitempty"`
+	RequiredToolIds  []string               `protobuf:"bytes,8,rep,name=required_tool_ids,json=requiredToolIds,proto3" json:"required_tool_ids,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
 
 func (x *JobSpec) Reset() {
 	*x = JobSpec{}
-	mi := &file_computehop_local_v1_local_proto_msgTypes[34]
+	mi := &file_computehop_local_v1_local_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3128,7 +3387,7 @@ func (x *JobSpec) String() string {
 func (*JobSpec) ProtoMessage() {}
 
 func (x *JobSpec) ProtoReflect() protoreflect.Message {
-	mi := &file_computehop_local_v1_local_proto_msgTypes[34]
+	mi := &file_computehop_local_v1_local_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3141,7 +3400,7 @@ func (x *JobSpec) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JobSpec.ProtoReflect.Descriptor instead.
 func (*JobSpec) Descriptor() ([]byte, []int) {
-	return file_computehop_local_v1_local_proto_rawDescGZIP(), []int{34}
+	return file_computehop_local_v1_local_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *JobSpec) GetExecutable() string {
@@ -3193,6 +3452,13 @@ func (x *JobSpec) GetOutputs() []string {
 	return nil
 }
 
+func (x *JobSpec) GetRequiredToolIds() []string {
+	if x != nil {
+		return x.RequiredToolIds
+	}
+	return nil
+}
+
 type Job struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
 	Id                string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -3208,7 +3474,7 @@ type Job struct {
 
 func (x *Job) Reset() {
 	*x = Job{}
-	mi := &file_computehop_local_v1_local_proto_msgTypes[35]
+	mi := &file_computehop_local_v1_local_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3220,7 +3486,7 @@ func (x *Job) String() string {
 func (*Job) ProtoMessage() {}
 
 func (x *Job) ProtoReflect() protoreflect.Message {
-	mi := &file_computehop_local_v1_local_proto_msgTypes[35]
+	mi := &file_computehop_local_v1_local_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3233,7 +3499,7 @@ func (x *Job) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Job.ProtoReflect.Descriptor instead.
 func (*Job) Descriptor() ([]byte, []int) {
-	return file_computehop_local_v1_local_proto_rawDescGZIP(), []int{35}
+	return file_computehop_local_v1_local_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *Job) GetId() string {
@@ -3297,7 +3563,7 @@ type JobProgress struct {
 
 func (x *JobProgress) Reset() {
 	*x = JobProgress{}
-	mi := &file_computehop_local_v1_local_proto_msgTypes[36]
+	mi := &file_computehop_local_v1_local_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3309,7 +3575,7 @@ func (x *JobProgress) String() string {
 func (*JobProgress) ProtoMessage() {}
 
 func (x *JobProgress) ProtoReflect() protoreflect.Message {
-	mi := &file_computehop_local_v1_local_proto_msgTypes[36]
+	mi := &file_computehop_local_v1_local_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3322,7 +3588,7 @@ func (x *JobProgress) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JobProgress.ProtoReflect.Descriptor instead.
 func (*JobProgress) Descriptor() ([]byte, []int) {
-	return file_computehop_local_v1_local_proto_rawDescGZIP(), []int{36}
+	return file_computehop_local_v1_local_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *JobProgress) GetPhase() JobProgressPhase {
@@ -3364,7 +3630,7 @@ type Failure struct {
 
 func (x *Failure) Reset() {
 	*x = Failure{}
-	mi := &file_computehop_local_v1_local_proto_msgTypes[37]
+	mi := &file_computehop_local_v1_local_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3376,7 +3642,7 @@ func (x *Failure) String() string {
 func (*Failure) ProtoMessage() {}
 
 func (x *Failure) ProtoReflect() protoreflect.Message {
-	mi := &file_computehop_local_v1_local_proto_msgTypes[37]
+	mi := &file_computehop_local_v1_local_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3389,7 +3655,7 @@ func (x *Failure) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Failure.ProtoReflect.Descriptor instead.
 func (*Failure) Descriptor() ([]byte, []int) {
-	return file_computehop_local_v1_local_proto_rawDescGZIP(), []int{37}
+	return file_computehop_local_v1_local_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *Failure) GetCode() string {
@@ -3423,7 +3689,7 @@ type Error struct {
 
 func (x *Error) Reset() {
 	*x = Error{}
-	mi := &file_computehop_local_v1_local_proto_msgTypes[38]
+	mi := &file_computehop_local_v1_local_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3435,7 +3701,7 @@ func (x *Error) String() string {
 func (*Error) ProtoMessage() {}
 
 func (x *Error) ProtoReflect() protoreflect.Message {
-	mi := &file_computehop_local_v1_local_proto_msgTypes[38]
+	mi := &file_computehop_local_v1_local_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3448,7 +3714,7 @@ func (x *Error) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Error.ProtoReflect.Descriptor instead.
 func (*Error) Descriptor() ([]byte, []int) {
-	return file_computehop_local_v1_local_proto_rawDescGZIP(), []int{38}
+	return file_computehop_local_v1_local_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *Error) GetCode() ErrorCode {
@@ -3469,7 +3735,8 @@ var File_computehop_local_v1_local_proto protoreflect.FileDescriptor
 
 const file_computehop_local_v1_local_proto_rawDesc = "" +
 	"\n" +
-	"\x1fcomputehop/local/v1/local.proto\x12\x13computehop.local.v1\"\xcd\t\n" +
+	"\x1fcomputehop/local/v1/local.proto\x12\x13computehop.local.v1\"\xa5\n" +
+	"\n" +
 	"\aRequest\x12)\n" +
 	"\x10protocol_version\x18\x01 \x01(\rR\x0fprotocolVersion\x12\x1d\n" +
 	"\n" +
@@ -3491,8 +3758,10 @@ const file_computehop_local_v1_local_proto_rawDesc = "" +
 	"\x0ereject_pairing\x18\x14 \x01(\v2).computehop.local.v1.RejectPairingRequestH\x00R\rrejectPairing\x12b\n" +
 	"\x14list_trusted_devices\x18\x15 \x01(\v2..computehop.local.v1.ListTrustedDevicesRequestH\x00R\x12listTrustedDevices\x12O\n" +
 	"\runpair_device\x18\x16 \x01(\v2(.computehop.local.v1.UnpairDeviceRequestH\x00R\funpairDevice\x12U\n" +
-	"\x0ffetch_artifacts\x18\x17 \x01(\v2*.computehop.local.v1.FetchArtifactsRequestH\x00R\x0efetchArtifactsB\v\n" +
-	"\toperation\"\xe0\t\n" +
+	"\x0ffetch_artifacts\x18\x17 \x01(\v2*.computehop.local.v1.FetchArtifactsRequestH\x00R\x0efetchArtifacts\x12V\n" +
+	"\x10get_job_progress\x18\x18 \x01(\v2*.computehop.local.v1.GetJobProgressRequestH\x00R\x0egetJobProgressB\v\n" +
+	"\toperation\"\xb9\n" +
+	"\n" +
 	"\bResponse\x12)\n" +
 	"\x10protocol_version\x18\x01 \x01(\rR\x0fprotocolVersion\x12\x1d\n" +
 	"\n" +
@@ -3514,18 +3783,25 @@ const file_computehop_local_v1_local_proto_rawDesc = "" +
 	"\x0ereject_pairing\x18\x14 \x01(\v2*.computehop.local.v1.RejectPairingResponseH\x00R\rrejectPairing\x12c\n" +
 	"\x14list_trusted_devices\x18\x15 \x01(\v2/.computehop.local.v1.ListTrustedDevicesResponseH\x00R\x12listTrustedDevices\x12P\n" +
 	"\runpair_device\x18\x16 \x01(\v2).computehop.local.v1.UnpairDeviceResponseH\x00R\funpairDevice\x12V\n" +
-	"\x0ffetch_artifacts\x18\x17 \x01(\v2+.computehop.local.v1.FetchArtifactsResponseH\x00R\x0efetchArtifactsB\b\n" +
+	"\x0ffetch_artifacts\x18\x17 \x01(\v2+.computehop.local.v1.FetchArtifactsResponseH\x00R\x0efetchArtifacts\x12W\n" +
+	"\x10get_job_progress\x18\x18 \x01(\v2+.computehop.local.v1.GetJobProgressResponseH\x00R\x0egetJobProgressB\b\n" +
 	"\x06result\"\r\n" +
-	"\vPingRequest\"\xa8\x01\n" +
+	"\vPingRequest\"\xcd\x02\n" +
 	"\fPingResponse\x12%\n" +
 	"\x0edaemon_version\x18\x01 \x01(\tR\rdaemonVersion\x12\x1b\n" +
 	"\tdevice_id\x18\x02 \x01(\tR\bdeviceId\x12\x1f\n" +
 	"\vdevice_name\x18\x03 \x01(\tR\n" +
 	"deviceName\x123\n" +
-	"\x04role\x18\x04 \x01(\x0e2\x1f.computehop.local.v1.DeviceRoleR\x04role\"m\n" +
+	"\x04role\x18\x04 \x01(\x0e2\x1f.computehop.local.v1.DeviceRoleR\x04role\x12\x1a\n" +
+	"\bplatform\x18\x05 \x01(\tR\bplatform\x12\x12\n" +
+	"\x04arch\x18\x06 \x01(\tR\x04arch\x12*\n" +
+	"\x11logical_cpu_count\x18\a \x01(\rR\x0flogicalCpuCount\x12,\n" +
+	"\x12total_memory_bytes\x18\b \x01(\x04R\x10totalMemoryBytes\x12\x19\n" +
+	"\btool_ids\x18\t \x03(\tR\atoolIds\"\x84\x01\n" +
 	"\x10SubmitJobRequest\x120\n" +
 	"\x04spec\x18\x01 \x01(\v2\x1c.computehop.local.v1.JobSpecR\x04spec\x12'\n" +
-	"\x0fdevice_selector\x18\x02 \x01(\tR\x0edeviceSelector\"?\n" +
+	"\x0fdevice_selector\x18\x02 \x01(\tR\x0edeviceSelector\x12\x15\n" +
+	"\x06job_id\x18\x03 \x01(\tR\x05jobId\"?\n" +
 	"\x11SubmitJobResponse\x12*\n" +
 	"\x03job\x18\x01 \x01(\v2\x18.computehop.local.v1.JobR\x03job\"O\n" +
 	"\rGetJobRequest\x12\x15\n" +
@@ -3595,7 +3871,12 @@ const file_computehop_local_v1_local_proto_rawDesc = "" +
 	"\x16FetchArtifactsResponse\x12 \n" +
 	"\vdestination\x18\x01 \x01(\tR\vdestination\x12.\n" +
 	"\x13restored_file_count\x18\x02 \x01(\rR\x11restoredFileCount\x12.\n" +
-	"\x13conflict_file_count\x18\x03 \x01(\rR\x11conflictFileCount\"\xbd\x04\n" +
+	"\x13conflict_file_count\x18\x03 \x01(\rR\x11conflictFileCount\"W\n" +
+	"\x15GetJobProgressRequest\x12\x15\n" +
+	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12'\n" +
+	"\x0fdevice_selector\x18\x02 \x01(\tR\x0edeviceSelector\"V\n" +
+	"\x16GetJobProgressResponse\x12<\n" +
+	"\bprogress\x18\x01 \x01(\v2 .computehop.local.v1.JobProgressR\bprogress\"\xbd\x04\n" +
 	"\aPairing\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12$\n" +
 	"\x0epeer_device_id\x18\x02 \x01(\tR\fpeerDeviceId\x12&\n" +
@@ -3610,7 +3891,7 @@ const file_computehop_local_v1_local_proto_rawDesc = "" +
 	" \x01(\bR\x0fremoteConfirmed\x12/\n" +
 	"\x14started_at_unix_nano\x18\v \x01(\x03R\x11startedAtUnixNano\x12/\n" +
 	"\x14expires_at_unix_nano\x18\f \x01(\x03R\x11expiresAtUnixNano\x12\x18\n" +
-	"\afailure\x18\r \x01(\tR\afailure\"\x83\x05\n" +
+	"\afailure\x18\r \x01(\tR\afailure\"\xe6\x06\n" +
 	"\rTrustedDevice\x12\x17\n" +
 	"\apair_id\x18\x01 \x01(\tR\x06pairId\x12\x1b\n" +
 	"\tdevice_id\x18\x02 \x01(\tR\bdeviceId\x12\x1d\n" +
@@ -3627,7 +3908,13 @@ const file_computehop_local_v1_local_proto_rawDesc = "" +
 	" \x01(\x0e2&.computehop.local.v1.ConnectivityStateR\x11connectivityState\x12+\n" +
 	"\x11connectivity_path\x18\v \x01(\tR\x10connectivityPath\x12-\n" +
 	"\x12connectivity_error\x18\f \x01(\tR\x11connectivityError\x12H\n" +
-	"!connectivity_updated_at_unix_nano\x18\r \x01(\x03R\x1dconnectivityUpdatedAtUnixNano\"\x98\x04\n" +
+	"!connectivity_updated_at_unix_nano\x18\r \x01(\x03R\x1dconnectivityUpdatedAtUnixNano\x12\x1a\n" +
+	"\bplatform\x18\x0e \x01(\tR\bplatform\x12\x12\n" +
+	"\x04arch\x18\x0f \x01(\tR\x04arch\x12*\n" +
+	"\x11logical_cpu_count\x18\x10 \x01(\rR\x0flogicalCpuCount\x12,\n" +
+	"\x12total_memory_bytes\x18\x11 \x01(\x04R\x10totalMemoryBytes\x12<\n" +
+	"\x1bhints_observed_at_unix_nano\x18\x12 \x01(\x03R\x17hintsObservedAtUnixNano\x12\x19\n" +
+	"\btool_ids\x18\x13 \x03(\tR\atoolIds\"\xa2\x05\n" +
 	"\fNearbyDevice\x12\x1f\n" +
 	"\vpresence_id\x18\x01 \x01(\tR\n" +
 	"presenceId\x12\x12\n" +
@@ -3644,7 +3931,11 @@ const file_computehop_local_v1_local_proto_rawDesc = "" +
 	"\x16last_seen_at_unix_nano\x18\v \x01(\x03R\x12lastSeenAtUnixNano\x12/\n" +
 	"\x14expires_at_unix_nano\x18\f \x01(\x03R\x11expiresAtUnixNano\x12F\n" +
 	"\vtrust_state\x18\r \x01(\x0e2%.computehop.local.v1.DeviceTrustStateR\n" +
-	"trustState\"\x83\x03\n" +
+	"trustState\x12\x1a\n" +
+	"\bplatform\x18\x0e \x01(\tR\bplatform\x12\x12\n" +
+	"\x04arch\x18\x0f \x01(\tR\x04arch\x12*\n" +
+	"\x11logical_cpu_count\x18\x10 \x01(\rR\x0flogicalCpuCount\x12,\n" +
+	"\x12total_memory_bytes\x18\x11 \x01(\x04R\x10totalMemoryBytes\"\xaf\x03\n" +
 	"\aJobSpec\x12\x1e\n" +
 	"\n" +
 	"executable\x18\x01 \x01(\tR\n" +
@@ -3654,7 +3945,8 @@ const file_computehop_local_v1_local_proto_rawDesc = "" +
 	"\venvironment\x18\x04 \x03(\v2-.computehop.local.v1.JobSpec.EnvironmentEntryR\venvironment\x129\n" +
 	"\bexecutor\x18\x05 \x01(\x0e2\x1d.computehop.local.v1.ExecutorR\bexecutor\x12'\n" +
 	"\x0fcontainer_image\x18\x06 \x01(\tR\x0econtainerImage\x12\x18\n" +
-	"\aoutputs\x18\a \x03(\tR\aoutputs\x1a>\n" +
+	"\aoutputs\x18\a \x03(\tR\aoutputs\x12*\n" +
+	"\x11required_tool_ids\x18\b \x03(\tR\x0frequiredToolIds\x1a>\n" +
 	"\x10EnvironmentEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xd4\x02\n" +
@@ -3768,7 +4060,7 @@ func file_computehop_local_v1_local_proto_rawDescGZIP() []byte {
 }
 
 var file_computehop_local_v1_local_proto_enumTypes = make([]protoimpl.EnumInfo, 11)
-var file_computehop_local_v1_local_proto_msgTypes = make([]protoimpl.MessageInfo, 40)
+var file_computehop_local_v1_local_proto_msgTypes = make([]protoimpl.MessageInfo, 42)
 var file_computehop_local_v1_local_proto_goTypes = []any{
 	(Executor)(0),                      // 0: computehop.local.v1.Executor
 	(JobState)(0),                      // 1: computehop.local.v1.JobState
@@ -3812,15 +4104,17 @@ var file_computehop_local_v1_local_proto_goTypes = []any{
 	(*UnpairDeviceResponse)(nil),       // 39: computehop.local.v1.UnpairDeviceResponse
 	(*FetchArtifactsRequest)(nil),      // 40: computehop.local.v1.FetchArtifactsRequest
 	(*FetchArtifactsResponse)(nil),     // 41: computehop.local.v1.FetchArtifactsResponse
-	(*Pairing)(nil),                    // 42: computehop.local.v1.Pairing
-	(*TrustedDevice)(nil),              // 43: computehop.local.v1.TrustedDevice
-	(*NearbyDevice)(nil),               // 44: computehop.local.v1.NearbyDevice
-	(*JobSpec)(nil),                    // 45: computehop.local.v1.JobSpec
-	(*Job)(nil),                        // 46: computehop.local.v1.Job
-	(*JobProgress)(nil),                // 47: computehop.local.v1.JobProgress
-	(*Failure)(nil),                    // 48: computehop.local.v1.Failure
-	(*Error)(nil),                      // 49: computehop.local.v1.Error
-	nil,                                // 50: computehop.local.v1.JobSpec.EnvironmentEntry
+	(*GetJobProgressRequest)(nil),      // 42: computehop.local.v1.GetJobProgressRequest
+	(*GetJobProgressResponse)(nil),     // 43: computehop.local.v1.GetJobProgressResponse
+	(*Pairing)(nil),                    // 44: computehop.local.v1.Pairing
+	(*TrustedDevice)(nil),              // 45: computehop.local.v1.TrustedDevice
+	(*NearbyDevice)(nil),               // 46: computehop.local.v1.NearbyDevice
+	(*JobSpec)(nil),                    // 47: computehop.local.v1.JobSpec
+	(*Job)(nil),                        // 48: computehop.local.v1.Job
+	(*JobProgress)(nil),                // 49: computehop.local.v1.JobProgress
+	(*Failure)(nil),                    // 50: computehop.local.v1.Failure
+	(*Error)(nil),                      // 51: computehop.local.v1.Error
+	nil,                                // 52: computehop.local.v1.JobSpec.EnvironmentEntry
 }
 var file_computehop_local_v1_local_proto_depIdxs = []int32{
 	13, // 0: computehop.local.v1.Request.ping:type_name -> computehop.local.v1.PingRequest
@@ -3837,61 +4131,64 @@ var file_computehop_local_v1_local_proto_depIdxs = []int32{
 	36, // 11: computehop.local.v1.Request.list_trusted_devices:type_name -> computehop.local.v1.ListTrustedDevicesRequest
 	38, // 12: computehop.local.v1.Request.unpair_device:type_name -> computehop.local.v1.UnpairDeviceRequest
 	40, // 13: computehop.local.v1.Request.fetch_artifacts:type_name -> computehop.local.v1.FetchArtifactsRequest
-	49, // 14: computehop.local.v1.Response.error:type_name -> computehop.local.v1.Error
-	14, // 15: computehop.local.v1.Response.ping:type_name -> computehop.local.v1.PingResponse
-	16, // 16: computehop.local.v1.Response.submit_job:type_name -> computehop.local.v1.SubmitJobResponse
-	18, // 17: computehop.local.v1.Response.get_job:type_name -> computehop.local.v1.GetJobResponse
-	20, // 18: computehop.local.v1.Response.list_jobs:type_name -> computehop.local.v1.ListJobsResponse
-	22, // 19: computehop.local.v1.Response.cancel_job:type_name -> computehop.local.v1.CancelJobResponse
-	24, // 20: computehop.local.v1.Response.read_job_logs:type_name -> computehop.local.v1.ReadJobLogsResponse
-	27, // 21: computehop.local.v1.Response.list_devices:type_name -> computehop.local.v1.ListDevicesResponse
-	29, // 22: computehop.local.v1.Response.begin_pairing:type_name -> computehop.local.v1.BeginPairingResponse
-	31, // 23: computehop.local.v1.Response.list_pairings:type_name -> computehop.local.v1.ListPairingsResponse
-	33, // 24: computehop.local.v1.Response.confirm_pairing:type_name -> computehop.local.v1.ConfirmPairingResponse
-	35, // 25: computehop.local.v1.Response.reject_pairing:type_name -> computehop.local.v1.RejectPairingResponse
-	37, // 26: computehop.local.v1.Response.list_trusted_devices:type_name -> computehop.local.v1.ListTrustedDevicesResponse
-	39, // 27: computehop.local.v1.Response.unpair_device:type_name -> computehop.local.v1.UnpairDeviceResponse
-	41, // 28: computehop.local.v1.Response.fetch_artifacts:type_name -> computehop.local.v1.FetchArtifactsResponse
-	5,  // 29: computehop.local.v1.PingResponse.role:type_name -> computehop.local.v1.DeviceRole
-	45, // 30: computehop.local.v1.SubmitJobRequest.spec:type_name -> computehop.local.v1.JobSpec
-	46, // 31: computehop.local.v1.SubmitJobResponse.job:type_name -> computehop.local.v1.Job
-	46, // 32: computehop.local.v1.GetJobResponse.job:type_name -> computehop.local.v1.Job
-	1,  // 33: computehop.local.v1.ListJobsRequest.states:type_name -> computehop.local.v1.JobState
-	46, // 34: computehop.local.v1.ListJobsResponse.jobs:type_name -> computehop.local.v1.Job
-	46, // 35: computehop.local.v1.CancelJobResponse.job:type_name -> computehop.local.v1.Job
-	46, // 36: computehop.local.v1.ReadJobLogsResponse.job:type_name -> computehop.local.v1.Job
-	25, // 37: computehop.local.v1.ReadJobLogsResponse.records:type_name -> computehop.local.v1.JobLogRecord
-	4,  // 38: computehop.local.v1.JobLogRecord.stream:type_name -> computehop.local.v1.JobLogStream
-	44, // 39: computehop.local.v1.ListDevicesResponse.devices:type_name -> computehop.local.v1.NearbyDevice
-	9,  // 40: computehop.local.v1.ListDevicesResponse.discovery_state:type_name -> computehop.local.v1.DiscoveryState
-	43, // 41: computehop.local.v1.ListDevicesResponse.trusted_devices:type_name -> computehop.local.v1.TrustedDevice
-	42, // 42: computehop.local.v1.BeginPairingResponse.pairing:type_name -> computehop.local.v1.Pairing
-	42, // 43: computehop.local.v1.ListPairingsResponse.pairings:type_name -> computehop.local.v1.Pairing
-	42, // 44: computehop.local.v1.ConfirmPairingResponse.pairing:type_name -> computehop.local.v1.Pairing
-	42, // 45: computehop.local.v1.RejectPairingResponse.pairing:type_name -> computehop.local.v1.Pairing
-	43, // 46: computehop.local.v1.ListTrustedDevicesResponse.devices:type_name -> computehop.local.v1.TrustedDevice
-	43, // 47: computehop.local.v1.UnpairDeviceResponse.device:type_name -> computehop.local.v1.TrustedDevice
-	5,  // 48: computehop.local.v1.Pairing.peer_role:type_name -> computehop.local.v1.DeviceRole
-	7,  // 49: computehop.local.v1.Pairing.direction:type_name -> computehop.local.v1.PairingDirection
-	8,  // 50: computehop.local.v1.Pairing.state:type_name -> computehop.local.v1.PairingState
-	5,  // 51: computehop.local.v1.TrustedDevice.role:type_name -> computehop.local.v1.DeviceRole
-	6,  // 52: computehop.local.v1.TrustedDevice.trust_state:type_name -> computehop.local.v1.DeviceTrustState
-	10, // 53: computehop.local.v1.TrustedDevice.connectivity_state:type_name -> computehop.local.v1.ConnectivityState
-	5,  // 54: computehop.local.v1.NearbyDevice.role:type_name -> computehop.local.v1.DeviceRole
-	6,  // 55: computehop.local.v1.NearbyDevice.trust_state:type_name -> computehop.local.v1.DeviceTrustState
-	50, // 56: computehop.local.v1.JobSpec.environment:type_name -> computehop.local.v1.JobSpec.EnvironmentEntry
-	0,  // 57: computehop.local.v1.JobSpec.executor:type_name -> computehop.local.v1.Executor
-	45, // 58: computehop.local.v1.Job.spec:type_name -> computehop.local.v1.JobSpec
-	1,  // 59: computehop.local.v1.Job.state:type_name -> computehop.local.v1.JobState
-	48, // 60: computehop.local.v1.Job.failure:type_name -> computehop.local.v1.Failure
-	47, // 61: computehop.local.v1.Job.progress:type_name -> computehop.local.v1.JobProgress
-	2,  // 62: computehop.local.v1.JobProgress.phase:type_name -> computehop.local.v1.JobProgressPhase
-	3,  // 63: computehop.local.v1.Error.code:type_name -> computehop.local.v1.ErrorCode
-	64, // [64:64] is the sub-list for method output_type
-	64, // [64:64] is the sub-list for method input_type
-	64, // [64:64] is the sub-list for extension type_name
-	64, // [64:64] is the sub-list for extension extendee
-	0,  // [0:64] is the sub-list for field type_name
+	42, // 14: computehop.local.v1.Request.get_job_progress:type_name -> computehop.local.v1.GetJobProgressRequest
+	51, // 15: computehop.local.v1.Response.error:type_name -> computehop.local.v1.Error
+	14, // 16: computehop.local.v1.Response.ping:type_name -> computehop.local.v1.PingResponse
+	16, // 17: computehop.local.v1.Response.submit_job:type_name -> computehop.local.v1.SubmitJobResponse
+	18, // 18: computehop.local.v1.Response.get_job:type_name -> computehop.local.v1.GetJobResponse
+	20, // 19: computehop.local.v1.Response.list_jobs:type_name -> computehop.local.v1.ListJobsResponse
+	22, // 20: computehop.local.v1.Response.cancel_job:type_name -> computehop.local.v1.CancelJobResponse
+	24, // 21: computehop.local.v1.Response.read_job_logs:type_name -> computehop.local.v1.ReadJobLogsResponse
+	27, // 22: computehop.local.v1.Response.list_devices:type_name -> computehop.local.v1.ListDevicesResponse
+	29, // 23: computehop.local.v1.Response.begin_pairing:type_name -> computehop.local.v1.BeginPairingResponse
+	31, // 24: computehop.local.v1.Response.list_pairings:type_name -> computehop.local.v1.ListPairingsResponse
+	33, // 25: computehop.local.v1.Response.confirm_pairing:type_name -> computehop.local.v1.ConfirmPairingResponse
+	35, // 26: computehop.local.v1.Response.reject_pairing:type_name -> computehop.local.v1.RejectPairingResponse
+	37, // 27: computehop.local.v1.Response.list_trusted_devices:type_name -> computehop.local.v1.ListTrustedDevicesResponse
+	39, // 28: computehop.local.v1.Response.unpair_device:type_name -> computehop.local.v1.UnpairDeviceResponse
+	41, // 29: computehop.local.v1.Response.fetch_artifacts:type_name -> computehop.local.v1.FetchArtifactsResponse
+	43, // 30: computehop.local.v1.Response.get_job_progress:type_name -> computehop.local.v1.GetJobProgressResponse
+	5,  // 31: computehop.local.v1.PingResponse.role:type_name -> computehop.local.v1.DeviceRole
+	47, // 32: computehop.local.v1.SubmitJobRequest.spec:type_name -> computehop.local.v1.JobSpec
+	48, // 33: computehop.local.v1.SubmitJobResponse.job:type_name -> computehop.local.v1.Job
+	48, // 34: computehop.local.v1.GetJobResponse.job:type_name -> computehop.local.v1.Job
+	1,  // 35: computehop.local.v1.ListJobsRequest.states:type_name -> computehop.local.v1.JobState
+	48, // 36: computehop.local.v1.ListJobsResponse.jobs:type_name -> computehop.local.v1.Job
+	48, // 37: computehop.local.v1.CancelJobResponse.job:type_name -> computehop.local.v1.Job
+	48, // 38: computehop.local.v1.ReadJobLogsResponse.job:type_name -> computehop.local.v1.Job
+	25, // 39: computehop.local.v1.ReadJobLogsResponse.records:type_name -> computehop.local.v1.JobLogRecord
+	4,  // 40: computehop.local.v1.JobLogRecord.stream:type_name -> computehop.local.v1.JobLogStream
+	46, // 41: computehop.local.v1.ListDevicesResponse.devices:type_name -> computehop.local.v1.NearbyDevice
+	9,  // 42: computehop.local.v1.ListDevicesResponse.discovery_state:type_name -> computehop.local.v1.DiscoveryState
+	45, // 43: computehop.local.v1.ListDevicesResponse.trusted_devices:type_name -> computehop.local.v1.TrustedDevice
+	44, // 44: computehop.local.v1.BeginPairingResponse.pairing:type_name -> computehop.local.v1.Pairing
+	44, // 45: computehop.local.v1.ListPairingsResponse.pairings:type_name -> computehop.local.v1.Pairing
+	44, // 46: computehop.local.v1.ConfirmPairingResponse.pairing:type_name -> computehop.local.v1.Pairing
+	44, // 47: computehop.local.v1.RejectPairingResponse.pairing:type_name -> computehop.local.v1.Pairing
+	45, // 48: computehop.local.v1.ListTrustedDevicesResponse.devices:type_name -> computehop.local.v1.TrustedDevice
+	45, // 49: computehop.local.v1.UnpairDeviceResponse.device:type_name -> computehop.local.v1.TrustedDevice
+	49, // 50: computehop.local.v1.GetJobProgressResponse.progress:type_name -> computehop.local.v1.JobProgress
+	5,  // 51: computehop.local.v1.Pairing.peer_role:type_name -> computehop.local.v1.DeviceRole
+	7,  // 52: computehop.local.v1.Pairing.direction:type_name -> computehop.local.v1.PairingDirection
+	8,  // 53: computehop.local.v1.Pairing.state:type_name -> computehop.local.v1.PairingState
+	5,  // 54: computehop.local.v1.TrustedDevice.role:type_name -> computehop.local.v1.DeviceRole
+	6,  // 55: computehop.local.v1.TrustedDevice.trust_state:type_name -> computehop.local.v1.DeviceTrustState
+	10, // 56: computehop.local.v1.TrustedDevice.connectivity_state:type_name -> computehop.local.v1.ConnectivityState
+	5,  // 57: computehop.local.v1.NearbyDevice.role:type_name -> computehop.local.v1.DeviceRole
+	6,  // 58: computehop.local.v1.NearbyDevice.trust_state:type_name -> computehop.local.v1.DeviceTrustState
+	52, // 59: computehop.local.v1.JobSpec.environment:type_name -> computehop.local.v1.JobSpec.EnvironmentEntry
+	0,  // 60: computehop.local.v1.JobSpec.executor:type_name -> computehop.local.v1.Executor
+	47, // 61: computehop.local.v1.Job.spec:type_name -> computehop.local.v1.JobSpec
+	1,  // 62: computehop.local.v1.Job.state:type_name -> computehop.local.v1.JobState
+	50, // 63: computehop.local.v1.Job.failure:type_name -> computehop.local.v1.Failure
+	49, // 64: computehop.local.v1.Job.progress:type_name -> computehop.local.v1.JobProgress
+	2,  // 65: computehop.local.v1.JobProgress.phase:type_name -> computehop.local.v1.JobProgressPhase
+	3,  // 66: computehop.local.v1.Error.code:type_name -> computehop.local.v1.ErrorCode
+	67, // [67:67] is the sub-list for method output_type
+	67, // [67:67] is the sub-list for method input_type
+	67, // [67:67] is the sub-list for extension type_name
+	67, // [67:67] is the sub-list for extension extendee
+	0,  // [0:67] is the sub-list for field type_name
 }
 
 func init() { file_computehop_local_v1_local_proto_init() }
@@ -3914,6 +4211,7 @@ func file_computehop_local_v1_local_proto_init() {
 		(*Request_ListTrustedDevices)(nil),
 		(*Request_UnpairDevice)(nil),
 		(*Request_FetchArtifacts)(nil),
+		(*Request_GetJobProgress)(nil),
 	}
 	file_computehop_local_v1_local_proto_msgTypes[1].OneofWrappers = []any{
 		(*Response_Ping)(nil),
@@ -3930,6 +4228,7 @@ func file_computehop_local_v1_local_proto_init() {
 		(*Response_ListTrustedDevices)(nil),
 		(*Response_UnpairDevice)(nil),
 		(*Response_FetchArtifacts)(nil),
+		(*Response_GetJobProgress)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -3937,7 +4236,7 @@ func file_computehop_local_v1_local_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_computehop_local_v1_local_proto_rawDesc), len(file_computehop_local_v1_local_proto_rawDesc)),
 			NumEnums:      11,
-			NumMessages:   40,
+			NumMessages:   42,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -461,11 +461,14 @@ func newSetupCommand(stdout io.Writer) *cobra.Command {
 
 Use this before the app is installed, when the daemon is stopped, or when you
 want the exact install command for this Mac or a worker Mac. Advanced subcommands
-cover LAN-only installs and the self-hosted VPS connectivity stack.`),
+cover LAN-only installs, Linux/Windows worker packages, and the self-hosted VPS
+connectivity stack.`),
 		Example: strings.TrimSpace(`computehop setup
 computehop setup orchestrator
 computehop setup worker --device-name "Gaming PC"
 computehop setup worker --device-name "Gaming PC" --lan-only
+computehop setup workers
+computehop setup smoke
 computehop setup vps --connectivity-domain connect.example.com --turn-domain turn.example.com --email admin@example.com --public-ip 203.0.113.10`),
 		Args: cobra.NoArgs,
 		RunE: func(*cobra.Command, []string) error {
@@ -475,6 +478,8 @@ computehop setup vps --connectivity-domain connect.example.com --turn-domain tur
 	command.AddCommand(newSetupMacCommand(stdout))
 	command.AddCommand(newSetupMacRoleCommand(stdout, device.RoleOrchestrator))
 	command.AddCommand(newSetupMacRoleCommand(stdout, device.RoleWorker))
+	command.AddCommand(newSetupWorkersCommand(stdout))
+	command.AddCommand(newSetupSmokeCommand(stdout))
 	command.AddCommand(newSetupVPSCommand(stdout))
 	return command
 }
@@ -548,6 +553,44 @@ func setupRoleExample(role device.Role) string {
 	}
 }
 
+func newSetupWorkersCommand(stdout io.Writer) *cobra.Command {
+	options := workerPackageSetupOptions{
+		deviceName: exampleWorkerDeviceName,
+		target:     "all",
+	}
+	command := &cobra.Command{
+		Use:     "workers",
+		Aliases: []string{"pc", "worker-packages"},
+		Short:   "Print the Linux and Windows worker package checklist",
+		Long: strings.TrimSpace(`Print copyable Linux and Windows worker package commands.
+
+Use this when the Mac is the orchestrator and another computer should run as a
+worker. This command only prints the package and pairing checklist; it does not
+install anything or require the daemon. Same-LAN mode is the default; pass VPS
+connectivity flags after deploying the rendezvous/TURN stack.`),
+		Example: strings.TrimSpace(`computehop setup workers
+computehop setup workers --target linux --device-name "Home Server"
+computehop setup workers --target windows --device-name "Gaming PC"
+computehop setup workers --connectivity-domain connect.example.com --turn-domain turn.example.com`),
+		Args: cobra.NoArgs,
+		RunE: func(*cobra.Command, []string) error {
+			if err := options.validate(); err != nil {
+				return err
+			}
+			return printWorkerPackageSetupGuide(stdout, options)
+		},
+	}
+	command.Flags().StringVar(&options.deviceName, "device-name", options.deviceName, "human-readable worker device name")
+	command.Flags().StringVar(&options.target, "target", options.target, "worker target: all, linux, or windows")
+	command.Flags().StringVar(&options.connectivityDomain, "connectivity-domain", "", "advanced: public HTTPS domain from the one-VPS setup")
+	command.Flags().StringVar(&options.turnDomain, "turn-domain", "", "advanced: public STUN/TURN domain from the one-VPS setup")
+	command.Flags().StringVar(&options.turnServer, "turn-server", "", "advanced: TURN relay URI printed by deploy/vps/turn-credentials.sh")
+	command.Flags().StringVar(&options.turnUsername, "turn-username", "", "advanced: short-lived TURN username printed by deploy/vps/turn-credentials.sh")
+	command.Flags().StringVar(&options.turnPassword, "turn-password", "", "advanced: short-lived TURN password printed by deploy/vps/turn-credentials.sh")
+	command.Flags().BoolVar(&options.lanOnly, "lan-only", false, "print LAN-only worker commands even when remote connectivity is not configured")
+	return command
+}
+
 func newSetupVPSCommand(stdout io.Writer) *cobra.Command {
 	options := defaultVPSSetupOptions()
 	command := &cobra.Command{
@@ -572,6 +615,24 @@ computehop setup vps --connectivity-domain connect.example.com --turn-domain tur
 	return command
 }
 
+func newSetupSmokeCommand(stdout io.Writer) *cobra.Command {
+	command := &cobra.Command{
+		Use:   "smoke",
+		Short: "Print the two-Mac package smoke checklist",
+		Long: strings.TrimSpace(`Print a two-Mac package smoke checklist without requiring the daemon.
+
+Use this after changing packaging, install, pairing, run submission, logs, or
+artifacts. The checklist starts LAN-only so the packaged path is proven before
+advanced cross-network connectivity is added.`),
+		Example: "computehop setup smoke",
+		Args:    cobra.NoArgs,
+		RunE: func(*cobra.Command, []string) error {
+			return printPackageSmokeGuide(stdout)
+		},
+	}
+	return command
+}
+
 func addMacSetupFlags(command *cobra.Command, options *macSetupOptions) {
 	command.Flags().StringVar(&options.deviceName, "device-name", "", "human-readable device name")
 	command.Flags().StringVar(&options.cacheSize, "cache-size", "", "verified content cache limit, for example 40GiB")
@@ -588,6 +649,17 @@ type vpsSetupOptions struct {
 	turnDomain         string
 	email              string
 	publicIP           string
+}
+
+type workerPackageSetupOptions struct {
+	deviceName         string
+	target             string
+	lanOnly            bool
+	connectivityDomain string
+	turnDomain         string
+	turnServer         string
+	turnUsername       string
+	turnPassword       string
 }
 
 type macSetupOptions struct {
@@ -617,12 +689,39 @@ func (options macSetupOptions) validate() error {
 	default:
 		return errors.New("--role must be orchestrator or worker")
 	}
-	connectivityDomain := strings.TrimSpace(options.connectivityDomain)
-	turnDomain := strings.TrimSpace(options.turnDomain)
-	turnServer := strings.TrimSpace(options.turnServer)
-	turnUsername := strings.TrimSpace(options.turnUsername)
-	turnPassword := strings.TrimSpace(options.turnPassword)
-	if options.lanOnly && (connectivityDomain != "" || turnDomain != "" || turnServer != "" || turnUsername != "" || turnPassword != "") {
+	if err := validateSetupConnectivity(
+		options.lanOnly,
+		options.connectivityDomain,
+		options.turnDomain,
+		options.turnServer,
+		options.turnUsername,
+		options.turnPassword,
+	); err != nil {
+		return err
+	}
+	if strings.TrimSpace(options.cacheSize) == "" {
+		return nil
+	}
+	if err := validateSetupCacheSize(options.cacheSize); err != nil {
+		return fmt.Errorf("--cache-size: %w", err)
+	}
+	return nil
+}
+
+func validateSetupConnectivity(
+	lanOnly bool,
+	connectivityDomain string,
+	turnDomain string,
+	turnServer string,
+	turnUsername string,
+	turnPassword string,
+) error {
+	connectivityDomain = strings.TrimSpace(connectivityDomain)
+	turnDomain = strings.TrimSpace(turnDomain)
+	turnServer = strings.TrimSpace(turnServer)
+	turnUsername = strings.TrimSpace(turnUsername)
+	turnPassword = strings.TrimSpace(turnPassword)
+	if lanOnly && (connectivityDomain != "" || turnDomain != "" || turnServer != "" || turnUsername != "" || turnPassword != "") {
 		return errors.New("--lan-only cannot be combined with VPS, STUN, or TURN flags")
 	}
 	if connectivityDomain == "" && (turnDomain != "" || turnServer != "" || turnUsername != "" || turnPassword != "") {
@@ -640,13 +739,101 @@ func (options macSetupOptions) validate() error {
 	if turnServer == "" && (turnUsername != "" || turnPassword != "") {
 		return errors.New("--turn-username and --turn-password require --turn-server")
 	}
-	if strings.TrimSpace(options.cacheSize) == "" {
-		return nil
+	return nil
+}
+
+func (options workerPackageSetupOptions) validate() error {
+	switch strings.ToLower(strings.TrimSpace(options.target)) {
+	case "all", "linux", "windows":
+	default:
+		return errors.New("--target must be all, linux, or windows")
 	}
-	if err := validateSetupCacheSize(options.cacheSize); err != nil {
-		return fmt.Errorf("--cache-size: %w", err)
+	if err := validateSetupConnectivity(
+		options.lanOnly,
+		options.connectivityDomain,
+		options.turnDomain,
+		options.turnServer,
+		options.turnUsername,
+		options.turnPassword,
+	); err != nil {
+		return err
 	}
 	return nil
+}
+
+func workerPackageDaemonArgs(options workerPackageSetupOptions) []string {
+	if options.lanOnly || strings.TrimSpace(options.connectivityDomain) == "" {
+		return []string{"--lan-only"}
+	}
+	args := []string{
+		"--connectivity-url", "https://" + strings.TrimSpace(options.connectivityDomain),
+	}
+	if strings.TrimSpace(options.turnDomain) != "" {
+		args = append(args, "--stun-server", "stun:"+strings.TrimSpace(options.turnDomain)+":3478")
+	}
+	if strings.TrimSpace(options.turnServer) != "" {
+		args = append(
+			args,
+			"--turn-server", strings.TrimSpace(options.turnServer),
+			"--turn-username", strings.TrimSpace(options.turnUsername),
+			"--turn-password", strings.TrimSpace(options.turnPassword),
+		)
+	}
+	return args
+}
+
+func shellArgs(values []string) string {
+	if len(values) == 0 {
+		return ""
+	}
+	escaped := make([]string, len(values))
+	for index, value := range values {
+		escaped[index] = shellArg(value)
+	}
+	return strings.Join(escaped, " ")
+}
+
+func workerPackagePowerShellArgs(options workerPackageSetupOptions) []string {
+	if options.lanOnly || strings.TrimSpace(options.connectivityDomain) == "" {
+		return []string{"-LanOnly"}
+	}
+	args := []string{
+		"-ConnectivityUrl", "https://" + strings.TrimSpace(options.connectivityDomain),
+	}
+	if strings.TrimSpace(options.turnDomain) != "" {
+		args = append(args, "-StunServer", "stun:"+strings.TrimSpace(options.turnDomain)+":3478")
+	}
+	if strings.TrimSpace(options.turnServer) != "" {
+		args = append(
+			args,
+			"-TurnServer", strings.TrimSpace(options.turnServer),
+			"-TurnUsername", strings.TrimSpace(options.turnUsername),
+			"-TurnPassword", strings.TrimSpace(options.turnPassword),
+		)
+	}
+	return args
+}
+
+func powershellOptionArgs(values []string) string {
+	if len(values) == 0 {
+		return ""
+	}
+	escaped := make([]string, len(values))
+	for index, value := range values {
+		if strings.HasPrefix(value, "-") && value != "-" {
+			escaped[index] = value
+			continue
+		}
+		escaped[index] = powershellArg(value)
+	}
+	return strings.Join(escaped, " ")
+}
+
+func appendCommandArgs(command string, encodedArgs string) string {
+	if strings.TrimSpace(encodedArgs) == "" {
+		return command
+	}
+	return command + " " + encodedArgs
 }
 
 func validateSetupCacheSize(encoded string) error {
@@ -738,6 +925,18 @@ func (options macSetupOptions) installCommand() string {
 		escaped[index] = shellArg(part)
 	}
 	return strings.Join(escaped, " ")
+}
+
+func (options macSetupOptions) installCheckCommand() string {
+	command := options.installCommand()
+	if command == "make install-macos" {
+		return "make install-macos-check"
+	}
+	const installer = "./packaging/macos/install.sh"
+	if strings.HasPrefix(command, installer+" ") {
+		return installer + " --check" + strings.TrimPrefix(command, installer)
+	}
+	return command
 }
 
 func (options macSetupOptions) customizeCommand() string {
@@ -881,6 +1080,10 @@ func shellArg(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
 }
 
+func powershellArg(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "''") + "'"
+}
+
 func printSetupGuide(stdout io.Writer) error {
 	lines := []string{
 		"ComputeHop setup",
@@ -893,6 +1096,7 @@ func printSetupGuide(stdout io.Writer) error {
 		"",
 		"2. Install a worker on another Mac on the same LAN:",
 		"   computehop setup worker --device-name \"Gaming PC\"",
+		"   # For Linux/Windows workers, build copyable packages with: make worker-archives",
 		"",
 		"3. Connect once while both devices are nearby:",
 		"   computehop connect nearby",
@@ -923,12 +1127,125 @@ func printSetupGuide(stdout io.Writer) error {
 	return nil
 }
 
+func printWorkerPackageSetupGuide(stdout io.Writer, options workerPackageSetupOptions) error {
+	deviceName := strings.TrimSpace(options.deviceName)
+	if deviceName == "" {
+		deviceName = exampleWorkerDeviceName
+	}
+	target := strings.ToLower(strings.TrimSpace(options.target))
+	if target == "" {
+		target = "all"
+	}
+	daemonArgs := workerPackageDaemonArgs(options)
+	encodedShellArgs := shellArgs(daemonArgs)
+	encodedPowerShellArgs := powershellOptionArgs(workerPackagePowerShellArgs(options))
+	lines := []string{
+		"ComputeHop Linux/Windows worker setup",
+		"",
+		"Goal:",
+		"   run another computer as a worker controlled by the Mac orchestrator.",
+		"",
+		"Mode:",
+		"   " + workerPackageModeLabel(options),
+		"",
+		"0. On the Mac checkout, build copyable worker packages:",
+		"   make worker-archives",
+		"",
+	}
+	if target == "all" || target == "linux" {
+		lines = append(lines,
+			"Linux worker:",
+			"   # Copy the matching archive and .sha256 from dist/workers/ to the Linux computer.",
+			"   shasum -a 256 -c ComputeHop-worker-linux-amd64.tar.gz.sha256",
+			"   # If shasum is unavailable on Linux:",
+			"   sha256sum -c ComputeHop-worker-linux-amd64.tar.gz.sha256",
+			"   tar -xzf ComputeHop-worker-linux-amd64.tar.gz",
+			"   cd ComputeHop-worker-linux-amd64",
+			"   COMPUTEHOP_DEVICE_NAME="+shellArg(deviceName)+" "+appendCommandArgs("./run-worker.sh", encodedShellArgs),
+			"",
+			"Linux optional login service:",
+			"   COMPUTEHOP_DEVICE_NAME="+shellArg(deviceName)+" "+appendCommandArgs("./install-systemd-user.sh", encodedShellArgs),
+			"",
+		)
+	}
+	if target == "all" || target == "windows" {
+		lines = append(lines,
+			"Windows worker:",
+			"   # Copy the Windows zip and .sha256 from dist/workers/ to the Windows computer.",
+			"   Get-FileHash .\\ComputeHop-worker-windows-amd64.zip -Algorithm SHA256",
+			"   # Compare that hash with ComputeHop-worker-windows-amd64.zip.sha256.",
+			"   Expand-Archive .\\ComputeHop-worker-windows-amd64.zip .",
+			"   cd .\\ComputeHop-worker-windows-amd64",
+			"   "+appendCommandArgs(".\\run-worker.ps1 -DeviceName "+powershellArg(deviceName), encodedPowerShellArgs),
+			"",
+			"Windows optional login task:",
+			"   "+appendCommandArgs(".\\install-scheduled-task.ps1 -DeviceName "+powershellArg(deviceName), encodedPowerShellArgs),
+			"",
+		)
+	}
+	lines = append(lines,
+		"Pair from the Mac orchestrator while both devices are on the same LAN:",
+		"   computehop connect nearby",
+		"   computehop connect confirm",
+		"",
+	)
+	switch target {
+	case "linux":
+		lines = append(lines,
+			"Confirm the same code on the Linux worker:",
+			"   ./bin/computehop connect confirm",
+			"",
+		)
+	case "windows":
+		lines = append(lines,
+			"Confirm the same code on the Windows worker:",
+			"   .\\bin\\computehop.exe connect confirm",
+			"",
+		)
+	default:
+		lines = append(lines,
+			"Confirm the same code on the worker:",
+			"   # Linux:",
+			"   ./bin/computehop connect confirm",
+			"   # Windows:",
+			"   .\\bin\\computehop.exe connect confirm",
+			"",
+		)
+	}
+	lines = append(lines,
+		"Prove remote execution:",
+		"   computehop smoke",
+		"   computehop run --on auto --no-project --follow hostname",
+		"",
+		"After smoke prints the worker hostname, remote jobs are running on that computer.",
+	)
+	for _, line := range lines {
+		if _, err := fmt.Fprintln(stdout, line); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func workerPackageModeLabel(options workerPackageSetupOptions) string {
+	if strings.TrimSpace(options.connectivityDomain) == "" || options.lanOnly {
+		return "LAN-only. Pair and run while both devices are on the same network."
+	}
+	if strings.TrimSpace(options.turnServer) != "" {
+		return "VPS rendezvous, STUN, and authenticated TURN relay."
+	}
+	return "VPS rendezvous and STUN. LAN is still preferred when available."
+}
+
 func printMacSetupGuide(stdout io.Writer, options macSetupOptions) error {
 	lines := []string{
 		"ComputeHop macOS setup",
 		"",
 		"Customize:",
 		"   " + options.customizeCommand(),
+		"",
+		"Check without changing this Mac:",
+		"   " + options.installCheckCommand(),
 		"",
 		"Install on this Mac:",
 		"   " + options.installCommand(),
@@ -983,6 +1300,67 @@ func printMacSetupGuide(stdout io.Writer, options macSetupOptions) error {
 			"   computehop setup vps",
 			"   # Then rerun this setup command with --connectivity-domain and --turn-domain.",
 		)
+	}
+	for _, line := range lines {
+		if _, err := fmt.Fprintln(stdout, line); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func printPackageSmokeGuide(stdout io.Writer) error {
+	lines := []string{
+		"ComputeHop two-Mac package smoke",
+		"",
+		"Goal:",
+		"   prove the packaged app can install, pair, run remotely, stream logs, cancel, and return outputs.",
+		"",
+		"0. Build a copyable package once from the checkout:",
+		"   make macos-archive",
+		"   # Creates dist/macos/ComputeHop-macos.zip and .sha256.",
+		"",
+		"1. On the orchestrator Mac:",
+		"   make install-macos-check",
+		"   make install-macos",
+		"   computehop doctor",
+		"",
+		"2. On the worker Mac, after copying ComputeHop-macos.zip and .sha256:",
+		"   shasum -a 256 -c ComputeHop-macos.zip.sha256",
+		"   ditto -x -k ComputeHop-macos.zip .",
+		"   cd ComputeHop-macos",
+		"   ./install.sh --check --role worker --device-name 'Gaming PC' --lan-only",
+		"   ./install.sh --role worker --device-name 'Gaming PC' --lan-only",
+		"   # Or, from the same checkout instead of the copied archive:",
+		"   ./packaging/macos/install.sh --check --role worker --device-name 'Gaming PC' --lan-only",
+		"   ./packaging/macos/install.sh --role worker --device-name 'Gaming PC' --lan-only",
+		"   # If this installer script is available and you copied a built app bundle instead:",
+		"   ./packaging/macos/install.sh --app /path/to/ComputeHop.app --check --role worker --device-name 'Gaming PC' --lan-only",
+		"   ./packaging/macos/install.sh --app /path/to/ComputeHop.app --role worker --device-name 'Gaming PC' --lan-only",
+		"",
+		"3. Pair while both Macs are on the same LAN:",
+		"   # orchestrator",
+		"   computehop connect nearby",
+		"   computehop connect confirm",
+		"   # worker",
+		"   computehop connect confirm",
+		"",
+		"4. Prove remote execution and logs:",
+		"   computehop smoke",
+		"   computehop run --on auto --no-project --follow hostname",
+		"",
+		"5. Prove cancellation:",
+		"   computehop run --on auto --no-project /bin/sleep 3600",
+		"   computehop cancel <job-id>",
+		"   computehop jobs --on auto",
+		"",
+		"6. Prove project transfer and returned outputs from a project folder:",
+		"   computehop run --on auto -C /path/to/project -o smoke-output.txt --follow --get /bin/sh -c 'printf ok > smoke-output.txt'",
+		"",
+		"7. If something fails:",
+		"   computehop doctor",
+		"   computehop devices",
+		"   tail -n 100 ~/Library/Logs/ComputeHop/daemon.log",
 	}
 	for _, line := range lines {
 		if _, err := fmt.Fprintln(stdout, line); err != nil {
@@ -1659,7 +2037,8 @@ func printDaemonStartAdvice(stdout io.Writer, err error) error {
 			"Daemon: running, but not compatible with this CLI",
 			"",
 			"Next:",
-			"- If you installed from this checkout: make install-macos",
+			"- Check the packaged install from this checkout without changing this Mac: make install-macos-check",
+			"- If the check passes, reinstall from this checkout: make install-macos",
 			"- If you want to switch back to a manual development daemon: make uninstall-macos",
 			"- Then start the daemon from this checkout:",
 			"  go run ./cmd/computehopd --role orchestrator --device-name \"This Mac\"",
@@ -1672,7 +2051,8 @@ func printDaemonStartAdvice(stdout io.Writer, err error) error {
 			"Next:",
 			"- If the app is installed: open -a ComputeHop",
 			"- If you are developing from this repo: go run ./cmd/computehopd --role orchestrator --device-name \"This Mac\"",
-			"- To print the exact menu-bar app and launch-at-login install command: computehop setup orchestrator",
+			"- To print the exact menu-bar app and launch-at-login install commands: computehop setup orchestrator",
+			"- To check that install path without changing this Mac: make install-macos-check",
 			"- Then run: computehop doctor",
 		}
 	default:
@@ -1921,7 +2301,7 @@ func newRunCommand(
 		Short: "Run a background command here or on a paired worker",
 		Long: "Run submits a native background process.\n\n" +
 			"Without --on, the command runs on this computer. With --on auto, ComputeHop\n" +
-			"uses the single active paired worker. With --on <device>, it targets a named\n" +
+			"chooses the best active paired worker. With --on <device>, it targets a named\n" +
 			"or short-ID paired worker. Declare outputs with -o and add --get when you want\n" +
 			"the CLI to wait for success and restore those outputs immediately.",
 		Example: strings.Join([]string{
@@ -2344,9 +2724,9 @@ func newJobsCommand(
 		Short: "List durable jobs",
 		Long: strings.TrimSpace(`List recent durable jobs known to this daemon.
 
-Without --on, jobs lists jobs stored on this computer. Use --on auto when there
-is exactly one active paired worker, or pass a worker name/device ID to inspect
-that worker directly.`),
+Without --on, jobs lists jobs stored on this computer. Use --on auto to inspect
+the best active paired worker, or pass a worker name/device ID to inspect that
+worker directly.`),
 		Example: strings.TrimSpace(`computehop jobs
 computehop jobs --on auto
 computehop jobs --on "Gaming PC" --limit 25`),
@@ -2696,7 +3076,7 @@ func addDeviceSelectorFlags(command *cobra.Command, destination *string) {
 }
 
 func addDeviceSelectorFlagsWithDefault(command *cobra.Command, destination *string, defaultValue string) {
-	command.Flags().StringVar(destination, "on", defaultValue, "paired worker name, device ID, or auto (single active worker)")
+	command.Flags().StringVar(destination, "on", defaultValue, "paired worker name, device ID, or auto (best active worker)")
 	command.Flags().StringVar(destination, "device", defaultValue, "paired worker name, device ID, or auto (legacy alias for --on)")
 	_ = command.Flags().MarkHidden("device")
 }
@@ -2719,7 +3099,7 @@ func runSubmitError(selector string, err error) error {
 				"more than one active paired worker is available for --on auto; run 'computehop devices', then choose one with 'computehop run --on <device> ...'",
 			)
 		}
-		return err
+		return enrichUnavailableWorkerSubmitError(remoteError, err)
 	}
 	selector = strings.TrimSpace(selector)
 	if selector != "" && remoteError.Code == localv1.ErrorCode_ERROR_CODE_NOT_FOUND &&
@@ -2736,7 +3116,61 @@ func runSubmitError(selector string, err error) error {
 			selector,
 		)
 	}
-	return err
+	return enrichUnavailableWorkerSubmitError(remoteError, err)
+}
+
+func enrichUnavailableWorkerSubmitError(remoteError *localipc.RemoteError, fallback error) error {
+	if remoteError.Code != localv1.ErrorCode_ERROR_CODE_DEVICE_UNAVAILABLE ||
+		!isUnavailableWorkerMessage(remoteError.Message) {
+		return fallback
+	}
+	message := strings.TrimSpace(remoteError.Message)
+	if message == "" {
+		message = "paired worker is unavailable"
+	}
+	nextSteps := missingSubmitNextSteps(message, []submitNextStep{
+		{
+			text:     "Start ComputeHop on the worker and keep both devices on the same LAN.",
+			required: []string{"start computehop", "same lan"},
+		},
+		{text: "Check worker status: computehop devices", required: []string{"computehop devices"}},
+		{text: "Retry the worker test: computehop smoke", required: []string{"computehop smoke"}},
+		{text: "For cross-network workers: computehop setup vps", required: []string{"computehop setup vps"}},
+	})
+	if len(nextSteps) == 0 {
+		return errors.New(message)
+	}
+	return errors.New(message + "\n\nNext:\n- " + strings.Join(nextSteps, "\n- "))
+}
+
+type submitNextStep struct {
+	text     string
+	required []string
+}
+
+func isUnavailableWorkerMessage(message string) bool {
+	lower := strings.ToLower(message)
+	return strings.Contains(lower, "paired worker is unavailable") ||
+		strings.Contains(lower, "remote connectivity path is unavailable") ||
+		strings.Contains(lower, "is not reachable")
+}
+
+func missingSubmitNextSteps(message string, nextSteps []submitNextStep) []string {
+	missing := make([]string, 0, len(nextSteps))
+	lower := strings.ToLower(message)
+	for _, step := range nextSteps {
+		covered := true
+		for _, required := range step.required {
+			if !strings.Contains(lower, strings.ToLower(required)) {
+				covered = false
+				break
+			}
+		}
+		if !covered {
+			missing = append(missing, step.text)
+		}
+	}
+	return missing
 }
 
 func isAutoSelectorNoWorkerMessage(message string) bool {

@@ -1,9 +1,9 @@
 # macOS developer package
 
 This directory builds a real `ComputeHop.app` containing the SwiftUI menu-bar
-executable plus the `computehop` and `computehopd` Go binaries. The bundle is
-ad-hoc signed for local development; it is not notarized and is not a public
-release artifact.
+executable, an embedded Electron Control Center app, and the `computehop` and
+`computehopd` Go binaries. The bundle is ad-hoc signed for local development;
+it is not notarized and is not a public release artifact.
 
 Build and verify the bundle without installing it:
 
@@ -12,9 +12,58 @@ make macos-package
 open dist/macos/ComputeHop.app
 ```
 
-The bundle verifier checks the Swift app, embedded CLI and daemon binaries,
-ad-hoc signature, version commands, and the launch-agent template that the
-installer rewrites for the selected role.
+Build a copyable developer archive for another Mac:
+
+```bash
+make macos-archive
+```
+
+This writes `dist/macos/ComputeHop-macos.zip` and
+`dist/macos/ComputeHop-macos.zip.sha256`. Copy both files to the other Mac,
+then expand the archive and install from the included helper:
+
+```bash
+shasum -a 256 -c ComputeHop-macos.zip.sha256
+ditto -x -k ComputeHop-macos.zip .
+cd ComputeHop-macos
+./install.sh --check --role worker --device-name "Gaming Mac" --lan-only
+./install.sh --role worker --device-name "Gaming Mac" --lan-only
+```
+
+The bundle verifier checks the Swift app, embedded Control Center, embedded CLI
+and daemon binaries, ad-hoc signature, version commands, the launch-agent
+template that the installer rewrites for the selected role, and the embedded
+Control Center's background-service resolver. That resolver must prefer the
+parent `ComputeHop.app` daemon over the nested Control Center daemon before the
+package is accepted when Node is available. Archives are verified before they
+are written, so worker Macs can install the copied app without needing the full
+developer toolchain.
+
+Run a non-mutating archive smoke test:
+
+```bash
+make macos-archive-smoke
+```
+
+The smoke target builds the copyable archive in a temporary output directory,
+checks its SHA-256 file, extracts it, verifies the copied app, confirms the
+embedded CLI and daemons answer version checks, and runs isolated `install.sh
+--check` dry-runs for both Control Mac and Worker LAN-only installs. It does not
+write to `~/Applications`, `~/.local/bin`, or `~/Library/LaunchAgents`.
+
+Check the installer path without changing the current user account:
+
+```bash
+make install-macos-check
+```
+
+`install.sh --check` builds and verifies the app in a temporary directory,
+validates the selected role/connectivity flags, rejects unrelated existing app,
+CLI, or LaunchAgent targets, renders and validates the rewritten LaunchAgent in
+the temporary directory, including device-name, LAN-only, cache-size, and
+remote-connectivity arguments, and prints what would be installed. It does not
+copy into `~/Applications`, touch `~/.local/bin`, write
+`~/Library/LaunchAgents`, restart launchd, or open the app.
 
 Install it for the current user:
 
@@ -22,11 +71,29 @@ Install it for the current user:
 make install-macos
 ```
 
+Print the full two-Mac LAN package smoke checklist:
+
+```bash
+computehop setup smoke
+```
+
 For a named worker Mac:
 
 ```bash
 ./packaging/macos/install.sh --role worker --device-name "Gaming Mac"
 ```
+
+If you already built or copied a `ComputeHop.app` bundle and this installer
+script is available, pass the app explicitly to avoid rebuilding from the
+checkout:
+
+```bash
+./packaging/macos/install.sh --app /path/to/ComputeHop.app --check --role worker --device-name "Gaming Mac"
+./packaging/macos/install.sh --app /path/to/ComputeHop.app --role worker --device-name "Gaming Mac"
+```
+
+When `install.sh` sits next to a copied `ComputeHop.app`, as it does inside the
+developer archive, `--app` is optional.
 
 The daemon keeps a verified content cache for project chunks and returned
 artifacts. It defaults to 20GiB and can be tuned during install:
@@ -69,9 +136,10 @@ The installer places the app in `~/Applications`, adds a safe CLI symlink at
 then starts at login in the selected role and writes diagnostics to
 `~/Library/Logs/ComputeHop/daemon.log`. Before bootstrapping launchd, the
 installer validates the rewritten launch-agent label, daemon path, selected
-role, log paths, and working directory. If a manually started daemon is already
-using the ComputeHop socket or UDP port, including a daemon from a different
-development build, the installer asks you to stop it instead of killing it.
+role, device-name, LAN-only, cache-size, connectivity flags, log paths, and
+working directory. If a manually started daemon is already using the ComputeHop
+socket or UDP port, including a daemon from a different development build, the
+installer asks you to stop it instead of killing it.
 After installation, the script prints role-specific next steps: orchestrator
 installs get `doctor`, `connect nearby`, and smoke-test commands; worker
 installs tell you what to run on the orchestrator and how to confirm the pairing

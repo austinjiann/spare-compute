@@ -22,6 +22,10 @@ struct MenuContentView: View {
             DevicesSection(model: model)
             Divider()
             RunJobSection(model: model)
+            if model.menuTaskJob != nil {
+                Divider()
+                JobsSection(model: model)
+            }
             Divider()
             advanced
 
@@ -69,6 +73,13 @@ struct MenuContentView: View {
     private var footer: some View {
         HStack {
             Spacer()
+            Button {
+                model.openControlCenter()
+            } label: {
+                Image(systemName: "slider.horizontal.3")
+            }
+            .buttonStyle(.plain)
+            .help("Open Control Center")
             Button {
                 Task { await model.refresh() }
             } label: {

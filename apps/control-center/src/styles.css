@@ -103,6 +103,136 @@ small {
   gap: 10px;
 }
 
+.daemon-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 18px;
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(255, 196, 107, 0.12);
+}
+
+.daemon-card div {
+  display: grid;
+  gap: 3px;
+}
+
+.daemon-card .daemon-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.daemon-card strong {
+  font-size: 16px;
+  font-weight: 720;
+}
+
+.background-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 10px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.065);
+}
+
+.background-card div {
+  display: grid;
+  gap: 3px;
+}
+
+.background-card strong {
+  font-size: 15px;
+  font-weight: 720;
+}
+
+.readiness-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 13px;
+  min-height: 70px;
+  padding: 13px 14px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.065);
+}
+
+.readiness-dot {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--muted);
+  box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.06);
+}
+
+.readiness-dot.ready {
+  background: var(--green);
+  box-shadow: 0 0 0 5px rgba(112, 225, 123, 0.12);
+}
+
+.readiness-dot.nearby,
+.readiness-dot.pairing,
+.readiness-dot.choose-worker {
+  background: var(--orange);
+  box-shadow: 0 0 0 5px rgba(255, 196, 107, 0.12);
+}
+
+.readiness-dot.offline,
+.readiness-dot.daemon-off,
+.readiness-dot.discovery-off,
+.readiness-dot.disabled {
+  background: rgba(255, 255, 255, 0.38);
+}
+
+.readiness-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.readiness-copy strong,
+.readiness-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.readiness-copy strong {
+  font-size: 16px;
+  font-weight: 740;
+}
+
+.background-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-pill {
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.78);
+  background: rgba(255, 255, 255, 0.11);
+  font-size: 12px;
+  font-weight: 720;
+}
+
+.status-pill.on {
+  color: rgba(112, 225, 123, 0.95);
+  background: rgba(112, 225, 123, 0.12);
+}
+
+.status-pill.warning {
+  color: rgba(255, 196, 107, 0.95);
+  background: rgba(255, 196, 107, 0.13);
+}
+
 .section-title {
   display: flex;
   align-items: center;
@@ -313,6 +443,12 @@ small {
   font-weight: 650;
 }
 
+.device-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
 input,
 select {
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -324,7 +460,46 @@ select {
   gap: 10px;
 }
 
-#command-input {
+.settings-box {
+  display: grid;
+  gap: 10px;
+}
+
+.task-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.suggestion-chip,
+.suggestion-status {
+  border-radius: 999px;
+  padding: 7px 11px;
+  font-size: 13px;
+  font-weight: 680;
+}
+
+.suggestion-chip {
+  -webkit-app-region: no-drag;
+  border: 0;
+  color: var(--text);
+  background: var(--row);
+  cursor: pointer;
+}
+
+.suggestion-chip:hover {
+  background: var(--row-hover);
+}
+
+.suggestion-status {
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.055);
+}
+
+#command-input,
+#outputs-input,
+#ai-api-key,
+#ai-model {
   width: 100%;
   min-height: 42px;
   padding: 9px 12px;
@@ -332,7 +507,39 @@ select {
   background: rgba(0, 0, 0, 0.18);
 }
 
+#outputs-input {
+  min-height: 38px;
+  font-size: 14px;
+}
+
 .run-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.run-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 32px;
+  padding: 8px 10px;
+  border-radius: 14px;
+  color: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.055);
+  font-size: 13px;
+  font-weight: 620;
+}
+
+.run-status span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-actions {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -389,6 +596,53 @@ select {
   font-size: 13px;
 }
 
+.job-list {
+  display: grid;
+  gap: 8px;
+}
+
+.job-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 54px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.055);
+  cursor: pointer;
+}
+
+.job-row:hover,
+.job-row.selected {
+  background: var(--row-hover);
+}
+
+.job-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.job-copy strong,
+.job-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.job-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.empty-row {
+  padding: 10px 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
 .primary-button {
   padding: 8px 18px;
   color: white;
@@ -407,6 +661,11 @@ select {
   padding: 8px 10px;
   border-radius: 12px;
   background: rgba(0, 0, 0, 0.18);
+}
+
+.daemon-actions select {
+  width: auto;
+  min-width: 130px;
 }
 
 input[type="checkbox"] {

@@ -21,6 +21,7 @@ func TestJobProtocolRoundTrip(t *testing.T) {
 			WorkingDirectory: "/project",
 			Environment:      map[string]string{"RUST_BACKTRACE": "1"},
 			Executor:         job.ExecutorNative,
+			RequiredToolIDs:  []string{"cargo", "rustc"},
 		},
 		State:     job.StateFailed,
 		CreatedAt: createdAt,
@@ -62,10 +63,11 @@ func TestProtocolMappersRejectUnknownEnums(t *testing.T) {
 
 func TestSpecFromProtoCopiesCollections(t *testing.T) {
 	message := &localv1.JobSpec{
-		Executable:  "echo",
-		Arguments:   []string{"hello"},
-		Environment: map[string]string{"NAME": "value"},
-		Executor:    localv1.Executor_EXECUTOR_NATIVE,
+		Executable:      "echo",
+		Arguments:       []string{"hello"},
+		Environment:     map[string]string{"NAME": "value"},
+		Executor:        localv1.Executor_EXECUTOR_NATIVE,
+		RequiredToolIds: []string{"echo"},
 	}
 	spec, err := SpecFromProto(message)
 	if err != nil {
@@ -73,7 +75,10 @@ func TestSpecFromProtoCopiesCollections(t *testing.T) {
 	}
 	message.Arguments[0] = "changed"
 	message.Environment["NAME"] = "changed"
-	if spec.Arguments[0] != "hello" || spec.Environment["NAME"] != "value" {
+	message.RequiredToolIds[0] = "changed"
+	if spec.Arguments[0] != "hello" ||
+		spec.Environment["NAME"] != "value" ||
+		spec.RequiredToolIDs[0] != "echo" {
 		t.Fatal("SpecFromProto() retained mutable protocol collections")
 	}
 }
