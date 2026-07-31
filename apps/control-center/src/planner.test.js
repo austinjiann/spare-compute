@@ -158,6 +158,25 @@ test("planTask infers common tools from Makefile prerequisites", async (t) => {
   assert.deepEqual(result.plan.requiredToolIDs, ["docker", "go", "make"]);
 });
 
+test("planTask detects Python tools referenced by Makefile recipes", async (t) => {
+  const project = await tempProject(t, {
+    "pyproject.toml": "[project]\nname = \"app\"\n",
+    Makefile: [
+      "pr-check: test lint",
+      "test:",
+      "\tuv run pytest",
+      "lint:",
+      "\truff check ."
+    ].join("\n")
+  });
+
+  const result = await planTask({ task: "check ci", projectRoot: project });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.plan.command, "make pr-check");
+  assert.deepEqual(result.plan.requiredToolIDs, ["make", "pytest", "python3", "ruff", "uv"]);
+});
+
 test("planTask prefers app packaging targets for package requests", async (t) => {
   const project = await tempProject(t, {
     Makefile: "macos-archive:\n\tpackaging/macos/archive.sh\nmacos-package:\n\tpackaging/macos/build.sh\n",

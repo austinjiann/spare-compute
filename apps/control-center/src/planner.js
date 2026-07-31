@@ -1,5 +1,6 @@
 const fs = require("node:fs/promises");
 const path = require("node:path");
+const capabilityCatalog = require("./capability-catalog");
 const { validatePortableOutputs } = require("./output-path");
 
 async function planTask(request) {
@@ -819,46 +820,11 @@ function requiredToolIDsForCommand(command) {
 }
 
 function commonToolIDs() {
-  return [
-    "blender",
-    "bun",
-    "cargo",
-    "docker",
-    "docker-compose",
-    "ffmpeg",
-    "go",
-    "make",
-    "node",
-    "npm",
-    "ollama",
-    "pnpm",
-    "podman",
-    "python",
-    "python3",
-    "ruff",
-    "sh",
-    "swift",
-    "xcodebuild",
-    "yarn"
-  ];
+  return capabilityCatalog.commonToolIDs();
 }
 
 function normalizeToolIDs(values) {
-  if (!Array.isArray(values)) {
-    return [];
-  }
-  const seen = new Set();
-  return values
-    .map((value) => String(value || "").trim().toLowerCase())
-    .filter((value) => value && !/\s|=/.test(value))
-    .sort()
-    .filter((value) => {
-      if (seen.has(value)) {
-        return false;
-      }
-      seen.add(value);
-      return true;
-    });
+  return capabilityCatalog.normalizeToolIDs(values);
 }
 
 function escapeRegExp(value) {

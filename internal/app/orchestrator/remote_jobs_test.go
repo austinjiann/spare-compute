@@ -353,8 +353,8 @@ func TestRemoteJobServiceSubmitRejectsSelectedWorkerMissingPlannedToolBeforeSnap
 	spec.WorkingDirectory = "/local/project"
 	_, err = service.Submit(context.Background(), "Node PC", spec)
 	if !errors.Is(err, ErrRemoteWorkerIncompatible) ||
-		!strings.Contains(err.Error(), "Node PC does not report go") ||
-		!strings.Contains(err.Error(), "install go") {
+		!strings.Contains(err.Error(), "Node PC does not report Go") ||
+		!strings.Contains(err.Error(), "install Go") {
 		t.Fatalf("error = %v", err)
 	}
 }
@@ -393,8 +393,8 @@ func TestRemoteJobServiceSubmitRejectsSelectedWorkerMissingRequiredToolsBeforeSn
 	spec.WorkingDirectory = "/local/project"
 	_, err = service.Submit(context.Background(), "Small Builder", spec)
 	if !errors.Is(err, ErrRemoteWorkerIncompatible) ||
-		!strings.Contains(err.Error(), "Small Builder does not report docker, go") ||
-		!strings.Contains(err.Error(), "install docker, go") {
+		!strings.Contains(err.Error(), "Small Builder does not report Docker and Go") ||
+		!strings.Contains(err.Error(), "install Docker and Go") {
 		t.Fatalf("error = %v", err)
 	}
 }

@@ -1,11 +1,14 @@
 (function attachDeviceTargets(root, factory) {
-  const exports = factory();
+  const capabilityCatalog = typeof module === "object" && module.exports
+    ? require("./capability-catalog")
+    : root.computeHopCapabilityCatalog;
+  const exports = factory(capabilityCatalog);
   if (typeof module === "object" && module.exports) {
     module.exports = exports;
   } else {
     root.computeHopDeviceTargets = exports;
   }
-}(typeof globalThis === "object" ? globalThis : window, function createDeviceTargets() {
+}(typeof globalThis === "object" ? globalThis : window, function createDeviceTargets(capabilityCatalog = {}) {
   const automaticWorkerID = "auto";
 
   function addAutomaticWorkerTarget(devices = [], selectedDeviceID = "local", options = {}) {
@@ -367,6 +370,9 @@
   }
 
   function normalizeToolIDs(values) {
+    if (typeof capabilityCatalog.normalizeToolIDs === "function") {
+      return capabilityCatalog.normalizeToolIDs(values);
+    }
     if (!Array.isArray(values)) {
       return [];
     }

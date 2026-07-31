@@ -589,11 +589,11 @@ func TestLocalHandlerMapsErrors(t *testing.T) {
 	}
 
 	incompatible := errorResponse(fmt.Errorf(
-		"%w: Node PC does not report go",
+		"%w: Node PC does not report Go",
 		ErrRemoteWorkerIncompatible,
 	))
 	if incompatible.GetError().GetCode() != localv1.ErrorCode_ERROR_CODE_CONFLICT ||
-		!strings.Contains(incompatible.GetError().GetMessage(), "does not report go") {
+		!strings.Contains(incompatible.GetError().GetMessage(), "does not report Go") {
 		t.Fatalf("incompatible worker response = %#v", incompatible.GetError())
 	}
 }

@@ -16,6 +16,7 @@ import (
 	"github.com/austinjiann/spare-compute/internal/job"
 	joblogging "github.com/austinjiann/spare-compute/internal/logging"
 	"github.com/austinjiann/spare-compute/internal/placement"
+	"github.com/austinjiann/spare-compute/internal/platform/capabilities"
 	"github.com/austinjiann/spare-compute/internal/protocol/mapper"
 	remoteprotocol "github.com/austinjiann/spare-compute/internal/protocol/remote"
 	"github.com/austinjiann/spare-compute/internal/snapshot"
@@ -1138,7 +1139,7 @@ func toolList(values []string) string {
 	if len(values) == 0 {
 		return "the needed tools"
 	}
-	return strings.Join(values, ", ")
+	return capabilities.ToolListLabel(values)
 }
 
 func (service *RemoteJobService) nearbyCandidates(ctx context.Context, peer trust.Peer) ([]device.NearbyDevice, error) {
