@@ -17,8 +17,9 @@ const {
 } = require("./planner-service");
 const { appRuntimeInfo, normalizeDaemonRole } = require("./runtime-info");
 const { friendlyRunError, remotePreparationMessage } = require("./run-feedback");
-const { jobOutputsForPlan, outputValidationForPlan, runWorkingDirectory } = require("./run-request");
+const { runWorkingDirectory } = require("./run-request");
 const { jobUpdateSignature, nextJobUpdate } = require("./run-progress");
+const { normalizeJobRequest } = require("./job-submit-request");
 const {
   detachActiveRun,
   detachAllRuns,
@@ -432,6 +433,8 @@ async function runDaemonJobStream(runID, jobRequest, argv) {
           workingDirectory,
           outputs: jobRequest.outputs,
           requiredToolIDs: jobRequest.requiredToolIDs,
+          executor: jobRequest.executor,
+          containerImage: jobRequest.containerImage,
           deviceSelector: submitDeviceSelector,
           jobID: runID
         },
@@ -628,6 +631,8 @@ function preparationJob({
     workingDirectory,
     outputs: jobRequest.outputs || [],
     requiredToolIDs: jobRequest.requiredToolIDs || [],
+    executor: jobRequest.executor,
+    containerImage: jobRequest.containerImage,
     state: "preparing",
     terminal: false,
     succeeded: false,
@@ -767,40 +772,4 @@ function stoppedError() {
   const error = new Error("Stopped.");
   error.code = "ABORTED";
   return error;
-}
-
-function normalizeJobRequest(request) {
-  if (!request || typeof request !== "object") {
-    throw new Error("Job request is required.");
-  }
-  const outputValidation = outputValidationForPlan({ outputs: request.outputs });
-  if (!outputValidation.ok) {
-    throw new Error(outputValidation.error);
-  }
-  return {
-    command: String(request.command || "").trim(),
-    deviceID: String(request.deviceID || "local").trim(),
-    deviceName: String(request.deviceName || "").trim(),
-    workingDirectory: String(request.workingDirectory || "").trim(),
-    outputs: jobOutputsForPlan({ outputs: request.outputs }),
-    requiredToolIDs: normalizeToolIDs(request.requiredToolIDs || request.requiredToolIds)
-  };
-}
-
-function normalizeToolIDs(values) {
-  if (!Array.isArray(values)) {
-    return [];
-  }
-  const seen = new Set();
-  return values
-    .map((value) => String(value || "").trim().toLowerCase())
-    .filter((value) => value && !/\s|=/.test(value))
-    .sort()
-    .filter((value) => {
-      if (seen.has(value)) {
-        return false;
-      }
-      seen.add(value);
-      return true;
-    });
 }
