@@ -3,10 +3,12 @@ package mapper
 import (
 	"crypto/ed25519"
 	"fmt"
+	"slices"
 	"time"
 
 	localv1 "github.com/austinjiann/spare-compute/gen/go/computehop/local/v1"
 	"github.com/austinjiann/spare-compute/internal/device"
+	"github.com/austinjiann/spare-compute/internal/job"
 	"github.com/austinjiann/spare-compute/internal/trust"
 )
 
@@ -131,7 +133,8 @@ func TrustedPeerToProto(peer trust.Peer) (*localv1.TrustedDevice, error) {
 		PairedAtUnixNano: peer.PairedAt.UnixNano(), UpdatedAtUnixNano: peer.UpdatedAt.UnixNano(),
 		Platform: peer.Platform, Arch: peer.Architecture,
 		LogicalCpuCount: peer.LogicalCPUCount, TotalMemoryBytes: peer.TotalMemoryBytes,
-		ToolIds: append([]string(nil), peer.ToolIDs...),
+		ToolIds:            append([]string(nil), peer.ToolIDs...),
+		SupportedExecutors: supportedExecutorsToProto(peer.SupportedExecutors),
 	}
 	if peer.RevokedAt != nil {
 		message.RevokedAtUnixNano = peer.RevokedAt.UnixNano()
@@ -172,9 +175,10 @@ func TrustedPeerFromProto(message *localv1.TrustedDevice) (trust.Peer, error) {
 		Name:      message.GetName(), Role: role, State: state,
 		Platform: message.GetPlatform(), Architecture: message.GetArch(),
 		LogicalCPUCount: message.GetLogicalCpuCount(), TotalMemoryBytes: message.GetTotalMemoryBytes(),
-		ToolIDs:   append([]string(nil), message.GetToolIds()...),
-		PairedAt:  time.Unix(0, message.GetPairedAtUnixNano()).UTC(),
-		UpdatedAt: time.Unix(0, message.GetUpdatedAtUnixNano()).UTC(),
+		ToolIDs:            append([]string(nil), message.GetToolIds()...),
+		SupportedExecutors: supportedExecutorsFromProto(message.GetSupportedExecutors()),
+		PairedAt:           time.Unix(0, message.GetPairedAtUnixNano()).UTC(),
+		UpdatedAt:          time.Unix(0, message.GetUpdatedAtUnixNano()).UTC(),
 	}
 	if message.GetRevokedAtUnixNano() != 0 {
 		revokedAt := time.Unix(0, message.GetRevokedAtUnixNano()).UTC()
@@ -188,6 +192,29 @@ func TrustedPeerFromProto(message *localv1.TrustedDevice) (trust.Peer, error) {
 		return trust.Peer{}, err
 	}
 	return peer, nil
+}
+
+func supportedExecutorsToProto(values []string) []localv1.Executor {
+	result := make([]localv1.Executor, 0, len(values))
+	for _, value := range values {
+		executor, err := executorToProto(job.Executor(value))
+		if err == nil {
+			result = append(result, executor)
+		}
+	}
+	return result
+}
+
+func supportedExecutorsFromProto(values []localv1.Executor) []string {
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		executor, err := executorFromProto(value)
+		if err == nil {
+			result = append(result, string(executor))
+		}
+	}
+	slices.Sort(result)
+	return slices.Compact(result)
 }
 
 func roleToProto(role device.Role) (localv1.DeviceRole, error) {

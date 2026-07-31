@@ -109,14 +109,15 @@ type ConnectivityController interface {
 
 // LocalDeviceInfo is the secret-free local daemon identity exposed to local UI.
 type LocalDeviceInfo struct {
-	DeviceID         device.ID
-	Name             string
-	Role             device.Role
-	Platform         string
-	Architecture     string
-	LogicalCPUCount  uint32
-	TotalMemoryBytes uint64
-	ToolIDs          []string
+	DeviceID           device.ID
+	Name               string
+	Role               device.Role
+	Platform           string
+	Architecture       string
+	LogicalCPUCount    uint32
+	TotalMemoryBytes   uint64
+	ToolIDs            []string
+	SupportedExecutors []string
 }
 
 func (info LocalDeviceInfo) Validate() error {
@@ -220,6 +221,7 @@ func (handler *LocalHandler) Handle(ctx context.Context, request *localv1.Reques
 			ping.LogicalCpuCount = handler.local.LogicalCPUCount
 			ping.TotalMemoryBytes = handler.local.TotalMemoryBytes
 			ping.ToolIds = append([]string(nil), handler.local.ToolIDs...)
+			ping.SupportedExecutors = supportedExecutorsToLocalProto(handler.local.SupportedExecutors)
 		}
 		return &localv1.Response{Result: &localv1.Response_Ping{Ping: ping}}
 	case *localv1.Request_SubmitJob:
@@ -264,6 +266,19 @@ func localDeviceRoleToProto(role device.Role) localv1.DeviceRole {
 	default:
 		return localv1.DeviceRole_DEVICE_ROLE_UNSPECIFIED
 	}
+}
+
+func supportedExecutorsToLocalProto(values []string) []localv1.Executor {
+	result := make([]localv1.Executor, 0, len(values))
+	for _, value := range values {
+		switch job.Executor(value) {
+		case job.ExecutorNative:
+			result = append(result, localv1.Executor_EXECUTOR_NATIVE)
+		case job.ExecutorContainer:
+			result = append(result, localv1.Executor_EXECUTOR_CONTAINER)
+		}
+	}
+	return result
 }
 
 func (handler *LocalHandler) fetchArtifacts(

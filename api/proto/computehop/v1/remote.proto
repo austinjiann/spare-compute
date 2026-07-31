@@ -115,6 +115,7 @@ message GetWorkerStatusResponse {
   uint32 logical_cpu_count = 3;
   uint64 total_memory_bytes = 4;
   repeated string tool_ids = 5;
+  repeated Executor supported_executors = 6;
 }
 
 enum ChunkEncoding {

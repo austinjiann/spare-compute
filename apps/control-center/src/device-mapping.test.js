@@ -14,7 +14,8 @@ test("mapDevices merges a paired trusted worker with its nearby LAN sighting", (
         deviceId: "durable-worker-id",
         name: "Gaming PC",
         connectivityState: "CONNECTIVITY_STATE_DISABLED",
-        toolIds: ["go", "docker"]
+        toolIds: ["go", "docker"],
+        supportedExecutors: ["EXECUTOR_NATIVE"]
       })
     ],
     devices: [
@@ -42,6 +43,7 @@ test("mapDevices merges a paired trusted worker with its nearby LAN sighting", (
   assert.equal(result[0].logicalCPUCount, 32);
   assert.equal(result[0].totalMemoryBytes, 64 * 1024 ** 3);
   assert.deepEqual(result[0].toolIDs, ["docker", "go"]);
+  assert.deepEqual(result[0].supportedExecutors, ["native"]);
   assert.equal(result[0].address, "192.0.2.20:47823");
   assert.equal(result[0].updated, "1970-01-01T00:00:01.800Z");
 });
@@ -73,6 +75,7 @@ test("mapDevices preserves cached trusted-device hints without a nearby LAN row"
         logicalCpuCount: 32,
         totalMemoryBytes: 64 * 1024 ** 3,
         toolIds: ["docker", "go"],
+        supportedExecutors: ["EXECUTOR_NATIVE"],
         hintsObservedAtUnixNano: 2_500_000_000
       })
     ]
@@ -86,6 +89,7 @@ test("mapDevices preserves cached trusted-device hints without a nearby LAN row"
   assert.equal(result[0].logicalCPUCount, 32);
   assert.equal(result[0].totalMemoryBytes, 64 * 1024 ** 3);
   assert.deepEqual(result[0].toolIDs, ["docker", "go"]);
+  assert.deepEqual(result[0].supportedExecutors, ["native"]);
   assert.equal(result[0].updated, "1970-01-01T00:00:02.500Z");
 });
 
@@ -113,7 +117,8 @@ test("mapLocalDevice labels this process platform and architecture", () => {
     arch: "arm64",
     logicalCpuCount: 12,
     totalMemoryBytes: 32 * 1024 ** 3,
-    toolIds: ["npm", "go"]
+    toolIds: ["npm", "go"],
+    supportedExecutors: ["EXECUTOR_NATIVE", "EXECUTOR_NATIVE", "EXECUTOR_CONTAINER"]
   });
 
   assert.equal(local.id, "local");
@@ -124,6 +129,7 @@ test("mapLocalDevice labels this process platform and architecture", () => {
   assert.equal(local.logicalCPUCount, 12);
   assert.equal(local.totalMemoryBytes, 32 * 1024 ** 3);
   assert.deepEqual(local.toolIDs, ["go", "npm"]);
+  assert.deepEqual(local.supportedExecutors, ["container", "native"]);
 });
 
 test("mapLocalDevice falls back to this process platform and architecture", () => {

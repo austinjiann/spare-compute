@@ -57,6 +57,7 @@ function mapLocalDevice(ping) {
     logicalCPUCount: numericHint(ping.logicalCpuCount),
     totalMemoryBytes: numericHint(ping.totalMemoryBytes),
     toolIDs: normalizeToolIDs(ping.toolIds),
+    supportedExecutors: normalizeExecutors(ping.supportedExecutors),
     address: "",
     updated: ""
   };
@@ -81,6 +82,7 @@ function mapTrustedDevice(trusted) {
     logicalCPUCount: numericHint(trusted.logicalCpuCount),
     totalMemoryBytes: numericHint(trusted.totalMemoryBytes),
     toolIDs: normalizeToolIDs(trusted.toolIds),
+    supportedExecutors: normalizeExecutors(trusted.supportedExecutors),
     address: "",
     updated: timestampLabel(trusted.connectivityUpdatedAtUnixNano || trusted.hintsObservedAtUnixNano || trusted.updatedAtUnixNano)
   };
@@ -125,6 +127,7 @@ function mergeNearbyTrustedDevice(trusted, nearbyMatches) {
     logicalCPUCount: numericHint(nearby.logicalCpuCount || trusted.logicalCPUCount),
     totalMemoryBytes: numericHint(nearby.totalMemoryBytes || trusted.totalMemoryBytes),
     toolIDs: trusted.toolIDs || [],
+    supportedExecutors: trusted.supportedExecutors || [],
     updated: timestampLabel(nearby.lastSeenAtUnixNano) || trusted.updated
   };
 }
@@ -143,6 +146,7 @@ function mapNearbyDevice(nearby, id) {
     logicalCPUCount: numericHint(nearby.logicalCpuCount),
     totalMemoryBytes: numericHint(nearby.totalMemoryBytes),
     toolIDs: [],
+    supportedExecutors: [],
     address: nearbyAddress(nearby),
     updated: timestampLabel(nearby.lastSeenAtUnixNano)
   };
@@ -315,6 +319,34 @@ function normalizeToolIDs(values) {
       seen.add(value);
       return true;
     });
+}
+
+function normalizeExecutors(values) {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+  const seen = new Set();
+  return values
+    .map((value) => executorValue(value))
+    .filter(Boolean)
+    .sort()
+    .filter((value) => {
+      if (seen.has(value)) {
+        return false;
+      }
+      seen.add(value);
+      return true;
+    });
+}
+
+function executorValue(value) {
+  if (value === 1 || value === "1" || value === "EXECUTOR_NATIVE" || value === "native") {
+    return "native";
+  }
+  if (value === 2 || value === "2" || value === "EXECUTOR_CONTAINER" || value === "container") {
+    return "container";
+  }
+  return "";
 }
 
 module.exports = {

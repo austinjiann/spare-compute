@@ -74,7 +74,8 @@ func TestRemoteHandlerReturnsWorkerStatus(t *testing.T) {
 	handler, err := NewRemoteHandler(remoteControllerStub{}, WithStatus(Status{
 		Platform: "linux", Architecture: "amd64",
 		LogicalCPUCount: 32, TotalMemoryBytes: 64 << 30,
-		ToolIDs: []string{"docker", "go"},
+		ToolIDs:            []string{"docker", "go"},
+		SupportedExecutors: []job.Executor{job.ExecutorNative},
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -89,7 +90,9 @@ func TestRemoteHandlerReturnsWorkerStatus(t *testing.T) {
 		status.GetArch() != "amd64" || status.GetLogicalCpuCount() != 32 ||
 		status.GetTotalMemoryBytes() != 64<<30 ||
 		len(status.GetToolIds()) != 2 || status.GetToolIds()[0] != "docker" ||
-		status.GetToolIds()[1] != "go" {
+		status.GetToolIds()[1] != "go" ||
+		len(status.GetSupportedExecutors()) != 1 ||
+		status.GetSupportedExecutors()[0] != computehopv1.Executor_EXECUTOR_NATIVE {
 		t.Fatalf("status response = %#v", response)
 	}
 }

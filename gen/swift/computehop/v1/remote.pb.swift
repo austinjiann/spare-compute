@@ -808,6 +808,8 @@ public nonisolated struct Computehop_V1_GetWorkerStatusResponse: Sendable {
 
   public var toolIds: [String] = []
 
+  public var supportedExecutors: [Computehop_V1_Executor] = []
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
@@ -2095,7 +2097,7 @@ nonisolated extension Computehop_V1_GetWorkerStatusRequest: SwiftProtobuf.Messag
 
 nonisolated extension Computehop_V1_GetWorkerStatusResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".GetWorkerStatusResponse"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}platform\0\u{1}arch\0\u{3}logical_cpu_count\0\u{3}total_memory_bytes\0\u{3}tool_ids\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}platform\0\u{1}arch\0\u{3}logical_cpu_count\0\u{3}total_memory_bytes\0\u{3}tool_ids\0\u{3}supported_executors\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -2108,6 +2110,7 @@ nonisolated extension Computehop_V1_GetWorkerStatusResponse: SwiftProtobuf.Messa
       case 3: try { try decoder.decodeSingularUInt32Field(value: &self.logicalCpuCount) }()
       case 4: try { try decoder.decodeSingularUInt64Field(value: &self.totalMemoryBytes) }()
       case 5: try { try decoder.decodeRepeatedStringField(value: &self.toolIds) }()
+      case 6: try { try decoder.decodeRepeatedEnumField(value: &self.supportedExecutors) }()
       default: break
       }
     }
@@ -2129,6 +2132,9 @@ nonisolated extension Computehop_V1_GetWorkerStatusResponse: SwiftProtobuf.Messa
     if !self.toolIds.isEmpty {
       try visitor.visitRepeatedStringField(value: self.toolIds, fieldNumber: 5)
     }
+    if !self.supportedExecutors.isEmpty {
+      try visitor.visitPackedEnumField(value: self.supportedExecutors, fieldNumber: 6)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -2138,6 +2144,7 @@ nonisolated extension Computehop_V1_GetWorkerStatusResponse: SwiftProtobuf.Messa
     if lhs.logicalCpuCount != rhs.logicalCpuCount {return false}
     if lhs.totalMemoryBytes != rhs.totalMemoryBytes {return false}
     if lhs.toolIds != rhs.toolIds {return false}
+    if lhs.supportedExecutors != rhs.supportedExecutors {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

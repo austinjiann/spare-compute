@@ -324,7 +324,7 @@ func (service *RemoteJobService) resolveSubmitWorker(
 	case 0:
 		return trust.Peer{}, fmt.Errorf("%w: active worker %s", trust.ErrNotFound, selector)
 	case 1:
-		if err := service.preflightWorkerTools(ctx, matches[0], spec); err != nil {
+		if err := service.preflightWorkerCompatibility(ctx, matches[0], spec); err != nil {
 			return trust.Peer{}, err
 		}
 		return matches[0], nil
@@ -937,7 +937,7 @@ func (service *RemoteJobService) resolveAutomaticWorkerForSpec(
 		if peer.State != trust.StateActive || peer.Role != device.RoleWorker {
 			continue
 		}
-		if err := service.preflightWorkerTools(ctx, peer, spec); err != nil {
+		if err := service.preflightWorkerCompatibility(ctx, peer, spec); err != nil {
 			if errors.Is(err, ErrRemoteWorkerIncompatible) {
 				incompatible++
 				continue
@@ -951,6 +951,13 @@ func (service *RemoteJobService) resolveAutomaticWorkerForSpec(
 	}
 	if len(candidates) == 0 {
 		required := requiredToolIDs(spec)
+		if incompatible > 0 && spec.Executor == job.ExecutorContainer {
+			return trust.Peer{}, fmt.Errorf(
+				"%w: no active paired worker supports %s for this job",
+				ErrRemoteWorkerIncompatible,
+				executorLabel(spec.Executor),
+			)
+		}
 		if incompatible > 0 && len(required) > 0 {
 			return trust.Peer{}, fmt.Errorf(
 				"%w: no active paired worker reports %s; choose another worker or install %s on a worker",
@@ -1047,12 +1054,13 @@ func (service *RemoteJobService) updateHintsFromWorkerStatus(
 		return trust.PeerHints{}, false
 	}
 	hints := trust.PeerHints{
-		Platform:         status.GetPlatform(),
-		Architecture:     status.GetArch(),
-		LogicalCPUCount:  status.GetLogicalCpuCount(),
-		TotalMemoryBytes: status.GetTotalMemoryBytes(),
-		ToolIDs:          append([]string(nil), status.GetToolIds()...),
-		ObservedAt:       time.Now().UTC(),
+		Platform:           status.GetPlatform(),
+		Architecture:       status.GetArch(),
+		LogicalCPUCount:    status.GetLogicalCpuCount(),
+		TotalMemoryBytes:   status.GetTotalMemoryBytes(),
+		ToolIDs:            append([]string(nil), status.GetToolIds()...),
+		SupportedExecutors: supportedExecutorsFromRemoteProto(status.GetSupportedExecutors()),
+		ObservedAt:         time.Now().UTC(),
 	}
 	if hints.Validate() != nil {
 		return trust.PeerHints{}, false
@@ -1061,12 +1069,82 @@ func (service *RemoteJobService) updateHintsFromWorkerStatus(
 	return hints, true
 }
 
-func (service *RemoteJobService) preflightWorkerTools(ctx context.Context, peer trust.Peer, spec job.Spec) error {
+func (service *RemoteJobService) preflightWorkerCompatibility(
+	ctx context.Context,
+	peer trust.Peer,
+	spec job.Spec,
+) error {
+	hints, hasHints := service.authenticatedWorkerHints(ctx, peer)
+	supportedExecutors := peer.SupportedExecutors
+	if hasHints {
+		supportedExecutors = hints.SupportedExecutors
+	}
+	if err := workerExecutorCompatibility(peer, supportedExecutors, spec.Executor); err != nil {
+		return err
+	}
+	return preflightWorkerTools(peer, spec, hints, hasHints)
+}
+
+func workerExecutorCompatibility(peer trust.Peer, supported []string, required job.Executor) error {
+	switch required {
+	case job.ExecutorNative:
+		if len(supported) == 0 {
+			return nil
+		}
+	case job.ExecutorContainer:
+		if len(supported) == 0 {
+			return fmt.Errorf(
+				"%w: %s has not reported support for %s; restart or update ComputeHop on that worker",
+				ErrRemoteWorkerIncompatible,
+				peer.Name,
+				executorLabel(required),
+			)
+		}
+	default:
+		return fmt.Errorf(
+			"%w: %s cannot run unknown executor %q",
+			ErrRemoteWorkerIncompatible,
+			peer.Name,
+			required,
+		)
+	}
+	if !executorSetContains(supported, required) {
+		return fmt.Errorf(
+			"%w: %s does not support %s",
+			ErrRemoteWorkerIncompatible,
+			peer.Name,
+			executorLabel(required),
+		)
+	}
+	return nil
+}
+
+func executorSetContains(values []string, required job.Executor) bool {
+	for _, value := range values {
+		if job.Executor(value) == required {
+			return true
+		}
+	}
+	return false
+}
+
+func executorLabel(executor job.Executor) string {
+	switch executor {
+	case job.ExecutorNative:
+		return "native execution"
+	case job.ExecutorContainer:
+		return "container execution"
+	default:
+		return "this execution mode"
+	}
+}
+
+func preflightWorkerTools(peer trust.Peer, spec job.Spec, hints trust.PeerHints, hasHints bool) error {
 	required := requiredToolIDs(spec)
 	if len(required) == 0 {
 		return nil
 	}
-	if hints, ok := service.authenticatedWorkerHints(ctx, peer); ok && len(hints.ToolIDs) > 0 {
+	if hasHints && len(hints.ToolIDs) > 0 {
 		if missing := missingToolIDs(hints.ToolIDs, required); len(missing) > 0 {
 			return missingWorkerToolError(peer, missing)
 		}
@@ -1078,6 +1156,20 @@ func (service *RemoteJobService) preflightWorkerTools(ctx context.Context, peer 
 		}
 	}
 	return nil
+}
+
+func supportedExecutorsFromRemoteProto(values []computehopv1.Executor) []string {
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		switch value {
+		case computehopv1.Executor_EXECUTOR_NATIVE:
+			result = append(result, string(job.ExecutorNative))
+		case computehopv1.Executor_EXECUTOR_CONTAINER:
+			result = append(result, string(job.ExecutorContainer))
+		}
+	}
+	slices.Sort(result)
+	return slices.Compact(result)
 }
 
 func missingWorkerToolError(peer trust.Peer, toolIDs []string) error {

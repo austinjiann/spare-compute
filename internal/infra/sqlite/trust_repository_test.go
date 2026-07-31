@@ -88,8 +88,9 @@ func TestTrustRepositoryPersistsNewestHints(t *testing.T) {
 	got, err := database.Trust().UpdateHints(context.Background(), peer.DeviceID, trust.PeerHints{
 		Platform: "linux", Architecture: "amd64",
 		LogicalCPUCount: 32, TotalMemoryBytes: 64 << 30,
-		ToolIDs:    []string{"docker", "go"},
-		ObservedAt: observedAt,
+		ToolIDs:            []string{"docker", "go"},
+		SupportedExecutors: []string{"native"},
+		ObservedAt:         observedAt,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -98,6 +99,7 @@ func TestTrustRepositoryPersistsNewestHints(t *testing.T) {
 		got.LogicalCPUCount != 32 || got.TotalMemoryBytes != 64<<30 ||
 		len(got.ToolIDs) != 2 || got.ToolIDs[0] != "docker" ||
 		got.ToolIDs[1] != "go" ||
+		len(got.SupportedExecutors) != 1 || got.SupportedExecutors[0] != "native" ||
 		got.HintsObservedAt == nil || !got.HintsObservedAt.Equal(observedAt) {
 		t.Fatalf("updated hints = %#v", got)
 	}
@@ -112,7 +114,8 @@ func TestTrustRepositoryPersistsNewestHints(t *testing.T) {
 	if got.Platform != "linux" || got.Architecture != "amd64" ||
 		got.LogicalCPUCount != 32 || got.TotalMemoryBytes != 64<<30 ||
 		len(got.ToolIDs) != 2 || got.ToolIDs[0] != "docker" ||
-		got.ToolIDs[1] != "go" {
+		got.ToolIDs[1] != "go" ||
+		len(got.SupportedExecutors) != 1 || got.SupportedExecutors[0] != "native" {
 		t.Fatalf("stale hints replaced newer hints: %#v", got)
 	}
 }
@@ -131,7 +134,8 @@ func TestTrustRepositoryKeepsRevokedPeerHintsButDoesNotUpdateThem(t *testing.T) 
 	if _, err := database.Trust().UpdateHints(context.Background(), peer.DeviceID, trust.PeerHints{
 		Platform: "windows", Architecture: "amd64",
 		LogicalCPUCount: 24, TotalMemoryBytes: 32 << 30,
-		ObservedAt: observedAt,
+		SupportedExecutors: []string{"native"},
+		ObservedAt:         observedAt,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -149,7 +153,8 @@ func TestTrustRepositoryKeepsRevokedPeerHintsButDoesNotUpdateThem(t *testing.T) 
 	}
 	if got.State != trust.StateRevoked || got.Platform != revoked.Platform ||
 		got.Architecture != revoked.Architecture || got.LogicalCPUCount != revoked.LogicalCPUCount ||
-		len(got.ToolIDs) != len(revoked.ToolIDs) {
+		len(got.ToolIDs) != len(revoked.ToolIDs) ||
+		len(got.SupportedExecutors) != len(revoked.SupportedExecutors) {
 		t.Fatalf("revoked peer hints changed: %#v", got)
 	}
 }
