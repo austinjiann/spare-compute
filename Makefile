@@ -1,10 +1,10 @@
-.PHONY: check deploy-check fmt install-macos install-macos-check macos-archive macos-archive-smoke macos-package macos-package-check pr-check proto proto-check proto-lint race test uninstall-macos vet worker-archives worker-archives-check
+.PHONY: check control-center-check control-center-deps deploy-check fmt install-macos install-macos-check macos-archive macos-archive-smoke macos-package macos-package-check pr-check proto proto-check proto-lint race test uninstall-macos vet worker-archives worker-archives-check
 
 BUF_VERSION := v1.72.0
 
-check: fmt proto-check proto-lint vet test race
+check: fmt proto-check proto-lint vet test race control-center-check
 
-pr-check: fmt proto-check proto-lint vet test deploy-check worker-archives-check
+pr-check: fmt proto-check proto-lint vet test control-center-check deploy-check worker-archives-check
 
 fmt:
 	@test -z "$$(gofmt -l .)" || (gofmt -d . && exit 1)
@@ -32,6 +32,13 @@ test:
 
 race:
 	go test -race ./...
+
+control-center-deps:
+	@test -d apps/control-center/node_modules || npm ci --prefix apps/control-center
+
+control-center-check: control-center-deps
+	npm run lint --prefix apps/control-center
+	npm test --prefix apps/control-center
 
 deploy-check:
 	@for script in \
