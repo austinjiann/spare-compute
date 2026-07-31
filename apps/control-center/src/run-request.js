@@ -17,7 +17,9 @@
 }(typeof globalThis === "object" ? globalThis : window, function createRunRequest(outputPath = {}, deviceTargets = {}, capabilityCatalog = {}) {
   const validatePortableOutputs = outputPath?.validatePortableOutputs || fallbackValidatePortableOutputs;
   const missingToolIDsForPlan = deviceTargets?.missingToolIDsForPlan || (() => []);
+  const requiredExecutorForPlan = deviceTargets?.requiredExecutorForPlan || (() => "native");
   const requiredToolIDsForPlan = deviceTargets?.requiredToolIDsForPlan || (() => []);
+  const workerExecutorReadiness = deviceTargets?.workerExecutorReadiness || fallbackWorkerExecutorReadiness;
 
   function runWorkingDirectory(jobRequest) {
     return cleanPath(jobRequest?.workingDirectory);
@@ -40,7 +42,9 @@
         outputs
       }),
       outputs,
-      requiredToolIDs: requiredToolIDsForPlan(plan)
+      requiredToolIDs: requiredToolIDsForPlan(plan),
+      executor: requiredExecutorForPlan(plan),
+      containerImage: cleanString(plan.containerImage)
     };
   }
 
@@ -117,6 +121,10 @@
     const architectureBlocker = targetArchitectureBlocker(device, plan);
     if (architectureBlocker.message) {
       return architectureBlocker;
+    }
+    const executorBlock = executorBlocker(device, plan);
+    if (executorBlock.message) {
+      return executorBlock;
     }
     const toolBlocker = missingToolBlocker(device, plan);
     if (toolBlocker.message) {
@@ -223,6 +231,19 @@
     }
     const deviceName = cleanString(device?.name) || "that computer";
     return block(`${deviceName} does not report ${toolListLabel(missing)}. Choose another computer or install it there.`);
+  }
+
+  function executorBlocker(device = {}, plan = {}) {
+    const readiness = workerExecutorReadiness(device, plan);
+    if (readiness.compatible) {
+      return block("");
+    }
+    const deviceName = cleanString(device?.name) || "that computer";
+    const label = executorRunLabel(readiness.required);
+    if (readiness.state === "unknown") {
+      return block(`${deviceName} has not reported support for ${label}. Update ComputeHop on that computer or choose another one.`);
+    }
+    return block(`${deviceName} does not support ${label}. Choose another computer or switch this task to a normal command.`);
   }
 
   function offlineWorkerBlock(deviceName) {
@@ -360,6 +381,27 @@
       return labels[0];
     }
     return `${labels.slice(0, -1).join(", ")} and ${labels[labels.length - 1]}`;
+  }
+
+  function executorRunLabel(executor) {
+    switch (cleanString(executor).toLowerCase()) {
+      case "container":
+        return "container jobs";
+      case "native":
+        return "normal commands";
+      default:
+        return "this kind of task";
+    }
+  }
+
+  function fallbackWorkerExecutorReadiness(_device = {}, plan = {}) {
+    const executor = cleanString(plan.executor || plan.requiredExecutor || plan.executionMode || plan.executorMode || "native").toLowerCase();
+    return {
+      state: executor === "container" ? "unknown" : "unknown-compatible",
+      required: executor === "container" ? "container" : "native",
+      reported: [],
+      compatible: executor !== "container"
+    };
   }
 
   function fallbackValidatePortableOutputs(outputs) {

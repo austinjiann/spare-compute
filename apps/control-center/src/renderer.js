@@ -60,6 +60,7 @@ const {
   addAutomaticWorkerTarget,
   compatibleWorkerForPlan,
   concreteDeviceID,
+  deviceHasRequiredExecutor,
   deviceHasRequiredTools,
   singleConnectedWorkerTarget,
   workerMatchesArchitecture,
@@ -1514,6 +1515,7 @@ function workerCanRunPlan(device, plan) {
   return (
     workerMatchesPlatform(device, plan?.targetPlatform || plan?.requiredPlatform || "") &&
     workerMatchesArchitecture(device, plan?.targetArchitecture || plan?.requiredArchitecture || plan?.targetArch || plan?.requiredArch || "") &&
+    deviceHasRequiredExecutor(device, plan) &&
     deviceHasRequiredTools(device, plan) &&
     !disallowedWorkMessage(plan, capabilitiesForDevice(device))
   );

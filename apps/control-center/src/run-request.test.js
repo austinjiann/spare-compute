@@ -136,7 +136,9 @@ test("jobStartRequestForPlan builds the daemon request for a remote project run"
       deviceName: "Austin MacBook 2",
       workingDirectory: "/Users/austin/project",
       outputs: ["coverage.out", "report.xml"],
-      requiredToolIDs: ["go"]
+      requiredToolIDs: ["go"],
+      executor: "native",
+      containerImage: ""
     }
   );
 });
@@ -182,7 +184,9 @@ test("jobStartRequestForPlan keeps remote utility runs projectless", () => {
       deviceName: "Gaming PC",
       workingDirectory: "",
       outputs: [],
-      requiredToolIDs: ["hostname"]
+      requiredToolIDs: ["hostname"],
+      executor: "native",
+      containerImage: ""
     }
   );
 });
@@ -574,6 +578,64 @@ test("runReadinessError explains reported missing tools", () => {
       device: { id: "worker-1", name: "Old worker", toolIDs: [] },
       canRun: true,
       plan: { command: "go test ./...", requiresProject: false },
+      outputs: [],
+      projectRoot: ""
+    }),
+    ""
+  );
+});
+
+test("runReadinessError explains unsupported execution modes", () => {
+  assert.equal(
+    runReadinessError({
+      device: {
+        id: "worker-1",
+        name: "Native Mac",
+        supportedExecutors: ["native"]
+      },
+      canRun: true,
+      plan: {
+        command: "echo hello",
+        requiresProject: false,
+        executor: "container",
+        containerImage: "alpine:latest"
+      },
+      outputs: [],
+      projectRoot: ""
+    }),
+    "Native Mac does not support container jobs. Choose another computer or switch this task to a normal command."
+  );
+  assert.equal(
+    runReadinessError({
+      device: {
+        id: "worker-1",
+        name: "Older worker",
+        supportedExecutors: []
+      },
+      canRun: true,
+      plan: {
+        command: "echo hello",
+        requiresProject: false,
+        executor: "container",
+        containerImage: "alpine:latest"
+      },
+      outputs: [],
+      projectRoot: ""
+    }),
+    "Older worker has not reported support for container jobs. Update ComputeHop on that computer or choose another one."
+  );
+  assert.equal(
+    runReadinessError({
+      device: {
+        id: "worker-1",
+        name: "Older worker",
+        supportedExecutors: []
+      },
+      canRun: true,
+      plan: {
+        command: "echo hello",
+        requiresProject: false
+      },
       outputs: [],
       projectRoot: ""
     }),
