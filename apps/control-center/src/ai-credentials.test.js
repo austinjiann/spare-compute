@@ -19,7 +19,8 @@ test("saveAIPlannerCredentials encrypts API keys when safeStorage is available",
   const safeStorage = fakeSafeStorage();
 
   const saved = await saveAIPlannerCredentials({
-    openAIAPIKey: " sk-test ",
+    apiKey: " sk-test ",
+    baseURL: " https://api.openai.test/v1/ ",
     model: " gpt-test "
   }, {
     userDataPath: root,
@@ -28,15 +29,22 @@ test("saveAIPlannerCredentials encrypts API keys when safeStorage is available",
 
   assert.deepEqual(saved, {
     configured: true,
+    provider: "openai",
+    apiKey: "sk-test",
     openAIAPIKey: "sk-test",
     encrypted: true,
+    baseURL: "https://api.openai.test/v1",
     model: "gpt-test",
     source: "app"
   });
 
   const raw = JSON.parse(await fs.readFile(credentialsPath({ userDataPath: root }), "utf8"));
-  assert.equal(raw.openAIAPIKey.encrypted, true);
-  assert.notEqual(raw.openAIAPIKey.value, "sk-test");
+  assert.equal(raw.version, 2);
+  assert.equal(raw.provider, "openai");
+  assert.equal(raw.baseURL, "https://api.openai.test/v1");
+  assert.equal(raw.apiKey.encrypted, true);
+  assert.notEqual(raw.apiKey.value, "sk-test");
+  assert.equal(raw.openAIAPIKey, undefined);
 });
 
 test("saveAIPlannerCredentials falls back to plaintext only when encryption is unavailable", async (t) => {
@@ -51,10 +59,30 @@ test("saveAIPlannerCredentials falls back to plaintext only when encryption is u
   });
 
   const raw = JSON.parse(await fs.readFile(credentialsPath({ userDataPath: root }), "utf8"));
-  assert.deepEqual(raw.openAIAPIKey, {
+  assert.deepEqual(raw.apiKey, {
     encrypted: false,
     value: "sk-test"
   });
+});
+
+test("loadAIPlannerCredentials reads legacy OpenAI key files", async (t) => {
+  const root = await tempRoot(t);
+  await fs.writeFile(credentialsPath({ userDataPath: root }), `${JSON.stringify({
+    version: 1,
+    openAIAPIKey: {
+      encrypted: false,
+      value: "sk-legacy"
+    },
+    model: "gpt-legacy"
+  })}\n`);
+
+  const loaded = await loadAIPlannerCredentials({ userDataPath: root });
+
+  assert.equal(loaded.configured, true);
+  assert.equal(loaded.provider, "openai");
+  assert.equal(loaded.apiKey, "sk-legacy");
+  assert.equal(loaded.openAIAPIKey, "sk-legacy");
+  assert.equal(loaded.model, "gpt-legacy");
 });
 
 test("saveAIPlannerCredentials can preserve an existing key while updating model", async (t) => {
@@ -115,26 +143,34 @@ test("clearAIPlannerCredentials removes stored credentials", async (t) => {
 test("credentialsStatus prefers app credentials and falls back to environment", () => {
   assert.deepEqual(credentialsStatus({
     configured: true,
+    provider: "openai",
     encrypted: true,
+    baseURL: "https://api.openai.test/v1",
     model: "gpt-app",
     source: "app"
   }, {
     OPENAI_API_KEY: "sk-env",
+    OPENAI_BASE_URL: "https://api.env.test/v1",
     OPENAI_MODEL: "gpt-env"
   }), {
     configured: true,
+    provider: "openai",
     source: "app",
     encrypted: true,
+    baseURL: "https://api.openai.test/v1",
     model: "gpt-app"
   });
 
   assert.deepEqual(credentialsStatus({}, {
     OPENAI_API_KEY: "sk-env",
+    COMPUTEHOP_AI_BASE_URL: "https://api.env.test/v1/",
     OPENAI_MODEL: "gpt-env"
   }), {
     configured: true,
+    provider: "openai",
     source: "environment",
     encrypted: false,
+    baseURL: "https://api.env.test/v1",
     model: "gpt-env"
   });
 });
@@ -148,8 +184,10 @@ test("credentialsStatus reports the same model precedence used by planner config
     OPENAI_MODEL: "gpt-env"
   }), {
     configured: true,
+    provider: "openai",
     source: "environment",
     encrypted: false,
+    baseURL: "",
     model: "gpt-app"
   });
 
@@ -162,28 +200,52 @@ test("credentialsStatus reports the same model precedence used by planner config
     COMPUTEHOP_OPENAI_MODEL: "gpt-env"
   }), {
     configured: true,
+    provider: "openai",
     source: "app",
     encrypted: true,
+    baseURL: "",
     model: "gpt-env"
   });
 });
 
-test("plannerConfigFromCredentials builds the OpenAI planner config", () => {
+test("plannerConfigFromCredentials builds the planner config from app and generic env fields", () => {
   assert.deepEqual(plannerConfigFromCredentials({
-    openAIAPIKey: "sk-app",
+    provider: "openai",
+    apiKey: "sk-app",
+    baseURL: "https://api.app.test/v1/",
     model: "gpt-app"
   }, {
     OPENAI_API_KEY: "sk-env",
+    COMPUTEHOP_AI_API_KEY: "sk-generic-env",
     OPENAI_BASE_URL: "https://api.example.test/v1/",
     OPENAI_MODEL: "gpt-env"
   }), {
     configured: true,
+    provider: "openai",
     apiKey: "sk-app",
-    baseURL: "https://api.example.test/v1",
+    baseURL: "https://api.app.test/v1",
     model: "gpt-app"
   });
 
-  assert.equal(plannerConfigFromCredentials({}, {}).configured, false);
+  assert.deepEqual(plannerConfigFromCredentials({}, {
+    COMPUTEHOP_AI_API_KEY: "sk-generic-env",
+    COMPUTEHOP_AI_BASE_URL: "https://api.generic.test/v1/",
+    COMPUTEHOP_AI_MODEL: "gpt-generic"
+  }), {
+    configured: true,
+    provider: "openai",
+    apiKey: "sk-generic-env",
+    baseURL: "https://api.generic.test/v1",
+    model: "gpt-generic"
+  });
+
+  assert.deepEqual(plannerConfigFromCredentials({}, {}), {
+    configured: false,
+    provider: "openai",
+    apiKey: "",
+    baseURL: "https://api.openai.com/v1",
+    model: "gpt-5.6"
+  });
 });
 
 test("encryptSecret and decryptSecret round-trip through safeStorage", () => {
