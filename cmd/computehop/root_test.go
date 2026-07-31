@@ -2037,9 +2037,11 @@ func TestSetupWorkersCommandPrintsLinuxAndWindowsPackageChecklistWithoutDaemon(t
 		"ComputeHop Linux/Windows worker setup",
 		"make worker-archives",
 		"ComputeHop-worker-linux-amd64.tar.gz.sha256",
+		"COMPUTEHOP_DEVICE_NAME='Austin Gaming PC' ./install-systemd-user.sh --check --lan-only",
 		"COMPUTEHOP_DEVICE_NAME='Austin Gaming PC' ./run-worker.sh --lan-only",
 		"COMPUTEHOP_DEVICE_NAME='Austin Gaming PC' ./install-systemd-user.sh --lan-only",
 		"ComputeHop-worker-windows-amd64.zip",
+		".\\install-scheduled-task.ps1 -Check -DeviceName 'Austin Gaming PC' -LanOnly",
 		".\\run-worker.ps1 -DeviceName 'Austin Gaming PC' -LanOnly",
 		".\\install-scheduled-task.ps1 -DeviceName 'Austin Gaming PC' -LanOnly",
 		"computehop connect nearby",
@@ -2066,6 +2068,7 @@ func TestSetupWorkersCommandCanPrintTargetSpecificChecklist(t *testing.T) {
 			target: "linux",
 			want: []string{
 				"Linux worker:",
+				"COMPUTEHOP_DEVICE_NAME=HomeServer ./install-systemd-user.sh --check --lan-only",
 				"COMPUTEHOP_DEVICE_NAME=HomeServer ./run-worker.sh --lan-only",
 				"Confirm the same code on the Linux worker:",
 			},
@@ -2079,6 +2082,7 @@ func TestSetupWorkersCommandCanPrintTargetSpecificChecklist(t *testing.T) {
 			target: "windows",
 			want: []string{
 				"Windows worker:",
+				".\\install-scheduled-task.ps1 -Check -DeviceName 'HomeServer' -LanOnly",
 				".\\run-worker.ps1 -DeviceName 'HomeServer' -LanOnly",
 				"Confirm the same code on the Windows worker:",
 			},
@@ -2137,6 +2141,7 @@ func TestSetupWorkersCommandPrintsRemoteConnectivityArguments(t *testing.T) {
 	}
 	for _, want := range []string{
 		"VPS rendezvous and STUN",
+		"COMPUTEHOP_DEVICE_NAME='Home Server' ./install-systemd-user.sh --check --connectivity-url https://connect.example.com --stun-server stun:turn.example.com:3478",
 		"COMPUTEHOP_DEVICE_NAME='Home Server' ./run-worker.sh --connectivity-url https://connect.example.com --stun-server stun:turn.example.com:3478",
 		"COMPUTEHOP_DEVICE_NAME='Home Server' ./install-systemd-user.sh --connectivity-url https://connect.example.com --stun-server stun:turn.example.com:3478",
 	} {
@@ -2172,6 +2177,7 @@ func TestSetupWorkersCommandPrintsTurnRelayArguments(t *testing.T) {
 	}
 	for _, want := range []string{
 		"VPS rendezvous, STUN, and authenticated TURN relay",
+		".\\install-scheduled-task.ps1 -Check -DeviceName 'Gaming PC' -ConnectivityUrl 'https://connect.example.com' -TurnServer 'turn:turn.example.com:3478?transport=udp' -TurnUsername '1800000000:computehop' -TurnPassword 'relay secret'",
 		".\\run-worker.ps1 -DeviceName 'Gaming PC' -ConnectivityUrl 'https://connect.example.com' -TurnServer 'turn:turn.example.com:3478?transport=udp' -TurnUsername '1800000000:computehop' -TurnPassword 'relay secret'",
 		".\\install-scheduled-task.ps1 -DeviceName 'Gaming PC' -ConnectivityUrl 'https://connect.example.com' -TurnServer 'turn:turn.example.com:3478?transport=udp' -TurnUsername '1800000000:computehop' -TurnPassword 'relay secret'",
 	} {

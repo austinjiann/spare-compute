@@ -6,4 +6,5 @@ outputs do not belong in source control.
 The current macOS developer bundle and per-user launchd installer live in
 [`macos/`](macos/), including a non-mutating archive smoke test for copied app
 and installer dry-runs. Copyable Linux and Windows worker developer packages
-live in [`workers/`](workers/).
+live in [`workers/`](workers/), including non-mutating worker setup checks for
+Linux systemd user services and Windows scheduled tasks.

@@ -1,5 +1,6 @@
 param(
     [string]$DeviceName = $env:COMPUTEHOP_DEVICE_NAME,
+    [switch]$Check,
     [switch]$LanOnly,
     [string]$ConnectivityUrl = "",
     [string[]]$StunServer = @(),
@@ -16,6 +17,7 @@ if ([string]::IsNullOrWhiteSpace($DeviceName)) {
 if ([string]::IsNullOrWhiteSpace($DeviceName)) {
     $DeviceName = "ComputeHop Worker"
 }
+
 if (
     -not $LanOnly `
     -and [string]::IsNullOrWhiteSpace($ConnectivityUrl) `
@@ -27,13 +29,63 @@ if (
     $LanOnly = $true
 }
 
+if (
+    $LanOnly `
+    -and (
+        -not [string]::IsNullOrWhiteSpace($ConnectivityUrl) `
+        -or $StunServer.Count -gt 0 `
+        -or $TurnServer.Count -gt 0 `
+        -or -not [string]::IsNullOrWhiteSpace($TurnUsername) `
+        -or -not [string]::IsNullOrWhiteSpace($TurnPassword)
+    )
+) {
+    throw "-LanOnly cannot be combined with remote connectivity flags."
+}
+if (
+    (-not [string]::IsNullOrWhiteSpace($ConnectivityUrl) -and $StunServer.Count -eq 0 -and $TurnServer.Count -eq 0) `
+    -or ([string]::IsNullOrWhiteSpace($ConnectivityUrl) -and ($StunServer.Count -gt 0 -or $TurnServer.Count -gt 0))
+) {
+    throw "-ConnectivityUrl and at least one -StunServer or -TurnServer must be supplied together."
+}
+if ($TurnServer.Count -gt 0 -and ([string]::IsNullOrWhiteSpace($TurnUsername) -or [string]::IsNullOrWhiteSpace($TurnPassword))) {
+    throw "-TurnServer requires -TurnUsername and -TurnPassword."
+}
+if ($TurnServer.Count -eq 0 -and (-not [string]::IsNullOrWhiteSpace($TurnUsername) -or -not [string]::IsNullOrWhiteSpace($TurnPassword))) {
+    throw "-TurnUsername and -TurnPassword require -TurnServer."
+}
+if (-not [string]::IsNullOrWhiteSpace($ConnectivityUrl) -and $ConnectivityUrl -notmatch '^https://.+') {
+    throw "-ConnectivityUrl must be an HTTPS URL."
+}
+foreach ($Server in $StunServer) {
+    if ([string]::IsNullOrWhiteSpace($Server) -or $Server -notmatch '^stuns?:.+') {
+        throw "-StunServer must begin with stun: or stuns:."
+    }
+}
+foreach ($Server in $TurnServer) {
+    if ([string]::IsNullOrWhiteSpace($Server) -or $Server -notmatch '^turns?:.+') {
+        throw "-TurnServer must begin with turn: or turns:."
+    }
+}
+
+$SourceCli = Join-Path $PSScriptRoot "bin\computehop.exe"
+$SourceDaemon = Join-Path $PSScriptRoot "bin\computehopd.exe"
+$SourceRunner = Join-Path $PSScriptRoot "run-worker.ps1"
+foreach ($Source in @($SourceCli, $SourceDaemon, $SourceRunner)) {
+    if (-not (Test-Path -LiteralPath $Source -PathType Leaf)) {
+        throw "Packaged worker file is missing: $Source"
+    }
+}
+
 $InstallDir = Join-Path $env:LOCALAPPDATA "ComputeHop\Worker"
 $BinDir = Join-Path $InstallDir "bin"
-New-Item -ItemType Directory -Force -Path $BinDir | Out-Null
 
-Copy-Item -Force -Path (Join-Path $PSScriptRoot "bin\computehop.exe") -Destination (Join-Path $BinDir "computehop.exe")
-Copy-Item -Force -Path (Join-Path $PSScriptRoot "bin\computehopd.exe") -Destination (Join-Path $BinDir "computehopd.exe")
-Copy-Item -Force -Path (Join-Path $PSScriptRoot "run-worker.ps1") -Destination (Join-Path $InstallDir "run-worker.ps1")
+if (-not $Check) {
+    New-Item -ItemType Directory -Force -Path $BinDir | Out-Null
+
+    Copy-Item -Force -Path $SourceCli -Destination (Join-Path $BinDir "computehop.exe")
+    Copy-Item -Force -Path $SourceDaemon -Destination (Join-Path $BinDir "computehopd.exe")
+    Copy-Item -Force -Path $SourceRunner -Destination (Join-Path $InstallDir "run-worker.ps1")
+}
 
 $InstalledRunner = Join-Path $InstallDir "run-installed-worker.ps1"
 function Quote-PowerShellLiteral([string]$Value) {
@@ -62,6 +114,16 @@ foreach ($Server in $TurnServer) {
 Add-PowerShellOption $RunnerParts "-TurnUsername" $TurnUsername
 Add-PowerShellOption $RunnerParts "-TurnPassword" $TurnPassword
 $RunnerArgs = $RunnerParts -join " "
+
+if ($Check) {
+    Write-Host "Worker install check passed."
+    Write-Host "Would install worker files to: $InstallDir"
+    Write-Host "Would register scheduled task: ComputeHop Worker"
+    Write-Host "Would run daemon as worker: $DeviceName"
+    Write-Host "Would pass runner arguments: $RunnerArgs"
+    exit 0
+}
+
 @"
 `$ErrorActionPreference = "Stop"
 & "`$PSScriptRoot\run-worker.ps1" $RunnerArgs
