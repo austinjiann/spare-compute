@@ -167,16 +167,18 @@ func runWithDependencies(
 		if err != nil {
 			return err
 		}
+		executorStarter, err := defaultExecutorStarter()
+		if err != nil {
+			return fmt.Errorf("initialize executors: %w", err)
+		}
 		runner, err := worker.NewRunner(worker.RunnerDependencies{
-			Jobs:       database.Jobs(),
-			Executions: database.Executions(),
-			Logs:       logStore,
-			StartProcess: func(spec job.Spec, stdout, stderr io.Writer) (worker.NativeProcess, error) {
-				return processes.Start(spec, stdout, stderr)
-			},
-			RunnerPID: os.Getpid,
-			Now:       time.Now,
-			Artifacts: artifactManager,
+			Jobs:           database.Jobs(),
+			Executions:     database.Executions(),
+			Logs:           logStore,
+			StartExecution: executorStarter,
+			RunnerPID:      os.Getpid,
+			Now:            time.Now,
+			Artifacts:      artifactManager,
 		})
 		if err != nil {
 			return fmt.Errorf("initialize native runner: %w", err)
@@ -283,11 +285,15 @@ func runWithDependencies(
 	if err != nil {
 		return fmt.Errorf("initialize pairing service: %w", err)
 	}
+	executorStarter, err := defaultExecutorStarter()
+	if err != nil {
+		return fmt.Errorf("initialize executors: %w", err)
+	}
 	remoteHandler, err := worker.NewRemoteHandler(jobService, worker.WithStatus(worker.Status{
 		Platform: runtime.GOOS, Architecture: runtime.GOARCH,
 		LogicalCPUCount: resourceSnapshot.LogicalCPUCount, TotalMemoryBytes: resourceSnapshot.TotalMemoryBytes,
 		ToolIDs:            toolIDs,
-		SupportedExecutors: []job.Executor{job.ExecutorNative},
+		SupportedExecutors: executorStarter.SupportedExecutors(),
 	}))
 	if err != nil {
 		return fmt.Errorf("initialize remote worker handler: %w", err)
@@ -472,6 +478,18 @@ func daemonStartupError(stage string, err error) error {
 		)
 	}
 	return fmt.Errorf("%s: %w", stage, err)
+}
+
+func defaultExecutorStarter() (worker.ExecutorStarter, error) {
+	nativeStarter, err := worker.NewNativeExecutorStarter(
+		func(spec job.Spec, stdout, stderr io.Writer) (worker.ManagedProcess, error) {
+			return processes.Start(spec, stdout, stderr)
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	return worker.NewExecutorSet(nativeStarter)
 }
 
 func addressAlreadyInUse(err error) bool {
