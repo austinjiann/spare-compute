@@ -44,14 +44,17 @@ make release-version-check
    ```
 
 5. Verify the checksums in `dist/macos/` and `dist/workers/`.
-6. Tag the exact commit:
+6. Record the validation run in
+   [`docs/RELEASE_VALIDATION.md`](RELEASE_VALIDATION.md), then update the
+   relevant boxes in [`docs/LAUNCH_CHECKLIST.md`](LAUNCH_CHECKLIST.md).
+7. Tag the exact commit:
 
    ```bash
    git tag "v$(tr -d '\r\n' < VERSION)"
    git push origin "v$(tr -d '\r\n' < VERSION)"
    ```
 
-7. Upload the archives and checksum files to a draft GitHub release.
+8. Upload the archives and checksum files to a draft GitHub release.
 
 Developer/private-beta artifacts are ad-hoc signed and are not notarized. Do
 not call them public release artifacts.

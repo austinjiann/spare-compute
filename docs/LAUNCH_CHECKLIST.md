@@ -31,7 +31,7 @@ Goal: a technical user can install ComputeHop without a source checkout and run
 real work across machines on the same LAN.
 
 - [x] Merge all open UI/packaging cleanup PRs.
-- [ ] Build the macOS developer archive from a clean checkout.
+- [x] Build the macOS developer archive from a clean checkout.
 - [ ] Install the packaged macOS app as the control Mac using `install.sh`.
 - [ ] Install the packaged macOS app as a worker on a second Mac using
   `install.sh`.
@@ -43,7 +43,7 @@ real work across machines on the same LAN.
   - [ ] reconnectable logs after control app restart.
   - [ ] project test/build command with snapshot upload.
   - [ ] declared output restore.
-- [ ] Build Linux and Windows worker archives from a clean checkout.
+- [x] Build Linux and Windows worker archives from a clean checkout.
 - [ ] Install and run a Linux worker from the archive on a real Linux machine.
 - [ ] Install and run a Windows worker from the archive on a real Windows
   machine.
