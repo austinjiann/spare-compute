@@ -48,6 +48,8 @@ real work across machines on the same LAN.
   - [ ] project test/build command with snapshot upload.
   - [ ] declared output restore.
 - [x] Build Linux and Windows worker archives from a clean checkout.
+- [x] Add Linux and Windows installed-worker validators for copied binaries,
+  per-user services, worker daemon status, and doctor checks.
 - [ ] Install and run a Linux worker from the archive on a real Linux machine.
 - [ ] Install and run a Windows worker from the archive on a real Windows
   machine.

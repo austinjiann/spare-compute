@@ -68,6 +68,7 @@ For a per-user systemd service:
 
 ```bash
 COMPUTEHOP_DEVICE_NAME="Gaming PC" ./install-systemd-user.sh --lan-only
+./validate-installed-worker.sh --device-name "Gaming PC" --lan-only
 ```
 
 ## Windows worker
@@ -86,7 +87,13 @@ For a per-user scheduled task:
 
 ```powershell
 .\install-scheduled-task.ps1 -DeviceName "Gaming PC" -LanOnly
+.\validate-installed-worker.ps1 -DeviceName "Gaming PC" -LanOnly
 ```
+
+The installed-worker validators check the copied binaries, per-user login
+service definition, service enabled/running state, packaged CLI version, daemon
+status, and doctor output. They do not pair the worker; pair from the Mac after
+the validator passes.
 
 For cross-network workers, deploy the VPS first, then use the exact command
 printed by:

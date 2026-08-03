@@ -118,7 +118,8 @@ worker-archives-check:
 		packaging/workers/smoke.sh \
 		packaging/workers/verify.sh \
 		packaging/workers/linux/run-worker.sh \
-		packaging/workers/linux/install-systemd-user.sh; do \
+		packaging/workers/linux/install-systemd-user.sh \
+		packaging/workers/linux/validate-installed-worker.sh; do \
 		sh -n "$$script"; \
 	done
 	packaging/workers/smoke.sh
