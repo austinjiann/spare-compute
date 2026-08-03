@@ -102,7 +102,7 @@ if [ ! -d "$package_root/ComputeHop.app" ]; then
     echo "Archive did not contain ComputeHop.app at the expected path." >&2
     exit 1
 fi
-for support_file in README.txt install.sh validate-installed.sh verify.sh verify-control-center-background.js com.computehop.daemon.plist; do
+for support_file in README.txt install.sh uninstall.sh validate-installed.sh verify.sh verify-control-center-background.js com.computehop.daemon.plist; do
     if [ ! -f "$package_root/$support_file" ]; then
         echo "Archive support file is missing: $support_file" >&2
         exit 1
@@ -141,5 +141,23 @@ printf '%s\n' "$worker_check" | grep -q "Would run daemon as: worker"
 printf '%s\n' "$worker_check" | grep -q "Would use device name: Smoke Worker"
 printf '%s\n' "$worker_check" | grep -q "Would set cache size: 1GiB"
 printf '%s\n' "$worker_check" | grep -q "Would install in LAN-only mode."
+
+uninstall_home="$workspace_dir/uninstall-home"
+mkdir -p "$uninstall_home/Applications" "$uninstall_home/.local/bin" "$uninstall_home/Library/LaunchAgents"
+ditto "$package_root/ComputeHop.app" "$uninstall_home/Applications/ComputeHop.app"
+ln -s "$uninstall_home/Applications/ComputeHop.app/Contents/Resources/bin/computehop" \
+    "$uninstall_home/.local/bin/computehop"
+cp "$package_root/com.computehop.daemon.plist" \
+    "$uninstall_home/Library/LaunchAgents/com.computehop.daemon.plist"
+
+uninstall_check=$(HOME="$uninstall_home" "$package_root/uninstall.sh" --check 2>&1)
+printf '%s\n' "$uninstall_check" | grep -q "Uninstall check passed."
+printf '%s\n' "$uninstall_check" | grep -q "Would remove app: $uninstall_home/Applications/ComputeHop.app"
+printf '%s\n' "$uninstall_check" | grep -q "Would remove CLI link: $uninstall_home/.local/bin/computehop"
+printf '%s\n' "$uninstall_check" | grep -q "Would remove launch agent: $uninstall_home/Library/LaunchAgents/com.computehop.daemon.plist"
+printf '%s\n' "$uninstall_check" | grep -q "Would preserve durable jobs and pairings"
+[ -d "$uninstall_home/Applications/ComputeHop.app" ]
+[ -L "$uninstall_home/.local/bin/computehop" ]
+[ -f "$uninstall_home/Library/LaunchAgents/com.computehop.daemon.plist" ]
 
 echo "macOS archive smoke passed: $archive_path"

@@ -95,6 +95,7 @@ mkdir -p "$payload_dir"
 ditto "$built_app" "$payload_dir/ComputeHop.app"
 for support_file in \
     install.sh \
+    uninstall.sh \
     validate-installed.sh \
     verify.sh \
     verify-control-center-background.js \
@@ -130,6 +131,9 @@ Install as a worker Mac:
 
 Check without changing the Mac first:
   ./install.sh --check --role worker --device-name "Gaming PC" --lan-only
+
+Check uninstall without changing the Mac:
+  ./uninstall.sh --check
 EOF
 else
     cat >"$payload_dir/README.txt" <<EOF
@@ -150,6 +154,9 @@ Install as a worker Mac:
 
 Check without changing the Mac first:
   ./install.sh --check --role worker --device-name "Gaming PC" --lan-only
+
+Check uninstall without changing the Mac:
+  ./uninstall.sh --check
 EOF
 fi
 

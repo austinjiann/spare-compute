@@ -71,6 +71,8 @@ checks its SHA-256 file, extracts it, verifies the copied app, confirms the
 embedded CLI and daemons answer version checks, and runs isolated `install.sh
 --check` dry-runs for both Control Mac and Worker LAN-only installs. It does not
 write to `~/Applications`, `~/.local/bin`, or `~/Library/LaunchAgents`.
+It also exercises `uninstall.sh --check` against an isolated fake install and
+verifies that the dry-run leaves the fake app, CLI link, and LaunchAgent intact.
 
 Check the installer path without changing the current user account:
 
@@ -194,6 +196,7 @@ To uninstall the binaries and launch agent while preserving pairings and job
 history:
 
 ```bash
+make uninstall-macos-check
 make uninstall-macos
 ```
 
