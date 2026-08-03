@@ -101,6 +101,7 @@ macos-package-check:
 		packaging/macos/release-archive.sh \
 		packaging/macos/smoke.sh \
 		packaging/macos/uninstall.sh \
+		packaging/macos/validate-installed.sh \
 		packaging/macos/verify.sh; do \
 		sh -n "$$script"; \
 	done

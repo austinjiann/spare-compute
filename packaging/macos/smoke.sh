@@ -102,7 +102,7 @@ if [ ! -d "$package_root/ComputeHop.app" ]; then
     echo "Archive did not contain ComputeHop.app at the expected path." >&2
     exit 1
 fi
-for support_file in README.txt install.sh verify.sh verify-control-center-background.js com.computehop.daemon.plist; do
+for support_file in README.txt install.sh validate-installed.sh verify.sh verify-control-center-background.js com.computehop.daemon.plist; do
     if [ ! -f "$package_root/$support_file" ]; then
         echo "Archive support file is missing: $support_file" >&2
         exit 1
