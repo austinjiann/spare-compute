@@ -470,6 +470,7 @@ computehop setup worker --device-name "Gaming PC"
 computehop setup worker --device-name "Gaming PC" --lan-only
 computehop setup workers
 computehop setup smoke
+computehop setup launch
 computehop setup vps --connectivity-domain connect.example.com --turn-domain turn.example.com --email admin@example.com --public-ip 203.0.113.10`),
 		Args: cobra.NoArgs,
 		RunE: func(*cobra.Command, []string) error {
@@ -481,6 +482,7 @@ computehop setup vps --connectivity-domain connect.example.com --turn-domain tur
 	command.AddCommand(newSetupMacRoleCommand(stdout, device.RoleWorker))
 	command.AddCommand(newSetupWorkersCommand(stdout))
 	command.AddCommand(newSetupSmokeCommand(stdout))
+	command.AddCommand(newSetupLaunchCommand(stdout))
 	command.AddCommand(newSetupVPSCommand(stdout))
 	return command
 }
@@ -634,6 +636,27 @@ computehop setup smoke --worker-name "Austin MacBook 2"`),
 		},
 	}
 	command.Flags().StringVar(&options.workerName, "worker-name", options.workerName, "worker device name to show in copied install commands")
+	return command
+}
+
+func newSetupLaunchCommand(stdout io.Writer) *cobra.Command {
+	options := packageSmokeOptions{workerName: exampleWorkerDeviceName}
+	command := &cobra.Command{
+		Use:   "launch",
+		Short: "Print the remaining launch validation checklist",
+		Long: strings.TrimSpace(`Print the remaining launch validation checklist without requiring the daemon.
+
+Use this before trying to mark the project complete. It points each physical or
+credential-gated release item at the exact setup command and evidence file that
+should be recorded.`),
+		Example: strings.TrimSpace(`computehop setup launch
+computehop setup launch --worker-name "Austin MacBook 2"`),
+		Args: cobra.NoArgs,
+		RunE: func(*cobra.Command, []string) error {
+			return printLaunchValidationGuide(stdout, options)
+		},
+	}
+	command.Flags().StringVar(&options.workerName, "worker-name", options.workerName, "worker Mac name to show in validation commands")
 	return command
 }
 
@@ -1121,11 +1144,69 @@ func printSetupGuide(stdout io.Writer) error {
 		"",
 		"Advanced:",
 		"   computehop setup mac --role worker --device-name \"Gaming PC\" --lan-only",
+		"   computehop setup launch",
 		"   computehop setup vps",
 		"   # Use VPS/TURN only after same-LAN setup works.",
 		"",
 		"Development-only daemon:",
 		"   go run ./cmd/computehopd --role worker --device-name \"Gaming PC\"",
+	}
+	for _, line := range lines {
+		if _, err := fmt.Fprintln(stdout, line); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func printLaunchValidationGuide(stdout io.Writer, options packageSmokeOptions) error {
+	workerName := strings.TrimSpace(options.workerName)
+	if workerName == "" {
+		workerName = exampleWorkerDeviceName
+	}
+	lines := []string{
+		"ComputeHop launch validation",
+		"",
+		"Rule:",
+		"   only check off launch gates after running packaged artifacts on real machines and recording evidence in docs/RELEASE_VALIDATION.md.",
+		"",
+		"Already automated from this checkout:",
+		"   make launch-local-validation",
+		"   make release-check",
+		"   make macos-archive-smoke",
+		"   make worker-archive-smoke",
+		"",
+		"macOS packaged LAN validation:",
+		"   computehop setup smoke --worker-name " + shellArg(workerName),
+		"   # Run the printed commands on the orchestrator Mac and worker Mac.",
+		"   # Attach the printed evidence folder text files to docs/RELEASE_VALIDATION.md.",
+		"",
+		"Linux worker validation:",
+		"   computehop setup workers --target linux --device-name " + shellArg(workerName),
+		"   # Run the printed package, validator, pairing, smoke, project, cancellation, and logs checks on real Linux.",
+		"",
+		"Windows worker validation:",
+		"   computehop setup workers --target windows --device-name " + shellArg(workerName),
+		"   # Run the printed package, validator, pairing, smoke, project, cancellation, and logs checks on real Windows.",
+		"",
+		"Off-LAN validation:",
+		"   computehop setup vps --connectivity-domain connect.example.com --turn-domain turn.example.com --email admin@example.com --public-ip 203.0.113.10",
+		"   # Buy/provision the VPS, run the printed bootstrap, pair on LAN with connectivity enabled, then test direct and forced TURN paths.",
+		"",
+		"Signing and notarization:",
+		"   COMPUTEHOP_CODESIGN_IDENTITY=\"Developer ID Application: Your Name (TEAMID)\" \\",
+		"   COMPUTEHOP_NOTARY_KEYCHAIN_PROFILE=\"computehop-notary\" \\",
+		"   COMPUTEHOP_BUILD_NUMBER=1 \\",
+		"   make macos-release-archive",
+		"   # Requires real Apple Developer ID and notarization credentials.",
+		"",
+		"After each real run:",
+		"   1. paste command, commit, machine, artifact, and result details into docs/RELEASE_VALIDATION.md.",
+		"   2. update docs/LAUNCH_CHECKLIST.md only for gates backed by that evidence.",
+		"   3. keep failed runs as notes; do not silently check them off.",
+		"",
+		"Cannot be completed from one Mac:",
+		"   second-Mac worker install, Linux worker, Windows worker, off-LAN VPS path, Developer ID notarization, and clean-machine release validation.",
 	}
 	for _, line := range lines {
 		if _, err := fmt.Fprintln(stdout, line); err != nil {
@@ -1363,26 +1444,47 @@ func printPackageSmokeGuide(stdout io.Writer, options packageSmokeOptions) error
 		"   # worker",
 		"   computehop connect confirm",
 		"",
-		"4. Prove CLI remote execution and logs:",
-		"   computehop smoke",
-		"   computehop run --on auto --no-project --follow hostname",
+		"4. Start an evidence folder on the orchestrator Mac:",
+		"   smoke_evidence_dir=\"${TMPDIR:-/tmp}/computehop-smoke-$(date +%Y%m%d-%H%M%S)\"",
+		"   mkdir -p \"$smoke_evidence_dir\"",
+		"   computehop status | tee \"$smoke_evidence_dir/orchestrator-status.txt\"",
+		"   computehop devices | tee \"$smoke_evidence_dir/devices-before.txt\"",
 		"",
-		"5. Prove Control Center direct-run recovery:",
+		"5. Prove CLI remote execution and reconnectable logs:",
+		"   computehop smoke | tee \"$smoke_evidence_dir/smoke.txt\"",
+		"   hostname_job=$(computehop run --on auto --no-project hostname | tee \"$smoke_evidence_dir/hostname-submit.txt\" | awk '/^Submitted / {print $2; exit}')",
+		"   computehop logs --follow \"$hostname_job\" | tee \"$smoke_evidence_dir/hostname-logs.txt\"",
+		"",
+		"6. Prove cancellation:",
+		"   cancel_job=$(computehop run --on auto --no-project /bin/sleep 3600 | tee \"$smoke_evidence_dir/cancel-submit.txt\" | awk '/^Submitted / {print $2; exit}')",
+		"   computehop cancel \"$cancel_job\" | tee \"$smoke_evidence_dir/cancel.txt\"",
+		"   computehop jobs --on auto | tee \"$smoke_evidence_dir/jobs-after-cancel.txt\"",
+		"",
+		"7. Prove worker daemon restart while a job is running:",
+		"   restart_job=$(computehop run --on auto --no-project /bin/sleep 45 | tee \"$smoke_evidence_dir/restart-submit.txt\" | awk '/^Submitted / {print $2; exit}')",
+		"   # On the worker Mac, restart the packaged daemon:",
+		"   launchctl kickstart -k \"gui/$(id -u)/com.computehop.daemon\"",
+		"   # Back on the orchestrator Mac:",
+		"   computehop logs --follow \"$restart_job\" | tee \"$smoke_evidence_dir/restart-logs.txt\"",
+		"   computehop jobs --on auto | tee \"$smoke_evidence_dir/jobs-after-restart.txt\"",
+		"",
+		"8. Prove Control Center direct-run recovery and app restart:",
 		"   # On the orchestrator Mac, open ComputeHop Control Center.",
 		"   # Enter: run hostname on the other computer",
 		"   # Click Run. If the worker is not connected yet, Run should start Connect.",
 		"   # Confirm the same pairing code on both Macs; the task should resume on the worker.",
 		"   # The job output should print the worker hostname.",
+		"   # Quit and reopen the Control Center, then confirm the recent job still shows logs.",
 		"",
-		"6. Prove cancellation:",
-		"   computehop run --on auto --no-project /bin/sleep 3600",
-		"   computehop cancel <job-id>",
-		"   computehop jobs --on auto",
+		"9. Prove project transfer and returned outputs from a project folder:",
+		"   computehop run --on auto -C /path/to/project -o smoke-output.txt --follow --get /bin/sh -c 'printf ok > smoke-output.txt' | tee \"$smoke_evidence_dir/project-output.txt\"",
 		"",
-		"7. Prove project transfer and returned outputs from a project folder:",
-		"   computehop run --on auto -C /path/to/project -o smoke-output.txt --follow --get /bin/sh -c 'printf ok > smoke-output.txt'",
+		"10. Capture final state:",
+		"   computehop devices | tee \"$smoke_evidence_dir/devices-after.txt\"",
+		"   computehop jobs --on auto | tee \"$smoke_evidence_dir/jobs-final.txt\"",
+		"   echo \"Evidence: $smoke_evidence_dir\"",
 		"",
-		"8. If something fails:",
+		"11. If something fails:",
 		"   computehop doctor",
 		"   computehop devices",
 		"   tail -n 100 ~/Library/Logs/ComputeHop/daemon.log",
