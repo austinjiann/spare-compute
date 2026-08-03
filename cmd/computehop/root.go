@@ -617,6 +617,7 @@ computehop setup vps --connectivity-domain connect.example.com --turn-domain tur
 }
 
 func newSetupSmokeCommand(stdout io.Writer) *cobra.Command {
+	options := packageSmokeOptions{workerName: exampleWorkerDeviceName}
 	command := &cobra.Command{
 		Use:   "smoke",
 		Short: "Print the two-Mac package smoke checklist",
@@ -625,12 +626,14 @@ func newSetupSmokeCommand(stdout io.Writer) *cobra.Command {
 Use this after changing packaging, install, pairing, run submission, logs, or
 artifacts. The checklist starts LAN-only so the packaged path is proven before
 advanced cross-network connectivity is added.`),
-		Example: "computehop setup smoke",
-		Args:    cobra.NoArgs,
+		Example: strings.TrimSpace(`computehop setup smoke
+computehop setup smoke --worker-name "Austin MacBook 2"`),
+		Args: cobra.NoArgs,
 		RunE: func(*cobra.Command, []string) error {
-			return printPackageSmokeGuide(stdout)
+			return printPackageSmokeGuide(stdout, options)
 		},
 	}
+	command.Flags().StringVar(&options.workerName, "worker-name", options.workerName, "worker device name to show in copied install commands")
 	return command
 }
 
@@ -650,6 +653,10 @@ type vpsSetupOptions struct {
 	turnDomain         string
 	email              string
 	publicIP           string
+}
+
+type packageSmokeOptions struct {
+	workerName string
 }
 
 type workerPackageSetupOptions struct {
@@ -1316,7 +1323,12 @@ func printMacSetupGuide(stdout io.Writer, options macSetupOptions) error {
 	return nil
 }
 
-func printPackageSmokeGuide(stdout io.Writer) error {
+func printPackageSmokeGuide(stdout io.Writer, options packageSmokeOptions) error {
+	workerName := strings.TrimSpace(options.workerName)
+	if workerName == "" {
+		workerName = exampleWorkerDeviceName
+	}
+	escapedWorkerName := shellArg(workerName)
 	lines := []string{
 		"ComputeHop two-Mac package smoke",
 		"",
@@ -1340,9 +1352,9 @@ func printPackageSmokeGuide(stdout io.Writer) error {
 		"   shasum -a 256 -c ComputeHop-macos.zip.sha256",
 		"   ditto -x -k ComputeHop-macos.zip .",
 		"   cd ComputeHop-macos",
-		"   ./install.sh --check --role worker --device-name 'Gaming PC' --lan-only",
-		"   ./install.sh --role worker --device-name 'Gaming PC' --lan-only",
-		"   ./validate-installed.sh --role worker --device-name 'Gaming PC' --lan-only",
+		"   ./install.sh --check --role worker --device-name " + escapedWorkerName + " --lan-only",
+		"   ./install.sh --role worker --device-name " + escapedWorkerName + " --lan-only",
+		"   ./validate-installed.sh --role worker --device-name " + escapedWorkerName + " --lan-only",
 		"",
 		"3. Pair while both Macs are on the same LAN:",
 		"   # orchestrator",
