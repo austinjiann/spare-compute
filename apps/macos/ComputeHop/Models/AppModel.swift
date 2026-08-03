@@ -322,13 +322,7 @@ final class AppModel {
     }
 
     var diagnosticsCommandBundle: String {
-        [
-            "computehop status",
-            "computehop devices",
-            "computehop connect",
-            "computehop jobs --limit 10",
-            "computehop doctor",
-        ].joined(separator: "\n")
+        "computehop diagnostics"
     }
 
     var runCommandCopyValue: String? {

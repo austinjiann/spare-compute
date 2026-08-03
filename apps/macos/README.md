@@ -30,8 +30,8 @@ job-completion notifications for observed running jobs, cancellation, declared
 output paths, plain-language task planning that maps CI/check requests to
 repository validation targets such as `make pr-check`, empty-jobs hints, a
 persisted notification setting, copyable
-diagnostic commands for setup/connect troubleshooting, configurable worker setup
-and VPS defaults for generated install commands, and
+`computehop diagnostics` redacted support-bundle command, configurable worker
+setup and VPS defaults for generated install commands, and
 conflict-safe artifact restoration through a native destination picker. Output
 retrieval errors explain not-ready, missing, and undeclared outputs instead of
 showing raw daemon messages. When Run is disabled, the menu explains whether

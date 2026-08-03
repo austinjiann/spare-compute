@@ -204,19 +204,13 @@ func copyRunCommandCopiesCurrentCLICommand() {
 
 @Test
 @MainActor
-func copyDiagnosticsCommandBundleCopiesSetupAndConnectivityCommands() {
+func copyDiagnosticsCommandBundleCopiesDiagnosticsCommand() {
     let model = AppModel(client: RecordingDaemonClient())
     let clipboard = RecordingClipboard()
 
     model.copyDiagnosticsCommandBundle(to: clipboard)
 
-    #expect(clipboard.value == """
-    computehop status
-    computehop devices
-    computehop connect
-    computehop jobs --limit 10
-    computehop doctor
-    """)
+    #expect(clipboard.value == "computehop diagnostics")
 }
 
 @Test
