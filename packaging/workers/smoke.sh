@@ -17,13 +17,19 @@ mkdir -p "$package_dir/bin" "$fake_bin" "$data_home" "$config_home"
 
 cp "$script_dir/linux/install-systemd-user.sh" "$package_dir/install-systemd-user.sh"
 cp "$script_dir/linux/run-worker.sh" "$package_dir/run-worker.sh"
-chmod 755 "$package_dir/install-systemd-user.sh" "$package_dir/run-worker.sh"
+cp "$script_dir/linux/validate-installed-worker.sh" "$package_dir/validate-installed-worker.sh"
+chmod 755 "$package_dir/install-systemd-user.sh" "$package_dir/run-worker.sh" "$package_dir/validate-installed-worker.sh"
 
 for binary in computehop computehopd; do
-    {
-        printf '#!/bin/sh\n'
-        printf 'exit 0\n'
-    } >"$package_dir/bin/$binary"
+{
+    printf '#!/bin/sh\n'
+    printf 'case "$1" in\n'
+    printf '  version) exit 0 ;;\n'
+    printf '  status) printf "computehopd dev ready\\nDevice: Smoke Worker (worker, abcdefgh)\\n"; exit 0 ;;\n'
+    printf '  doctor) exit 0 ;;\n'
+    printf '  *) exit 0 ;;\n'
+    printf 'esac\n'
+} >"$package_dir/bin/$binary"
     chmod 755 "$package_dir/bin/$binary"
 done
 
@@ -35,7 +41,10 @@ chmod 755 "$fake_bin/uname"
 
 {
     printf '#!/bin/sh\n'
-    printf 'exit 0\n'
+    printf 'case "$2" in\n'
+    printf '  is-enabled|is-active) exit 0 ;;\n'
+    printf '  *) exit 0 ;;\n'
+    printf 'esac\n'
 } >"$fake_bin/systemctl"
 chmod 755 "$fake_bin/systemctl"
 
@@ -101,5 +110,36 @@ if [ -e "$config_home/systemd" ]; then
     echo "Linux worker --check wrote systemd files." >&2
     exit 1
 fi
+
+install_dir="$data_home/computehop/worker"
+service_dir="$config_home/systemd/user"
+service_file="$service_dir/computehop-worker.service"
+mkdir -p "$install_dir/bin" "$service_dir"
+cp "$package_dir/bin/computehop" "$install_dir/bin/computehop"
+cp "$package_dir/bin/computehopd" "$install_dir/bin/computehopd"
+cp "$package_dir/run-worker.sh" "$install_dir/run-worker.sh"
+{
+    printf '#!/bin/sh\n'
+    printf 'exec "%s/run-worker.sh" --lan-only\n' "$install_dir"
+} >"$install_dir/run-installed-worker.sh"
+chmod 755 "$install_dir/bin/computehop" "$install_dir/bin/computehopd" \
+    "$install_dir/run-worker.sh" "$install_dir/run-installed-worker.sh"
+cat >"$service_file" <<EOF
+[Unit]
+Description=ComputeHop worker
+
+[Service]
+Environment="COMPUTEHOP_DEVICE_NAME=Smoke Worker"
+ExecStart="$install_dir/run-installed-worker.sh"
+EOF
+
+validate_output=$(
+    PATH="$fake_bin:$PATH" \
+    HOME="$workspace_dir/home" \
+    XDG_DATA_HOME="$data_home" \
+    XDG_CONFIG_HOME="$config_home" \
+    "$package_dir/validate-installed-worker.sh" --device-name "Smoke Worker" --lan-only 2>&1
+)
+printf '%s\n' "$validate_output" | grep -q "Installed ComputeHop worker validation passed."
 
 echo "Worker package smoke passed."

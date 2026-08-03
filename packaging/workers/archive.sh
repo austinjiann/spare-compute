@@ -162,7 +162,9 @@ for target in $targets; do
         linux)
             cp "$script_dir/linux/run-worker.sh" "$package_dir/run-worker.sh"
             cp "$script_dir/linux/install-systemd-user.sh" "$package_dir/install-systemd-user.sh"
+            cp "$script_dir/linux/validate-installed-worker.sh" "$package_dir/validate-installed-worker.sh"
             chmod +x "$package_dir/run-worker.sh" "$package_dir/install-systemd-user.sh" \
+                "$package_dir/validate-installed-worker.sh" \
                 "$package_dir/bin/computehop" "$package_dir/bin/computehopd"
             archive_name="$package_name.tar.gz"
             archive_path="$output_dir/$archive_name"
@@ -175,6 +177,7 @@ for target in $targets; do
         windows)
             cp "$script_dir/windows/run-worker.ps1" "$package_dir/run-worker.ps1"
             cp "$script_dir/windows/install-scheduled-task.ps1" "$package_dir/install-scheduled-task.ps1"
+            cp "$script_dir/windows/validate-installed-worker.ps1" "$package_dir/validate-installed-worker.ps1"
             archive_name="$package_name.zip"
             archive_path="$output_dir/$archive_name"
             rm -f -- "$archive_path" "$archive_path.sha256"

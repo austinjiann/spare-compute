@@ -159,7 +159,9 @@ verify_linux_archive() {
     verify_executable "$root/bin/computehopd"
     verify_executable "$root/run-worker.sh"
     verify_executable "$root/install-systemd-user.sh"
+    verify_executable "$root/validate-installed-worker.sh"
     verify_file_mentions "$root/install-systemd-user.sh" "Worker install check passed"
+    verify_file_mentions "$root/validate-installed-worker.sh" "Installed ComputeHop worker validation passed"
     verify_go_binary "$root/bin/computehop"
     verify_go_binary "$root/bin/computehopd"
 }
@@ -186,7 +188,9 @@ verify_windows_archive() {
     verify_present "$root/bin/computehopd.exe"
     verify_present "$root/run-worker.ps1"
     verify_present "$root/install-scheduled-task.ps1"
+    verify_present "$root/validate-installed-worker.ps1"
     verify_file_mentions "$root/install-scheduled-task.ps1" "Worker install check passed"
+    verify_file_mentions "$root/validate-installed-worker.ps1" "Installed ComputeHop worker validation passed"
     verify_go_binary "$root/bin/computehop.exe"
     verify_go_binary "$root/bin/computehopd.exe"
 }

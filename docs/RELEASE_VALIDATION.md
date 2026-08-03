@@ -171,6 +171,44 @@ Notes:
   by archive smoke; it does not prove a physical packaged install until the
   validator is run on an installed artifact.
 
+## 2026-08-03 worker installed-state validators
+
+Validation source:
+
+- branch: `agent/worker-installed-validators`;
+- Linux and Windows validators are bundled into worker archives next to the
+  installer scripts.
+
+Environment:
+
+- macOS 26.4, Darwin 25.4.0, arm64
+- Go 1.26.5 darwin/arm64
+- Node.js 26.5.0
+- Docker 29.4.3
+
+Commands:
+
+```bash
+make worker-archives-check
+make pr-check
+```
+
+Expected validator coverage after real worker installs:
+
+- copied worker CLI/daemon/runner files;
+- Linux systemd user service or Windows scheduled task definition;
+- login service enabled/running state;
+- expected worker device name and LAN-only/remote mode;
+- packaged CLI version, daemon status, and doctor checks.
+
+Notes:
+
+- Linux validator behavior is covered by the worker smoke test using a fake
+  systemd environment and fake installed worker files;
+- Windows validator is bundled and structurally verified from macOS, but must be
+  run on a real Windows worker before checking the Windows physical validation
+  gates.
+
 ## 2026-08-03 clean-checkout artifact build
 
 Commit validated:
