@@ -2310,6 +2310,33 @@ func TestSetupSmokeCommandPrintsPackageChecklistWithoutDaemon(t *testing.T) {
 	}
 }
 
+func TestSetupSmokeCommandSupportsCustomWorkerName(t *testing.T) {
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			t.Fatal("setup smoke should not require a daemon client")
+			return nil, nil
+		},
+	})
+	command.SetArgs([]string{"setup", "smoke", "--worker-name", "Austin MacBook 2"})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	for _, want := range []string{
+		"./install.sh --check --role worker --device-name 'Austin MacBook 2' --lan-only",
+		"./install.sh --role worker --device-name 'Austin MacBook 2' --lan-only",
+		"./validate-installed.sh --role worker --device-name 'Austin MacBook 2' --lan-only",
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
+		}
+	}
+	if strings.Contains(stdout.String(), "'Gaming PC'") {
+		t.Fatalf("stdout %q unexpectedly contains default worker name", stdout.String())
+	}
+}
+
 func TestSetupMacCommandPrintsDefaultOrchestratorInstallWithoutDaemon(t *testing.T) {
 	var stdout bytes.Buffer
 	command := newRootCommand(dependencies{

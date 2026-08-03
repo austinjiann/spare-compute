@@ -115,6 +115,7 @@ Print the full two-Mac LAN package smoke checklist:
 
 ```bash
 computehop setup smoke
+computehop setup smoke --worker-name "Austin MacBook 2"
 ```
 
 For a named worker Mac:
