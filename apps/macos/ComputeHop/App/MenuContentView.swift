@@ -38,8 +38,11 @@ struct MenuContentView: View {
 
     private var header: some View {
         HStack(spacing: 8) {
-            Image(systemName: model.isConnected ? "cpu" : "exclamationmark.triangle")
-                .foregroundStyle(model.isConnected ? Color.primary : Color.orange)
+            BrandSymbol.view
+                .resizable()
+                .scaledToFit()
+                .frame(width: 16, height: 16)
+                .foregroundStyle(.primary)
             VStack(alignment: .leading, spacing: 1) {
                 Text("ComputeHop")
                     .font(.headline)
