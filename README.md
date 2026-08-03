@@ -132,7 +132,12 @@ make macos-archive
   required-tool hints through submission. Remote submission avoids workers that
   explicitly report any planned required tool or command executable is missing
   before uploading a project. ComputeHop does not install missing tools.
-- Native execution is implemented; container/sandbox execution is future work.
+- Native execution is implemented. Container execution is available only on
+  workers that advertise a Docker- or Podman-compatible Engine API, and those
+  workers pull missing images before starting container jobs. ComputeHop does
+  not install or manage Docker/Podman, Linux VMs, GPU drivers, images, or
+  private registry credentials. Container execution is still not the public
+  default sandbox/security boundary.
 - LAN pairing/discovery is the default path. VPS/relay setup exists for staging
   but still needs production validation.
 - GitHub Actions may fail before runner startup if the repository owner's
