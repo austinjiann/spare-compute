@@ -147,6 +147,11 @@ public default security boundary. ComputeHop does not install Docker/Podman,
 manage Linux VMs, manage GPU drivers, manage private registry credentials, or
 promise container escape protection.
 
+The public policy is documented in [`CONTAINER_POLICY.md`](CONTAINER_POLICY.md):
+native execution remains the default, container jobs require an explicit
+container executor request and image, and private registry credentials stay on
+the worker's local Docker/Podman configuration.
+
 ## AI planner
 
 The AI planner is optional. Without an API key, ComputeHop still handles common
@@ -186,4 +191,3 @@ ComputeHop does not currently provide:
 - signed/notarized public release artifacts.
 
 These are launch and post-launch security work, not hidden features.
-

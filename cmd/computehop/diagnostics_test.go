@@ -146,6 +146,7 @@ func TestDiagnosticsCommandWritesRedactedBundle(t *testing.T) {
 		"public-key-is-omitted",
 		"peer-public-key-is-omitted",
 		"192.168.1.50",
+		"registry.example.com/app:latest",
 	} {
 		if strings.Contains(all, leaked) {
 			t.Fatalf("diagnostics leaked %q in:\n%s", leaked, all)
@@ -156,6 +157,7 @@ func TestDiagnosticsCommandWritesRedactedBundle(t *testing.T) {
 		"Device name: Austin MacBook",
 		"connectivity error: turn-password [redacted]",
 		"command: deploy --token [redacted] --target staging",
+		"container image: omitted",
 		"environment: omitted (1 values)",
 		"failure message: password=[redacted] failed",
 		"Raw job logs are omitted",

@@ -137,7 +137,8 @@ make macos-archive
   workers pull missing images before starting container jobs. ComputeHop does
   not install or manage Docker/Podman, Linux VMs, GPU drivers, images, or
   private registry credentials. Container execution is still not the public
-  default sandbox/security boundary.
+  default sandbox/security boundary; see the
+  [container policy](docs/CONTAINER_POLICY.md).
 - LAN pairing/discovery is the default path. VPS/relay setup exists for staging
   but still needs production validation.
 - GitHub Actions may fail before runner startup if the repository owner's
@@ -192,6 +193,7 @@ Use `--output path/to/file.zip` to choose the destination.
 - [Launch checklist](docs/LAUNCH_CHECKLIST.md)
 - [Release process](docs/RELEASE.md)
 - [Security model](docs/SECURITY.md)
+- [Container policy](docs/CONTAINER_POLICY.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
 - [Control Center](apps/control-center/README.md)
 - [macOS app](apps/macos/README.md)

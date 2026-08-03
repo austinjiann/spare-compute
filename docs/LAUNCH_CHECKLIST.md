@@ -116,7 +116,7 @@ Goal: a non-contributor can install, understand, trust, and recover ComputeHop.
 - [x] Add redacted diagnostics bundle collection for daemon, device, pairing,
   and recent job metadata.
 - [ ] Add crash report collection/redaction for packaged app failures.
-- [ ] Decide the policy for container execution, private registries, and
+- [x] Decide the policy for container execution, private registries, and
   sandboxing before exposing container tasks as a public default.
 - [ ] Decide whether the hosted connectivity service is operated by the project,
   self-hosted by users, or both.
