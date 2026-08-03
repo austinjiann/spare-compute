@@ -186,6 +186,8 @@ computehop diagnostics
 ```
 
 Use `--output path/to/file.zip` to choose the destination.
+On macOS, diagnostics also include redacted summaries of recent ComputeHop crash
+reports when packaged app crash reports are present.
 
 ## Documentation
 

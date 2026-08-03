@@ -11,7 +11,30 @@ computehop diagnostics
 
 Review the generated zip before sharing it. It intentionally omits raw logs,
 keys, pairing codes, network addresses, environment values, project files,
-artifacts, and database files.
+artifacts, database files, and full crash report stack dumps. On macOS, it
+includes redacted summaries of recent ComputeHop crash reports when present.
+
+## App crash or Control Center crash
+
+Symptom:
+
+- The packaged app disappears.
+- The Control Center window closes unexpectedly.
+- macOS says ComputeHop quit unexpectedly.
+
+What to do:
+
+1. Reopen ComputeHop.
+2. Write a diagnostics bundle:
+
+   ```bash
+   computehop diagnostics
+   ```
+
+3. Review the zip before sharing it.
+
+The diagnostics bundle includes recent matching macOS crash-report summaries
+for ComputeHop components, but omits full stack dumps by default.
 
 ## Basic health checks
 
@@ -302,4 +325,3 @@ computehop disconnect <device>
 ```
 
 Then put both devices on the same LAN and pair again.
-

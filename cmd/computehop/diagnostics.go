@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -35,7 +37,8 @@ func newDiagnosticsCommand(
 The bundle uses the authenticated local daemon API when possible. It includes
 daemon status, device summaries, pending pairing states, and recent job
 metadata. It intentionally omits raw logs, public keys, pairing verification
-codes, network addresses, environment values, and local IPC tokens.`),
+codes, network addresses, environment values, local IPC tokens, and full crash
+report stack dumps.`),
 		Example: strings.TrimSpace(`computehop diagnostics
 computehop diagnostics --output ~/Desktop/computehop-diagnostics.zip`),
 		Args: cobra.NoArgs,
@@ -128,9 +131,11 @@ writing, but review it before sharing.
 Included:
 - CLI and daemon status.
 - Device, pairing, and recent job metadata.
+- Recent packaged-app crash report summaries when available.
 
 Not included:
 - Raw job stdout/stderr logs.
+- Full crash report text or stack dumps.
 - Public keys, pairing verification codes, network addresses, local IPC tokens,
   environment values, project files, artifacts, or database files.`),
 		},
@@ -143,6 +148,7 @@ Not included:
 			),
 		},
 	}
+	sections = append(sections, collectCrashDiagnosticSection())
 
 	client, err := clientForCommand()
 	if err != nil {
@@ -181,6 +187,190 @@ Not included:
 		formatDiagnosticJobs,
 	))
 	return sections
+}
+
+const (
+	maximumCrashReports          = 5
+	maximumCrashReportReadBytes  = 256 * 1024
+	crashReportDirectoryOverride = "COMPUTEHOP_CRASH_REPORT_DIR"
+)
+
+type crashReportCandidate struct {
+	path    string
+	name    string
+	size    int64
+	modTime time.Time
+}
+
+func collectCrashDiagnosticSection() diagnosticSection {
+	directories := crashReportDirectories()
+	var builder strings.Builder
+	if len(directories) == 0 {
+		builder.WriteString("Crash report scan: skipped on this platform\n")
+		return diagnosticSection{name: "app/crash-reports.txt", body: builder.String()}
+	}
+
+	builder.WriteString("Crash report scan: enabled\n")
+	for _, directory := range directories {
+		fmt.Fprintf(&builder, "Directory: %s\n", directory)
+	}
+
+	reports := findCrashReports(directories)
+	fmt.Fprintf(&builder, "Reports found: %d\n", len(reports))
+	if len(reports) == 0 {
+		builder.WriteString("\nNo recent ComputeHop crash reports found.\n")
+		return diagnosticSection{name: "app/crash-reports.txt", body: builder.String()}
+	}
+
+	if len(reports) > maximumCrashReports {
+		reports = reports[:maximumCrashReports]
+	}
+	for index, report := range reports {
+		fmt.Fprintf(&builder, "\nReport %d:\n", index+1)
+		fmt.Fprintf(&builder, "  component: %s\n", crashReportComponent(report.name))
+		fmt.Fprintf(&builder, "  format: %s\n", strings.TrimPrefix(filepath.Ext(report.name), "."))
+		fmt.Fprintf(&builder, "  modified: %s\n", report.modTime.UTC().Format(time.RFC3339))
+		fmt.Fprintf(&builder, "  size bytes: %d\n", report.size)
+		summary := crashReportSummary(report.path)
+		if summary == "" {
+			builder.WriteString("  summary: no standard summary lines found; full crash text omitted\n")
+			continue
+		}
+		builder.WriteString("  summary:\n")
+		for _, line := range strings.Split(summary, "\n") {
+			if strings.TrimSpace(line) != "" {
+				fmt.Fprintf(&builder, "    %s\n", line)
+			}
+		}
+	}
+	builder.WriteString("\nFull crash report text and stack dumps are omitted by default.\n")
+	return diagnosticSection{name: "app/crash-reports.txt", body: builder.String()}
+}
+
+func crashReportDirectories() []string {
+	if override := strings.TrimSpace(os.Getenv(crashReportDirectoryOverride)); override != "" {
+		return []string{override}
+	}
+	if runtime.GOOS != "darwin" {
+		return nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil || strings.TrimSpace(home) == "" {
+		return nil
+	}
+	return []string{
+		filepath.Join(home, "Library", "Logs", "DiagnosticReports"),
+		filepath.Join(home, "Library", "Logs", "CrashReporter"),
+	}
+}
+
+func findCrashReports(directories []string) []crashReportCandidate {
+	var reports []crashReportCandidate
+	seen := make(map[string]struct{})
+	for _, directory := range directories {
+		entries, err := os.ReadDir(directory)
+		if err != nil {
+			continue
+		}
+		for _, entry := range entries {
+			if entry.IsDir() || !isComputeHopCrashReportName(entry.Name()) {
+				continue
+			}
+			path := filepath.Join(directory, entry.Name())
+			if _, ok := seen[path]; ok {
+				continue
+			}
+			info, err := entry.Info()
+			if err != nil || !info.Mode().IsRegular() {
+				continue
+			}
+			seen[path] = struct{}{}
+			reports = append(reports, crashReportCandidate{
+				path:    path,
+				name:    entry.Name(),
+				size:    info.Size(),
+				modTime: info.ModTime(),
+			})
+		}
+	}
+	sort.Slice(reports, func(left, right int) bool {
+		if !reports[left].modTime.Equal(reports[right].modTime) {
+			return reports[left].modTime.After(reports[right].modTime)
+		}
+		return reports[left].name < reports[right].name
+	})
+	return reports
+}
+
+func isComputeHopCrashReportName(name string) bool {
+	lower := strings.ToLower(strings.TrimSpace(name))
+	if !(strings.HasPrefix(lower, "computehop") || strings.HasPrefix(lower, "compute hop")) {
+		return false
+	}
+	return strings.HasSuffix(lower, ".crash") ||
+		strings.HasSuffix(lower, ".ips") ||
+		strings.HasSuffix(lower, ".diag")
+}
+
+func crashReportComponent(name string) string {
+	lower := strings.ToLower(name)
+	switch {
+	case strings.Contains(lower, "control center"):
+		return "ComputeHop Control Center"
+	case strings.HasPrefix(lower, "computehopd"):
+		return "computehopd"
+	case strings.HasPrefix(lower, "computehop"):
+		return "ComputeHop"
+	default:
+		return "ComputeHop component"
+	}
+}
+
+func crashReportSummary(path string) string {
+	file, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer file.Close()
+	data, err := io.ReadAll(io.LimitReader(file, maximumCrashReportReadBytes))
+	if err != nil {
+		return ""
+	}
+	var lines []string
+	for _, line := range strings.Split(string(data), "\n") {
+		cleaned := strings.TrimRight(line, "\r")
+		if crashReportSummaryLine(cleaned) {
+			lines = append(lines, strings.TrimSpace(cleaned))
+		}
+		if len(lines) >= 24 {
+			break
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+func crashReportSummaryLine(line string) bool {
+	line = strings.TrimSpace(line)
+	for _, prefix := range []string{
+		"Process:",
+		"Identifier:",
+		"Version:",
+		"Code Type:",
+		"Date/Time:",
+		"OS Version:",
+		"Crashed Thread:",
+		"Triggered by Thread:",
+		"Exception Type:",
+		"Exception Codes:",
+		"Exception Note:",
+		"Termination Reason:",
+		"Application Specific Information:",
+	} {
+		if strings.HasPrefix(line, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func collectDaemonDiagnosticSection(
