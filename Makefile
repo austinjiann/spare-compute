@@ -1,4 +1,4 @@
-.PHONY: check control-center-check control-center-deps deploy-check fmt install-macos install-macos-check macos-archive macos-archive-smoke macos-package macos-package-check pr-check proto proto-check proto-lint race release-check release-version-check test uninstall-macos vet worker-archives worker-archives-check
+.PHONY: check control-center-check control-center-deps deploy-check fmt install-macos install-macos-check launch-local-validation macos-archive macos-archive-smoke macos-package macos-package-check pr-check proto proto-check proto-lint race release-check release-version-check test uninstall-macos vet worker-archives worker-archives-check
 
 BUF_VERSION := v1.72.0
 
@@ -7,6 +7,9 @@ check: fmt proto-check proto-lint vet test race control-center-check
 pr-check: fmt release-version-check proto-check proto-lint vet test control-center-check deploy-check worker-archives-check
 
 release-check: pr-check macos-archive-smoke worker-archives
+
+launch-local-validation: control-center-deps
+	scripts/local-launch-validation.sh
 
 release-version-check:
 	node scripts/check-release-version.js
