@@ -101,15 +101,15 @@ Goal: a non-contributor can install, understand, trust, and recover ComputeHop.
 - [ ] Add release versioning and changelog process.
 - [ ] Run full clean-machine validation for every release artifact.
 - [ ] Add public-facing setup docs with screenshots.
-- [ ] Add troubleshooting docs for:
-  - [ ] daemon already running.
-  - [ ] duplicate devices.
-  - [ ] pairing code mismatch.
-  - [ ] worker offline.
-  - [ ] missing tools.
-  - [ ] project upload failure.
-  - [ ] output restore conflicts.
-  - [ ] CI blocked by GitHub Actions billing.
+- [x] Add troubleshooting docs for:
+  - [x] daemon already running.
+  - [x] duplicate devices.
+  - [x] pairing code mismatch.
+  - [x] worker offline.
+  - [x] missing tools.
+  - [x] project upload failure.
+  - [x] output restore conflicts.
+  - [x] CI blocked by GitHub Actions billing.
 - [x] Add security docs that explain the pairing trust boundary and command
   execution risk in plain language.
 - [x] Add clear UI affordances for revoking a trusted worker.

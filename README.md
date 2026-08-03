@@ -191,6 +191,7 @@ Use `--output path/to/file.zip` to choose the destination.
 - [Detailed plan](docs/PLAN.md)
 - [Launch checklist](docs/LAUNCH_CHECKLIST.md)
 - [Security model](docs/SECURITY.md)
+- [Troubleshooting](docs/TROUBLESHOOTING.md)
 - [Control Center](apps/control-center/README.md)
 - [macOS app](apps/macos/README.md)
 - [Packaging](packaging/README.md)
