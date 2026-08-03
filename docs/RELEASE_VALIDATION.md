@@ -209,6 +209,45 @@ Notes:
   run on a real Windows worker before checking the Windows physical validation
   gates.
 
+## 2026-08-03 macOS uninstall dry-run validation
+
+Validation source:
+
+- branch: `agent/macos-uninstall-check`;
+- the macOS archive bundles `uninstall.sh` next to `install.sh`;
+- archive smoke exercises `uninstall.sh --check` against an isolated fake
+  installed app, CLI link, and LaunchAgent.
+
+Environment:
+
+- macOS 26.4, Darwin 25.4.0, arm64
+- Go 1.26.5 darwin/arm64
+- Node.js 26.5.0
+- Swift 6.3.3, arm64-apple-macosx26.0 target
+
+Commands:
+
+```bash
+packaging/macos/uninstall.sh --check
+make uninstall-macos-check
+make macos-archive-smoke
+make pr-check
+```
+
+Result:
+
+- standalone uninstall dry-run passed without touching the current account;
+- macOS archive smoke verified the copied archive includes `uninstall.sh`;
+- smoke created a fake installed app, CLI symlink, and LaunchAgent, then
+  confirmed `uninstall.sh --check` reported the expected removals while leaving
+  all fake installed files intact.
+
+Notes:
+
+- this proves the non-destructive validation path and archive contents;
+- a real clean-machine uninstall still must be run before checking the physical
+  uninstall launch gate.
+
 ## 2026-08-03 clean-checkout artifact build
 
 Commit validated:

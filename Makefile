@@ -1,4 +1,4 @@
-.PHONY: check control-center-check control-center-deps deploy-check fmt install-macos install-macos-check launch-local-validation macos-archive macos-archive-smoke macos-notarize macos-package macos-package-check macos-release-archive pr-check proto proto-check proto-lint race release-check release-version-check test uninstall-macos vet worker-archives worker-archives-check
+.PHONY: check control-center-check control-center-deps deploy-check fmt install-macos install-macos-check launch-local-validation macos-archive macos-archive-smoke macos-notarize macos-package macos-package-check macos-release-archive pr-check proto proto-check proto-lint race release-check release-version-check test uninstall-macos uninstall-macos-check vet worker-archives worker-archives-check
 
 BUF_VERSION := v1.72.0
 
@@ -132,3 +132,6 @@ install-macos-check:
 
 uninstall-macos:
 	packaging/macos/uninstall.sh
+
+uninstall-macos-check:
+	packaging/macos/uninstall.sh --check
