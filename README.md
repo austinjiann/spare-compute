@@ -164,6 +164,7 @@ swift test
 ## Documentation
 
 - [Detailed plan](docs/PLAN.md)
+- [Launch checklist](docs/LAUNCH_CHECKLIST.md)
 - [Control Center](apps/control-center/README.md)
 - [macOS app](apps/macos/README.md)
 - [Packaging](packaging/README.md)
