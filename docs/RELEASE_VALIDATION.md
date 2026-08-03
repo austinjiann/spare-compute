@@ -4,6 +4,32 @@ This document records concrete validation runs for release-gate checklist items.
 Each entry should name the exact commit, environment, commands, and artifacts so
 the checklist does not depend on memory or local terminal scrollback.
 
+## 2026-08-03 local launch validation command
+
+Command:
+
+```bash
+make launch-local-validation
+```
+
+Coverage:
+
+- CLI device, setup, connect, disconnect, doctor, and run guidance for duplicate
+  devices, stale/offline devices, first-run setup, and recovery messages;
+- project snapshot `.gitignore` and `.computehopignore` behavior;
+- default exclusions for `.env`, private keys, dependency folders, build output
+  folders, and caches;
+- declared output path safety and conflict-prone reserved path rejection;
+- remote pre-submit rejection when selected workers report missing tools or an
+  unsupported executor before project upload;
+- Control Center device mapping, worker readiness, missing-tool messaging,
+  launch-agent setup behavior, task planning, output validation, and generated
+  setup-guide screenshots;
+- Control Center npm dependency audit.
+
+This command supports launch readiness and keeps evidence reproducible. It does
+not replace physical packaged-app validation on separate machines.
+
 ## 2026-08-03 clean-checkout artifact build
 
 Commit validated:

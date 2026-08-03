@@ -24,6 +24,8 @@ Goal: prove the core architecture from a source checkout.
   planner settings, run tasks, inspect jobs, cancel, and restore outputs.
 - [x] Automated Go, Swift, Control Center, packaging-script, deploy-script, and
   worker-archive checks pass locally.
+- [x] Local launch validation command exists for targeted CLI, UI, snapshot,
+  packaging-adjacent, screenshot, and dependency-audit evidence.
 
 ### Private beta
 
@@ -120,9 +122,10 @@ Goal: a non-contributor can install, understand, trust, and recover ComputeHop.
   sandboxing before exposing container tasks as a public default.
 - [x] Decide whether the hosted connectivity service is operated by the project,
   self-hosted by users, or both.
-- [ ] If the project operates connectivity infrastructure, add account,
-  entitlement, quota, abuse-prevention, monitoring, alerting, backup, and
-  incident-response plans.
+- [x] Project-operated connectivity infrastructure is out of scope for the first
+  release; account, entitlement, quota, abuse-prevention, monitoring, alerting,
+  backup, and incident-response plans are required before any hosted relay is
+  operated by the project.
 
 ## Release acceptance matrix
 
