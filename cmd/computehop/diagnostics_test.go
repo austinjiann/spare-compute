@@ -17,6 +17,23 @@ import (
 
 func TestDiagnosticsCommandWritesRedactedBundle(t *testing.T) {
 	outputPath := filepath.Join(t.TempDir(), "diagnostics.zip")
+	crashDir := t.TempDir()
+	t.Setenv(crashReportDirectoryOverride, crashDir)
+	if err := os.WriteFile(
+		filepath.Join(crashDir, "ComputeHop Control Center_2026-08-03.crash"),
+		[]byte(strings.Join([]string{
+			"Process: ComputeHop Control Center [123]",
+			"Identifier: com.computehop.controlcenter",
+			"Version: 0.1.0",
+			"Exception Type: EXC_CRASH (SIGABRT)",
+			"Application Specific Information: OPENAI_API_KEY=sk-crash-secret",
+			"Thread 0 Crashed:",
+			"0   PrivateProject   0x000000 secret stack frame",
+		}, "\n")),
+		0o600,
+	); err != nil {
+		t.Fatal(err)
+	}
 	var stdout bytes.Buffer
 	var calls int
 	command := newRootCommand(dependencies{
@@ -127,6 +144,7 @@ func TestDiagnosticsCommandWritesRedactedBundle(t *testing.T) {
 	for _, name := range []string{
 		"README.txt",
 		"summary.txt",
+		"app/crash-reports.txt",
 		"daemon/status.txt",
 		"daemon/devices.txt",
 		"daemon/pairings.txt",
@@ -147,6 +165,8 @@ func TestDiagnosticsCommandWritesRedactedBundle(t *testing.T) {
 		"peer-public-key-is-omitted",
 		"192.168.1.50",
 		"registry.example.com/app:latest",
+		"sk-crash-secret",
+		"secret stack frame",
 	} {
 		if strings.Contains(all, leaked) {
 			t.Fatalf("diagnostics leaked %q in:\n%s", leaked, all)
@@ -161,6 +181,10 @@ func TestDiagnosticsCommandWritesRedactedBundle(t *testing.T) {
 		"environment: omitted (1 values)",
 		"failure message: password=[redacted] failed",
 		"Raw job logs are omitted",
+		"Reports found: 1",
+		"component: ComputeHop Control Center",
+		"Exception Type: EXC_CRASH",
+		"OPENAI_API_KEY=[redacted]",
 	} {
 		if !strings.Contains(all, want) {
 			t.Fatalf("diagnostics missing %q in:\n%s", want, all)
