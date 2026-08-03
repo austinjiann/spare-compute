@@ -153,6 +153,15 @@ Run the main local gate before opening or merging a PR:
 make pr-check
 ```
 
+Run the package/release gate before handing artifacts to another machine:
+
+```bash
+make release-check
+```
+
+This runs the PR gate, builds and smokes the copyable macOS archive, and builds
+and verifies Linux/Windows worker archives.
+
 Useful app-specific gates:
 
 ```bash
