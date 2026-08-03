@@ -90,6 +90,48 @@ Notes:
   Linux/Windows machines, prove off-LAN connectivity, or cover signing and
   notarization.
 
+## 2026-08-03 macOS release-signing automation
+
+Validation source:
+
+- branch: `agent/macos-release-signing`
+- unsigned/ad-hoc development path remains the default;
+- release archive path is gated by `COMPUTEHOP_CODESIGN_IDENTITY` and Apple
+  notarization credentials.
+
+Environment:
+
+- macOS 26.4, Darwin 25.4.0, arm64
+- Go 1.26.5 darwin/arm64
+- Node.js 26.5.0
+- Swift 6.3.3, arm64-apple-macosx26.0 target
+- Docker 29.4.3
+
+Commands:
+
+```bash
+make macos-package-check
+make macos-archive-smoke
+packaging/macos/release-archive.sh # expected to fail without signing identity
+make pr-check
+```
+
+Result:
+
+- shell syntax and plist validation passed for the new signing/notarization
+  scripts and entitlements file;
+- macOS archive smoke passed with the added archive support files;
+- `packaging/macos/release-archive.sh` failed closed before building when
+  `COMPUTEHOP_CODESIGN_IDENTITY` was missing;
+- the full PR gate passed.
+
+Notes:
+
+- this validation does not prove a real Developer ID signature, Apple
+  notarization submission, stapling, Gatekeeper assessment, or clean-machine
+  install because the required Apple credentials are not present in the
+  developer checkout.
+
 ## 2026-08-03 clean-checkout artifact build
 
 Commit validated:

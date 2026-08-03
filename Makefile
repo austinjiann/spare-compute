@@ -1,4 +1,4 @@
-.PHONY: check control-center-check control-center-deps deploy-check fmt install-macos install-macos-check launch-local-validation macos-archive macos-archive-smoke macos-package macos-package-check pr-check proto proto-check proto-lint race release-check release-version-check test uninstall-macos vet worker-archives worker-archives-check
+.PHONY: check control-center-check control-center-deps deploy-check fmt install-macos install-macos-check launch-local-validation macos-archive macos-archive-smoke macos-notarize macos-package macos-package-check macos-release-archive pr-check proto proto-check proto-lint race release-check release-version-check test uninstall-macos vet worker-archives worker-archives-check
 
 BUF_VERSION := v1.72.0
 
@@ -83,6 +83,12 @@ macos-package: macos-package-check
 macos-archive: macos-package-check
 	packaging/macos/archive.sh
 
+macos-release-archive: macos-package-check
+	packaging/macos/release-archive.sh
+
+macos-notarize: macos-package-check
+	packaging/macos/notarize.sh
+
 macos-archive-smoke: macos-package-check
 	packaging/macos/smoke.sh
 
@@ -91,13 +97,15 @@ macos-package-check:
 		packaging/macos/archive.sh \
 		packaging/macos/build.sh \
 		packaging/macos/install.sh \
+		packaging/macos/notarize.sh \
+		packaging/macos/release-archive.sh \
 		packaging/macos/smoke.sh \
 		packaging/macos/uninstall.sh \
 		packaging/macos/verify.sh; do \
 		sh -n "$$script"; \
 	done
 	node --check packaging/macos/verify-control-center-background.js
-	plutil -lint packaging/macos/Info.plist packaging/macos/com.computehop.daemon.plist
+	plutil -lint packaging/macos/Info.plist packaging/macos/com.computehop.daemon.plist packaging/macos/entitlements.plist
 
 worker-archives: worker-archives-check
 	packaging/workers/archive.sh
