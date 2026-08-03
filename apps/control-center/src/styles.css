@@ -1,9 +1,9 @@
 :root {
   color-scheme: dark;
-  --panel: rgba(48, 51, 58, 0.78);
-  --row: rgba(255, 255, 255, 0.085);
-  --row-hover: rgba(255, 255, 255, 0.12);
-  --line: rgba(255, 255, 255, 0.14);
+  --panel: rgba(42, 45, 52, 0.72);
+  --row: rgba(255, 255, 255, 0.07);
+  --row-hover: rgba(255, 255, 255, 0.105);
+  --line: rgba(255, 255, 255, 0.11);
   --text: rgba(255, 255, 255, 0.92);
   --muted: rgba(255, 255, 255, 0.56);
   --blue: #3f82ff;
@@ -33,32 +33,34 @@ select {
 
 .shell {
   min-height: 100vh;
-  padding: 42px 30px 28px;
+  padding: 70px 34px 28px;
+  background: var(--panel);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(26px) saturate(1.25);
 }
 
 .panel {
-  width: min(620px, calc(100vw - 28px));
-  max-height: calc(100vh - 70px);
+  width: min(590px, calc(100vw - 28px));
+  max-height: calc(100vh - 92px);
   margin: 0 auto;
-  padding: 28px;
-  border: 1px solid var(--line);
-  border-radius: 30px;
-  background: var(--panel);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.24),
-    0 24px 80px rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(38px) saturate(1.55);
+  padding: 0 28px 22px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
   overflow: auto;
 }
 
 .panel::-webkit-scrollbar {
-  width: 8px;
+  width: 5px;
 }
 
 .panel::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.18);
 }
 
 .panel-head {
@@ -94,7 +96,7 @@ small {
 
 .divider {
   height: 1px;
-  margin: 18px 0;
+  margin: 16px 0;
   background: var(--line);
 }
 
@@ -108,10 +110,10 @@ small {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  margin-top: 18px;
-  padding: 14px;
-  border-radius: 18px;
-  background: rgba(255, 196, 107, 0.12);
+  margin-top: 16px;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .daemon-card div {
@@ -135,15 +137,16 @@ small {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  margin-top: 10px;
-  padding: 12px 14px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.065);
+  margin-top: 18px;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .background-card div {
   display: grid;
   gap: 3px;
+  min-width: 0;
 }
 
 .background-card strong {
@@ -153,21 +156,22 @@ small {
 
 .readiness-card {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 13px;
-  min-height: 70px;
-  padding: 13px 14px;
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.065);
+  gap: 12px;
+  min-height: 54px;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .readiness-dot {
-  width: 13px;
-  height: 13px;
+  justify-self: center;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   background: var(--muted);
-  box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.06);
+  box-shadow: 0 0 0 7px rgba(255, 255, 255, 0.055);
 }
 
 .readiness-dot.ready {
@@ -211,6 +215,7 @@ small {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex: 0 0 auto;
 }
 
 .status-pill {
@@ -261,17 +266,17 @@ small {
 .list,
 .check-grid {
   display: grid;
-  gap: 8px;
+  gap: 4px;
 }
 
 .device-row {
   display: grid;
-  grid-template-columns: auto 1fr auto auto;
+  grid-template-columns: 40px minmax(0, 1fr) 70px auto;
   align-items: center;
-  gap: 12px;
-  min-height: 64px;
-  padding: 9px 0;
-  border-radius: 18px;
+  gap: 10px;
+  min-height: 58px;
+  padding: 8px 0;
+  border-radius: 14px;
   cursor: pointer;
 }
 
@@ -279,11 +284,13 @@ small {
   -webkit-app-region: no-drag;
   border: 0;
   border-radius: 999px;
-  padding: 7px 12px;
+  padding: 6px 11px;
   color: var(--text);
   background: var(--row);
+  font-size: 13px;
   font-weight: 680;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .row-button.primary {
@@ -348,15 +355,15 @@ small {
 }
 
 .device-row.selected {
-  padding-left: 10px;
-  padding-right: 10px;
+  padding-left: 8px;
+  padding-right: 8px;
 }
 
 .device-icon {
   position: relative;
   display: block;
-  width: 46px;
-  height: 46px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.16);
 }
@@ -369,58 +376,58 @@ small {
 }
 
 .device-icon.laptop::before {
-  top: 13px;
-  left: 11px;
-  width: 24px;
-  height: 15px;
+  top: 10px;
+  left: 8px;
+  width: 18px;
+  height: 11px;
   border: 2px solid rgba(255, 255, 255, 0.9);
   border-radius: 3px;
 }
 
 .device-icon.laptop::after {
-  left: 8px;
-  bottom: 12px;
-  width: 30px;
+  left: 6px;
+  bottom: 9px;
+  width: 22px;
   height: 3px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.9);
 }
 
 .device-icon.desktop::before {
-  top: 10px;
-  left: 10px;
-  width: 26px;
-  height: 18px;
+  top: 8px;
+  left: 7px;
+  width: 20px;
+  height: 14px;
   border: 2px solid rgba(255, 255, 255, 0.9);
   border-radius: 3px;
 }
 
 .device-icon.desktop::after {
-  left: 16px;
-  bottom: 10px;
-  width: 14px;
-  height: 8px;
+  left: 12px;
+  bottom: 8px;
+  width: 10px;
+  height: 7px;
   border-top: 2px solid rgba(255, 255, 255, 0.9);
   border-bottom: 2px solid rgba(255, 255, 255, 0.9);
 }
 
 .device-icon.server::before {
-  top: 9px;
-  left: 14px;
-  width: 18px;
-  height: 28px;
+  top: 6px;
+  left: 10px;
+  width: 14px;
+  height: 22px;
   border: 2px solid rgba(255, 255, 255, 0.9);
   border-radius: 4px;
 }
 
 .device-icon.server::after {
-  top: 17px;
-  left: 20px;
-  width: 6px;
-  height: 6px;
+  top: 13px;
+  left: 15px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 10px 0 rgba(255, 255, 255, 0.9);
+  box-shadow: 0 8px 0 rgba(255, 255, 255, 0.9);
 }
 
 .device-copy,
@@ -432,7 +439,7 @@ small {
 }
 
 .device-copy strong {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 680;
 }
 
@@ -441,6 +448,8 @@ small {
   color: var(--muted);
   font-size: 14px;
   font-weight: 650;
+  text-align: right;
+  white-space: nowrap;
 }
 
 .device-actions {
@@ -631,9 +640,11 @@ select {
 }
 
 .pill-button {
-  padding: 8px 12px;
+  padding: 7px 12px;
   color: var(--text);
   background: var(--row);
+  font-weight: 650;
+  white-space: nowrap;
 }
 
 .project-label {
@@ -698,6 +709,7 @@ select {
   color: white;
   background: var(--blue);
   font-weight: 680;
+  white-space: nowrap;
 }
 
 .primary-button:disabled {
