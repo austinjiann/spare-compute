@@ -100,7 +100,7 @@ Goal: a non-contributor can install, understand, trust, and recover ComputeHop.
 - [x] Add upgrade-safe install behavior for all supported platforms.
 - [x] Add release versioning and changelog process.
 - [ ] Run full clean-machine validation for every release artifact.
-- [ ] Add public-facing setup docs with screenshots.
+- [x] Add public-facing setup docs with screenshots.
 - [x] Add troubleshooting docs for:
   - [x] daemon already running.
   - [x] duplicate devices.
