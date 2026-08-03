@@ -30,10 +30,10 @@ final class ComputeHopAppDelegate: NSObject, NSApplicationDelegate {
         popover.contentViewController = NSHostingController(rootView: MenuContentView(model: model))
         self.popover = popover
 
-        let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let button = statusItem.button {
-            button.image = NSImage(systemSymbolName: "cpu", accessibilityDescription: "ComputeHop")
-            button.image?.isTemplate = true
+            button.image = BrandSymbol.image(accessibilityDescription: "ComputeHop")
+            button.imagePosition = .imageOnly
             button.toolTip = "ComputeHop"
             button.target = self
             button.action = #selector(togglePopover(_:))
