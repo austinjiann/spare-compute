@@ -175,6 +175,17 @@ npm --prefix apps/control-center test
 swift test
 ```
 
+## Diagnostics
+
+Create a redacted support bundle without copying raw logs, keys, pairing codes,
+network addresses, environment values, project files, or artifacts:
+
+```bash
+computehop diagnostics
+```
+
+Use `--output path/to/file.zip` to choose the destination.
+
 ## Documentation
 
 - [Detailed plan](docs/PLAN.md)

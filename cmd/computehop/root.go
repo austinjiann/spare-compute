@@ -90,6 +90,7 @@ computehop doctor`),
 	root.AddCommand(newSetupCommand(dependencies.stdout))
 	root.AddCommand(newStatusCommand(dependencies.stdout, clientForCommand))
 	root.AddCommand(newDoctorCommand(dependencies.stdout, clientForCommand))
+	root.AddCommand(newDiagnosticsCommand(dependencies.stdout, clientForCommand))
 	root.AddCommand(newDevicesCommand(dependencies.stdout, dependencies.stderr, clientForCommand))
 	root.AddCommand(newConnectCommand(dependencies.stdout, clientForCommand))
 	root.AddCommand(newPairCommand(dependencies.stdout, clientForCommand))
