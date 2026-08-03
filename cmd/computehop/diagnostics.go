@@ -331,7 +331,7 @@ func formatDiagnosticJobs(response *localv1.Response) (string, error) {
 				fmt.Fprintf(&builder, "  working directory: %s\n", spec.GetWorkingDirectory())
 			}
 			if spec.GetContainerImage() != "" {
-				fmt.Fprintf(&builder, "  container image: %s\n", spec.GetContainerImage())
+				fmt.Fprintf(&builder, "  container image: omitted\n")
 			}
 			if len(spec.GetOutputs()) > 0 {
 				fmt.Fprintf(&builder, "  outputs: %s\n", diagnosticStringList(spec.GetOutputs()))
