@@ -2278,9 +2278,12 @@ func TestSetupSmokeCommandPrintsPackageChecklistWithoutDaemon(t *testing.T) {
 		"shasum -a 256 -c ComputeHop-macos.zip.sha256",
 		"ditto -x -k ComputeHop-macos.zip .",
 		"cd ComputeHop-macos",
-		"make install-macos-check",
-		"./packaging/macos/install.sh --check --role worker --device-name 'Gaming PC' --lan-only",
-		"./packaging/macos/install.sh --app /path/to/ComputeHop.app --check --role worker --device-name 'Gaming PC' --lan-only",
+		"./install.sh --check --role orchestrator --lan-only",
+		"./install.sh --role orchestrator --lan-only",
+		"./validate-installed.sh --role orchestrator --lan-only --run-local-smoke",
+		"./install.sh --check --role worker --device-name 'Gaming PC' --lan-only",
+		"./install.sh --role worker --device-name 'Gaming PC' --lan-only",
+		"./validate-installed.sh --role worker --device-name 'Gaming PC' --lan-only",
 		"computehop connect nearby",
 		"computehop smoke",
 		"computehop run --on auto --no-project --follow hostname",
@@ -2293,6 +2296,16 @@ func TestSetupSmokeCommandPrintsPackageChecklistWithoutDaemon(t *testing.T) {
 	} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
+		}
+	}
+	for _, unwanted := range []string{
+		"make install-macos-check",
+		"make install-macos",
+		"./packaging/macos/install.sh --check --role worker",
+		"./packaging/macos/install.sh --app /path/to/ComputeHop.app",
+	} {
+		if strings.Contains(stdout.String(), unwanted) {
+			t.Fatalf("stdout %q unexpectedly contains source-checkout install fallback %q", stdout.String(), unwanted)
 		}
 	}
 }
