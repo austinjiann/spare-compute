@@ -245,8 +245,80 @@ Result:
 Notes:
 
 - this proves the non-destructive validation path and archive contents;
-- a real clean-machine uninstall still must be run before checking the physical
-  uninstall launch gate.
+- a real clean-machine uninstall still must be run before checking the full
+  clean-machine release-artifact gate.
+
+## 2026-08-03 packaged macOS control install and uninstall validation
+
+Validation source:
+
+- branch: `agent/macos-control-install-evidence`;
+- archive built from `main` at `7ea23aa`;
+- installed from an extracted `dist/macos/ComputeHop-macos.zip`, not from a
+  source-tree `go run` or `swift run` process.
+
+Environment:
+
+- macOS 26.4, Darwin 25.4.0, arm64
+- Go 1.26.5 darwin/arm64
+- Node.js 26.5.0
+- Swift 6.3.3, arm64-apple-macosx26.0 target
+
+Commands:
+
+```bash
+make install-macos-check
+make uninstall-macos-check
+make macos-archive
+make macos-archive-smoke
+shasum -a 256 -c dist/macos/ComputeHop-macos.zip.sha256
+./install.sh --role orchestrator --no-open
+./validate-installed.sh --role orchestrator --run-local-smoke
+./uninstall.sh --check
+computehop status
+computehop doctor
+make uninstall-macos
+./install.sh --role orchestrator --no-open
+./validate-installed.sh --role orchestrator --run-local-smoke
+```
+
+Installed artifact:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `dist/macos/ComputeHop-macos.zip` | `9425779b688611e92fe90a85cd4430b945d144d641ff036fddc449b77f1f7848` |
+
+Result:
+
+- install dry-run passed after stopping the previous development daemon;
+- copied archive checksum verification passed;
+- packaged archive installed the control-Mac app to
+  `~/Applications/ComputeHop.app`;
+- packaged archive installed the CLI link at `~/.local/bin/computehop`;
+- packaged archive installed and loaded
+  `~/Library/LaunchAgents/com.computehop.daemon.plist`;
+- launchd reported the daemon running from
+  `~/Applications/ComputeHop.app/Contents/Resources/bin/computehopd` with
+  `--role orchestrator`;
+- `computehop status` and `computehop doctor` reported
+  `computehopd 0.1.0 ready`, LAN discovery available, and role
+  `orchestrator`;
+- installed-state validation passed with `--run-local-smoke`;
+- uninstall check reported only the documented app, CLI link, and LaunchAgent
+  removals while preserving durable state;
+- actual uninstall removed the documented app, CLI link, and LaunchAgent,
+  unloaded the launchd service, and preserved
+  `~/Library/Application Support/ComputeHop/computehop.db`;
+- the packaged archive was reinstalled and revalidated as the final local
+  state.
+
+Notes:
+
+- this validates the packaged control-Mac install path on the current macOS
+  account; it is not a clean-machine release validation;
+- this does not validate the packaged worker Mac, two-Mac pairing, remote
+  packaged jobs, Linux/Windows physical installs, signing/notarization, or
+  off-LAN connectivity.
 
 ## 2026-08-03 clean-checkout artifact build
 
