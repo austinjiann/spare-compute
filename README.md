@@ -190,6 +190,7 @@ Use `--output path/to/file.zip` to choose the destination.
 
 - [Detailed plan](docs/PLAN.md)
 - [Launch checklist](docs/LAUNCH_CHECKLIST.md)
+- [Release process](docs/RELEASE.md)
 - [Security model](docs/SECURITY.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
 - [Control Center](apps/control-center/README.md)

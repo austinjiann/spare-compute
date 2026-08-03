@@ -51,7 +51,7 @@ else
 fi
 mkdir -p "$output_dir"
 
-version=${COMPUTEHOP_VERSION:-0.1.0}
+version=${COMPUTEHOP_VERSION:-$(tr -d '\r\n' < "$repository_dir/VERSION")}
 if ! printf '%s\n' "$version" | grep -Eq '^[0-9]+(\.[0-9]+){1,2}$'; then
     echo "COMPUTEHOP_VERSION must look like 1.2 or 1.2.3." >&2
     exit 1

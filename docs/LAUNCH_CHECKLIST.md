@@ -30,7 +30,7 @@ Goal: prove the core architecture from a source checkout.
 Goal: a technical user can install ComputeHop without a source checkout and run
 real work across machines on the same LAN.
 
-- [ ] Merge all open UI/packaging cleanup PRs.
+- [x] Merge all open UI/packaging cleanup PRs.
 - [ ] Build the macOS developer archive from a clean checkout.
 - [ ] Install the packaged macOS app as the control Mac using `install.sh`.
 - [ ] Install the packaged macOS app as a worker on a second Mac using
@@ -98,7 +98,7 @@ Goal: a non-contributor can install, understand, trust, and recover ComputeHop.
   architectures.
 - [ ] Decide whether Windows/Linux workers ship as archives, installers, or both.
 - [ ] Add upgrade-safe install behavior for all supported platforms.
-- [ ] Add release versioning and changelog process.
+- [x] Add release versioning and changelog process.
 - [ ] Run full clean-machine validation for every release artifact.
 - [ ] Add public-facing setup docs with screenshots.
 - [x] Add troubleshooting docs for:

@@ -33,7 +33,7 @@ function runGoBuild(options, output) {
 }
 
 function goBuildArguments(options = {}, output = daemonOutputPath(options)) {
-  const version = options.version || process.env.COMPUTEHOP_VERSION || "0.1.0";
+  const version = releaseVersion(options);
   return [
     "build",
     "-trimpath",
@@ -43,6 +43,16 @@ function goBuildArguments(options = {}, output = daemonOutputPath(options)) {
     output,
     "./cmd/computehopd"
   ];
+}
+
+function releaseVersion(options = {}) {
+  if (options.version) {
+    return options.version;
+  }
+  if (process.env.COMPUTEHOP_VERSION) {
+    return process.env.COMPUTEHOP_VERSION;
+  }
+  return fs.readFileSync(path.join(options.repositoryRoot || repositoryRoot, "VERSION"), "utf8").trim();
 }
 
 function goBuildEnvironment(options = {}) {
@@ -81,5 +91,6 @@ module.exports = {
   daemonOutputPath,
   executableName,
   goBuildArguments,
-  goBuildEnvironment
+  goBuildEnvironment,
+  releaseVersion
 };
