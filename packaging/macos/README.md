@@ -118,6 +118,13 @@ computehop setup smoke
 computehop setup smoke --worker-name "Austin MacBook 2"
 ```
 
+The checklist creates a timestamped evidence folder on the orchestrator Mac and
+records status, device tables, smoke output, cancellation state, worker-daemon
+restart behavior, reconnectable logs, project transfer, declared output restore,
+and final job state. Attach that folder's text files to
+`docs/RELEASE_VALIDATION.md` before checking off the physical macOS release
+gates.
+
 For a named worker Mac:
 
 ```bash

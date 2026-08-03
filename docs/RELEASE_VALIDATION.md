@@ -4,6 +4,39 @@ This document records concrete validation runs for release-gate checklist items.
 Each entry should name the exact commit, environment, commands, and artifacts so
 the checklist does not depend on memory or local terminal scrollback.
 
+Use [physical validation](PHYSICAL_VALIDATION.md) and
+`computehop setup launch` for real-machine gates. Keep failed or partial runs in
+this document as evidence; do not check launch gates until a passing run is
+recorded.
+
+## Physical validation entry template
+
+```text
+## YYYY-MM-DD validation name
+
+Commit:
+- <full commit SHA>
+
+Artifacts:
+- <filename> — SHA-256 <checksum>
+
+Machines:
+- Control: <OS/version/arch/device name>
+- Worker: <OS/version/arch/device name>
+
+Commands:
+- <exact command>
+
+Result:
+- Passed / Failed / Partial
+
+Evidence:
+- <status/devices/jobs/logs/output snippets or paths>
+
+Notes:
+- <blockers, retries, redactions>
+```
+
 ## 2026-08-03 local launch validation command
 
 Commit validated:

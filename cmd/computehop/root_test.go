@@ -2285,13 +2285,25 @@ func TestSetupSmokeCommandPrintsPackageChecklistWithoutDaemon(t *testing.T) {
 		"./install.sh --role worker --device-name 'Gaming PC' --lan-only",
 		"./validate-installed.sh --role worker --device-name 'Gaming PC' --lan-only",
 		"computehop connect nearby",
+		"smoke_evidence_dir=\"${TMPDIR:-/tmp}/computehop-smoke-$(date +%Y%m%d-%H%M%S)\"",
+		"computehop status | tee \"$smoke_evidence_dir/orchestrator-status.txt\"",
+		"computehop devices | tee \"$smoke_evidence_dir/devices-before.txt\"",
 		"computehop smoke",
-		"computehop run --on auto --no-project --follow hostname",
+		"hostname_job=$(computehop run --on auto --no-project hostname",
+		"computehop logs --follow \"$hostname_job\"",
+		"cancel_job=$(computehop run --on auto --no-project /bin/sleep 3600",
+		"computehop cancel \"$cancel_job\"",
+		"jobs-after-cancel.txt",
+		"restart_job=$(computehop run --on auto --no-project /bin/sleep 45",
+		"launchctl kickstart -k \"gui/$(id -u)/com.computehop.daemon\"",
+		"restart-logs.txt",
 		"Control Center direct-run recovery",
+		"Quit and reopen the Control Center",
 		"run hostname on the other computer",
 		"the task should resume on the worker",
-		"computehop cancel <job-id>",
-		"computehop run --on auto -C /path/to/project -o smoke-output.txt --follow --get /bin/sh -c 'printf ok > smoke-output.txt'",
+		"computehop run --on auto -C /path/to/project -o smoke-output.txt --follow --get /bin/sh -c 'printf ok > smoke-output.txt' | tee \"$smoke_evidence_dir/project-output.txt\"",
+		"computehop devices | tee \"$smoke_evidence_dir/devices-after.txt\"",
+		"echo \"Evidence: $smoke_evidence_dir\"",
 		"tail -n 100 ~/Library/Logs/ComputeHop/daemon.log",
 	} {
 		if !strings.Contains(stdout.String(), want) {
@@ -2334,6 +2346,38 @@ func TestSetupSmokeCommandSupportsCustomWorkerName(t *testing.T) {
 	}
 	if strings.Contains(stdout.String(), "'Gaming PC'") {
 		t.Fatalf("stdout %q unexpectedly contains default worker name", stdout.String())
+	}
+}
+
+func TestSetupLaunchCommandPrintsRemainingValidationWithoutDaemon(t *testing.T) {
+	var stdout bytes.Buffer
+	command := newRootCommand(dependencies{
+		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
+		newClient: func(string) (caller, error) {
+			t.Fatal("setup launch should not require a daemon client")
+			return nil, nil
+		},
+	})
+	command.SetArgs([]string{"setup", "launch", "--worker-name", "Austin MacBook 2"})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	for _, want := range []string{
+		"ComputeHop launch validation",
+		"docs/RELEASE_VALIDATION.md",
+		"make launch-local-validation",
+		"make release-check",
+		"computehop setup smoke --worker-name 'Austin MacBook 2'",
+		"computehop setup workers --target linux --device-name 'Austin MacBook 2'",
+		"computehop setup workers --target windows --device-name 'Austin MacBook 2'",
+		"computehop setup vps --connectivity-domain connect.example.com",
+		"make macos-release-archive",
+		"Developer ID notarization",
+		"Cannot be completed from one Mac",
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
+		}
 	}
 }
 

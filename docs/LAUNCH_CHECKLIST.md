@@ -3,6 +3,9 @@
 This checklist defines what “complete” means for ComputeHop. It is intentionally
 stricter than “the code path exists”: every launch gate must be validated from
 packaged apps or archives, not only from `go run`, `swift run`, or unit tests.
+Physical-machine gates must follow [physical validation](PHYSICAL_VALIDATION.md)
+and record evidence in [release validation evidence](RELEASE_VALIDATION.md)
+before they are checked off here.
 
 ## Product stages
 
@@ -39,6 +42,10 @@ real work across machines on the same LAN.
 - [x] Add non-destructive macOS uninstall validation and package it with archive
   smoke coverage.
 - [x] Install the packaged macOS app as the control Mac using `install.sh`.
+- Packaged macOS physical evidence should be recorded with
+  `computehop setup smoke --worker-name "<worker name>"`, which prints the
+  install, pairing, remote smoke, cancellation, worker restart, app restart,
+  project transfer, output restore, and final evidence-capture commands.
 - [ ] Install the packaged macOS app as a worker on a second Mac using
   `install.sh`.
 - [ ] Pair the two packaged Mac installs from the UI and from the CLI.
