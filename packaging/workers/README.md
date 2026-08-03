@@ -30,6 +30,11 @@ computehop setup workers --target windows --device-name "Gaming PC"
 computehop setup workers --connectivity-domain connect.example.com --turn-domain turn.example.com
 ```
 
+The setup checklist also prints an evidence-capture section for the Mac
+orchestrator. It records status, device tables, smoke output, durable logs,
+cancellation, project transfer, declared output restore, and final job state for
+Linux or Windows physical validation.
+
 The Linux and Windows installer check paths validate LAN-only, rendezvous, STUN,
 and TURN flag combinations before writing files or creating a login service.
 Bad copy/paste setup commands fail during `--check`/`-Check` instead of leaving a

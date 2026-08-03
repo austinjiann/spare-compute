@@ -2047,8 +2047,19 @@ func TestSetupWorkersCommandPrintsLinuxAndWindowsPackageChecklistWithoutDaemon(t
 		"computehop connect nearby",
 		"./bin/computehop connect confirm",
 		".\\bin\\computehop.exe connect confirm",
-		"computehop smoke",
-		"computehop run --on auto --no-project --follow hostname",
+		"worker_evidence_dir=\"${TMPDIR:-/tmp}/computehop-worker-smoke-$(date +%Y%m%d-%H%M%S)\"",
+		"computehop status | tee \"$worker_evidence_dir/orchestrator-status.txt\"",
+		"computehop smoke | tee \"$worker_evidence_dir/smoke.txt\"",
+		"hostname_job=$(computehop run --on auto --no-project hostname",
+		"computehop logs --follow \"$hostname_job\"",
+		"Linux worker cancellation and output restore:",
+		"linux_cancel_job=$(computehop run --on auto --no-project sleep 3600",
+		"linux-project-output.txt",
+		"Windows worker cancellation and output restore:",
+		"windows_cancel_job=$(computehop run --on auto --no-project ping 127.0.0.1 -n 60",
+		"powershell.exe -NoProfile -Command 'Set-Content -NoNewline -Path smoke-output.txt -Value ok'",
+		"computehop jobs --on auto | tee \"$worker_evidence_dir/jobs-final.txt\"",
+		"echo \"Evidence: $worker_evidence_dir\"",
 	} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("stdout %q does not contain %q", stdout.String(), want)
@@ -2071,10 +2082,13 @@ func TestSetupWorkersCommandCanPrintTargetSpecificChecklist(t *testing.T) {
 				"COMPUTEHOP_DEVICE_NAME=HomeServer ./install-systemd-user.sh --check --lan-only",
 				"COMPUTEHOP_DEVICE_NAME=HomeServer ./run-worker.sh --lan-only",
 				"Confirm the same code on the Linux worker:",
+				"Linux worker cancellation and output restore:",
+				"linux_cancel_job=$(computehop run --on auto --no-project sleep 3600",
 			},
 			omit: []string{
 				"Windows worker:",
 				".\\run-worker.ps1",
+				"Windows worker cancellation and output restore:",
 			},
 		},
 		{
@@ -2085,10 +2099,13 @@ func TestSetupWorkersCommandCanPrintTargetSpecificChecklist(t *testing.T) {
 				".\\install-scheduled-task.ps1 -Check -DeviceName 'HomeServer' -LanOnly",
 				".\\run-worker.ps1 -DeviceName 'HomeServer' -LanOnly",
 				"Confirm the same code on the Windows worker:",
+				"Windows worker cancellation and output restore:",
+				"windows_cancel_job=$(computehop run --on auto --no-project ping 127.0.0.1 -n 60",
 			},
 			omit: []string{
 				"Linux worker:",
 				"./run-worker.sh",
+				"Linux worker cancellation and output restore:",
 			},
 		},
 	}

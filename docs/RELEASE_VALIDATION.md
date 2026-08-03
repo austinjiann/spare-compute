@@ -37,6 +37,74 @@ Notes:
 - <blockers, retries, redactions>
 ```
 
+## 2026-08-03 launch-handoff release check
+
+Commit validated:
+
+```text
+f3c897e2c9945a87dfeca3b2975aaf1e758a22c5
+```
+
+Environment:
+
+- macOS 26.4, Darwin 25.4.0, arm64
+- Go 1.26.5 darwin/arm64
+- Node.js 26.5.0
+- Swift 6.3.3, arm64-apple-macosx26.0 target
+- Docker 29.4.3
+
+Commands:
+
+```bash
+make release-check
+make macos-archive
+shasum -a 256 -c dist/macos/ComputeHop-macos.zip.sha256
+./install.sh --role orchestrator --no-open
+./validate-installed.sh --role orchestrator --run-local-smoke
+~/.local/bin/computehop setup launch --worker-name "Austin MacBook 2"
+~/.local/bin/computehop status
+```
+
+Result:
+
+- source checks passed;
+- VPS Compose config check passed with example environment;
+- worker archive smoke passed;
+- macOS archive smoke passed;
+- Linux and Windows worker archives were produced and verified;
+- the packaged macOS app was installed locally as the orchestrator;
+- the installed package validator passed, including a local smoke job;
+- the installed CLI printed the launch-validation handoff;
+- installed daemon status reported `computehopd 0.1.0 ready`.
+
+Artifacts present after the run:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `dist/macos/ComputeHop-macos.zip` | `bcb049cfd063f4625ca94701feec20d730afc16c4ea0d3b54dff5812e80be6fb` |
+| `dist/workers/ComputeHop-worker-linux-amd64.tar.gz` | `d31849e2c710515f7dea39ad77fd6fd0f67cfe1b6eaed1cbce205df74a420d60` |
+| `dist/workers/ComputeHop-worker-linux-arm64.tar.gz` | `46c2b255e41d839cb5291db703c749d91aea8d4428747522474d5200812fe09a` |
+| `dist/workers/ComputeHop-worker-windows-amd64.zip` | `d8a1ca0a3f5b9967ec906c41194923d7332ebe2d9588e34d8e2332448b478473` |
+
+Installed-package evidence:
+
+```text
+Installed ComputeHop validation passed.
+App: /Users/austinphoebe/Applications/ComputeHop.app
+CLI: /Users/austinphoebe/.local/bin/computehop -> /Users/austinphoebe/Applications/ComputeHop.app/Contents/Resources/bin/computehop
+LaunchAgent: /Users/austinphoebe/Library/LaunchAgents/com.computehop.daemon.plist
+computehopd 0.1.0 ready
+Device: Austins-MacBook-Pro-2.local (orchestrator, ti5ve6gu)
+```
+
+Notes:
+
+- this proves the current main release artifacts and local packaged orchestrator
+  install from one Mac;
+- it does not replace physical validation on a second Mac, Linux, Windows,
+  off-LAN VPS networking, Developer ID notarization, or clean-machine release
+  validation.
+
 ## 2026-08-03 local launch validation command
 
 Commit validated:
