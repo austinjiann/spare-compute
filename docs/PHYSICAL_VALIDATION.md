@@ -64,7 +64,8 @@ computehop setup workers --target linux --device-name "Home Server"
 ```
 
 Run the printed package validation and worker commands on a real Linux machine.
-After pairing from the Mac orchestrator, record:
+After pairing from the Mac orchestrator, run the printed evidence-capture
+commands. Record:
 
 - archive checksum verification;
 - installed-worker validator output;
@@ -85,9 +86,10 @@ computehop setup workers --target windows --device-name "Gaming PC"
 ```
 
 Run the printed PowerShell package validation and worker commands on a real
-Windows machine. After pairing from the Mac orchestrator, record the same matrix
-as Linux: checksum, validator, pairing, smoke job, project job, cancellation,
-logs, and final scheduled-task or direct-worker status.
+Windows machine. After pairing from the Mac orchestrator, run the printed
+evidence-capture commands. Record the same matrix as Linux: checksum, validator,
+pairing, smoke job, project job, cancellation, logs, and final scheduled-task or
+direct-worker status.
 
 ## Off-LAN validation
 
@@ -143,4 +145,3 @@ Required evidence:
 - first-run Control Center setup without terminal commands;
 - uninstall behavior;
 - upgrade behavior from the previous release artifact.
-

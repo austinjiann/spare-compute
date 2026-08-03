@@ -1309,8 +1309,39 @@ func printWorkerPackageSetupGuide(stdout io.Writer, options workerPackageSetupOp
 	}
 	lines = append(lines,
 		"Prove remote execution:",
-		"   computehop smoke",
-		"   computehop run --on auto --no-project --follow hostname",
+		"   # If more than one worker is active, replace --on auto with --on <device id> from computehop devices.",
+		"   worker_evidence_dir=\"${TMPDIR:-/tmp}/computehop-worker-smoke-$(date +%Y%m%d-%H%M%S)\"",
+		"   mkdir -p \"$worker_evidence_dir\"",
+		"   computehop status | tee \"$worker_evidence_dir/orchestrator-status.txt\"",
+		"   computehop devices | tee \"$worker_evidence_dir/devices-before.txt\"",
+		"   computehop smoke | tee \"$worker_evidence_dir/smoke.txt\"",
+		"   hostname_job=$(computehop run --on auto --no-project hostname | tee \"$worker_evidence_dir/hostname-submit.txt\" | awk '/^Submitted / {print $2; exit}')",
+		"   computehop logs --follow \"$hostname_job\" | tee \"$worker_evidence_dir/hostname-logs.txt\"",
+		"",
+	)
+	if target == "all" || target == "linux" {
+		lines = append(lines,
+			"Linux worker cancellation and output restore:",
+			"   linux_cancel_job=$(computehop run --on auto --no-project sleep 3600 | tee \"$worker_evidence_dir/linux-cancel-submit.txt\" | awk '/^Submitted / {print $2; exit}')",
+			"   computehop cancel \"$linux_cancel_job\" | tee \"$worker_evidence_dir/linux-cancel.txt\"",
+			"   computehop run --on auto -C /path/to/project -o smoke-output.txt --follow --get /bin/sh -c 'printf ok > smoke-output.txt' | tee \"$worker_evidence_dir/linux-project-output.txt\"",
+			"",
+		)
+	}
+	if target == "all" || target == "windows" {
+		lines = append(lines,
+			"Windows worker cancellation and output restore:",
+			"   windows_cancel_job=$(computehop run --on auto --no-project ping 127.0.0.1 -n 60 | tee \"$worker_evidence_dir/windows-cancel-submit.txt\" | awk '/^Submitted / {print $2; exit}')",
+			"   computehop cancel \"$windows_cancel_job\" | tee \"$worker_evidence_dir/windows-cancel.txt\"",
+			"   computehop run --on auto -C /path/to/project -o smoke-output.txt --follow --get powershell.exe -NoProfile -Command 'Set-Content -NoNewline -Path smoke-output.txt -Value ok' | tee \"$worker_evidence_dir/windows-project-output.txt\"",
+			"",
+		)
+	}
+	lines = append(lines,
+		"Capture final state:",
+		"   computehop devices | tee \"$worker_evidence_dir/devices-after.txt\"",
+		"   computehop jobs --on auto | tee \"$worker_evidence_dir/jobs-final.txt\"",
+		"   echo \"Evidence: $worker_evidence_dir\"",
 		"",
 		"After smoke prints the worker hostname, remote jobs are running on that computer.",
 	)
