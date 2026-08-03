@@ -194,6 +194,7 @@ Use `--output path/to/file.zip` to choose the destination.
 - [Release process](docs/RELEASE.md)
 - [Security model](docs/SECURITY.md)
 - [Container policy](docs/CONTAINER_POLICY.md)
+- [Connectivity operations](docs/CONNECTIVITY_OPERATIONS.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
 - [Control Center](apps/control-center/README.md)
 - [macOS app](apps/macos/README.md)
