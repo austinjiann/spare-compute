@@ -85,7 +85,7 @@ Goal: paired devices keep working when they are no longer on the same network.
   - [ ] job submission, logs, cancellation, snapshot upload, and output restore.
 - [ ] Confirm the relay cannot read job commands, project files, logs, or
   artifacts.
-- [ ] Document expected VPS cost, bandwidth limits, TURN quotas, and operational
+- [x] Document expected VPS cost, bandwidth limits, TURN quotas, and operational
   recovery steps.
 
 ### Public launch
@@ -118,7 +118,7 @@ Goal: a non-contributor can install, understand, trust, and recover ComputeHop.
 - [ ] Add crash report collection/redaction for packaged app failures.
 - [x] Decide the policy for container execution, private registries, and
   sandboxing before exposing container tasks as a public default.
-- [ ] Decide whether the hosted connectivity service is operated by the project,
+- [x] Decide whether the hosted connectivity service is operated by the project,
   self-hosted by users, or both.
 - [ ] If the project operates connectivity infrastructure, add account,
   entitlement, quota, abuse-prevention, monitoring, alerting, backup, and

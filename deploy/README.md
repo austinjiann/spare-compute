@@ -11,3 +11,7 @@ contain production credentials or device-private state.
   that writes the local `.env` and server-only TURN shared secret after the host
   is purchased, plus a helper that derives short-lived operator-provisioned TURN
   username/password credentials for single-owner relay testing.
+
+Operational policy, expected costs, bandwidth planning, TURN quota policy, and
+recovery steps are documented in
+[`../docs/CONNECTIVITY_OPERATIONS.md`](../docs/CONNECTIVITY_OPERATIONS.md).
