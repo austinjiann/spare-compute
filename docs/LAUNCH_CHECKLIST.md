@@ -38,7 +38,7 @@ real work across machines on the same LAN.
   daemon status, doctor, and optional local smoke checks.
 - [x] Add non-destructive macOS uninstall validation and package it with archive
   smoke coverage.
-- [ ] Install the packaged macOS app as the control Mac using `install.sh`.
+- [x] Install the packaged macOS app as the control Mac using `install.sh`.
 - [ ] Install the packaged macOS app as a worker on a second Mac using
   `install.sh`.
 - [ ] Pair the two packaged Mac installs from the UI and from the CLI.
@@ -72,7 +72,7 @@ real work across machines on the same LAN.
   `.env`, private keys, dependency folders, build output folders, and caches.
 - [ ] Confirm the Control Center first-run surface works with no terminal
   commands.
-- [ ] Confirm uninstall preserves or removes only the documented files.
+- [x] Confirm uninstall preserves or removes only the documented files.
 
 ### Off-LAN staging
 
