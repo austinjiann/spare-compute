@@ -112,7 +112,7 @@ Goal: a non-contributor can install, understand, trust, and recover ComputeHop.
   - [ ] CI blocked by GitHub Actions billing.
 - [x] Add security docs that explain the pairing trust boundary and command
   execution risk in plain language.
-- [ ] Add clear UI affordances for revoking a trusted worker.
+- [x] Add clear UI affordances for revoking a trusted worker.
 - [x] Add redacted diagnostics bundle collection for daemon, device, pairing,
   and recent job metadata.
 - [ ] Add crash report collection/redaction for packaged app failures.

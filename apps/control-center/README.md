@@ -75,9 +75,10 @@ Current scope:
 - automatically targets the only runnable worker after pairing confirmation, so
   the next test or run action points at that computer without another manual
   selection;
-- forgets paired devices through daemon IPC;
+- disconnects paired devices through daemon IPC, revoking this computer's saved
+  trust for that device;
 - clears local sync and allowed-work overrides when a paired device is
-  forgotten;
+  disconnected;
 - can disable or re-enable paired workers so disabled devices stay visible but
   cannot be selected, used by Auto worker, or used as run targets;
 - shows plain-language device connection health such as connected over LAN,
