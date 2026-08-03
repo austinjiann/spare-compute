@@ -5,7 +5,8 @@ const {
   daemonOutputPath,
   executableName,
   goBuildArguments,
-  goBuildEnvironment
+  goBuildEnvironment,
+  releaseVersion
 } = require("./bundle-daemon");
 
 test("daemonOutputPath stages the daemon under Electron resources", () => {
@@ -41,4 +42,8 @@ test("goBuildEnvironment supports explicit target platform", () => {
 
   assert.equal(env.GOOS, "linux");
   assert.equal(env.GOARCH, "arm64");
+});
+
+test("releaseVersion reads the repository VERSION file by default", () => {
+  assert.equal(releaseVersion(), "0.1.0");
 });

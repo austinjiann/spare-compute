@@ -21,7 +21,7 @@ case "$output_dir" in
     *) output_dir="$repository_dir/$output_dir" ;;
 esac
 
-version=${COMPUTEHOP_VERSION:-0.1.0}
+version=${COMPUTEHOP_VERSION:-$(tr -d '\r\n' < "$repository_dir/VERSION")}
 build_number=${COMPUTEHOP_BUILD_NUMBER:-1}
 if ! printf '%s\n' "$version" | grep -Eq '^[0-9]+(\.[0-9]+){1,2}$'; then
     echo "COMPUTEHOP_VERSION must look like 1.2 or 1.2.3." >&2

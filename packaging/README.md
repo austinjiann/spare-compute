@@ -17,3 +17,7 @@ make release-check
 
 This combines the main PR validation, macOS archive smoke test, and Linux/Windows
 worker archive build and verification.
+
+Release metadata and changelog rules are documented in
+[`../docs/RELEASE.md`](../docs/RELEASE.md). Keep `VERSION`, package metadata,
+and the macOS bundle version aligned before building artifacts.
