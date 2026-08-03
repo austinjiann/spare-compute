@@ -94,10 +94,10 @@ Goal: a non-contributor can install, understand, trust, and recover ComputeHop.
 
 - [ ] Replace development/ad-hoc packaging with release signing.
 - [ ] Notarize and staple the macOS app.
-- [ ] Produce universal macOS release artifacts or clearly document supported
+- [x] Produce universal macOS release artifacts or clearly document supported
   architectures.
-- [ ] Decide whether Windows/Linux workers ship as archives, installers, or both.
-- [ ] Add upgrade-safe install behavior for all supported platforms.
+- [x] Decide whether Windows/Linux workers ship as archives, installers, or both.
+- [x] Add upgrade-safe install behavior for all supported platforms.
 - [x] Add release versioning and changelog process.
 - [ ] Run full clean-machine validation for every release artifact.
 - [ ] Add public-facing setup docs with screenshots.

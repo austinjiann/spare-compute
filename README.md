@@ -194,6 +194,7 @@ reports when packaged app crash reports are present.
 - [Detailed plan](docs/PLAN.md)
 - [Launch checklist](docs/LAUNCH_CHECKLIST.md)
 - [Release process](docs/RELEASE.md)
+- [Distribution policy](docs/DISTRIBUTION.md)
 - [Security model](docs/SECURITY.md)
 - [Container policy](docs/CONTAINER_POLICY.md)
 - [Connectivity operations](docs/CONNECTIVITY_OPERATIONS.md)

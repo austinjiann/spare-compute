@@ -21,3 +21,6 @@ worker archive build and verification.
 Release metadata and changelog rules are documented in
 [`../docs/RELEASE.md`](../docs/RELEASE.md). Keep `VERSION`, package metadata,
 and the macOS bundle version aligned before building artifacts.
+
+Artifact, architecture, worker packaging, and upgrade behavior are documented in
+[`../docs/DISTRIBUTION.md`](../docs/DISTRIBUTION.md).

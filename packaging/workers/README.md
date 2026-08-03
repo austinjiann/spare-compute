@@ -4,6 +4,10 @@ These packages let a Mac orchestrator control Linux and Windows worker machines
 without asking every worker to build from source. They are development packages,
 not signed production installers.
 
+Distribution decision: Linux and Windows workers ship first as archives with
+included per-user login-service installer scripts. Native installers are
+deferred until the archive path has clean-machine validation.
+
 Build worker archives from the repo:
 
 ```bash
@@ -30,6 +34,8 @@ The Linux and Windows installer check paths validate LAN-only, rendezvous, STUN,
 and TURN flag combinations before writing files or creating a login service.
 Bad copy/paste setup commands fail during `--check`/`-Check` instead of leaving a
 broken background worker behind.
+Rerunning the installer replaces ComputeHop-owned binaries and service
+definitions while preserving the worker's local state directory.
 
 Outputs are written to `dist/workers/`:
 

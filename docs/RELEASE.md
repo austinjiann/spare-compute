@@ -62,7 +62,7 @@ Before publishing for non-contributors:
 
 - replace ad-hoc signing with Developer ID signing;
 - notarize and staple the macOS app;
-- decide whether Windows/Linux workers ship as archives, installers, or both;
+- follow the artifact and worker packaging policy in `docs/DISTRIBUTION.md`;
 - run the full clean-machine acceptance matrix in `docs/LAUNCH_CHECKLIST.md`;
 - record supported architectures and known limitations in the GitHub release
   notes.

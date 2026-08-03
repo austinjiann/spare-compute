@@ -39,6 +39,10 @@ package is accepted when Node is available. Archives are verified before they
 are written, so worker Macs can install the copied app without needing the full
 developer toolchain.
 
+The current developer archive is built for the architecture of the Mac that
+created it. Public release notes must identify the supported architecture, or a
+separate universal-app build must be created and validated.
+
 Run a non-mutating archive smoke test:
 
 ```bash
