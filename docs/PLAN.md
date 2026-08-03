@@ -10,7 +10,7 @@ model, delivery milestones, and acceptance criteria.
 
 ### Implementation snapshot
 
-Last updated: 2026-07-30.
+Last updated: 2026-08-03.
 
 | Slice | Status | Delivered behavior |
 | --- | --- | --- |
@@ -35,6 +35,7 @@ Physical multi-machine validation remains required by the launch acceptance
 criteria. The current implementation boundary is also summarized in the root
 README; later sections in this document describe the intended launch product,
 not functionality that already exists.
+The concrete release gates live in [the launch checklist](LAUNCH_CHECKLIST.md).
 
 ComputeHop has one complete launch target. The build phases later in this document
 describe implementation order only; they are not separate public releases or a
