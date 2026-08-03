@@ -34,6 +34,13 @@ This runs `bundle-daemon` first, then writes the app bundle under
 `Contents/Resources/bin/computehopd`, so the **Start** button can launch
 ComputeHop without a repository checkout.
 
+Generate public setup-guide screenshots from the real renderer with mocked
+daemon data:
+
+```bash
+npm run screenshots:docs
+```
+
 Current scope:
 
 - connects directly to the local ComputeHop daemon over the owner-only local IPC
