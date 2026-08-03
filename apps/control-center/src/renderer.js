@@ -1123,7 +1123,9 @@ function deviceActionButton(device) {
 
     const forget = document.createElement("button");
     forget.className = "row-button muted";
-    forget.textContent = pendingActions.has(key) ? "Forgetting" : "Forget";
+    forget.textContent = pendingActions.has(key) ? "Disconnecting" : "Disconnect";
+    forget.title = "Revoke trust for this device on this computer.";
+    forget.setAttribute("aria-label", `Disconnect ${device.name || "device"}`);
     forget.disabled = pendingActions.has(key);
     forget.addEventListener("click", (event) => {
       event.stopPropagation();
@@ -1134,7 +1136,9 @@ function deviceActionButton(device) {
     return actions;
   }
 
-  action.textContent = pendingActions.has(key) ? "Forgetting" : "Forget";
+  action.textContent = pendingActions.has(key) ? "Disconnecting" : "Disconnect";
+  action.title = "Revoke trust for this device on this computer.";
+  action.setAttribute("aria-label", `Disconnect ${device.name || "device"}`);
   action.classList.add("muted");
   action.addEventListener("click", (event) => {
     event.stopPropagation();
