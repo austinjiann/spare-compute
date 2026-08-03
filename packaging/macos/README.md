@@ -28,6 +28,7 @@ ditto -x -k ComputeHop-macos.zip .
 cd ComputeHop-macos
 ./install.sh --check --role worker --device-name "Gaming Mac" --lan-only
 ./install.sh --role worker --device-name "Gaming Mac" --lan-only
+./validate-installed.sh --role worker --device-name "Gaming Mac" --lan-only
 ```
 
 The bundle verifier checks the Swift app, embedded Control Center, embedded CLI
@@ -90,6 +91,23 @@ Install it for the current user:
 ```bash
 make install-macos
 ```
+
+Validate an installed package:
+
+```bash
+./packaging/macos/validate-installed.sh --role orchestrator
+./packaging/macos/validate-installed.sh --role orchestrator --run-local-smoke
+```
+
+From an extracted archive, run the bundled validator next to `install.sh`:
+
+```bash
+./validate-installed.sh --role worker --device-name "Gaming PC" --lan-only
+```
+
+The validator checks the installed app bundle, CLI symlink, LaunchAgent plist,
+loaded launchd service, daemon status, and doctor output. `--run-local-smoke`
+adds a local `hostname` job and is intended for control-Mac validation.
 
 Print the full two-Mac LAN package smoke checklist:
 

@@ -95,6 +95,7 @@ mkdir -p "$payload_dir"
 ditto "$built_app" "$payload_dir/ComputeHop.app"
 for support_file in \
     install.sh \
+    validate-installed.sh \
     verify.sh \
     verify-control-center-background.js \
     com.computehop.daemon.plist \

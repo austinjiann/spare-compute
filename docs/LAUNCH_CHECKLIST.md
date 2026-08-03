@@ -34,6 +34,8 @@ real work across machines on the same LAN.
 
 - [x] Merge all open UI/packaging cleanup PRs.
 - [x] Build the macOS developer archive from a clean checkout.
+- [x] Add packaged macOS installed-state validation for app, CLI, LaunchAgent,
+  daemon status, doctor, and optional local smoke checks.
 - [ ] Install the packaged macOS app as the control Mac using `install.sh`.
 - [ ] Install the packaged macOS app as a worker on a second Mac using
   `install.sh`.

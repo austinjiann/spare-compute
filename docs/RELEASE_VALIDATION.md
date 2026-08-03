@@ -132,6 +132,45 @@ Notes:
   install because the required Apple credentials are not present in the
   developer checkout.
 
+## 2026-08-03 packaged macOS installed-state validator
+
+Validation source:
+
+- branch: `agent/macos-installed-validator`;
+- validator is bundled into the macOS archive next to `install.sh`.
+
+Environment:
+
+- macOS 26.4, Darwin 25.4.0, arm64
+- Go 1.26.5 darwin/arm64
+- Node.js 26.5.0
+- Swift 6.3.3, arm64-apple-macosx26.0 target
+- Docker 29.4.3
+
+Commands:
+
+```bash
+make macos-package-check
+make macos-archive-smoke
+make pr-check
+```
+
+Expected validator coverage after a real install:
+
+- installed app bundle verification using the package verifier;
+- `~/.local/bin/computehop` symlink target and executability;
+- per-user LaunchAgent plist label, daemon path, role, device name, and
+  LAN-only/remote mode;
+- launchd loaded-state check;
+- packaged CLI version, daemon status, and doctor checks;
+- optional local `hostname` smoke job for a control-Mac install.
+
+Notes:
+
+- this validation proves that the validator is syntactically checked and bundled
+  by archive smoke; it does not prove a physical packaged install until the
+  validator is run on an installed artifact.
+
 ## 2026-08-03 clean-checkout artifact build
 
 Commit validated:
