@@ -6,6 +6,20 @@ the checklist does not depend on memory or local terminal scrollback.
 
 ## 2026-08-03 local launch validation command
 
+Commit validated:
+
+```text
+1d231f965a793d70a577dbe3e370dc2109d47df8
+```
+
+Environment:
+
+- macOS 26.4, Darwin 25.4.0, arm64
+- Go 1.26.5 darwin/arm64
+- Node.js 26.5.0
+- Swift 6.3.3, arm64-apple-macosx26.0 target
+- Docker 29.4.3
+
 Command:
 
 ```bash
@@ -29,6 +43,52 @@ Coverage:
 
 This command supports launch readiness and keeps evidence reproducible. It does
 not replace physical packaged-app validation on separate machines.
+
+## 2026-08-03 merged-main release check
+
+Commit validated:
+
+```text
+1d231f965a793d70a577dbe3e370dc2109d47df8
+```
+
+Environment:
+
+- macOS 26.4, Darwin 25.4.0, arm64
+- Go 1.26.5 darwin/arm64
+- Node.js 26.5.0
+- Swift 6.3.3, arm64-apple-macosx26.0 target
+- Docker 29.4.3
+
+Command:
+
+```bash
+make release-check
+```
+
+Result:
+
+- source checks passed;
+- macOS archive smoke passed;
+- worker archive smoke passed;
+- Linux and Windows worker archives were produced and verified.
+
+Artifacts present after the run:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `dist/macos/ComputeHop-macos.zip` | `728296546d65370ba9af0bc5d8b6b4e8e4b1dd4e12aff27b2f136df35caca082` |
+| `dist/workers/ComputeHop-worker-linux-amd64.tar.gz` | `190455c39eae5f60bf8f4df4e8a37c01ef463da0c0d8628b0f04014bb713c83c` |
+| `dist/workers/ComputeHop-worker-linux-arm64.tar.gz` | `41904911ef4f5794aab94ca54239c37a61ace3ed338264b27d116d82391bc791` |
+| `dist/workers/ComputeHop-worker-windows-amd64.zip` | `c3557c62f57e95d82984932fc695f40edcf82148082e386417489df3af2a384c` |
+
+Notes:
+
+- this was run from the merged `main` checkout after local launch validation was
+  added;
+- this validation does not install artifacts, pair physical machines, exercise
+  Linux/Windows machines, prove off-LAN connectivity, or cover signing and
+  notarization.
 
 ## 2026-08-03 clean-checkout artifact build
 
