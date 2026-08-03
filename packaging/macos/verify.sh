@@ -69,6 +69,30 @@ check_plist_value "$launch_agent_template" StandardOutPath "STDOUT_PATH"
 check_plist_value "$launch_agent_template" WorkingDirectory "WORKING_DIRECTORY"
 
 codesign --verify --deep --strict "$app_bundle"
+signature=$(/usr/bin/codesign -dv --verbose=4 "$app_bundle" 2>&1 || true)
+if [ "${COMPUTEHOP_VERIFY_DEVELOPER_ID:-false}" = true ]; then
+    case "$signature" in
+        *"Authority=Developer ID Application"*) ;;
+        *)
+            echo "App is not signed with a Developer ID Application certificate." >&2
+            exit 1
+            ;;
+    esac
+    case "$signature" in
+        *"Runtime Version="*|*"flags="*"runtime"*) ;;
+        *)
+            echo "App is not signed with hardened runtime enabled." >&2
+            exit 1
+            ;;
+    esac
+fi
+if [ "${COMPUTEHOP_VERIFY_NOTARIZED:-false}" = true ]; then
+    if ! command -v xcrun >/dev/null 2>&1; then
+        echo "Required tool is missing for notarization verification: xcrun" >&2
+        exit 1
+    fi
+    xcrun stapler validate "$app_bundle" >/dev/null
+fi
 "$cli_executable" version >/dev/null
 "$daemon_executable" --version >/dev/null
 "$control_center_daemon" --version >/dev/null

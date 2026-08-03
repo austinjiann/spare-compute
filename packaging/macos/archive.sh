@@ -38,7 +38,7 @@ if [ "$(uname -s)" != "Darwin" ]; then
     exit 1
 fi
 
-for tool in ditto shasum plutil; do
+for tool in codesign ditto shasum plutil; do
     if ! command -v "$tool" >/dev/null 2>&1; then
         echo "Required tool is missing: $tool" >&2
         exit 1
@@ -97,10 +97,41 @@ for support_file in \
     install.sh \
     verify.sh \
     verify-control-center-background.js \
-    com.computehop.daemon.plist; do
+    com.computehop.daemon.plist \
+    entitlements.plist; do
     cp "$script_dir/$support_file" "$payload_dir/$support_file"
 done
-cat >"$payload_dir/README.txt" <<EOF
+
+signature=$(/usr/bin/codesign -dv --verbose=4 "$built_app" 2>&1 || true)
+notarized=false
+if command -v xcrun >/dev/null 2>&1 && \
+    printf '%s\n' "$signature" | grep -q 'Authority=Developer ID Application' && \
+    xcrun stapler validate "$built_app" >/dev/null 2>&1; then
+    notarized=true
+fi
+
+if [ "$notarized" = true ]; then
+    cat >"$payload_dir/README.txt" <<EOF
+ComputeHop macOS signed package
+
+This archive is signed with Developer ID and has a stapled notarization ticket.
+Run clean-machine validation before publishing it as a public release.
+
+Built version: ${version:-unknown}
+Build number: ${build_number:-unknown}
+Built architecture: $machine_arch
+
+Install as the control Mac:
+  ./install.sh --role orchestrator
+
+Install as a worker Mac:
+  ./install.sh --role worker --device-name "Gaming PC" --lan-only
+
+Check without changing the Mac first:
+  ./install.sh --check --role worker --device-name "Gaming PC" --lan-only
+EOF
+else
+    cat >"$payload_dir/README.txt" <<EOF
 ComputeHop macOS developer package
 
 This archive is for local two-Mac testing. It is ad-hoc signed, not notarized,
@@ -119,6 +150,7 @@ Install as a worker Mac:
 Check without changing the Mac first:
   ./install.sh --check --role worker --device-name "Gaming PC" --lan-only
 EOF
+fi
 
 rm -f -- "$archive_path" "$checksum_path"
 (

@@ -25,8 +25,11 @@ that produced it. It is not a universal release artifact unless the release
 process explicitly builds and verifies a universal app. Public release notes
 must state the supported macOS architecture for each uploaded artifact.
 
-Public macOS distribution remains blocked until Developer ID signing,
-notarization, stapling, and clean-machine validation are complete.
+Public macOS distribution remains blocked until a release candidate is built
+with `make macos-release-archive`, signed with Developer ID, notarized, stapled,
+and then validated on clean machines. The signing/notarization automation is
+credentials-gated; development builds continue to use ad-hoc signatures by
+default.
 
 ### Linux and Windows workers
 

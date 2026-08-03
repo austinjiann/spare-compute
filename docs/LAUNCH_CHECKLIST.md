@@ -94,6 +94,8 @@ Goal: paired devices keep working when they are no longer on the same network.
 
 Goal: a non-contributor can install, understand, trust, and recover ComputeHop.
 
+- [x] Add credential-gated macOS Developer ID signing, notarization, stapling,
+  and release-candidate archive automation.
 - [ ] Replace development/ad-hoc packaging with release signing.
 - [ ] Notarize and staple the macOS app.
 - [x] Produce universal macOS release artifacts or clearly document supported

@@ -43,6 +43,22 @@ The current developer archive is built for the architecture of the Mac that
 created it. Public release notes must identify the supported architecture, or a
 separate universal-app build must be created and validated.
 
+Build a signed and notarized release-candidate archive:
+
+```bash
+COMPUTEHOP_CODESIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" \
+COMPUTEHOP_NOTARY_KEYCHAIN_PROFILE="computehop-notary" \
+COMPUTEHOP_BUILD_NUMBER=1 \
+make macos-release-archive
+```
+
+`macos-release-archive` signs with hardened runtime, submits the app to Apple's
+notary service, staples the ticket, verifies the stapled app, then archives it.
+Instead of `COMPUTEHOP_NOTARY_KEYCHAIN_PROFILE`, CI can provide
+`COMPUTEHOP_NOTARY_APPLE_ID`, `COMPUTEHOP_NOTARY_TEAM_ID`, and
+`COMPUTEHOP_NOTARY_PASSWORD`. Signed and notarized artifacts still require the
+clean-machine validation matrix before they are public release artifacts.
+
 Run a non-mutating archive smoke test:
 
 ```bash

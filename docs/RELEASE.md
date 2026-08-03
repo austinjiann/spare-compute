@@ -63,8 +63,18 @@ not call them public release artifacts.
 
 Before publishing for non-contributors:
 
-- replace ad-hoc signing with Developer ID signing;
-- notarize and staple the macOS app;
+- create a signed and notarized macOS release-candidate archive:
+
+  ```bash
+  COMPUTEHOP_CODESIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" \
+  COMPUTEHOP_NOTARY_KEYCHAIN_PROFILE="computehop-notary" \
+  COMPUTEHOP_BUILD_NUMBER=1 \
+  make macos-release-archive
+  ```
+
+  Protected CI may use `COMPUTEHOP_NOTARY_APPLE_ID`,
+  `COMPUTEHOP_NOTARY_TEAM_ID`, and `COMPUTEHOP_NOTARY_PASSWORD` instead of a
+  local notarytool keychain profile. Do not store these values in the repo.
 - follow the artifact and worker packaging policy in `docs/DISTRIBUTION.md`;
 - run the full clean-machine acceptance matrix in `docs/LAUNCH_CHECKLIST.md`;
 - record supported architectures and known limitations in the GitHub release

@@ -23,6 +23,8 @@ esac
 
 version=${COMPUTEHOP_VERSION:-$(tr -d '\r\n' < "$repository_dir/VERSION")}
 build_number=${COMPUTEHOP_BUILD_NUMBER:-1}
+codesign_identity=${COMPUTEHOP_CODESIGN_IDENTITY:-"-"}
+codesign_entitlements=${COMPUTEHOP_CODESIGN_ENTITLEMENTS:-"$script_dir/entitlements.plist"}
 if ! printf '%s\n' "$version" | grep -Eq '^[0-9]+(\.[0-9]+){1,2}$'; then
     echo "COMPUTEHOP_VERSION must look like 1.2 or 1.2.3." >&2
     exit 1
@@ -65,6 +67,17 @@ cp "$script_dir/Info.plist" "$app_bundle/Contents/Info.plist"
 plutil -replace CFBundleShortVersionString -string "$version" "$app_bundle/Contents/Info.plist"
 plutil -replace CFBundleVersion -string "$build_number" "$app_bundle/Contents/Info.plist"
 
-codesign --force --deep --sign - "$app_bundle"
+if [ "$codesign_identity" = "-" ]; then
+    codesign --force --deep --sign - "$app_bundle"
+else
+    if [ -n "$codesign_entitlements" ]; then
+        codesign --force --deep --options runtime --timestamp \
+            --entitlements "$codesign_entitlements" \
+            --sign "$codesign_identity" "$app_bundle"
+    else
+        codesign --force --deep --options runtime --timestamp \
+            --sign "$codesign_identity" "$app_bundle"
+    fi
+fi
 "$script_dir/verify.sh" "$app_bundle"
 echo "Built $app_bundle"

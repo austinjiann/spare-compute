@@ -108,6 +108,10 @@ for support_file in README.txt install.sh verify.sh verify-control-center-backgr
         exit 1
     fi
 done
+if [ ! -f "$package_root/entitlements.plist" ]; then
+    echo "Archive support file is missing: entitlements.plist" >&2
+    exit 1
+fi
 
 "$package_root/verify.sh" "$package_root/ComputeHop.app" >/dev/null
 "$package_root/ComputeHop.app/Contents/Resources/bin/computehop" version >/dev/null
