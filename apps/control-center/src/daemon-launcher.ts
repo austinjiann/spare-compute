@@ -4,6 +4,7 @@ const path = require("node:path");
 const { spawn } = require("node:child_process");
 const { LocalDaemonClient } = require("./local-daemon");
 const { controlCenterRootForModule } = require("./runtime-paths");
+const { normalizedDeviceName } = require("./device-name");
 
 const repoRoot = path.resolve(controlCenterRootForModule(__dirname), "..", "..");
 const DEFAULT_START_TIMEOUT_MS = 10_000;
@@ -162,11 +163,6 @@ function daemonRoleLabel(role) {
 
 function normalizedDaemonRole(role) {
   return String(role || "").trim().toLowerCase() === "worker" ? "worker" : "orchestrator";
-}
-
-function normalizedDeviceName(value) {
-  const trimmed = String(value || "").replace(/\.local$/i, "").trim();
-  return trimmed || "This Mac";
 }
 
 async function ping(client) {

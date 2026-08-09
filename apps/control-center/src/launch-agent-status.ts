@@ -38,16 +38,23 @@ async function launchAgentStatus(options: any = {}) {
   const roleNeedsUpdate = Boolean(installed && expectedRole && role !== expectedRole);
   const deviceNameNeedsUpdate = Boolean(installed && expectedDeviceName && deviceName !== expectedDeviceName);
   const lanOnlyNeedsUpdate = Boolean(installed && hasExpectedLanOnly && lanOnly !== options.expectedLanOnly);
-  const needsUpdate = daemonPathNeedsUpdate || roleNeedsUpdate || deviceNameNeedsUpdate || lanOnlyNeedsUpdate;
   const uid = options.uid ?? currentUID();
   const launchd = uid === "" || uid === null || uid === undefined
-    ? { loaded: false, state: "", error: "Current macOS user id is unavailable." }
+    ? { loaded: false, state: "", daemonPath: "", error: "Current macOS user id is unavailable." }
     : await readLaunchdState(uid, options.runCommand || defaultRunCommand);
+  const runningDaemonPathNeedsUpdate = Boolean(
+    launchd.loaded &&
+    expectedDaemonPath &&
+    launchd.daemonPath &&
+    !samePath(launchd.daemonPath, expectedDaemonPath)
+  );
+  const needsUpdate = daemonPathNeedsUpdate || roleNeedsUpdate || deviceNameNeedsUpdate || lanOnlyNeedsUpdate;
+  const updatePending = !needsUpdate && runningDaemonPathNeedsUpdate;
 
   return {
     supported: true,
     label: serviceLabel,
-    status: needsUpdate ? "needs-update" : launchd.loaded ? "loaded" : installed ? "installed-stopped" : "not-installed",
+    status: needsUpdate ? "needs-update" : updatePending ? "update-pending" : launchd.loaded ? "loaded" : installed ? "installed-stopped" : "not-installed",
     installed,
     loaded: launchd.loaded,
     needsUpdate,
@@ -55,11 +62,14 @@ async function launchAgentStatus(options: any = {}) {
     deviceName,
     lanOnly,
     daemonPath,
+    runningDaemonPath: launchd.daemonPath,
     expectedDaemonPath,
     expectedRole,
     expectedDeviceName,
     expectedLanOnly: hasExpectedLanOnly ? options.expectedLanOnly : undefined,
     daemonPathNeedsUpdate,
+    runningDaemonPathNeedsUpdate,
+    updatePending,
     roleNeedsUpdate,
     deviceNameNeedsUpdate,
     lanOnlyNeedsUpdate,
@@ -69,6 +79,7 @@ async function launchAgentStatus(options: any = {}) {
       installed,
       loaded: launchd.loaded,
       needsUpdate,
+      updatePending,
       daemonPathNeedsUpdate,
       roleNeedsUpdate,
       deviceNameNeedsUpdate,
@@ -103,7 +114,7 @@ async function readConfig(filePath, fsModule) {
 }
 
 function launchAgentConfigFromPlist(contents) {
-  const values = plistStringValues(contents);
+  const values = plistArrayStringValues(contents, "ProgramArguments");
   const roleFlag = values.indexOf("--role");
   const role = roleFlag >= 0 ? values[roleFlag + 1] || "" : "";
   const deviceNameFlag = values.indexOf("--device-name");
@@ -114,6 +125,14 @@ function launchAgentConfigFromPlist(contents) {
     deviceName,
     lanOnly: values.includes("--lan-only")
   };
+}
+
+function plistArrayStringValues(contents, key) {
+  const escapedKey = String(key || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = String(contents || "").match(
+    new RegExp(`<key>\\s*${escapedKey}\\s*</key>\\s*<array>([\\s\\S]*?)</array>`, "i")
+  );
+  return match ? plistStringValues(match[1]) : [];
 }
 
 function roleFromPlist(contents) {
@@ -144,12 +163,14 @@ async function readLaunchdState(uid, runCommand) {
     return {
       loaded: true,
       state: launchdStateFromOutput(stdout),
+      daemonPath: launchdDaemonPathFromOutput(stdout),
       error: ""
     };
   } catch (error) {
     return {
       loaded: false,
       state: "",
+      daemonPath: "",
       error: String(error?.message || "")
     };
   }
@@ -160,7 +181,15 @@ function launchdStateFromOutput(output) {
   return match ? match[1].trim() : "";
 }
 
+function launchdDaemonPathFromOutput(output) {
+  const match = String(output || "").match(/^\s*program\s*=\s*([^\n]+)$/im);
+  return match ? match[1].trim().replace(/^"|"$/g, "") : "";
+}
+
 function launchAgentDetail(status: any = {}) {
+  if (status.updatePending) {
+    return "The background service is updated and will use this app copy after the next login.";
+  }
   if (status.needsUpdate) {
     if (status.daemonPathNeedsUpdate) {
       return "Installed from an older app location. Update the background service when convenient.";

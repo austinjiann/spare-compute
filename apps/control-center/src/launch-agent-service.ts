@@ -4,6 +4,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { promisify } = require("node:util");
 const { controlCenterRootForModule } = require("./runtime-paths");
+const { normalizedDeviceName } = require("./device-name");
 const {
   launchAgentPlistPath,
   launchAgentStatus,
@@ -232,11 +233,6 @@ function installDetail(result: any = {}) {
 
 function normalizedRole(role) {
   return String(role || "").trim().toLowerCase() === "worker" ? "worker" : "orchestrator";
-}
-
-function normalizedDeviceName(value) {
-  const trimmed = String(value || "").replace(/\.local$/i, "").trim();
-  return trimmed || "This Mac";
 }
 
 function roleLabel(role) {

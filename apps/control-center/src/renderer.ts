@@ -436,17 +436,24 @@ function renderBackgroundCard() {
   const status = normalizeLaunchAgentStatus(state.launchAgentStatus);
 
   card.classList.toggle("hidden", !status.supported && status.status !== "checking");
-  pill.classList.remove("on", "warning");
+  pill.classList.remove("on", "warning", "hidden");
   action.classList.add("hidden");
   action.disabled = state.installingBackgroundService || status.status === "checking";
 
   if (status.needsUpdate) {
     title.textContent = "Update background";
     detail.textContent = state.backgroundServiceMessage || status.detail || "Background service points at an older app copy.";
-    pill.textContent = "Update";
-    pill.classList.add("warning");
+    pill.classList.add("hidden");
     action.classList.remove("hidden");
     action.textContent = state.installingBackgroundService ? "Updating" : "Update";
+    return;
+  }
+
+  if (status.updatePending) {
+    title.textContent = "Updated for next login";
+    detail.textContent = state.backgroundServiceMessage || status.detail || "The newer background service will take over after the next login.";
+    pill.textContent = "Queued";
+    pill.classList.add("warning");
     return;
   }
 
@@ -469,8 +476,7 @@ function renderBackgroundCard() {
   if (status.installed) {
     title.textContent = "Installed but stopped";
     detail.textContent = state.backgroundServiceMessage || status.detail || "ComputeHop is installed for login, but it is not running right now.";
-    pill.textContent = "Off";
-    pill.classList.add("warning");
+    pill.classList.add("hidden");
     action.classList.remove("hidden");
     action.textContent = state.installingBackgroundService ? "Starting" : "Start now";
     return;
@@ -480,6 +486,7 @@ function renderBackgroundCard() {
   detail.textContent = state.backgroundServiceMessage || status.detail || "Use the macOS installer when you want ComputeHop to keep running after login.";
   pill.textContent = status.status === "checking" ? "Checking" : "Manual";
   action.classList.toggle("hidden", status.status === "checking");
+  pill.classList.toggle("hidden", status.status !== "checking");
   action.textContent = state.installingBackgroundService ? "Setting up" : "Set up";
 }
 
@@ -490,6 +497,7 @@ function normalizeLaunchAgentStatus(status: any = {}) {
     installed: Boolean(status?.installed),
     loaded: Boolean(status?.loaded),
     needsUpdate: Boolean(status?.needsUpdate),
+    updatePending: Boolean(status?.updatePending),
     role: String(status?.role || ""),
     deviceName: String(status?.deviceName || ""),
     lanOnly: Boolean(status?.lanOnly),
@@ -2390,6 +2398,10 @@ function isUnpaired(device) {
 function scanSummary(devices) {
   const nearby = devices.filter((device) => device.id !== "local" && device.id !== "auto" && availabilityLabel(device) !== "Offline").length;
   if (nearby === 0) {
+    const offline = devices.filter((device) => device.id !== "local" && device.id !== "auto" && availabilityLabel(device) === "Offline").length;
+    if (offline > 0) {
+      return `${offline} saved worker${offline === 1 ? "" : "s"} offline`;
+    }
     return "No nearby workers yet";
   }
   return `${nearby} nearby device${nearby === 1 ? "" : "s"}`;

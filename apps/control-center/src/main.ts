@@ -10,7 +10,7 @@ const {
   jobTerminal
 } = require("./local-daemon");
 const { startDaemon } = require("./daemon-launcher");
-const { installLaunchAgent, resolveDaemonExecutable } = require("./launch-agent-service");
+const { installLaunchAgent, normalizedDeviceName, resolveDaemonExecutable } = require("./launch-agent-service");
 const { launchAgentStatus } = require("./launch-agent-status");
 const { splitCommandLine } = require("./command-line");
 const {
@@ -726,10 +726,11 @@ async function safeLaunchAgentStatus(fallback, request) {
 
 async function launchAgentStatusForCurrentApp(request: any = {}) {
   const expectedDaemonPath = await preferredLaunchAgentDaemonPath();
+  const requestedDeviceName = String(request?.deviceName || "").trim();
   return launchAgentStatus({
     ...(expectedDaemonPath ? { expectedDaemonPath } : {}),
     expectedRole: normalizeDaemonRole(request?.role, process.platform),
-    expectedDeviceName: String(request?.deviceName || "").trim()
+    ...(requestedDeviceName ? { expectedDeviceName: normalizedDeviceName(requestedDeviceName) } : {})
   });
 }
 

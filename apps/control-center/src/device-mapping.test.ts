@@ -110,7 +110,7 @@ test("mapDevices formats nearby addresses without corrupting IPv6", () => {
 
 test("mapLocalDevice labels this process platform and architecture", () => {
   const local = mapLocalDevice({
-    deviceName: "Austin MacBook",
+    deviceName: "Austin MacBook.local",
     deviceId: "durable-local-id",
     role: "DEVICE_ROLE_ORCHESTRATOR",
     platform: "darwin",
@@ -122,6 +122,7 @@ test("mapLocalDevice labels this process platform and architecture", () => {
   });
 
   assert.equal(local.id, "local");
+  assert.equal(local.name, "Austin MacBook");
   assert.equal(local.deviceID, "durable-local-id");
   assert.equal(local.role, "orchestrator");
   assert.equal(local.platform, "darwin");
