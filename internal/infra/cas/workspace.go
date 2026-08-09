@@ -137,10 +137,9 @@ func (store *WorkspaceStore) Materialize(
 			return "", err
 		}
 	}
-	selected := staging
 	if workingSubdirectory != "" {
-		selected = filepath.Join(staging, filepath.FromSlash(workingSubdirectory))
-		if err := os.MkdirAll(selected, 0o700); err != nil {
+		workingDirectory := filepath.Join(staging, filepath.FromSlash(workingSubdirectory))
+		if err := os.MkdirAll(workingDirectory, 0o700); err != nil {
 			return "", err
 		}
 	}

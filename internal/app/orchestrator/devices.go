@@ -207,8 +207,8 @@ func cloneTime(value *time.Time) *time.Time {
 	if value == nil {
 		return nil
 	}
-	copy := *value
-	return &copy
+	cloned := *value
+	return &cloned
 }
 
 func mergeAddresses(left, right []netip.Addr) []netip.Addr {

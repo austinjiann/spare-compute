@@ -123,7 +123,7 @@ if [ -n "$connectivity_url" ]; then
     if [ -n "$turn_server" ]; then
         case "$turn_server" in
             turn:*|turns:*) ;;
-            *) echo "--turn-server must begin with turn: or turns:." >&2; exit 1 ;;
+            *) echo "--turn-server must use the turn: or turns: scheme." >&2; exit 1 ;;
         esac
     fi
 fi

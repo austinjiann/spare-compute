@@ -142,11 +142,12 @@ func TestExecutionRepositoryAllowsOnlyOneClaim(t *testing.T) {
 	close(errorsByRunner)
 	var succeeded, rejected int
 	for err := range errorsByRunner {
-		if err == nil {
+		switch {
+		case err == nil:
 			succeeded++
-		} else if errors.Is(err, execution.ErrNotClaimable) {
+		case errors.Is(err, execution.ErrNotClaimable):
 			rejected++
-		} else {
+		default:
 			t.Fatalf("Claim() error = %v", err)
 		}
 	}

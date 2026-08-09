@@ -11,54 +11,43 @@ import (
 	"strings"
 )
 
-const CatalogSchemaVersion uint32 = 1
-
-// ToolDescriptor describes one versioned, secret-free local executable
-// capability that a worker may advertise to paired orchestrators.
-type ToolDescriptor struct {
-	ID            string
-	Label         string
-	Category      string
-	SchemaVersion uint32
+type toolDescriptor struct {
+	ID    string
+	Label string
 }
 
-var toolCatalog = []ToolDescriptor{
-	{ID: "blender", Label: "Blender", Category: "video", SchemaVersion: CatalogSchemaVersion},
-	{ID: "bun", Label: "Bun", Category: "build", SchemaVersion: CatalogSchemaVersion},
-	{ID: "cargo", Label: "Cargo", Category: "build", SchemaVersion: CatalogSchemaVersion},
-	{ID: "cmake", Label: "CMake", Category: "build", SchemaVersion: CatalogSchemaVersion},
-	{ID: "docker", Label: "Docker", Category: "container", SchemaVersion: CatalogSchemaVersion},
-	{ID: "docker-compose", Label: "Docker Compose", Category: "container", SchemaVersion: CatalogSchemaVersion},
-	{ID: "echo", Label: "Echo", Category: "utility", SchemaVersion: CatalogSchemaVersion},
-	{ID: "ffmpeg", Label: "FFmpeg", Category: "video", SchemaVersion: CatalogSchemaVersion},
-	{ID: "git", Label: "Git", Category: "build", SchemaVersion: CatalogSchemaVersion},
-	{ID: "go", Label: "Go", Category: "build", SchemaVersion: CatalogSchemaVersion},
-	{ID: "hostname", Label: "Hostname", Category: "utility", SchemaVersion: CatalogSchemaVersion},
-	{ID: "make", Label: "Make", Category: "build", SchemaVersion: CatalogSchemaVersion},
-	{ID: "mypy", Label: "mypy", Category: "test", SchemaVersion: CatalogSchemaVersion},
-	{ID: "ninja", Label: "Ninja", Category: "build", SchemaVersion: CatalogSchemaVersion},
-	{ID: "node", Label: "Node.js", Category: "build", SchemaVersion: CatalogSchemaVersion},
-	{ID: "npm", Label: "npm", Category: "build", SchemaVersion: CatalogSchemaVersion},
-	{ID: "ollama", Label: "Ollama", Category: "ai", SchemaVersion: CatalogSchemaVersion},
-	{ID: "pnpm", Label: "pnpm", Category: "build", SchemaVersion: CatalogSchemaVersion},
-	{ID: "podman", Label: "Podman", Category: "container", SchemaVersion: CatalogSchemaVersion},
-	{ID: "poetry", Label: "Poetry", Category: "build", SchemaVersion: CatalogSchemaVersion},
-	{ID: "printf", Label: "printf", Category: "utility", SchemaVersion: CatalogSchemaVersion},
-	{ID: "pytest", Label: "pytest", Category: "test", SchemaVersion: CatalogSchemaVersion},
-	{ID: "python", Label: "Python", Category: "build", SchemaVersion: CatalogSchemaVersion},
-	{ID: "python3", Label: "Python 3", Category: "build", SchemaVersion: CatalogSchemaVersion},
-	{ID: "ruff", Label: "Ruff", Category: "test", SchemaVersion: CatalogSchemaVersion},
-	{ID: "sh", Label: "Shell", Category: "utility", SchemaVersion: CatalogSchemaVersion},
-	{ID: "sleep", Label: "Sleep", Category: "utility", SchemaVersion: CatalogSchemaVersion},
-	{ID: "swift", Label: "Swift", Category: "build", SchemaVersion: CatalogSchemaVersion},
-	{ID: "uv", Label: "uv", Category: "build", SchemaVersion: CatalogSchemaVersion},
-	{ID: "xcodebuild", Label: "Xcode", Category: "build", SchemaVersion: CatalogSchemaVersion},
-	{ID: "yarn", Label: "Yarn", Category: "build", SchemaVersion: CatalogSchemaVersion},
-}
-
-// ToolCatalog returns the stable tool-capability catalog known by this build.
-func ToolCatalog() []ToolDescriptor {
-	return append([]ToolDescriptor(nil), toolCatalog...)
+var toolCatalog = []toolDescriptor{
+	{ID: "blender", Label: "Blender"},
+	{ID: "bun", Label: "Bun"},
+	{ID: "cargo", Label: "Cargo"},
+	{ID: "cmake", Label: "CMake"},
+	{ID: "docker", Label: "Docker"},
+	{ID: "docker-compose", Label: "Docker Compose"},
+	{ID: "echo", Label: "Echo"},
+	{ID: "ffmpeg", Label: "FFmpeg"},
+	{ID: "git", Label: "Git"},
+	{ID: "go", Label: "Go"},
+	{ID: "hostname", Label: "Hostname"},
+	{ID: "make", Label: "Make"},
+	{ID: "mypy", Label: "mypy"},
+	{ID: "ninja", Label: "Ninja"},
+	{ID: "node", Label: "Node.js"},
+	{ID: "npm", Label: "npm"},
+	{ID: "ollama", Label: "Ollama"},
+	{ID: "pnpm", Label: "pnpm"},
+	{ID: "podman", Label: "Podman"},
+	{ID: "poetry", Label: "Poetry"},
+	{ID: "printf", Label: "printf"},
+	{ID: "pytest", Label: "pytest"},
+	{ID: "python", Label: "Python"},
+	{ID: "python3", Label: "Python 3"},
+	{ID: "ruff", Label: "Ruff"},
+	{ID: "sh", Label: "Shell"},
+	{ID: "sleep", Label: "Sleep"},
+	{ID: "swift", Label: "Swift"},
+	{ID: "uv", Label: "uv"},
+	{ID: "xcodebuild", Label: "Xcode"},
+	{ID: "yarn", Label: "Yarn"},
 }
 
 // CommonToolIDs returns the stable IDs this detector can advertise.

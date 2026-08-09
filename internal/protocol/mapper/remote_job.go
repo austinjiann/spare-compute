@@ -230,7 +230,7 @@ func StatesFromRemoteProto(states []computehopv1.JobState) ([]job.State, error) 
 func LogRecordsToRemoteProto(records []joblogging.Record) ([]*computehopv1.JobLogRecord, error) {
 	messages := make([]*computehopv1.JobLogRecord, len(records))
 	for index, record := range records {
-		stream := computehopv1.JobLogStream_JOB_LOG_STREAM_UNSPECIFIED
+		var stream computehopv1.JobLogStream
 		switch record.Stream {
 		case joblogging.StreamStdout:
 			stream = computehopv1.JobLogStream_JOB_LOG_STREAM_STDOUT

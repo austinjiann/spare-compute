@@ -146,6 +146,6 @@ func TestRelayOnlyRequiresAuthenticatedTURNServer(t *testing.T) {
 	}
 }
 
-func TestPacketConnSatisfiesNetworkContract(t *testing.T) {
+func TestPacketConnSatisfiesNetworkContract(_ *testing.T) {
 	var _ net.PacketConn = (*icepath.PacketConn)(nil)
 }

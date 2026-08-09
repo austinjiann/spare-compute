@@ -692,7 +692,7 @@ func TestRunCommandWaitReturnsTerminalFailure(t *testing.T) {
 	command := newRootCommand(dependencies{
 		stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "/project", nil },
 		newClient: func(string) (caller, error) {
-			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+			return stubCaller{call: func(_ context.Context, _ *localv1.Request) (*localv1.Response, error) {
 				calls++
 				switch calls {
 				case 1:
@@ -1623,7 +1623,7 @@ func TestDoctorCommandSuggestsRemoteSmokeTestForConnectedWorker(t *testing.T) {
 	command := newRootCommand(dependencies{
 		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
 		newClient: func(string) (caller, error) {
-			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+			return stubCaller{call: func(_ context.Context, _ *localv1.Request) (*localv1.Response, error) {
 				calls++
 				switch calls {
 				case 1:
@@ -1734,7 +1734,7 @@ func TestDoctorCommandSuggestsPairingNearbyWorker(t *testing.T) {
 	command := newRootCommand(dependencies{
 		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
 		newClient: func(string) (caller, error) {
-			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+			return stubCaller{call: func(_ context.Context, _ *localv1.Request) (*localv1.Response, error) {
 				calls++
 				switch calls {
 				case 1:
@@ -2595,7 +2595,7 @@ func TestSetupMacCommandRejectsInvalidOptionsBeforeDaemon(t *testing.T) {
 		{name: "role", args: []string{"setup", "mac", "--role", "desktop"}, want: "--role must be orchestrator or worker"},
 		{name: "connectivity", args: []string{"setup", "mac", "--connectivity-domain", "connect.example.com"}, want: "--connectivity-domain requires --turn-domain or --turn-server"},
 		{name: "stun without connectivity", args: []string{"setup", "mac", "--turn-domain", "turn.example.com"}, want: "--connectivity-domain is required"},
-		{name: "turn uri", args: []string{"setup", "mac", "--connectivity-domain", "connect.example.com", "--turn-server", "https://turn.example.com", "--turn-username", "u", "--turn-password", "p"}, want: "--turn-server must begin with turn: or turns:"},
+		{name: "turn uri", args: []string{"setup", "mac", "--connectivity-domain", "connect.example.com", "--turn-server", "https://turn.example.com", "--turn-username", "u", "--turn-password", "p"}, want: "--turn-server must use the turn: or turns: scheme"},
 		{name: "turn credentials", args: []string{"setup", "mac", "--connectivity-domain", "connect.example.com", "--turn-server", "turn:turn.example.com:3478"}, want: "--turn-server requires --turn-username and --turn-password"},
 		{name: "turn username", args: []string{"setup", "mac", "--connectivity-domain", "connect.example.com", "--turn-domain", "turn.example.com", "--turn-username", "u"}, want: "--turn-username and --turn-password require --turn-server"},
 		{name: "cache", args: []string{"setup", "mac", "--cache-size", "bad"}, want: "--cache-size"},
@@ -3376,7 +3376,7 @@ func TestConnectConfirmPrintsConnectedWhenBothDevicesConfirmed(t *testing.T) {
 	command := newRootCommand(dependencies{
 		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
 		newClient: func(string) (caller, error) {
-			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+			return stubCaller{call: func(_ context.Context, _ *localv1.Request) (*localv1.Response, error) {
 				calls++
 				switch calls {
 				case 1:

@@ -762,7 +762,7 @@ func validateSetupConnectivity(
 		return errors.New("--connectivity-domain requires --turn-domain or --turn-server")
 	}
 	if turnServer != "" && !strings.HasPrefix(turnServer, "turn:") && !strings.HasPrefix(turnServer, "turns:") {
-		return errors.New("--turn-server must begin with turn: or turns:")
+		return errors.New("--turn-server must use the turn: or turns: scheme")
 	}
 	if turnServer != "" && (turnUsername == "" || turnPassword == "") {
 		return errors.New("--turn-server requires --turn-username and --turn-password")
@@ -1026,10 +1026,6 @@ func defaultVPSSetupOptions() vpsSetupOptions {
 		email:              exampleOperatorEmail,
 		publicIP:           exampleVPSPublicIP,
 	}
-}
-
-func (options vpsSetupOptions) initCommand() string {
-	return options.initCommandWithExecutable("./init.sh")
 }
 
 func (options vpsSetupOptions) rootInitCommand() string {
@@ -1379,19 +1375,20 @@ func printMacSetupGuide(stdout io.Writer, options macSetupOptions) error {
 		"After install:",
 		"   computehop doctor",
 	}
-	if options.lanOnly {
+	switch {
+	case options.lanOnly:
 		lines = append(lines,
 			"",
 			"Mode:",
 			"   LAN-only. Keep the two devices on the same network.",
 		)
-	} else if strings.TrimSpace(options.connectivityDomain) != "" {
+	case strings.TrimSpace(options.connectivityDomain) != "":
 		lines = append(lines,
 			"",
 			"Mode:",
 			"   Same-LAN first, with configured cross-network connectivity.",
 		)
-	} else {
+	default:
 		lines = append(lines,
 			"",
 			"Mode:",

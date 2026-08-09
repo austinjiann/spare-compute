@@ -69,9 +69,9 @@ type runtimeDependencies struct {
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), shutdownSignals...)
-	defer stop()
-
-	if err := run(ctx, os.Args[1:], os.Stdout, os.Stderr); err != nil {
+	err := run(ctx, os.Args[1:], os.Stdout, os.Stderr)
+	stop()
+	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "computehopd: %v\n", err)
 		os.Exit(1)
 	}

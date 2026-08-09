@@ -21,7 +21,7 @@ func PairingToProto(value trust.Pairing) (*localv1.Pairing, error) {
 	if err != nil {
 		return nil, err
 	}
-	direction := localv1.PairingDirection_PAIRING_DIRECTION_UNSPECIFIED
+	var direction localv1.PairingDirection
 	switch value.Direction {
 	case trust.DirectionOutbound:
 		direction = localv1.PairingDirection_PAIRING_DIRECTION_OUTBOUND
@@ -30,7 +30,7 @@ func PairingToProto(value trust.Pairing) (*localv1.Pairing, error) {
 	default:
 		return nil, trust.ErrInvalidPairing
 	}
-	state := localv1.PairingState_PAIRING_STATE_UNSPECIFIED
+	var state localv1.PairingState
 	switch value.State {
 	case trust.PairingWaiting:
 		state = localv1.PairingState_PAIRING_STATE_WAITING
@@ -117,7 +117,7 @@ func TrustedPeerToProto(peer trust.Peer) (*localv1.TrustedDevice, error) {
 	if err != nil {
 		return nil, err
 	}
-	state := localv1.DeviceTrustState_DEVICE_TRUST_STATE_UNSPECIFIED
+	var state localv1.DeviceTrustState
 	switch peer.State {
 	case trust.StateActive:
 		state = localv1.DeviceTrustState_DEVICE_TRUST_STATE_PAIRED

@@ -89,7 +89,7 @@ validate_stun_server() {
 validate_turn_server() {
     case "$1" in
         turn:?*|turns:?*) ;;
-        *) echo "--turn-server must begin with turn: or turns:." >&2; exit 1 ;;
+        *) echo "--turn-server must use the turn: or turns: scheme." >&2; exit 1 ;;
     esac
 }
 

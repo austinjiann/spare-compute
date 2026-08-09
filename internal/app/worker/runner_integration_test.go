@@ -278,7 +278,7 @@ func newRunnerHarness(t *testing.T, spec job.Spec) runnerHarness {
 		Executions: database.Executions(),
 		Logs:       logs,
 		Progress:   database.Jobs(),
-		StartProcess: func(spec job.Spec, stdout, stderr io.Writer) (NativeProcess, error) {
+		StartProcess: func(spec job.Spec, stdout, stderr io.Writer) (ManagedProcess, error) {
 			return processes.Start(spec, stdout, stderr)
 		},
 		RunnerPID:         os.Getpid,

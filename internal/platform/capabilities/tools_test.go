@@ -5,10 +5,9 @@ import (
 	"testing"
 )
 
-func TestToolCatalogIsVersionedAndSorted(t *testing.T) {
-	catalog := ToolCatalog()
-	if len(catalog) == 0 {
-		t.Fatal("ToolCatalog() is empty")
+func TestToolCatalogIsCompleteAndSorted(t *testing.T) {
+	if len(toolCatalog) == 0 {
+		t.Fatal("tool catalog is empty")
 	}
 	ids := CommonToolIDs()
 	if !slices.IsSorted(ids) {
@@ -17,11 +16,8 @@ func TestToolCatalogIsVersionedAndSorted(t *testing.T) {
 	if !slices.Contains(ids, "pytest") || !slices.Contains(ids, "uv") {
 		t.Fatalf("CommonToolIDs() = %#v, want Python project tools", ids)
 	}
-	for _, descriptor := range catalog {
-		if descriptor.SchemaVersion != CatalogSchemaVersion {
-			t.Fatalf("descriptor %#v has wrong schema version", descriptor)
-		}
-		if descriptor.ID == "" || descriptor.Label == "" || descriptor.Category == "" {
+	for _, descriptor := range toolCatalog {
+		if descriptor.ID == "" || descriptor.Label == "" {
 			t.Fatalf("descriptor %#v is incomplete", descriptor)
 		}
 	}

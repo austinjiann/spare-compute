@@ -57,9 +57,7 @@ func (repository *ExecutionRepository) Claim(
 	}
 	defer transaction.Rollback()
 
-	current, err := queryJob(ctx, transaction, `SELECT `+jobColumns+` FROM jobs
-		LEFT JOIN job_progress ON job_progress.job_id = jobs.id
-		WHERE jobs.id = ?`, id)
+	current, err := queryJob(ctx, transaction, id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return execution.Attempt{}, fmt.Errorf("%w: %s", job.ErrNotFound, id)
 	}
@@ -275,9 +273,7 @@ func (repository *ExecutionRepository) Complete(
 	if completion.At.Before(attempt.HeartbeatAt) {
 		return job.Job{}, execution.Attempt{}, execution.ErrInvalidCompletion
 	}
-	current, err := queryJob(ctx, transaction, `SELECT `+jobColumns+` FROM jobs
-		LEFT JOIN job_progress ON job_progress.job_id = jobs.id
-		WHERE jobs.id = ?`, id)
+	current, err := queryJob(ctx, transaction, id)
 	if err != nil {
 		return job.Job{}, execution.Attempt{}, fmt.Errorf("load job for execution completion: %w", err)
 	}
@@ -493,16 +489,16 @@ func nullableTime(value sql.NullInt64) *time.Time {
 }
 
 func timePointer(value time.Time) *time.Time {
-	copy := value.UTC()
-	return &copy
+	cloned := value.UTC()
+	return &cloned
 }
 
 func cloneIntPointer(value *int) *int {
 	if value == nil {
 		return nil
 	}
-	copy := *value
-	return &copy
+	cloned := *value
+	return &cloned
 }
 
 func requireOneAffected(result sql.Result, operation string) error {

@@ -27,10 +27,6 @@ type ManagedProcess interface {
 	Wait() processes.Exit
 }
 
-// NativeProcess is kept as a compatibility alias for existing native runner
-// tests and platform process starters.
-type NativeProcess = ManagedProcess
-
 // ProcessStarter starts a native process with separately tagged output streams.
 type ProcessStarter func(job.Spec, io.Writer, io.Writer) (ManagedProcess, error)
 

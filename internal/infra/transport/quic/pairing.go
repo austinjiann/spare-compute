@@ -171,47 +171,47 @@ func (endpoint *Endpoint) dialPairingOne(
 	if err != nil {
 		return nil, err
 	}
-	fail := func(handshakeErr error) (session.PairingChannel, error) {
+	fail := func(handshakeErr error) error {
 		_ = connection.CloseWithError(closeProtocol, "pairing handshake failed")
-		return nil, handshakeErr
+		return handshakeErr
 	}
 	streamContext, cancel := context.WithTimeout(ctx, pairingHandshakeLimit)
 	defer cancel()
 	stream, err := connection.OpenStreamSync(streamContext)
 	if err != nil {
-		return fail(fmt.Errorf("open pairing stream: %w", err))
+		return nil, fail(fmt.Errorf("open pairing stream: %w", err))
 	}
 	clientNonce, err := randomNonce()
 	if err != nil {
-		return fail(err)
+		return nil, fail(err)
 	}
 	request := helloFrame(endpoint.local, clientNonce, expectedPresence)
 	if err := writeFrame(stream, request); err != nil {
-		return fail(err)
+		return nil, fail(err)
 	}
 	response, err := readFrame(stream)
 	if err != nil {
-		return fail(err)
+		return nil, fail(err)
 	}
 	hello := response.GetHello()
 	if hello == nil || hello.GetExpectedPresenceId() != "" {
-		return fail(session.ErrProtocol)
+		return nil, fail(session.ErrProtocol)
 	}
 	peer, serverNonce, err := parseHello(hello, device.RoleWorker, expectedPresence)
 	if err != nil {
-		return fail(err)
+		return nil, fail(err)
 	}
 	certificatePeer, err := peerFromTLS(connection.ConnectionState().TLS, pairingALPN)
 	if err != nil {
-		return fail(err)
+		return nil, fail(err)
 	}
 	peer.ID, peer.PublicKey = certificatePeer.ID, certificatePeer.PublicKey
 	if err := peer.Validate(); err != nil {
-		return fail(err)
+		return nil, fail(err)
 	}
 	binding, err := exportBinding(connection, clientNonce, serverNonce)
 	if err != nil {
-		return fail(err)
+		return nil, fail(err)
 	}
 	return &pairingChannel{connection: connection, stream: stream, peer: peer, binding: binding}, nil
 }

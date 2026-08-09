@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	// Register the pure-Go SQLite driver used by Open below.
 	_ "modernc.org/sqlite"
 )
 

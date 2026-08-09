@@ -58,12 +58,10 @@ func localDaemonCallError(err error) error {
 
 func main() {
 	command := newRootCommand(dependencies{
-		stdout: os.Stdout,
-		stderr: os.Stderr,
-		getwd:  os.Getwd,
-		newClient: func(stateDir string) (caller, error) {
-			return daemonClient(stateDir)
-		},
+		stdout:    os.Stdout,
+		stderr:    os.Stderr,
+		getwd:     os.Getwd,
+		newClient: daemonClient,
 	})
 	if err := command.Execute(); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "computehop: %v\n", err)

@@ -27,13 +27,8 @@ func DiscoverySnapshotToProto(snapshot device.DiscoverySnapshot) (*localv1.ListD
 		if err := nearby.Observation.Validate(); err != nil || nearby.FirstSeenAt.IsZero() {
 			return nil, fmt.Errorf("map nearby device: %w", device.ErrInvalidObservation)
 		}
-		role := localv1.DeviceRole_DEVICE_ROLE_UNSPECIFIED
-		switch nearby.Announcement.Role {
-		case device.RoleWorker:
-			role = localv1.DeviceRole_DEVICE_ROLE_WORKER
-		case device.RoleOrchestrator:
-			role = localv1.DeviceRole_DEVICE_ROLE_ORCHESTRATOR
-		default:
+		role, err := roleToProto(nearby.Announcement.Role)
+		if err != nil {
 			return nil, device.ErrInvalidAnnouncement
 		}
 		addresses := make([]string, len(nearby.Addresses))
