@@ -41,6 +41,10 @@ const jobColumns = `
 	job_progress.updated_at_ns
 `
 
+const jobByIDQuery = `SELECT ` + jobColumns + ` FROM jobs
+	LEFT JOIN job_progress ON job_progress.job_id = jobs.id
+	WHERE jobs.id = ?`
+
 // JobRepository persists jobs and transitions in SQLite.
 type JobRepository struct {
 	database *sql.DB
@@ -114,9 +118,7 @@ func (repository *JobRepository) Get(ctx context.Context, id job.ID) (job.Job, e
 		return job.Job{}, job.ErrInvalidID
 	}
 
-	value, err := queryJob(ctx, repository.database, `SELECT `+jobColumns+` FROM jobs
-		LEFT JOIN job_progress ON job_progress.job_id = jobs.id
-		WHERE jobs.id = ?`, id)
+	value, err := queryJob(ctx, repository.database, id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return job.Job{}, fmt.Errorf("%w: %s", job.ErrNotFound, id)
 	}
@@ -270,14 +272,7 @@ func applyJobTransition(
 	transaction *sql.Tx,
 	transition job.Transition,
 ) (job.Job, error) {
-	current, err := queryJob(
-		ctx,
-		transaction,
-		`SELECT `+jobColumns+` FROM jobs
-		LEFT JOIN job_progress ON job_progress.job_id = jobs.id
-		WHERE jobs.id = ?`,
-		transition.JobID,
-	)
+	current, err := queryJob(ctx, transaction, transition.JobID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return job.Job{}, fmt.Errorf("%w: %s", job.ErrNotFound, transition.JobID)
 	}
@@ -363,8 +358,8 @@ type rowQueryer interface {
 	QueryRowContext(context.Context, string, ...any) *sql.Row
 }
 
-func queryJob(ctx context.Context, queryer rowQueryer, query string, arguments ...any) (job.Job, error) {
-	return scanJob(queryer.QueryRowContext(ctx, query, arguments...))
+func queryJob(ctx context.Context, queryer rowQueryer, id job.ID) (job.Job, error) {
+	return scanJob(queryer.QueryRowContext(ctx, jobByIDQuery, id))
 }
 
 func scanJob(scanner rowScanner) (job.Job, error) {

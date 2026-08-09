@@ -149,18 +149,19 @@ func (server *Server) serveConnection(ctx context.Context, connection net.Conn) 
 		ProtocolVersion: ProtocolVersion,
 		RequestId:       request.GetRequestId(),
 	}
-	if !tokensEqual(request.GetCapabilityToken(), server.token) {
+	switch {
+	case !tokensEqual(request.GetCapabilityToken(), server.token):
 		response.Error = protocolError(localv1.ErrorCode_ERROR_CODE_UNAUTHENTICATED, "local authentication failed")
-	} else if request.GetProtocolVersion() != ProtocolVersion {
+	case request.GetProtocolVersion() != ProtocolVersion:
 		response.Error = protocolError(
 			localv1.ErrorCode_ERROR_CODE_UNSUPPORTED_VERSION,
 			fmt.Sprintf("unsupported local protocol version %d", request.GetProtocolVersion()),
 		)
-	} else if request.GetRequestId() == "" {
+	case request.GetRequestId() == "":
 		response.Error = protocolError(localv1.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "request ID is required")
-	} else if request.GetOperation() == nil {
+	case request.GetOperation() == nil:
 		response.Error = protocolError(localv1.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "request operation is required")
-	} else {
+	default:
 		response = server.handle(requestContext, request)
 		if response == nil {
 			response = &localv1.Response{

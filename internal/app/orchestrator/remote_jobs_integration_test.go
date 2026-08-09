@@ -369,7 +369,7 @@ func TestSnapshotTransferExecutesInIsolatedWorkspaceAndReusesWorkerCache(t *test
 	}
 }
 
-func TestSnapshotExecutionHelper(t *testing.T) {
+func TestSnapshotExecutionHelper(_ *testing.T) {
 	if os.Getenv("COMPUTEHOP_SNAPSHOT_HELPER") != "1" {
 		return
 	}

@@ -241,7 +241,7 @@ func FuzzPairingFrameDecoder(f *testing.F) {
 	f.Add(framed.Bytes())
 	f.Add([]byte{})
 	f.Add([]byte{0, 0, 0, 1, 0xff})
-	f.Fuzz(func(t *testing.T, contents []byte) {
+	f.Fuzz(func(_ *testing.T, contents []byte) {
 		_, _ = readFrame(bytes.NewReader(contents))
 	})
 }

@@ -60,17 +60,17 @@ func (store *Store) LoadOrCreate() (device.Identity, error) {
 	}
 	temporaryPath := temporary.Name()
 	defer os.Remove(temporaryPath)
-	closeWithError := func(cause error) (device.Identity, error) {
-		return device.Identity{}, errors.Join(cause, temporary.Close())
+	closeWithError := func(cause error) error {
+		return errors.Join(cause, temporary.Close())
 	}
 	if err := temporary.Chmod(0o600); err != nil {
-		return closeWithError(fmt.Errorf("restrict temporary identity: %w", err))
+		return device.Identity{}, closeWithError(fmt.Errorf("restrict temporary identity: %w", err))
 	}
 	if err := writeAll(temporary, encoded); err != nil {
-		return closeWithError(fmt.Errorf("write temporary identity: %w", err))
+		return device.Identity{}, closeWithError(fmt.Errorf("write temporary identity: %w", err))
 	}
 	if err := temporary.Sync(); err != nil {
-		return closeWithError(fmt.Errorf("sync temporary identity: %w", err))
+		return device.Identity{}, closeWithError(fmt.Errorf("sync temporary identity: %w", err))
 	}
 	if err := temporary.Close(); err != nil {
 		return device.Identity{}, fmt.Errorf("close temporary identity: %w", err)

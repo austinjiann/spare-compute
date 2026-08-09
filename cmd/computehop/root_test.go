@@ -692,7 +692,7 @@ func TestRunCommandWaitReturnsTerminalFailure(t *testing.T) {
 	command := newRootCommand(dependencies{
 		stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "/project", nil },
 		newClient: func(string) (caller, error) {
-			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+			return stubCaller{call: func(_ context.Context, _ *localv1.Request) (*localv1.Response, error) {
 				calls++
 				switch calls {
 				case 1:
@@ -1623,7 +1623,7 @@ func TestDoctorCommandSuggestsRemoteSmokeTestForConnectedWorker(t *testing.T) {
 	command := newRootCommand(dependencies{
 		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
 		newClient: func(string) (caller, error) {
-			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+			return stubCaller{call: func(_ context.Context, _ *localv1.Request) (*localv1.Response, error) {
 				calls++
 				switch calls {
 				case 1:
@@ -1734,7 +1734,7 @@ func TestDoctorCommandSuggestsPairingNearbyWorker(t *testing.T) {
 	command := newRootCommand(dependencies{
 		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
 		newClient: func(string) (caller, error) {
-			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+			return stubCaller{call: func(_ context.Context, _ *localv1.Request) (*localv1.Response, error) {
 				calls++
 				switch calls {
 				case 1:
@@ -3376,7 +3376,7 @@ func TestConnectConfirmPrintsConnectedWhenBothDevicesConfirmed(t *testing.T) {
 	command := newRootCommand(dependencies{
 		stdout: &stdout, stderr: &bytes.Buffer{}, getwd: func() (string, error) { return "", nil },
 		newClient: func(string) (caller, error) {
-			return stubCaller{call: func(_ context.Context, request *localv1.Request) (*localv1.Response, error) {
+			return stubCaller{call: func(_ context.Context, _ *localv1.Request) (*localv1.Response, error) {
 				calls++
 				switch calls {
 				case 1:

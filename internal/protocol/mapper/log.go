@@ -11,7 +11,7 @@ import (
 func LogRecordsToProto(records []joblogging.Record) ([]*localv1.JobLogRecord, error) {
 	messages := make([]*localv1.JobLogRecord, len(records))
 	for index, record := range records {
-		stream := localv1.JobLogStream_JOB_LOG_STREAM_UNSPECIFIED
+		var stream localv1.JobLogStream
 		switch record.Stream {
 		case joblogging.StreamStdout:
 			stream = localv1.JobLogStream_JOB_LOG_STREAM_STDOUT
