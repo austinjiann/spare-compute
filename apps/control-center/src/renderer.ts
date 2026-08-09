@@ -10,8 +10,6 @@ const state = {
   selectedJobLogTruncated: false,
   selectedJobLogFailed: false,
   outputRestorePromptedJobIDs: new Set(),
-  taskSuggestions: [],
-  loadingTaskSuggestions: false,
   runtime: {
     platform: "",
     defaultDaemonRole: "orchestrator",
@@ -78,7 +76,7 @@ const {
 } = window.computeHopDeviceStatus;
 const { shouldAutoStartDaemon } = window.computeHopDaemonAutostart;
 const { mergeJobRefresh } = window.computeHopJobList;
-const { capabilityForWork, disallowedWorkMessage, filterAllowedSuggestions } = window.computeHopWorkPolicy;
+const { capabilityForWork, disallowedWorkMessage } = window.computeHopWorkPolicy;
 const {
   jobOutputsForPlan,
   jobStartRequestForPlan,
@@ -99,7 +97,6 @@ const {
   initialRunMessage,
   runSummaryLines
 } = window.computeHopRunSummary;
-const { planFromSuggestion } = window.computeHopSuggestionPlan;
 const { friendlyJobFailure } = window.computeHopJobFailure;
 
 function defaultLocalDevice() {
@@ -155,7 +152,6 @@ bindSetting("artifacts", document.getElementById("outputs-input"));
 
 renderCapabilities();
 renderWorkerReadiness();
-renderTaskSuggestions();
 renderPlanPreview();
 renderRunControls();
 renderDaemonCard();
@@ -167,7 +163,6 @@ void hydrateSettings();
 void loadAppInfo();
 void refreshLaunchAgentStatus();
 void refreshAIPlannerStatus();
-void refreshTaskSuggestions();
 refreshDevices();
 setInterval(refreshDevices, 5000);
 setInterval(refreshLaunchAgentStatus, 30000);
@@ -1028,7 +1023,6 @@ function selectRunDevice(deviceID) {
   saveSettings();
   renderDevices();
   renderJobs();
-  void refreshTaskSuggestions();
   void refreshJobs();
 }
 
@@ -1043,7 +1037,6 @@ function selectPlannedRunDevice(deviceID) {
   state.jobs = [];
   renderDevices();
   renderJobs();
-  void refreshTaskSuggestions();
   void refreshJobs();
 }
 
@@ -1311,7 +1304,6 @@ async function chooseProject() {
   state.settings.projectRoot = selected;
   state.plannedTask = null;
   saveSettings();
-  await refreshTaskSuggestions();
   renderPlanPreview();
   renderRunControls();
   return selected;
@@ -1323,48 +1315,9 @@ function clearProject() {
   }
   state.settings.projectRoot = "";
   state.plannedTask = null;
-  state.taskSuggestions = [];
-  state.loadingTaskSuggestions = false;
   saveSettings();
-  renderTaskSuggestions();
   renderPlanPreview();
   renderRunControls();
-}
-
-async function refreshTaskSuggestions() {
-  if (!window.computeHop.suggestTasks) {
-    state.taskSuggestions = [];
-    renderTaskSuggestions();
-    return;
-  }
-
-  const projectRoot = state.settings.projectRoot || "";
-  if (!projectRoot) {
-    state.taskSuggestions = [];
-    state.loadingTaskSuggestions = false;
-    renderTaskSuggestions();
-    return;
-  }
-
-  const expectedProjectRoot = projectRoot;
-  state.loadingTaskSuggestions = true;
-  renderTaskSuggestions();
-  try {
-    const response = await window.computeHop.suggestTasks({ projectRoot });
-    if ((state.settings.projectRoot || "") !== expectedProjectRoot) {
-      return;
-    }
-    state.taskSuggestions = allowedSuggestions(response?.suggestions || []);
-  } catch {
-    if ((state.settings.projectRoot || "") === expectedProjectRoot) {
-      state.taskSuggestions = [];
-    }
-  } finally {
-    if ((state.settings.projectRoot || "") === expectedProjectRoot) {
-      state.loadingTaskSuggestions = false;
-      renderTaskSuggestions();
-    }
-  }
 }
 
 async function runSelectedJob() {
@@ -1605,7 +1558,7 @@ async function createPlan(task) {
           return createPlan(task);
         }
       }
-      showJobOutput(plannerErrorMessage(response), false);
+      showJobOutput(response?.error || "Could not plan that task.", false);
       state.plannedTask = null;
       renderPlanPreview();
       renderRunControls();
@@ -1666,14 +1619,6 @@ function applyPlanTargetPreference(plan) {
   }
 }
 
-function plannerErrorMessage(response) {
-  const base = response?.error || "Could not plan that task.";
-  const aiError = response?.aiPlanner?.attempted && response.aiPlanner.error
-    ? ` AI planner: ${response.aiPlanner.error}`
-    : "";
-  return `${base}${aiError}`;
-}
-
 function renderPlanPreview() {
   const preview = document.getElementById("plan-preview");
   const title = document.getElementById("plan-title");
@@ -1702,44 +1647,6 @@ function renderPlanPreview() {
     })
   ].filter(Boolean).join(" · ");
   command.textContent = plan.command || "";
-}
-
-function renderTaskSuggestions() {
-  const container = document.getElementById("task-suggestions");
-  container.replaceChildren();
-  const suggestions = state.taskSuggestions || [];
-  container.classList.toggle("hidden", !state.loadingTaskSuggestions && suggestions.length === 0);
-
-  if (state.loadingTaskSuggestions) {
-    const pill = document.createElement("span");
-    pill.className = "suggestion-status";
-    pill.textContent = "Finding project tasks…";
-    container.append(pill);
-    return;
-  }
-
-  suggestions.forEach((suggestion) => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "suggestion-chip";
-    button.textContent = suggestion.label || suggestion.title || suggestion.task;
-    button.title = suggestion.command || "";
-    button.addEventListener("click", () => {
-      applyTaskSuggestion(suggestion);
-    });
-    container.append(button);
-  });
-}
-
-function applyTaskSuggestion(suggestion) {
-  const input = document.getElementById("command-input");
-  const source = suggestion.task || suggestion.title || suggestion.label || "";
-  input.value = source;
-  state.plannedTask = planFromSuggestion(suggestion, state.settings.projectRoot || "");
-  applyPlanTargetPreference(state.plannedTask);
-  renderPlanPreview();
-  renderRunControls();
-  input.focus();
 }
 
 async function stopCurrentJob() {
@@ -2080,7 +1987,6 @@ function renderCapabilities() {
     checkbox.addEventListener("change", () => {
       setSelectedDeviceCapability(id, checkbox.checked);
       saveSettings();
-      void refreshTaskSuggestions();
       renderRunControls();
     });
 
@@ -2125,7 +2031,6 @@ async function hydrateSettings() {
     persistLocalSettings();
     renderSettingsControls();
     renderCapabilities();
-    await refreshTaskSuggestions();
     renderPlanPreview();
     renderRunControls();
     applyDaemonRoleOptions();
@@ -2254,11 +2159,11 @@ function renderAIPlannerStatus() {
       : current.encrypted
         ? "API key saved with OS-backed encryption."
         : "API key saved without OS-backed encryption on this system.";
-    detail.textContent = `${provider} ${storage} Local planning still runs first.${current.model ? ` Model: ${current.model}.` : ""}`;
+    detail.textContent = `${provider} ${storage}${current.model ? ` Model: ${current.model}.` : ""}`;
     return;
   }
   status.textContent = "Off";
-  detail.textContent = `Local planning works without an API key.${current.model ? ` Model saved for future use: ${current.model}.` : ""}`;
+  detail.textContent = `Add an API key to plan typed requests.${current.model ? ` Model saved for future use: ${current.model}.` : ""}`;
 }
 
 function normalizeAIPlannerStatus(status: any = {}) {
@@ -2392,10 +2297,6 @@ function saveSettings() {
     // The app-side JSON store is best-effort from the renderer's point of view.
     // localStorage keeps the UI usable and the next explicit change retries.
   });
-}
-
-function allowedSuggestions(suggestions) {
-  return filterAllowedSuggestions(suggestions, capabilitiesForSelectedDevice());
 }
 
 function selectedDevice() {

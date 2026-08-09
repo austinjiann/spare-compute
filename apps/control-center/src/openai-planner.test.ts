@@ -11,6 +11,7 @@ const {
 
 test("openAIPlannerConfig is opt-in through environment", () => {
   assert.equal(openAIPlannerConfig({}).configured, false);
+  assert.equal(openAIPlannerConfig({ OPENAI_API_KEY: "key" }).model, "gpt-5.6-luna");
   assert.deepEqual(openAIPlannerConfig({
     OPENAI_API_KEY: " openai-key ",
     COMPUTEHOP_AI_API_KEY: " key ",
@@ -27,7 +28,7 @@ test("openAIPlannerConfig is opt-in through environment", () => {
 
 test("openAIPlanRequest asks for structured one-command JSON without file contents", () => {
   const request = openAIPlanRequest({
-    model: "test-model",
+    model: "gpt-5.6-luna",
     task: "run the app checks",
     projectRoot: "/project",
     profile: {
@@ -42,7 +43,8 @@ test("openAIPlanRequest asks for structured one-command JSON without file conten
     }
   });
 
-  assert.equal(request.model, "test-model");
+  assert.equal(request.model, "gpt-5.6-luna");
+  assert.deepEqual(request.reasoning, { effort: "none" });
   assert.equal(request.text.format.type, "json_schema");
   assert.equal(request.text.format.strict, true);
   assert.deepEqual(request.text.format.schema.required, [
@@ -122,6 +124,7 @@ test("normalizeOpenAIPlan infers known work capability from the command", () => 
   assert.equal(result.plan.capability, "tests");
   assert.equal(result.plan.exact, false);
   assert.equal(result.plan.requiresProject, true);
+  assert.deepEqual(result.plan.requiredToolIDs, ["go"]);
 });
 
 test("normalizeOpenAIPlan preserves placement hints without leaving them in commands", () => {
@@ -227,6 +230,18 @@ test("normalizeOpenAIPlan rejects unsafe or unusable plans", () => {
   assert.match(missingProject.error, /Choose a project first/);
   assert.equal(missingProject.actionKind, "choose-project");
   assert.equal(missingProject.actionLabel, "Choose project");
+  const refusedForMissingProject = normalizeOpenAIPlan({
+    output_text: JSON.stringify({
+      ok: false,
+      title: "Project needed",
+      command: "",
+      detail: "Choose a project.",
+      requiresProject: true,
+      outputs: [],
+      capability: "tests"
+    })
+  });
+  assert.equal(refusedForMissingProject.actionKind, "choose-project");
   assert.match(
     normalizeOpenAIPlan({
       output_text: JSON.stringify({
@@ -291,14 +306,15 @@ test("planTaskWithOpenAI posts to the Responses API and normalizes the result", 
       configured: true,
       apiKey: "test-key",
       baseURL: "https://api.openai.test/v1",
-      model: "test-model"
+      model: "gpt-5.6-luna"
     },
     timeoutMs: 100
   });
 
   assert.equal(request.url, "https://api.openai.test/v1/responses");
   assert.equal(request.init.headers.Authorization, "Bearer test-key");
-  assert.equal(JSON.parse(request.init.body).model, "test-model");
+  assert.equal(JSON.parse(request.init.body).model, "gpt-5.6-luna");
+  assert.deepEqual(JSON.parse(request.init.body).reasoning, { effort: "none" });
   assert.equal(result.ok, true);
   assert.equal(result.plan.command, "hostname");
 });

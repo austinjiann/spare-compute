@@ -144,12 +144,12 @@ make macos-archive
 - GitHub Actions may fail before runner startup if the repository owner's
   billing or Actions spending limit blocks runners. That is external to the
   code path; use local validation until billing is fixed.
-- The optional AI planner can translate plain-language requests only when an
-  OpenAI-compatible API key is configured. The app can save the key/base URL, or
-  you can use `COMPUTEHOP_AI_API_KEY` / `COMPUTEHOP_AI_BASE_URL`
-  (`OPENAI_API_KEY` / `OPENAI_BASE_URL` still work). Deterministic local
-  planning works without a key for common checks, tests, builds, lint, Docker,
-  and package tasks.
+- Plain-language task planning uses the OpenAI-compatible Responses API and
+  defaults to `gpt-5.6-luna` with reasoning disabled. The app can save the
+  key/base URL, or you can use `COMPUTEHOP_AI_API_KEY` /
+  `COMPUTEHOP_AI_BASE_URL` (`OPENAI_API_KEY` / `OPENAI_BASE_URL` still work).
+  Local code still validates the returned command, project/output paths,
+  required tools, device permissions, and placement before showing the preview.
 
 ## Validation
 

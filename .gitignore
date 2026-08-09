@@ -31,6 +31,9 @@ apps/control-center/dist/
 apps/control-center/.out/
 apps/control-center/out/
 apps/control-center/resources/bin/
+apps/control-center/.env
+apps/control-center/.env.*
+!apps/control-center/.env.example
 npm-debug.log*
 yarn-error.log*
 

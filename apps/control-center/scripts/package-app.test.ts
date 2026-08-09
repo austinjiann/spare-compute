@@ -48,6 +48,8 @@ test("packageIgnorePatterns keeps compiled runtime files and excludes TypeScript
   assert.equal(matchesAny(patterns, "/dist/src/main.js.map"), true);
   assert.equal(matchesAny(patterns, "/dist/scripts/package-app.js"), true);
   assert.equal(matchesAny(patterns, "/resources/bin/computehopd"), true);
+  assert.equal(matchesAny(patterns, "/.env"), true);
+  assert.equal(matchesAny(patterns, "/.env.example"), true);
   assert.equal(matchesAny(patterns, "/dist/src/main.test.js"), true);
   assert.equal(matchesAny(patterns, "/src/main.ts"), true);
   assert.equal(matchesAny(patterns, "/scripts/package-app.ts"), true);

@@ -1,47 +1,25 @@
-const { planTask, suggestTasks } = require("./planner");
-const { openAIPlannerConfig, planTaskWithOpenAI } = require("./openai-planner");
+const { inspectProject } = require("./planner");
+const { planTaskWithOpenAI } = require("./openai-planner");
 
 async function planControlCenterTask(request: any = {}, options: any = {}) {
-  const local = await planTask(request);
-  if (local.ok || !shouldTryAIPlanner(local, request, options)) {
-    return local;
+  const task = String(request.task || "").trim();
+  if (!task) {
+    return { ok: false, error: "Enter what you want to do." };
   }
 
-  const ai = await planTaskWithOpenAI(
+  const projectRoot = String(request.projectRoot || "").trim();
+  const profile = await inspectProject(projectRoot);
+  return planTaskWithOpenAI(
     {
       ...request,
-      profile: local.profile
+      task,
+      projectRoot,
+      profile
     },
     options
   );
-  if (ai.ok) {
-    return ai;
-  }
-
-  return {
-    ...local,
-    aiPlanner: {
-      attempted: true,
-      error: ai.error || "AI planner could not make a safe command."
-    }
-  };
-}
-
-async function suggestControlCenterTasks(request: any = {}) {
-  return suggestTasks(request);
-}
-
-function shouldTryAIPlanner(local, request: any = {}, options: any = {}) {
-  const error = String(local?.error || "");
-  if (/Choose a project first/i.test(error)) {
-    return false;
-  }
-  const config = options.config || openAIPlannerConfig(options.env || process.env);
-  return Boolean(config.configured && String(request.task || "").trim());
 }
 
 module.exports = {
-  planControlCenterTask,
-  shouldTryAIPlanner,
-  suggestControlCenterTasks
+  planControlCenterTask
 };

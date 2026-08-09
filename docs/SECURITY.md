@@ -154,14 +154,16 @@ the worker's local Docker/Podman configuration.
 
 ## AI planner
 
-The AI planner is optional. Without an API key, ComputeHop still handles common
-local planning paths deterministically.
+Typed plain-language planning requires a configured OpenAI-compatible API key.
+The planner receives project metadata, not raw project file contents, and must
+produce one command plan. API keys should be stored through the app settings
+path or provided through environment variables.
 
-When configured, the planner should produce one reviewed command plan. It should
-not receive raw project file contents. API keys should be stored through the app
-settings path or provided through environment variables. Treat AI output as a
-suggestion that still runs with the same command-execution risks described
-above.
+The model is not a safety boundary. Its output is locally rejected when it uses
+unsupported shell syntax, dangerous or interactive commands, unsafe output
+paths, missing project context, disallowed work, incompatible placement, or
+reported-missing tools. The user still reviews the accepted command before it
+runs, with the same command-execution risks described above.
 
 ## Diagnostics bundles
 

@@ -48,6 +48,7 @@ function packageIgnorePatterns() {
     /^\/\.out($|\/)/,
     /^\/out($|\/)/,
     /^\/resources\/bin($|\/)/,
+    /^\/\.env(?:\..+)?$/,
     /^\/scripts($|\/)/,
     /^\/src($|\/)/,
     /^\/types($|\/)/,
