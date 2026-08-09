@@ -203,32 +203,6 @@ func OpenPresence(
 	}, ciphertext)
 }
 
-// SealSignal encrypts one signaling document for the opposite endpoint.
-func SealSignal(
-	secret trust.ConnectivitySecret,
-	routeID string,
-	sender device.Role,
-	plaintext []byte,
-) ([]byte, error) {
-	return SealPayload(secret, PayloadContext{
-		Kind: PayloadSignal, RouteID: routeID,
-		Sender: sender, Recipient: oppositeDeviceRole(sender),
-	}, plaintext)
-}
-
-// OpenSignal authenticates and decrypts one signaling document.
-func OpenSignal(
-	secret trust.ConnectivitySecret,
-	routeID string,
-	sender device.Role,
-	ciphertext []byte,
-) ([]byte, error) {
-	return OpenPayload(secret, PayloadContext{
-		Kind: PayloadSignal, RouteID: routeID,
-		Sender: sender, Recipient: oppositeDeviceRole(sender),
-	}, ciphertext)
-}
-
 func oppositeDeviceRole(role device.Role) device.Role {
 	if role == device.RoleOrchestrator {
 		return device.RoleWorker

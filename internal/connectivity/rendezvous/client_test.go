@@ -71,9 +71,13 @@ func TestClientEncryptedPresenceAndSignals(t *testing.T) {
 		t.Fatalf("opened presence = %q, %v", openedPresence, err)
 	}
 
-	encryptedSignal, err := connectivity.SealSignal(
-		secret, access.RouteID, device.RoleOrchestrator, []byte("ICE offer"),
-	)
+	signalContext := connectivity.PayloadContext{
+		Kind:      connectivity.PayloadSignal,
+		RouteID:   access.RouteID,
+		Sender:    device.RoleOrchestrator,
+		Recipient: device.RoleWorker,
+	}
+	encryptedSignal, err := connectivity.SealPayload(secret, signalContext, []byte("ICE offer"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,8 +96,8 @@ func TestClientEncryptedPresenceAndSignals(t *testing.T) {
 	if err != nil || len(polled.GetSignals()) != 1 {
 		t.Fatalf("poll = %#v, %v", polled, err)
 	}
-	openedSignal, err := connectivity.OpenSignal(
-		secret, access.RouteID, device.RoleOrchestrator, polled.GetSignals()[0].GetEncryptedPayload(),
+	openedSignal, err := connectivity.OpenPayload(
+		secret, signalContext, polled.GetSignals()[0].GetEncryptedPayload(),
 	)
 	if err != nil || string(openedSignal) != "ICE offer" {
 		t.Fatalf("opened signal = %q, %v", openedSignal, err)

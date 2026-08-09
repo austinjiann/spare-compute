@@ -337,7 +337,7 @@ func TestSnapshotTransferExecutesInIsolatedWorkspaceAndReusesWorkerCache(t *test
 	}
 	runner, err := worker.NewRunner(worker.RunnerDependencies{
 		Jobs: workerDatabase.Jobs(), Executions: workerDatabase.Executions(), Logs: logs,
-		StartProcess: func(spec job.Spec, stdout, stderr io.Writer) (worker.NativeProcess, error) {
+		StartProcess: func(spec job.Spec, stdout, stderr io.Writer) (worker.ManagedProcess, error) {
 			return processes.Start(spec, stdout, stderr)
 		},
 		RunnerPID: os.Getpid, Now: time.Now,

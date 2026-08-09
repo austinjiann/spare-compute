@@ -762,7 +762,7 @@ func validateSetupConnectivity(
 		return errors.New("--connectivity-domain requires --turn-domain or --turn-server")
 	}
 	if turnServer != "" && !strings.HasPrefix(turnServer, "turn:") && !strings.HasPrefix(turnServer, "turns:") {
-		return errors.New("--turn-server must begin with turn: or turns:")
+		return errors.New("--turn-server must use the turn: or turns: scheme")
 	}
 	if turnServer != "" && (turnUsername == "" || turnPassword == "") {
 		return errors.New("--turn-server requires --turn-username and --turn-password")
@@ -1026,10 +1026,6 @@ func defaultVPSSetupOptions() vpsSetupOptions {
 		email:              exampleOperatorEmail,
 		publicIP:           exampleVPSPublicIP,
 	}
-}
-
-func (options vpsSetupOptions) initCommand() string {
-	return options.initCommandWithExecutable("./init.sh")
 }
 
 func (options vpsSetupOptions) rootInitCommand() string {
