@@ -11,7 +11,6 @@ interface Window {
   computeHopRunRecovery: any;
   computeHopRunRequest: any;
   computeHopRunSummary: any;
-  computeHopSuggestionPlan: any;
   computeHopWorkPolicy: any;
 }
 

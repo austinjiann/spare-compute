@@ -1,5 +1,7 @@
 const {
   commandNeedsProject,
+  detectedLabels,
+  requiredToolIDsForCommand,
   stripPlacementSuffix,
   targetArchitectureForTask,
   targetPlatformForTask,
@@ -10,7 +12,7 @@ const { validatePortableOutputs } = require("./output-path");
 const { capabilityForCommand } = require("./work-policy");
 
 const defaultOpenAIBaseURL = "https://api.openai.com/v1";
-const defaultOpenAIModel = "gpt-5.6";
+const defaultOpenAIModel = "gpt-5.6-luna";
 const plannerTimeoutMs = 20_000;
 
 const planSchema = {
@@ -110,18 +112,22 @@ async function planTaskWithOpenAI(request: any = {}, options: any = {}) {
 
 function openAIPlanRequest(request: any = {}) {
   const profile = projectProfileForPrompt(request.profile || {});
-  return {
-    model: request.model || defaultOpenAIModel,
+  const model = request.model || defaultOpenAIModel;
+  const payload: any = {
+    model,
     input: [
       {
         role: "system",
         content: [
-          "You translate a user's plain-language background-compute task into one safe native command for ComputeHop.",
+          "You translate a user's conversational background-compute request into one safe native command for ComputeHop.",
           "Return JSON only through the provided schema.",
           "Use only one executable command. No shell operators, pipes, redirects, backgrounding, command substitution, sudo, destructive deletes, or interactive commands.",
+          "If the user already entered a command, preserve it unless a placement phrase such as 'on the worker' must be removed.",
           "Prefer existing package scripts and Makefile targets from the project profile.",
           "If the command produces files the user likely wants back, set outputs to portable relative paths such as dist or report.pdf; otherwise use an empty array.",
+          "If the request needs project files but no project is selected, set requiresProject=true, ok=false, and leave command empty.",
           "If the task is unsafe, ambiguous, interactive, or cannot be expressed as one background command, set ok=false and leave command empty.",
+          "Write the title and detail in concise, friendly, plain language.",
           "Do not invent files, credentials, model names, hosts, or environment variables."
         ].join(" ")
       },
@@ -143,6 +149,10 @@ function openAIPlanRequest(request: any = {}) {
       }
     }
   };
+  if (/^gpt-5\.6(?:-|$)/.test(model)) {
+    payload.reasoning = { effort: "none" };
+  }
+  return payload;
 }
 
 function normalizeOpenAIPlan(response, context: any = {}) {
@@ -156,6 +166,15 @@ function normalizeOpenAIPlan(response, context: any = {}) {
     parsed = JSON.parse(text);
   } catch {
     return { ok: false, error: "AI planner returned invalid JSON." };
+  }
+
+  if (Boolean(parsed.requiresProject) && !cleanString(context.projectRoot)) {
+    return {
+      ok: false,
+      error: "Choose a project first so ComputeHop can send those files to the worker.",
+      actionKind: "choose-project",
+      actionLabel: "Choose project"
+    };
   }
 
   if (!parsed.ok) {
@@ -207,11 +226,12 @@ function normalizeOpenAIPlan(response, context: any = {}) {
       requiresProject,
       capability,
       outputs: outputValidation.outputs,
+      requiredToolIDs: requiredToolIDsForCommand(command, context.profile || {}),
       targetPreference,
       targetPlatform,
       targetArchitecture,
       projectRoot: cleanString(context.projectRoot),
-      detected: detectedLabels(context.profile || []),
+      detected: detectedLabels(context.profile || {}),
       planner: "openai"
     }
   };
@@ -245,41 +265,6 @@ function projectProfileForPrompt(profile: any = {}) {
         .map((entry) => [entry[0], true])
     )
   };
-}
-
-function detectedLabels(profile: any = {}) {
-  const labels = [];
-  const files = profile.files || {};
-  if (files["package.json"]) {
-    labels.push(`${profile.packageManager || "npm"} package`);
-  }
-  if (files["go.mod"]) {
-    labels.push("Go");
-  }
-  if (files["Package.swift"]) {
-    labels.push("Swift");
-  }
-  if (files["Cargo.toml"]) {
-    labels.push("Rust");
-  }
-  if (files["pyproject.toml"] || files["pytest.ini"]) {
-    labels.push("Python");
-  }
-  if (files.Dockerfile || files.dockerfile) {
-    labels.push("Docker");
-  }
-  if (
-    files["compose.yaml"] ||
-    files["compose.yml"] ||
-    files["docker-compose.yaml"] ||
-    files["docker-compose.yml"]
-  ) {
-    labels.push("Compose");
-  }
-  if (Array.isArray(profile.makeTargets) && profile.makeTargets.length > 0) {
-    labels.push("Makefile");
-  }
-  return labels;
 }
 
 function unsafeCommandReason(command) {

@@ -78,7 +78,6 @@
           </div>
           <div class="run-box">
             <input id="command-input" placeholder="What should ComputeHop do?" />
-            <div id="task-suggestions" class="task-suggestions hidden" aria-label="Suggested tasks"></div>
             <div class="run-actions">
               <button id="choose-project" class="pill-button">Choose folder</button>
               <span id="project-label" class="project-label">No project</span>
@@ -138,14 +137,14 @@
                 <span id="ai-planner-status" class="section-meta">Off</span>
               </div>
               <div class="settings-box">
-                <input id="ai-api-key" type="password" placeholder="OpenAI-compatible API key, optional; blank keeps saved key" autocomplete="off" />
+                <input id="ai-api-key" type="password" placeholder="OpenAI-compatible API key; blank keeps saved key" autocomplete="off" />
                 <input id="ai-base-url" placeholder="API base URL, optional" />
-                <input id="ai-model" placeholder="Model, default: gpt-5.6" />
+                <input id="ai-model" placeholder="Model, default: gpt-5.6-luna" />
                 <div class="settings-actions">
                   <button id="save-ai-planner" class="pill-button">Save</button>
                   <button id="clear-ai-planner" class="text-button">Clear</button>
                 </div>
-                <small id="ai-planner-detail">Local planning works without an API key.</small>
+                <small id="ai-planner-detail">An API key is required for typed requests.</small>
               </div>
             </section>
           </div>
@@ -162,7 +161,6 @@
     <script src="./run-request.js"></script>
     <script src="./run-recovery.js"></script>
     <script src="./run-summary.js"></script>
-    <script src="./suggestion-plan.js"></script>
     <script src="./job-list.js"></script>
     <script src="./job-failure.js"></script>
     <script src="./output-restore.js"></script>

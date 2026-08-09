@@ -7,7 +7,6 @@ const test = require("node:test");
 const protobuf = require("protobufjs");
 const { splitCommandLine } = require("./command-line");
 const { LocalDaemonClient } = require("./local-daemon");
-const { planControlCenterTask } = require("./planner-service");
 const { jobStartRequestForPlan } = require("./run-request");
 
 const protoPath = path.resolve(
@@ -216,11 +215,14 @@ test("LocalDaemonClient sends job listing, logs, cancellation, and output fetch 
   const client = new LocalDaemonClient({ stateDirectory });
   const project = path.join(stateDirectory, "project");
   await fs.mkdir(project);
-  await fs.writeFile(path.join(project, "Makefile"), "macos-package:\n\tpackaging/macos/build.sh\n");
-  const planned = await planControlCenterTask({
-    task: "package the app",
-    projectRoot: project
-  });
+  const planned = {
+    plan: {
+      command: "make macos-package",
+      requiresProject: true,
+      outputs: ["dist/macos/ComputeHop.app"],
+      requiredToolIDs: ["make", "swift"]
+    }
+  };
   const jobRequest = jobStartRequestForPlan({
     plan: planned.plan,
     device: {

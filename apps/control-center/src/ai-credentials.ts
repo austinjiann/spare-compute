@@ -4,7 +4,7 @@ const path = require("node:path");
 const credentialFileName = "control-center-ai-credentials.json";
 const defaultPlannerProvider = "openai";
 const defaultPlannerBaseURL = "https://api.openai.com/v1";
-const defaultPlannerModel = "gpt-5.6";
+const defaultPlannerModel = "gpt-5.6-luna";
 
 async function loadAIPlannerCredentials(options: any = {}) {
   try {

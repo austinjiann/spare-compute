@@ -244,7 +244,7 @@ test("plannerConfigFromCredentials builds the planner config from app and generi
     provider: "openai",
     apiKey: "",
     baseURL: "https://api.openai.com/v1",
-    model: "gpt-5.6"
+    model: "gpt-5.6-luna"
   });
 });
 

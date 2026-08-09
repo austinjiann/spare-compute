@@ -3,222 +3,139 @@ const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
-const {
-  planControlCenterTask,
-  shouldTryAIPlanner
-} = require("./planner-service");
-const {
-  jobStartRequestForPlan,
-  runReadinessError
-} = require("./run-request");
+const { planControlCenterTask } = require("./planner-service");
 
-test("planControlCenterTask uses deterministic local planning before AI", async (t) => {
+test("planControlCenterTask uses AI for common requests with grounded project metadata", async (t) => {
   const project = await tempProject(t, {
-    "go.mod": "module example.com/app\n"
-  });
-  let calls = 0;
-
-  const result = await planControlCenterTask({
-    task: "run tests",
-    projectRoot: project
-  }, {
-    config: {
-      configured: true,
-      apiKey: "key",
-      baseURL: "https://api.openai.test/v1",
-      model: "test-model"
-    },
-    fetchImpl: async () => {
-      calls += 1;
-      throw new Error("should not call AI");
-    }
-  });
-
-  assert.equal(result.ok, true);
-  assert.equal(result.plan.command, "go test ./...");
-  assert.equal(calls, 0);
-});
-
-test("planControlCenterTask composes CI planning into a selected-worker run request", async (t) => {
-  const project = await tempProject(t, {
+    "go.mod": "module example.com/app\n",
     Makefile: "pr-check:\n\tgo test ./...\n"
   });
-  const selectedWorker = {
-    id: "worker-1",
-    name: "Gaming PC"
-  };
+  let body;
 
   const result = await planControlCenterTask({
     task: "run project checks",
     projectRoot: project
-  });
+  }, plannerOptions(async (_url, init) => {
+    body = JSON.parse(init.body);
+    return responsePlan({
+      title: "Run project checks",
+      command: "make pr-check",
+      detail: "Runs the project's checks.",
+      requiresProject: true,
+      capability: "tests"
+    });
+  }));
 
   assert.equal(result.ok, true);
   assert.equal(result.plan.command, "make pr-check");
-  assert.equal(result.plan.requiresProject, true);
-  assert.equal(runReadinessError({
-    device: selectedWorker,
-    canRun: true,
-    plan: result.plan,
-    projectRoot: project,
-    outputs: []
-  }), "");
-  assert.deepEqual(jobStartRequestForPlan({
-    plan: result.plan,
-    device: selectedWorker,
-    projectRoot: project,
-    outputs: []
-  }), {
-    command: "make pr-check",
-    deviceID: "worker-1",
-    deviceName: "Gaming PC",
-    workingDirectory: project,
-    outputs: [],
-    requiredToolIDs: ["go", "make"],
-    executor: "native",
-    containerImage: ""
-  });
-});
-
-test("planControlCenterTask falls back to AI for unknown local tasks", async () => {
-  const result = await planControlCenterTask({
-    task: "please tell me which computer this is",
-    projectRoot: ""
-  }, {
-    config: {
-      configured: true,
-      apiKey: "key",
-      baseURL: "https://api.openai.test/v1",
-      model: "test-model"
-    },
-    fetchImpl: async () => ({
-      ok: true,
-      status: 200,
-      json: async () => ({
-        output_text: JSON.stringify({
-          ok: true,
-          title: "Show hostname",
-          command: "hostname",
-          detail: "Prints the worker hostname.",
-          requiresProject: false,
-          capability: "commands"
-        })
-      })
-    }),
-    timeoutMs: 100
-  });
-
-  assert.equal(result.ok, true);
-  assert.equal(result.plan.command, "hostname");
   assert.equal(result.plan.planner, "openai");
+  assert.deepEqual(result.plan.requiredToolIDs, ["go", "make"]);
+  const prompt = JSON.parse(body.input[1].content);
+  assert.deepEqual(prompt.project.makeTargets, ["pr-check"]);
+  assert.equal(prompt.project.files["go.mod"], true);
 });
 
-test("planControlCenterTask preserves worker placement through AI fallback", async () => {
+test("planControlCenterTask preserves worker placement through AI planning", async () => {
   const result = await planControlCenterTask({
-    task: "do the special workflow on the worker",
+    task: "show the hostname on the worker",
     projectRoot: ""
-  }, {
-    config: {
-      configured: true,
-      apiKey: "key",
-      baseURL: "https://api.openai.test/v1",
-      model: "test-model"
-    },
-    fetchImpl: async () => ({
-      ok: true,
-      status: 200,
-      json: async () => ({
-        output_text: JSON.stringify({
-          ok: true,
-          title: "Show hostname",
-          command: "hostname on the worker",
-          detail: "Prints the selected worker hostname.",
-          requiresProject: false,
-          capability: "commands"
-        })
-      })
-    }),
-    timeoutMs: 100
-  });
+  }, plannerOptions(async () => responsePlan({
+    title: "Show hostname",
+    command: "hostname",
+    detail: "Shows the worker's hostname.",
+    requiresProject: false,
+    capability: "commands"
+  })));
 
   assert.equal(result.ok, true);
   assert.equal(result.plan.command, "hostname");
   assert.equal(result.plan.targetPreference, "worker");
-  assert.equal(result.plan.planner, "openai");
 });
 
-test("planControlCenterTask does not let AI bypass missing-project guidance", async () => {
-  let calls = 0;
+test("planControlCenterTask turns model project requirements into a folder action", async () => {
   const result = await planControlCenterTask({
     task: "run tests",
     projectRoot: ""
-  }, {
-    config: {
-      configured: true,
-      apiKey: "key",
-      baseURL: "https://api.openai.test/v1",
-      model: "test-model"
-    },
-    fetchImpl: async () => {
-      calls += 1;
-      return {
-        ok: true,
-        status: 200,
-        json: async () => ({ output_text: "{}" })
-      };
-    }
-  });
+  }, plannerOptions(async () => responsePlan({
+    ok: false,
+    title: "Project needed",
+    command: "",
+    detail: "Choose the project to test.",
+    requiresProject: true,
+    capability: "tests"
+  })));
 
   assert.equal(result.ok, false);
   assert.match(result.error, /Choose a project first/);
   assert.equal(result.actionKind, "choose-project");
   assert.equal(result.actionLabel, "Choose project");
+});
+
+test("planControlCenterTask requires configured AI planning", async () => {
+  const result = await planControlCenterTask({ task: "run tests" }, {
+    env: {},
+    fetchImpl: async () => {
+      throw new Error("should not call");
+    }
+  });
+
+  assert.equal(result.ok, false);
+  assert.match(result.error, /OPENAI_API_KEY/);
+});
+
+test("planControlCenterTask rejects empty requests before calling AI", async () => {
+  let calls = 0;
+  const result = await planControlCenterTask({ task: "  " }, plannerOptions(async () => {
+    calls += 1;
+    throw new Error("should not call");
+  }));
+
+  assert.equal(result.ok, false);
+  assert.match(result.error, /Enter what you want/);
   assert.equal(calls, 0);
 });
 
-test("planControlCenterTask keeps the local error when AI fails", async () => {
-  const result = await planControlCenterTask({
-    task: "do the special workflow thing",
-    projectRoot: ""
-  }, {
+test("planControlCenterTask reports planner request failures directly", async () => {
+  const result = await planControlCenterTask({ task: "do the thing" }, plannerOptions(async () => ({
+    ok: false,
+    status: 500,
+    json: async () => ({})
+  })));
+
+  assert.equal(result.ok, false);
+  assert.match(result.error, /HTTP 500/);
+});
+
+function plannerOptions(fetchImpl) {
+  return {
     config: {
       configured: true,
       apiKey: "key",
       baseURL: "https://api.openai.test/v1",
-      model: "test-model"
+      model: "gpt-5.6-luna"
     },
-    fetchImpl: async () => ({
-      ok: false,
-      status: 500,
-      json: async () => ({})
+    fetchImpl,
+    timeoutMs: 100
+  };
+}
+
+function responsePlan(plan) {
+  return {
+    ok: true,
+    status: 200,
+    json: async () => ({
+      output_text: JSON.stringify({
+        ok: plan.ok ?? true,
+        title: plan.title,
+        command: plan.command,
+        detail: plan.detail,
+        requiresProject: plan.requiresProject,
+        outputs: plan.outputs || [],
+        capability: plan.capability
+      })
     })
-  });
-
-  assert.equal(result.ok, false);
-  assert.match(result.error, /could not turn that into a safe local command/i);
-  assert.equal(result.aiPlanner.attempted, true);
-  assert.match(result.aiPlanner.error, /HTTP 500/);
-});
-
-test("shouldTryAIPlanner requires configuration and skips missing-project errors", () => {
-  assert.equal(shouldTryAIPlanner(
-    { ok: false, error: "I could not turn that into a safe local command yet." },
-    { task: "custom task" },
-    { env: {} }
-  ), false);
-  assert.equal(shouldTryAIPlanner(
-    { ok: false, error: "Choose a project first so ComputeHop can pick the right command." },
-    { task: "run tests" },
-    {
-      config: {
-        configured: true,
-        apiKey: "key",
-        baseURL: "https://api.openai.test/v1",
-        model: "test-model"
-      }
-    }
-  ), false);
-});
+  };
+}
 
 async function tempProject(t, files) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "computehop-planner-service-"));

@@ -16,7 +16,6 @@
     "src/run-recovery.ts",
     "src/run-request.ts",
     "src/run-summary.ts",
-    "src/suggestion-plan.ts",
     "src/work-policy.ts",
     "types/**/*.d.ts"
   ],

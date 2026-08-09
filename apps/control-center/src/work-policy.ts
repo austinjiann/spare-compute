@@ -15,10 +15,6 @@
     commands: "Exact commands"
   };
 
-  function filterAllowedSuggestions(suggestions = [], capabilities: any = {}) {
-    return suggestions.filter((suggestion) => isWorkAllowed(suggestion, capabilities));
-  }
-
   function disallowedWorkMessage(plan, capabilities: any = {}) {
     const capability = capabilityForWork(plan);
     if (!capability || capabilities[capability] !== false) {
@@ -105,7 +101,6 @@
     capabilityForCommand,
     capabilityForWork,
     disallowedWorkMessage,
-    filterAllowedSuggestions,
     isSafeUtilityCommand,
     isWorkAllowed
   };

@@ -3,7 +3,6 @@ const test = require("node:test");
 const {
   capabilityForCommand,
   disallowedWorkMessage,
-  filterAllowedSuggestions,
   isSafeUtilityCommand,
   isWorkAllowed
 } = require("./work-policy");
@@ -20,22 +19,6 @@ test("capabilityForCommand classifies common work commands", () => {
   assert.equal(capabilityForCommand("ffmpeg -i in.mov out.mp4"), "video");
   assert.equal(capabilityForCommand("ollama run llama3"), "ai");
   assert.equal(capabilityForCommand("hostname"), "");
-});
-
-test("filterAllowedSuggestions removes disabled work categories", () => {
-  const suggestions = [
-    { label: "Check", command: "make pr-check" },
-    { label: "Build", command: "npm run build" },
-    { label: "Docker", command: "docker build ." },
-    { label: "Smoke", command: "hostname" }
-  ];
-
-  const filtered = filterAllowedSuggestions(suggestions, {
-    tests: false,
-    docker: false
-  });
-
-  assert.deepEqual(filtered.map((suggestion) => suggestion.label), ["Build", "Smoke"]);
 });
 
 test("disallowedWorkMessage explains blocked planned work", () => {

@@ -2,6 +2,7 @@ const { app, BrowserWindow, dialog, ipcMain, safeStorage, shell } = require("ele
 const { randomUUID } = require("node:crypto");
 const path = require("node:path");
 const { controlCenterRootForModule } = require("./runtime-paths");
+const { loadDevelopmentEnvironment } = require("./development-environment");
 const {
   LocalDaemonClient,
   jobStateLabel,
@@ -13,8 +14,7 @@ const { installLaunchAgent, resolveDaemonExecutable } = require("./launch-agent-
 const { launchAgentStatus } = require("./launch-agent-status");
 const { splitCommandLine } = require("./command-line");
 const {
-  planControlCenterTask,
-  suggestControlCenterTasks
+  planControlCenterTask
 } = require("./planner-service");
 const { appRuntimeInfo, normalizeDaemonRole } = require("./runtime-info");
 const { friendlyRunError, remotePreparationMessage } = require("./run-feedback");
@@ -51,6 +51,11 @@ const {
   plannerConfigFromCredentials,
   saveAIPlannerCredentials
 } = require("./ai-credentials");
+
+loadDevelopmentEnvironment({
+  isPackaged: app.isPackaged,
+  moduleDirectory: __dirname
+});
 
 const activeRuns = new Map();
 const logPollMs = 900;
@@ -284,12 +289,6 @@ ipcMain.handle("planner:plan", async (_event, request) => {
     projectRoot: request?.projectRoot || ""
   }, {
     config: plannerConfigFromCredentials(credentials)
-  });
-});
-
-ipcMain.handle("planner:suggest", async (_event, request) => {
-  return suggestControlCenterTasks({
-    projectRoot: request?.projectRoot || ""
   });
 });
 

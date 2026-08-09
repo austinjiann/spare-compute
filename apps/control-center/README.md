@@ -2,7 +2,7 @@
 
 This is the larger settings surface for ComputeHop. The macOS menu bar should
 stay small: status, device picker, and quick task entry. Device sync, allowed
-work, project sync, relay settings, and optional AI planner configuration belong
+work, project sync, relay settings, and AI planner configuration belong
 here.
 
 Run it in development:
@@ -136,33 +136,26 @@ Current scope:
 - turns unambiguous worker-target blockers into a direct Connect recovery so the
   user does not have to leave the task flow to start pairing or re-submit after
   pairing completes;
-- uses deterministic local planning first, so no API key is required for normal
-  Check/Test/Build/Lint/Docker planning;
-- can fall back to an optional OpenAI-compatible Responses API planner for tasks
-  local rules cannot map when an API key is saved in the app or
-  `COMPUTEHOP_AI_API_KEY` / `OPENAI_API_KEY` is present; set a base URL in the
-  app or with `COMPUTEHOP_AI_BASE_URL`, and set a model in the app or with
-  `COMPUTEHOP_AI_MODEL` / `COMPUTEHOP_OPENAI_MODEL` to override the default
-  model;
-- lets the optional AI planner declare files or folders to bring back, using
+- sends typed plain-language tasks directly to an OpenAI-compatible Responses
+  API planner, defaulting to `gpt-5.6-luna` with reasoning disabled; save a key
+  in the app or set `COMPUTEHOP_AI_API_KEY` / `OPENAI_API_KEY`, set a base URL
+  with `COMPUTEHOP_AI_BASE_URL`, and override the model with
+  `COMPUTEHOP_AI_MODEL` / `COMPUTEHOP_OPENAI_MODEL`; development launches also
+  load these values from an ignored `apps/control-center/.env` copied from
+  `.env.example`;
+- lets the AI planner declare files or folders to bring back, using
   the same portable relative output-path validation as manual output entries;
-- stores the optional planner API key in a provider-aware app credential file
+- stores the planner API key in a provider-aware app credential file
   with Electron `safeStorage` encryption when the OS exposes it, while keeping
   environment variables as a fallback and reading legacy saved OpenAI keys;
 - keeps AI-planned unknown commands behind the same disabled-by-default
   **Exact commands** allowance and rejects shell operators, multiline commands,
   shell-wrapper commands, obvious interactive commands, privilege escalation,
   and destructive removal before preview;
-- maps lint/style requests to conventional Go, Rust, or Python quality commands
-  when no package script or Makefile target exists;
-- maps Docker/Compose build requests to `docker build .` or
-  `docker compose build` when matching project files are present;
-- suggests project-aware task chips such as Check, Test, Build, Lint, and
-  Docker after a project folder is selected;
 - lets the selected project folder be cleared so utility runs stay visibly
   projectless;
-- filters suggested work and blocks planned submissions when the matching
-  selected-device Allow checkbox is turned off;
+- blocks planned submissions when the matching selected-device Allow checkbox
+  is turned off;
 - keeps arbitrary exact commands behind the disabled-by-default **Exact commands**
   allowance while still letting recognized typed commands use their specific
   Builds/Tests/Docker/AI/Video category;

@@ -57,9 +57,9 @@ caches.
 
 ## 5. Ask ComputeHop to run the task
 
-Type what you want in plain language. ComputeHop first tries local deterministic
-planning, then optional AI planning if you configure an OpenAI-compatible API
-key in Advanced settings.
+Type what you want in plain language. ComputeHop uses the configured
+OpenAI-compatible planner, then locally validates and previews the returned
+command before it can run. Configure an API key in Advanced settings.
 
 ![ComputeHop task planner showing a CI request on Gaming PC and the planned make pr-check command.](assets/setup/03-plan-task.png)
 
