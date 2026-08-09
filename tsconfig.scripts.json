@@ -1,0 +1,10 @@
+{
+  "extends": "./apps/control-center/tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "typeRoots": ["./apps/control-center/node_modules/@types"],
+    "noEmit": true
+  },
+  "include": ["scripts/**/*.ts"],
+  "exclude": ["apps/control-center/dist", "apps/control-center/node_modules"]
+}

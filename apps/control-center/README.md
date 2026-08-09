@@ -13,6 +13,10 @@ npm install
 npm run dev
 ```
 
+The Control Center is authored entirely in TypeScript. `npm run dev` performs a
+checked build into the ignored `dist/` directory before Electron starts; the
+packaged app likewise contains only the compiled runtime files.
+
 Stage the daemon for packaged-app smoke testing:
 
 ```bash
@@ -262,6 +266,7 @@ exercise the app code; use the local commands below for code validation.
 Validation:
 
 ```bash
+npm --prefix apps/control-center run build
 npm --prefix apps/control-center run lint
 npm --prefix apps/control-center test
 npm --prefix apps/control-center run package:dir
