@@ -12,6 +12,11 @@ const {
 } = require("./launch-agent-service");
 
 test("installLaunchAgent writes and starts a per-user launch agent", async (t) => {
+  if (process.platform === "win32") {
+    t.skip("test relies on POSIX executable permissions");
+    return;
+  }
+
   const home = await tempDirectory(t);
   const daemonPath = await executable(t, home);
   const calls = [];
@@ -57,6 +62,11 @@ test("installLaunchAgent writes and starts a per-user launch agent", async (t) =
 });
 
 test("installLaunchAgent installs for next login when a session daemon is already running", async (t) => {
+  if (process.platform === "win32") {
+    t.skip("test relies on POSIX executable permissions");
+    return;
+  }
+
   const home = await tempDirectory(t);
   const daemonPath = await executable(t, home);
   const calls = [];
@@ -86,6 +96,11 @@ test("installLaunchAgent installs for next login when a session daemon is alread
 });
 
 test("installLaunchAgent rewrites a loaded launch agent without killing the current daemon", async (t) => {
+  if (process.platform === "win32") {
+    t.skip("test relies on POSIX executable permissions");
+    return;
+  }
+
   const home = await tempDirectory(t);
   const newDaemonPath = await executable(t, home);
   const oldDaemonPath = path.join(home, "old-app", "computehopd");
@@ -144,6 +159,11 @@ test("installLaunchAgent rewrites a loaded launch agent without killing the curr
 });
 
 test("installLaunchAgent replaces only ComputeHop launch agents", async (t) => {
+  if (process.platform === "win32") {
+    t.skip("test relies on POSIX executable permissions");
+    return;
+  }
+
   const home = await tempDirectory(t);
   const daemonPath = await executable(t, home);
   const launchAgents = path.join(home, "Library", "LaunchAgents");
@@ -211,6 +231,11 @@ test("installLaunchAgent refuses unsupported platforms and missing daemons", asy
 });
 
 test("resolveDaemonExecutable prefers explicit and resource daemon paths", async (t) => {
+  if (process.platform === "win32") {
+    t.skip("test relies on POSIX executable permissions");
+    return;
+  }
+
   const root = await tempDirectory(t);
   const explicit = await executable(t, root);
   assert.equal(await resolveDaemonExecutable({ daemonPath: explicit }, fs, "darwin"), explicit);
@@ -228,6 +253,11 @@ test("resolveDaemonExecutable prefers explicit and resource daemon paths", async
 });
 
 test("resolveDaemonExecutable prefers parent app daemon for embedded Control Center", async (t) => {
+  if (process.platform === "win32") {
+    t.skip("test relies on POSIX executable permissions");
+    return;
+  }
+
   const root = await tempDirectory(t);
   const parentResources = path.join(root, "ComputeHop.app", "Contents", "Resources");
   const controlCenterResources = path.join(
