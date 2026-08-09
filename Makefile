@@ -11,8 +11,8 @@ release-check: pr-check macos-archive-smoke worker-archives
 launch-local-validation: control-center-deps
 	scripts/local-launch-validation.sh
 
-release-version-check:
-	node scripts/check-release-version.js
+release-version-check: control-center-deps
+	apps/control-center/node_modules/.bin/tsx scripts/check-release-version.ts
 
 fmt:
 	@test -z "$$(gofmt -l .)" || (gofmt -d . && exit 1)
@@ -92,7 +92,7 @@ macos-notarize: macos-package-check
 macos-archive-smoke: macos-package-check
 	packaging/macos/smoke.sh
 
-macos-package-check:
+macos-package-check: control-center-deps
 	@for script in \
 		packaging/macos/archive.sh \
 		packaging/macos/build.sh \
@@ -105,7 +105,8 @@ macos-package-check:
 		packaging/macos/verify.sh; do \
 		sh -n "$$script"; \
 	done
-	node --check packaging/macos/verify-control-center-background.js
+	npm run build --prefix apps/control-center
+	node --check apps/control-center/dist/support/verify-control-center-background.js
 	plutil -lint packaging/macos/Info.plist packaging/macos/com.computehop.daemon.plist packaging/macos/entitlements.plist
 
 worker-archives: worker-archives-check

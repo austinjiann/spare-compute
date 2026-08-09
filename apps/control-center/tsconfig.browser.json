@@ -1,0 +1,24 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "moduleDetection": "legacy"
+  },
+  "include": [
+    "src/capability-catalog.ts",
+    "src/daemon-autostart.ts",
+    "src/device-status.ts",
+    "src/device-targets.ts",
+    "src/job-failure.ts",
+    "src/job-list.ts",
+    "src/output-path.ts",
+    "src/output-restore.ts",
+    "src/renderer.ts",
+    "src/run-recovery.ts",
+    "src/run-request.ts",
+    "src/run-summary.ts",
+    "src/suggestion-plan.ts",
+    "src/work-policy.ts",
+    "types/**/*.d.ts"
+  ],
+  "exclude": ["dist", "node_modules"]
+}

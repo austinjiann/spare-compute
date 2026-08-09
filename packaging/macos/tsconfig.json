@@ -1,0 +1,10 @@
+{
+  "extends": "../../apps/control-center/tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "../../apps/control-center/dist/support",
+    "typeRoots": ["../../apps/control-center/node_modules/@types"]
+  },
+  "include": ["verify-control-center-background.ts"],
+  "exclude": []
+}

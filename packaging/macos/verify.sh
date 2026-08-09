@@ -96,9 +96,13 @@ fi
 "$cli_executable" version >/dev/null
 "$daemon_executable" --version >/dev/null
 "$control_center_daemon" --version >/dev/null
-if [ -f "$script_dir/verify-control-center-background.js" ]; then
+background_verifier="$script_dir/verify-control-center-background.js"
+if [ ! -f "$background_verifier" ]; then
+    background_verifier="$script_dir/../../apps/control-center/dist/support/verify-control-center-background.js"
+fi
+if [ -f "$background_verifier" ]; then
     if command -v node >/dev/null 2>&1; then
-        node "$script_dir/verify-control-center-background.js" "$app_bundle" >/dev/null
+        node "$background_verifier" "$app_bundle" >/dev/null
     else
         echo "Skipped Control Center background resolver check because node is unavailable." >&2
     fi

@@ -93,16 +93,21 @@ trap cleanup EXIT HUP INT TERM
 payload_dir="$staging_dir/$payload_name"
 mkdir -p "$payload_dir"
 ditto "$built_app" "$payload_dir/ComputeHop.app"
+background_verifier="$repository_dir/apps/control-center/dist/support/verify-control-center-background.js"
+if [ ! -f "$background_verifier" ]; then
+    echo "Compiled Control Center background verifier is missing. Run npm run build --prefix apps/control-center." >&2
+    exit 1
+fi
 for support_file in \
     install.sh \
     uninstall.sh \
     validate-installed.sh \
     verify.sh \
-    verify-control-center-background.js \
     com.computehop.daemon.plist \
     entitlements.plist; do
     cp "$script_dir/$support_file" "$payload_dir/$support_file"
 done
+cp "$background_verifier" "$payload_dir/verify-control-center-background.js"
 
 signature=$(/usr/bin/codesign -dv --verbose=4 "$built_app" 2>&1 || true)
 notarized=false
