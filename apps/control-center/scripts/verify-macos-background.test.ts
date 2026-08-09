@@ -9,6 +9,11 @@ const {
 } = require("../../../packaging/macos/verify-control-center-background");
 
 test("verifyControlCenterBackground requires the embedded Control Center to resolve the parent daemon", async (t) => {
+  if (process.platform === "win32") {
+    t.skip("test relies on POSIX executable permissions");
+    return;
+  }
+
   const root = await tempDirectory(t);
   const appBundle = path.join(root, "ComputeHop.app");
   const paths = controlCenterBackgroundPaths(appBundle);
@@ -25,6 +30,11 @@ test("verifyControlCenterBackground requires the embedded Control Center to reso
 });
 
 test("verifyControlCenterBackground rejects nested-daemon resolution", async (t) => {
+  if (process.platform === "win32") {
+    t.skip("test relies on POSIX executable permissions");
+    return;
+  }
+
   const root = await tempDirectory(t);
   const appBundle = path.join(root, "ComputeHop.app");
   const paths = controlCenterBackgroundPaths(appBundle);

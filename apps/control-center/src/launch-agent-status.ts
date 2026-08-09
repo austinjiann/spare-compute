@@ -82,7 +82,7 @@ async function launchAgentStatus(options: any = {}) {
 }
 
 function launchAgentPlistPath(homeDir) {
-  return path.join(homeDir, "Library", "LaunchAgents", `${serviceLabel}.plist`);
+  return path.posix.join(homeDir, "Library", "LaunchAgents", `${serviceLabel}.plist`);
 }
 
 async function fileExists(filePath, fsModule) {

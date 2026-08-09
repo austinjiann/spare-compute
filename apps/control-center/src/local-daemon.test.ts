@@ -25,6 +25,7 @@ const protoPath = path.resolve(
 test("LocalDaemonClient sends authenticated framed protobuf requests", async (t) => {
   if (process.platform === "win32") {
     t.skip("test uses Unix sockets");
+    return;
   }
 
   const stateDirectory = await fs.mkdtemp(path.join(os.tmpdir(), "computehop-control-center-"));
@@ -97,6 +98,7 @@ test("LocalDaemonClient sends authenticated framed protobuf requests", async (t)
 test("LocalDaemonClient sends pairing and unpair operations", async (t) => {
   if (process.platform === "win32") {
     t.skip("test uses Unix sockets");
+    return;
   }
 
   const stateDirectory = await fs.mkdtemp(path.join(os.tmpdir(), "computehop-control-center-"));
@@ -166,6 +168,7 @@ test("LocalDaemonClient sends pairing and unpair operations", async (t) => {
 test("LocalDaemonClient sends job listing, logs, cancellation, and output fetch operations", async (t) => {
   if (process.platform === "win32") {
     t.skip("test uses Unix sockets");
+    return;
   }
 
   const stateDirectory = await fs.mkdtemp(path.join(os.tmpdir(), "computehop-control-center-"));
@@ -279,6 +282,7 @@ test("LocalDaemonClient sends job listing, logs, cancellation, and output fetch 
 test("LocalDaemonClient can submit container executor requests", async (t) => {
   if (process.platform === "win32") {
     t.skip("test uses Unix sockets");
+    return;
   }
 
   const stateDirectory = await fs.mkdtemp(path.join(os.tmpdir(), "computehop-control-center-"));
