@@ -1,3 +1,5 @@
+const { normalizedDeviceName } = require("./device-name");
+
 function mapDevices(result: any = {}) {
   const rawTrustedDevices = result.trustedDevices || [];
   const nearbyDevices = result.devices || [];
@@ -44,7 +46,7 @@ function mapLocalDevice(ping) {
     return null;
   }
   return {
-    name: ping.deviceName || "This Mac",
+    name: normalizedDeviceName(ping.deviceName),
     id: "local",
     deviceID: ping.deviceId || "",
     connection: "active",

@@ -208,25 +208,6 @@ ipcMain.handle("devices:connect", () => ({ ok: true }));
 ipcMain.handle("devices:forget", () => ({ ok: true }));
 ipcMain.handle("pairings:confirm", () => ({ ok: true }));
 ipcMain.handle("pairings:reject", () => ({ ok: true }));
-ipcMain.handle("planner:suggest", () => ({
-  suggestions: [{
-    label: "Run CI",
-    task: "Run CI",
-    command: "make pr-check",
-    requiresProject: true,
-    targetPreference: "worker",
-    requiredToolIDs: ["go", "make", "node", "npm"],
-    work: "tests"
-  }, {
-    label: "Build app",
-    task: "Build app",
-    command: "make release-check",
-    requiresProject: true,
-    targetPreference: "worker",
-    requiredToolIDs: ["go", "make", "node", "npm"],
-    work: "builds"
-  }]
-}));
 ipcMain.handle("planner:plan", () => ({
   ok: true,
   plan: {

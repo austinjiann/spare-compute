@@ -96,6 +96,34 @@ test("launchAgentStatus reports launch agents that point at an older daemon path
   assert.match(status.detail, /older app location/);
 });
 
+test("launchAgentStatus reports an updated plist waiting for the next login", async () => {
+  const expectedDaemonPath = "/Users/austin/spare-compute/apps/control-center/resources/bin/computehopd";
+  const status = await launchAgentStatus({
+    platform: "darwin",
+    homeDir: "/Users/austin",
+    uid: 501,
+    expectedDaemonPath,
+    fs: memoryFS(plistWithDaemon({
+      daemonPath: expectedDaemonPath,
+      role: "orchestrator"
+    })),
+    runCommand: async () => ({
+      stdout: [
+        "state = running",
+        "program = /Users/austin/Applications/ComputeHop.app/Contents/Resources/bin/computehopd",
+        "pid = 123"
+      ].join("\n")
+    })
+  });
+
+  assert.equal(status.status, "update-pending");
+  assert.equal(status.loaded, true);
+  assert.equal(status.needsUpdate, false);
+  assert.equal(status.updatePending, true);
+  assert.equal(status.runningDaemonPathNeedsUpdate, true);
+  assert.match(status.detail, /next login/);
+});
+
 test("launchAgentStatus reports launch agents with stale role and device name", async () => {
   const status = await launchAgentStatus({
     platform: "darwin",
@@ -173,6 +201,8 @@ function plistWithDaemon(config) {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <plist version="1.0">
 <dict>
+  <key>Label</key>
+  <string>com.computehop.daemon</string>
   <key>ProgramArguments</key>
   <array>
     <string>${config.daemonPath}</string>
